@@ -1,0 +1,106 @@
+# Downstream Trigger Template
+# Trigger downstream repository pipelines
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/downstream.yml'
+#
+# Provides:
+#   - .trigger-on-merge: Trigger downstream when merged to main
+#   - .trigger-on-tag: Trigger downstream on version tags
+#   - .trigger-mobile-distributions: Trigger mobile distribution repos
+#   - trigger:swift-package: Trigger vauchi-mobile-swift
+#   - trigger:android-package: Trigger vauchi-mobile-android
+
+# ============================================================
+# Trigger Templates
+# ============================================================
+
+# Trigger downstream on merge to main (with change detection)
+.trigger-on-merge:
+  stage: trigger
+  variables:
+    DOWNSTREAM_PROJECT: ""
+  trigger:
+    project: $DOWNSTREAM_PROJECT
+    strategy: depend
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Trigger downstream on version tags
+.trigger-on-tag:
+  stage: trigger
+  variables:
+    DOWNSTREAM_PROJECT: ""
+  trigger:
+    project: $DOWNSTREAM_PROJECT
+    strategy: depend
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# ============================================================
+# Mobile Distribution Triggers (from core/)
+# ============================================================
+
+# Trigger mobile distribution repos when mobile bindings change
+.trigger-mobile-distributions:
+  stage: trigger
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - "src/mobile/**/*"
+        - "vauchi-mobile/**/*"
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# Trigger Swift Package repository
+trigger:swift-package:
+  extends: .trigger-mobile-distributions
+  trigger:
+    project: vauchi/vauchi-mobile-swift
+    strategy: depend
+
+# Trigger Android Package repository
+trigger:android-package:
+  extends: .trigger-mobile-distributions
+  trigger:
+    project: vauchi/vauchi-mobile-android
+    strategy: depend
+
+# ============================================================
+# Multi-Repo Trigger (using parallel matrix)
+# ============================================================
+
+# Trigger multiple downstream repos in parallel
+# Usage:
+#   trigger:all-downstream:
+#     extends: .trigger-parallel
+#     parallel:
+#       matrix:
+#         - DOWNSTREAM: [vauchi/repo1, vauchi/repo2]
+.trigger-parallel:
+  stage: trigger
+  trigger:
+    project: $DOWNSTREAM
+    strategy: depend
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ============================================================
+# Upstream Trigger Handling
+# ============================================================
+
+# Job that runs when triggered from upstream (core)
+.on-upstream-trigger:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+
+# Rebuild bindings when triggered from upstream
+.rebuild-from-upstream:
+  extends: .on-upstream-trigger
+  variables:
+    UPSTREAM_TAG: $CI_COMMIT_TAG
+  script:
+    - echo "Triggered by upstream with tag ${UPSTREAM_TAG:-none}"
+    - echo "Rebuilding bindings..."
