@@ -18,9 +18,8 @@
 variables:
   CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
   RUST_BACKTRACE: "1"
-  # sccache for shared compilation cache (30-50% faster rebuilds)
-  RUSTC_WRAPPER: sccache
-  SCCACHE_DIR: ${CI_PROJECT_DIR}/.sccache
+  # Note: RUSTC_WRAPPER is only set for self-hosted runners that have sccache installed
+  # Shared GitLab runners don't have sccache, so we don't set it globally
 
 # ============================================================
 # Rust Cache Configuration
@@ -64,6 +63,9 @@ variables:
 .self-hosted:
   variables:
     GIT_STRATEGY: none
+    # sccache is available on self-hosted runners
+    RUSTC_WRAPPER: sccache
+    SCCACHE_DIR: ${CI_PROJECT_DIR}/.sccache
   before_script:
     - |
       if [ ! -d ".git" ]; then
