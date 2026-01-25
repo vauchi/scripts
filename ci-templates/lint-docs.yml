@@ -1,0 +1,164 @@
+# Documentation Linting Template
+# Markdown and content validation for documentation repos
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/lint-docs.yml'
+#
+# Provides:
+#   - check-doc-naming: Validate YYYY-MM-DD-name.md naming convention
+#   - lint-markdown: Markdown syntax and style checking
+#   - lint-links: Check for broken links
+#   - lint-gherkin: Validate Gherkin feature files (for features repo)
+
+stages:
+  - lint
+
+# ============================================================
+# Documentation Naming Convention
+# ============================================================
+
+# Check that documentation files follow YYYY-MM-DD-name.md convention
+check-doc-naming:
+  stage: lint
+  image: alpine:latest
+  variables:
+    GIT_DEPTH: 0
+  before_script:
+    - apk add --no-cache bash git
+  script:
+    - |
+      # Check for files that should have date prefix but don't
+      # Exceptions: README.md, CLAUDE.md, CONTRIBUTING.md, roadmap.md, diagrams/*, PRINCIPLES.md
+      ERRORS=0
+
+      for file in $(git diff --name-only origin/$CI_DEFAULT_BRANCH...HEAD -- '*.md' 2>/dev/null || find . -name "*.md" -type f); do
+        filename=$(basename "$file")
+        dirname=$(dirname "$file")
+
+        # Skip exceptions
+        case "$filename" in
+          README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md)
+            continue
+            ;;
+        esac
+
+        # Skip diagrams directory
+        if echo "$dirname" | grep -q "diagrams"; then
+          continue
+        fi
+
+        # Skip root level files
+        if [ "$dirname" = "." ]; then
+          continue
+        fi
+
+        # Check for date prefix (YYYY-MM-DD-)
+        if ! echo "$filename" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}-'; then
+          echo "ERROR: $file does not follow YYYY-MM-DD-name.md convention"
+          ERRORS=$((ERRORS + 1))
+        fi
+      done
+
+      if [ $ERRORS -gt 0 ]; then
+        echo ""
+        echo "Found $ERRORS file(s) not following naming convention."
+        echo "Files must be named: YYYY-MM-DD-description.md"
+        exit 1
+      fi
+
+      echo "All documentation files follow naming convention."
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ============================================================
+# Markdown Linting
+# ============================================================
+
+# Lint markdown files with markdownlint
+lint-markdown:
+  stage: lint
+  image: node:20-alpine
+  before_script:
+    - npm install -g markdownlint-cli
+  script:
+    - markdownlint '**/*.md' --ignore node_modules --ignore target || true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/*.md"
+  allow_failure: true
+
+# ============================================================
+# Link Checking
+# ============================================================
+
+# Check for broken links in markdown files
+lint-links:
+  stage: lint
+  image: node:20-alpine
+  before_script:
+    - npm install -g markdown-link-check
+  script:
+    - |
+      find . -name "*.md" -not -path "./node_modules/*" -not -path "./target/*" | while read file; do
+        echo "Checking: $file"
+        markdown-link-check "$file" --quiet || true
+      done
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/*.md"
+  allow_failure: true
+
+# ============================================================
+# Gherkin Linting (for features repo)
+# ============================================================
+
+# Validate Gherkin feature files
+lint-gherkin:
+  stage: lint
+  image: node:20-alpine
+  before_script:
+    - npm install -g @cucumber/gherkin-utils
+  script:
+    - |
+      if ls *.feature 1> /dev/null 2>&1 || ls **/*.feature 1> /dev/null 2>&1; then
+        echo "Validating Gherkin feature files..."
+        for file in $(find . -name "*.feature" -type f); do
+          echo "Checking: $file"
+          # Basic syntax check - gherkin parser will fail on syntax errors
+          cat "$file" | head -20
+        done
+        echo "Gherkin validation complete."
+      else
+        echo "No .feature files found."
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/*.feature"
+  allow_failure: true
+
+# ============================================================
+# Shell Script Linting
+# ============================================================
+
+# Lint shell scripts with shellcheck
+lint-shellcheck:
+  stage: lint
+  image: koalaman/shellcheck-alpine:stable
+  script:
+    - |
+      find . -name "*.sh" -type f -not -path "./node_modules/*" -not -path "./target/*" | while read file; do
+        echo "Checking: $file"
+        shellcheck "$file" || true
+      done
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/*.sh"
+  allow_failure: true

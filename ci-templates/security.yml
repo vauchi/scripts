@@ -1,0 +1,133 @@
+# Security Scanning Template
+# GitLab Ultimate security scanning configuration
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/security.yml'
+#
+# Provides:
+#   - GitLab Ultimate security templates (SAST, Dependency, Secret, Container, License)
+#   - Rust-specific security jobs (cargo-audit, cargo-deny)
+#   - Configured analyzer overrides for self-hosted runners
+
+# GitLab Ultimate Templates
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+  - template: Security/Container-Scanning.gitlab-ci.yml
+  - template: Security/License-Scanning.gitlab-ci.yml
+
+variables:
+  # SAST Configuration
+  SAST_EXCLUDED_PATHS: "target/, node_modules/, dist/, builds/, cache/, tmp/, tests/fixtures/"
+  SAST_EXCLUDED_ANALYZERS: ""
+  SAST_ANALYZER_IMAGE_TAG: "5"
+
+  # Dependency Scanning
+  DS_EXCLUDED_PATHS: "target/, node_modules/, builds/"
+  DS_EXCLUDED_ANALYZERS: ""
+
+  # Secret Detection
+  SECRET_DETECTION_EXCLUDED_PATHS: "target/, node_modules/, builds/, cache/, tmp/"
+  SECRET_DETECTION_HISTORIC_SCAN: "false"
+
+  # Container Scanning
+  CS_SEVERITY_THRESHOLD: "MEDIUM"
+
+# ============================================================
+# GitLab Analyzer Overrides
+# ============================================================
+
+# Semgrep SAST analyzer - use Docker runner
+semgrep-sast:
+  tags: [docker]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Disable Gemnasium dependency scanning (use cargo-audit for Rust)
+gemnasium-dependency_scanning:
+  rules:
+    - when: never
+
+# Secret detection analyzer - use Docker runner
+secret_detection:
+  tags: [docker]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Container scanning (main branch and tags only)
+container_scanning:
+  tags: [docker]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# License scanning
+license_scanning:
+  tags: [docker]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
+        - "**/package.json"
+        - "**/package-lock.json"
+
+# ============================================================
+# Rust Security Jobs
+# ============================================================
+
+# Rust security audit (cargo-audit)
+.security-audit:
+  stage: security
+  script:
+    - cargo install cargo-audit || true
+    - cargo audit
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  allow_failure: true
+
+# Rust license compliance (cargo-deny)
+.security-licenses:
+  stage: security
+  script:
+    - cargo install cargo-deny || true
+    - cargo deny check licenses
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
+        - "deny.toml"
+  allow_failure: true
+
+# Rust ban check (cargo-deny)
+.security-bans:
+  stage: security
+  script:
+    - cargo install cargo-deny || true
+    - cargo deny check bans
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
+        - "deny.toml"
+  allow_failure: true
+
+# Full cargo-deny check (all checks)
+.security-deny:
+  stage: security
+  script:
+    - cargo install cargo-deny || true
+    - cargo deny check
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true

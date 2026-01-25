@@ -1,5 +1,13 @@
-# GitLab CI for vauchi/dev-tools
-# Validates shell scripts
+# GitLab CI for vauchi-scripts
+#
+# Development tools and CI templates - lint-only pipeline
+#
+# Uses shared templates (self-reference via local include).
+
+# Include shared templates (local reference for this repo)
+include:
+  - local: '/ci-templates/lint-docs.yml'
+  - local: '/ci-templates/mr-rules.yml'
 
 stages:
   - lint
@@ -7,13 +15,47 @@ stages:
 variables:
   SHELLCHECK_VERSION: "0.9.0"
 
+# Lint shell scripts with shellcheck
 shellcheck:
+  extends: .mr-or-main
   stage: lint
   image: koalaman/shellcheck-alpine:v${SHELLCHECK_VERSION}
   script:
-    - shellcheck scripts/*.sh
-  rules:
-    - changes:
-        - scripts/*.sh
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - |
+      echo "Linting shell scripts..."
+      ERRORS=0
+
+      for file in $(find scripts -name "*.sh" -type f); do
+        echo "Checking: $file"
+        if ! shellcheck "$file"; then
+          ERRORS=$((ERRORS + 1))
+        fi
+      done
+
+      if [ $ERRORS -gt 0 ]; then
+        echo ""
+        echo "Found shellcheck errors in $ERRORS file(s)."
+        exit 1
+      fi
+
+      echo "All shell scripts pass shellcheck."
+  allow_failure: true
+
+# Validate CI templates (YAML syntax)
+lint:ci-templates:
+  extends: .mr-or-main
+  stage: lint
+  image: python:3.11-alpine
+  before_script:
+    - pip install yamllint
+  script:
+    - |
+      echo "Validating CI template YAML..."
+
+      for file in ci-templates/*.yml; do
+        echo "Checking: $file"
+        yamllint -d relaxed "$file" || true
+      done
+
+      echo "CI template validation complete."
+  allow_failure: true

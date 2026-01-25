@@ -1,0 +1,187 @@
+# Release Pipeline Template
+# Tag-based release automation
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/release.yml'
+#
+# Provides:
+#   - .release-verify: Verify tag is on main branch
+#   - .release-build: Build release artifacts
+#   - .release-package: Package artifacts with checksums
+#   - .release-publish: Publish to GitLab registry
+#   - .release-create: Create GitLab release
+#   - .release-trigger: Trigger downstream repos
+
+# ============================================================
+# Release Verification
+# ============================================================
+
+# Verify tag is on main branch before proceeding
+# CRITICAL: Tags must only be created on commits that are on main
+.release-verify:
+  stage: build
+  script:
+    - |
+      echo "Verifying tag $CI_COMMIT_TAG is on main branch..."
+      git fetch origin $CI_DEFAULT_BRANCH --depth=100
+      if git merge-base --is-ancestor "$CI_COMMIT_SHA" origin/$CI_DEFAULT_BRANCH; then
+        echo "Tag $CI_COMMIT_TAG is on $CI_DEFAULT_BRANCH branch"
+      else
+        echo "ERROR: Tag $CI_COMMIT_TAG is NOT on $CI_DEFAULT_BRANCH branch!"
+        echo "  Tags must only be created on commits that are on $CI_DEFAULT_BRANCH."
+        exit 1
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# ============================================================
+# Release Build Templates
+# ============================================================
+
+# Build release binary
+.release-build:
+  stage: build
+  script:
+    - cargo build --release
+  artifacts:
+    paths:
+      - target/release/*
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# Build release with specific binary name
+.release-build-binary:
+  stage: build
+  variables:
+    BINARY_NAME: ""
+  script:
+    - cargo build --release
+  artifacts:
+    paths:
+      - target/release/${BINARY_NAME}
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# ============================================================
+# Release Packaging Templates
+# ============================================================
+
+# Package with checksums
+.release-package:
+  stage: package
+  variables:
+    ARTIFACT_NAME: ""
+    ARTIFACT_PATH: ""
+  script:
+    - |
+      mkdir -p dist
+      cp "${ARTIFACT_PATH}" "dist/${ARTIFACT_NAME}"
+      cd dist
+      sha256sum "${ARTIFACT_NAME}" > "${ARTIFACT_NAME}.sha256"
+      echo "Packaged: ${ARTIFACT_NAME}"
+      cat "${ARTIFACT_NAME}.sha256"
+  artifacts:
+    paths:
+      - dist/*
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# ============================================================
+# Release Publishing Templates
+# ============================================================
+
+# Publish to GitLab Generic Package Registry
+.release-publish-generic:
+  stage: publish
+  variables:
+    PACKAGE_NAME: ""
+    PACKAGE_FILE: ""
+  script:
+    - |
+      VERSION="${CI_COMMIT_TAG#v}"
+      echo "Publishing ${PACKAGE_NAME} ${VERSION} to GitLab package registry..."
+
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+           --upload-file "${PACKAGE_FILE}" \
+           "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGE_NAME}/${VERSION}/$(basename ${PACKAGE_FILE})"
+
+      echo "Published ${PACKAGE_NAME} ${VERSION}"
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# Publish Rust crate to GitLab registry
+.release-publish-crate:
+  stage: publish
+  variables:
+    CRATE_NAME: ""
+  script:
+    - |
+      VERSION="${CI_COMMIT_TAG#v}"
+      echo "Publishing ${CRATE_NAME} ${VERSION} to GitLab package registry..."
+
+      cargo package -p ${CRATE_NAME} --allow-dirty
+
+      CRATE_FILE="target/package/${CRATE_NAME}-${VERSION}.crate"
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+           --upload-file "$CRATE_FILE" \
+           "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${CRATE_NAME}/${VERSION}/${CRATE_NAME}-${VERSION}.crate"
+
+      echo "Published ${CRATE_NAME} ${VERSION}"
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# ============================================================
+# GitLab Release Creation
+# ============================================================
+
+# Create GitLab release with artifacts
+.release-create:
+  stage: publish
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  tags:
+    - docker
+  variables:
+    RELEASE_DESCRIPTION: ""
+  script:
+    - echo "Creating release $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: "Release $CI_COMMIT_TAG"
+    description: $RELEASE_DESCRIPTION
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# ============================================================
+# Downstream Triggers
+# ============================================================
+
+# Trigger downstream repository pipeline
+.release-trigger:
+  stage: trigger
+  variables:
+    DOWNSTREAM_PROJECT: ""
+  trigger:
+    project: $DOWNSTREAM_PROJECT
+    strategy: depend
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# Trigger multiple downstream repos (use with parallel matrix)
+.release-trigger-multiple:
+  stage: trigger
+  variables:
+    DOWNSTREAM_PROJECT: ""
+  trigger:
+    project: $DOWNSTREAM_PROJECT
+    strategy: depend
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - "src/**/*"
+        - "vauchi-mobile/**/*"
