@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me> -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+
 # Vauchi Dev Tools
 
 Cross-project development tools, scripts, and utilities for the Vauchi ecosystem.

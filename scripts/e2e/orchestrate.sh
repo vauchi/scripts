@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 # E2E Testing Orchestrator
 #
 # Unified cross-platform E2E testing for iOS (macOS VM) and Android (local).

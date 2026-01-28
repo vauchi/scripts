@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 # verify-roadmap.sh - Verify roadmap claims against actual project state
 # Run this before marking anything "done" in the roadmap
 

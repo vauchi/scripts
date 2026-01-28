@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Checks for inline tests in src/ directories
 # Allows exceptions marked with: // INLINE_TEST_REQUIRED: <reason>
 #
