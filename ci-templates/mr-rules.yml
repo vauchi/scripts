@@ -61,37 +61,77 @@
       when: manual
 
 # ============================================================
-# Change-Based Rules
+# Change-Based Rules for MRs
 # ============================================================
+# These rules optimize CI by only running jobs when relevant files change.
+# All rules include .gitlab-ci.yml changes to catch CI config issues.
 
-# Run on Cargo dependency changes
-.on-cargo-changes:
+# Run on Rust source code changes (for lint:clippy, lint:format, test)
+.validation-rust:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/*.rs"
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
+        - ".gitlab-ci.yml"
+        - "rust-toolchain.toml"
+
+# Run on dependency changes only (for security:audit)
+.validation-deps:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "**/Cargo.toml"
         - "**/Cargo.lock"
+        - ".gitlab-ci.yml"
 
-# Run on source code changes
-.on-src-changes:
+# Run on any file change (for lint:reuse)
+# REUSE verifies ALL files have proper SPDX headers, so it must run
+# when any file is added or modified to catch missing headers.
+# This template exists for semantic clarity - it's equivalent to .validation-full
+.validation-reuse:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Run on license policy changes (for security:licenses / cargo-deny)
+.validation-licenses:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - "src/**/*"
-        - "Cargo.toml"
-        - "Cargo.lock"
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
+        - "deny.toml"
+        - ".gitlab-ci.yml"
 
 # Run on mobile binding changes
-.on-mobile-changes:
+.validation-mobile:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - "src/mobile/**/*"
+        - "**/*.rs"
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
         - "vauchi-mobile/**/*"
+        - "scripts/build-bindings.sh"
+        - ".gitlab-ci.yml"
+
+# Run on script changes
+.validation-scripts:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "scripts/**/*"
+        - ".gitlab-ci.yml"
 
 # ============================================================
 # Combined Rules Templates
 # ============================================================
+
+# Full validation (always run on MR) - use when change detection is impractical
+.validation-full:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 # Validation with cargo change detection
 .validation-cargo:
@@ -101,11 +141,3 @@
         - "**/Cargo.toml"
         - "**/Cargo.lock"
     - if: $CI_PIPELINE_SOURCE == "schedule"
-
-# Full validation (MR) with optional main branch run
-.validation-full:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      when: manual
-      allow_failure: true
