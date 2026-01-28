@@ -22,8 +22,37 @@
 variables:
   CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
   RUST_BACKTRACE: "1"
+  # Shallow clone for faster checkout (full history not needed for most jobs)
+  GIT_DEPTH: "20"
   # Note: RUSTC_WRAPPER is only set for self-hosted runners that have sccache installed
   # Shared GitLab runners don't have sccache, so we don't set it globally
+
+# ============================================================
+# Default Job Configuration
+# ============================================================
+# These defaults apply to all jobs unless overridden
+
+default:
+  # Auto-cancel jobs when new commits are pushed (saves runner resources)
+  interruptible: true
+  # Retry on runner system failures (not script failures)
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+# ============================================================
+# Workflow Rules - Auto-Cancel Redundant Pipelines
+# ============================================================
+# When a new commit is pushed to a branch with an existing pipeline,
+# auto-cancel the old pipeline to free up runners.
+# Note: Repos using this template should NOT define their own workflow rules
+# unless they want to override this behavior.
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
 
 # ============================================================
 # Rust Cache Configuration
@@ -43,7 +72,7 @@ variables:
       - target/
     policy: pull-push
 
-# Read-only cache (for jobs that don't produce new artifacts)
+# Read-only cache (for lint jobs that don't produce new build artifacts)
 .rust-cache-readonly:
   cache:
     key:
@@ -55,6 +84,18 @@ variables:
       - .cargo/registry/cache/
       - .sccache/
       - target/
+    policy: pull
+
+# Minimal cache (for quick jobs like format check)
+.rust-cache-minimal:
+  cache:
+    key:
+      files:
+        - Cargo.lock
+      prefix: rust-minimal
+    paths:
+      - .cargo/registry/index/
+      - .cargo/registry/cache/
     policy: pull
 
 # ============================================================
@@ -91,6 +132,8 @@ variables:
     - sccache --start-server || true
   after_script:
     - sccache --show-stats || true
+    # Clean up build artifacts to save disk space (keep cache intact)
+    - rm -rf target/debug/deps/*.d target/debug/incremental 2>/dev/null || true
 
 # Linux self-hosted runner (QEMU VM)
 # Tags: linux, self-hosted
@@ -157,10 +200,21 @@ variables:
       - .cargo/git/db/
       - target/
 
-# Rust lint job template
+# Rust lint job template (uses read-only cache - lint doesn't produce build artifacts)
 .rust-lint:
-  extends: .linux-runner
+  extends: [.linux-runner, .timeout-quick]
   stage: lint
+  cache:
+    key:
+      files:
+        - Cargo.lock
+      prefix: rust-lint
+    paths:
+      - .cargo/registry/index/
+      - .cargo/registry/cache/
+      - .sccache/
+      - target/
+    policy: pull  # Read-only - lint jobs don't need to update cache
   script:
     - rustup component add rustfmt clippy
     - cargo fmt --all -- --check
@@ -168,7 +222,7 @@ variables:
 
 # Rust test job template
 .rust-test:
-  extends: .linux-runner
+  extends: [.linux-runner, .timeout-standard]
   stage: test
   before_script:
     - !reference [.self-hosted, before_script]
@@ -189,7 +243,7 @@ variables:
 
 # Rust build job template
 .rust-build:
-  extends: .linux-runner
+  extends: [.linux-runner, .timeout-standard]
   stage: build
   script:
     - cargo build --release
@@ -197,3 +251,99 @@ variables:
     paths:
       - target/release/*
     expire_in: 1 week
+
+# ============================================================
+# Cleanup Job Templates
+# ============================================================
+# Use these to clean up runner disk space after pipelines
+
+# Cleanup job for self-hosted runners
+# Cleans cargo target directory, sccache, and old artifacts
+.cleanup-runner:
+  stage: .post
+  extends: .linux-runner
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo "Cleaning up runner disk space..."
+    # Clean cargo target (keep only recent builds)
+    - |
+      if [ -d "target" ]; then
+        echo "Target size before: $(du -sh target 2>/dev/null | cut -f1)"
+        # Remove debug builds older than 7 days
+        find target/debug -type f -mtime +7 -delete 2>/dev/null || true
+        # Remove old incremental compilation artifacts
+        find target -name "incremental" -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
+        echo "Target size after: $(du -sh target 2>/dev/null | cut -f1)"
+      fi
+    # Clean sccache (it has its own size limit, but we can show stats)
+    - |
+      if command -v sccache >/dev/null 2>&1; then
+        echo "sccache stats:"
+        sccache --show-stats 2>/dev/null || true
+      fi
+    # Clean old cargo registry cache
+    - |
+      if [ -d ".cargo/registry/cache" ]; then
+        echo "Cargo cache size: $(du -sh .cargo/registry/cache 2>/dev/null | cut -f1)"
+        # Remove crate files older than 30 days
+        find .cargo/registry/cache -type f -mtime +30 -delete 2>/dev/null || true
+      fi
+    # Show disk usage
+    - df -h . || true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - when: manual
+      allow_failure: true
+  # Cleanup should not be interruptible
+  interruptible: false
+
+# Cleanup job for Docker runners
+# Prunes unused Docker images and containers
+.cleanup-docker:
+  stage: .post
+  image: docker:latest
+  services:
+    - docker:dind
+  tags:
+    - docker
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo "Cleaning up Docker resources..."
+    # Remove stopped containers older than 24 hours
+    - docker container prune -f --filter "until=24h" || true
+    # Remove dangling images
+    - docker image prune -f || true
+    # Remove unused images older than 7 days
+    - docker image prune -a -f --filter "until=168h" || true
+    # Remove unused volumes
+    - docker volume prune -f || true
+    # Show disk usage
+    - docker system df || true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - when: manual
+      allow_failure: true
+  interruptible: false
+
+# ============================================================
+# Timeout Templates
+# ============================================================
+# Use these to set appropriate timeouts for different job types
+
+# Quick jobs (lint, format check) - 10 minutes
+.timeout-quick:
+  timeout: 10 minutes
+
+# Standard jobs (unit tests, build) - 30 minutes
+.timeout-standard:
+  timeout: 30 minutes
+
+# Long jobs (full test suite, coverage, cross-compile) - 1 hour
+.timeout-long:
+  timeout: 1 hour
+
+# Very long jobs (iOS build, Android multi-arch) - 2 hours
+.timeout-extended:
+  timeout: 2 hours
