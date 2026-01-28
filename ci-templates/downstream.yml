@@ -10,9 +10,12 @@
 # Provides:
 #   - .trigger-on-merge: Trigger downstream when merged to main
 #   - .trigger-on-tag: Trigger downstream on version tags
-#   - .trigger-mobile-distributions: Trigger mobile distribution repos
-#   - trigger:swift-package: Trigger vauchi-mobile-swift
-#   - trigger:android-package: Trigger vauchi-mobile-android
+#   - .trigger-parallel: Trigger multiple repos in parallel via matrix
+#   - .on-upstream-trigger: Rule for jobs triggered by upstream
+#
+# Mobile distribution repos (vauchi-mobile-swift, vauchi-mobile-android) are
+# triggered via core/scripts/trigger-downstream.sh using the Pipeline Trigger
+# API, not the GitLab trigger: keyword. This allows passing UPSTREAM_VERSION.
 
 # ============================================================
 # Trigger Templates
@@ -41,32 +44,20 @@
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
 
 # ============================================================
-# Mobile Distribution Triggers (from core/)
+# Mobile Distribution Triggers
 # ============================================================
-
-# Trigger mobile distribution repos when mobile bindings change
-.trigger-mobile-distributions:
-  stage: trigger
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes:
-        - "src/mobile/**/*"
-        - "vauchi-mobile/**/*"
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
-
-# Trigger Swift Package repository
-trigger:swift-package:
-  extends: .trigger-mobile-distributions
-  trigger:
-    project: vauchi/vauchi-mobile-swift
-    strategy: depend
-
-# Trigger Android Package repository
-trigger:android-package:
-  extends: .trigger-mobile-distributions
-  trigger:
-    project: vauchi/vauchi-mobile-android
-    strategy: depend
+#
+# NOTE: Mobile distribution repos (vauchi-mobile-swift, vauchi-mobile-android)
+# are triggered via core/scripts/trigger-downstream.sh on release tags.
+# The script uses the Pipeline Trigger API to pass UPSTREAM_VERSION, which
+# the distribution repos need to download and update their bindings.
+#
+# The GitLab trigger: keyword approach is NOT used for mobile distributions
+# because it doesn't pass variables and sets CI_PIPELINE_SOURCE to "pipeline"
+# instead of "trigger", causing rule mismatches in downstream repos.
+#
+# Generic trigger templates (.trigger-on-merge, .trigger-on-tag) above
+# remain available for other downstream repos that don't need variables.
 
 # ============================================================
 # Multi-Repo Trigger (using parallel matrix)
@@ -92,9 +83,10 @@ trigger:android-package:
 # ============================================================
 
 # Job that runs when triggered from upstream (core)
+# Accepts both "trigger" (Pipeline Trigger API) and "pipeline" (trigger: keyword)
 .on-upstream-trigger:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "pipeline"
+    - if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
 
 # Rebuild bindings when triggered from upstream
 .rebuild-from-upstream:
