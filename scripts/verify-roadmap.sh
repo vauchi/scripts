@@ -50,7 +50,7 @@ warn_check() {
     fi
 }
 
-# shellcheck disable=SC2329  # Available as utility function
+# shellcheck disable=SC2317,SC2329  # Available as utility function, invoked indirectly
 count_pattern() {
     local pattern="$1"
     local path="$2"

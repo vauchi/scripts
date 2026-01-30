@@ -147,22 +147,3 @@ lint-gherkin:
         - "**/*.feature"
   allow_failure: true
 
-# ============================================================
-# Shell Script Linting
-# ============================================================
-
-# Lint shell scripts with shellcheck
-lint-shellcheck:
-  stage: lint
-  image: koalaman/shellcheck-alpine:stable
-  script:
-    - |
-      find . -name "*.sh" -type f -not -path "./node_modules/*" -not -path "./target/*" | while read file; do
-        echo "Checking: $file"
-        shellcheck "$file" || true
-      done
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - "**/*.sh"
-  allow_failure: true

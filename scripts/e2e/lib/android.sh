@@ -104,6 +104,7 @@ android_select_avd() {
 }
 
 # Boot Android emulator
+# shellcheck disable=SC2120 # Called from orchestrate.sh which sources this file
 android_boot() {
     local avd="${1:-$ANDROID_AVD_NAME}"
     log_step "Booting Android emulator: $avd"
@@ -186,6 +187,7 @@ android_boot() {
 }
 
 # Boot emulator with software rendering (fallback for graphics issues)
+# shellcheck disable=SC2120 # Called from orchestrate.sh which sources this file
 android_boot_sw() {
     local avd="${1:-$ANDROID_AVD_NAME}"
     log_step "Booting Android emulator with software rendering: $avd"
@@ -255,6 +257,7 @@ android_reset() {
 # ═══════════════════════════════════════════════════════════════
 
 # Find APK file
+# shellcheck disable=SC2120 # Called from orchestrate.sh which sources this file
 android_find_apk() {
     local apk_path="${1:-$PROJECT_ROOT/$ANDROID_APK_PATH}"
     if [ -f "$apk_path" ]; then
@@ -301,6 +304,7 @@ android_uninstall() {
 }
 
 # Launch app on emulator
+# shellcheck disable=SC2120 # Called from orchestrate.sh which sources this file
 android_launch() {
     local package="${1:-$ANDROID_PACKAGE}"
     local activity="${ANDROID_ACTIVITY:-.MainActivity}"
@@ -328,6 +332,7 @@ android_stop() {
 }
 
 # Check if app is installed
+# shellcheck disable=SC2120 # Called from orchestrate.sh which sources this file
 android_is_installed() {
     local package="${1:-$ANDROID_PACKAGE}"
     if adb shell pm list packages 2>/dev/null | grep -q "$package"; then

@@ -58,6 +58,7 @@ ios_select_simulator() {
 }
 
 # Boot iOS simulator
+# shellcheck disable=SC2120 # Called from orchestrate.sh which sources this file
 ios_boot() {
     local simulator="${1:-$IOS_SIMULATOR}"
     log_step "Booting iOS simulator: $simulator"
@@ -110,6 +111,7 @@ ios_get_booted_udid() {
 }
 
 # Check if simulator is booted
+# shellcheck disable=SC2120 # Called from orchestrate.sh which sources this file
 ios_is_booted() {
     local simulator="${1:-$IOS_SIMULATOR}"
     if ssh_mac "xcrun simctl list devices | grep '$simulator' | grep -q 'Booted'"; then
@@ -138,6 +140,7 @@ ios_reset() {
 # ═══════════════════════════════════════════════════════════════
 
 # Find the app bundle on macOS VM
+# shellcheck disable=SC2120 # Called from orchestrate.sh which sources this file
 ios_find_app() {
     local app_path="${1:-$IOS_APP_PATH}"
     # Expand glob on remote
@@ -183,6 +186,7 @@ ios_uninstall() {
 }
 
 # Launch app on simulator
+# shellcheck disable=SC2120 # Called from orchestrate.sh which sources this file
 ios_launch() {
     local bundle_id="${1:-$IOS_BUNDLE_ID}"
     log_step "Launching iOS app: $bundle_id"
@@ -210,6 +214,7 @@ ios_terminate() {
 }
 
 # Check if app is installed
+# shellcheck disable=SC2120 # Called from orchestrate.sh which sources this file
 ios_is_installed() {
     local bundle_id="${1:-$IOS_BUNDLE_ID}"
     if ssh_mac "xcrun simctl get_app_container booted '$bundle_id' 2>/dev/null" | grep -q "/"; then

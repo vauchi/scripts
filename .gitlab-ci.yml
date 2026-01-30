@@ -43,7 +43,6 @@ shellcheck:
       fi
 
       echo "All shell scripts pass shellcheck."
-  allow_failure: true
 
 # Validate CI templates (YAML syntax)
 lint:ci-templates:
