@@ -148,6 +148,10 @@ workflow:
   tags:
     - linux
     - self-hosted
+  before_script:
+    - !reference [.self-hosted, before_script]
+    # Ensure mold linker is available (required by .cargo/config.toml for faster linking)
+    - command -v mold >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq mold)
   cache:
     key:
       files:
