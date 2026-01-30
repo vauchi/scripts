@@ -50,6 +50,7 @@ warn_check() {
     fi
 }
 
+# shellcheck disable=SC2329  # Available as utility function
 count_pattern() {
     local pattern="$1"
     local path="$2"
@@ -61,9 +62,10 @@ count_production_unwraps() {
     local path="$1"
     local count=0
 
-    for file in $(find "$path" -name "*.rs" -type f 2>/dev/null); do
+    while IFS= read -r -d '' file; do
         # Get line where test module starts
-        local test_start=$(grep -n "^#\[cfg(test)\]" "$file" 2>/dev/null | head -1 | cut -d: -f1)
+        local test_start
+        test_start=$(grep -n "^#\[cfg(test)\]" "$file" 2>/dev/null | head -1 | cut -d: -f1)
 
         local content
         if [ -n "$test_start" ]; then
@@ -76,14 +78,14 @@ count_production_unwraps() {
         # - Doc comments (//! or ///)
         # - Regular comments (//)
         # - Mutex locks (.lock().unwrap())
-        local file_count=$(echo "$content" | \
+        local file_count
+        file_count=$(echo "$content" | \
             grep "\.unwrap()" | \
             grep -v "^\s*//" | \
-            grep -v "\.lock()\.unwrap()" | \
-            wc -l)
+            grep -vc "\.lock()\.unwrap()")
 
         count=$((count + file_count))
-    done
+    done < <(find "$path" -name "*.rs" -type f -print0 2>/dev/null)
 
     echo "$count"
 }
@@ -99,16 +101,16 @@ echo "=== Build & Tests ==="
 # ============================================================
 
 check "Rust workspace builds" \
-    "cd $ROOT_DIR/code && cargo build --workspace 2>/dev/null"
+    "cd '$ROOT_DIR/code' && cargo build --workspace 2>/dev/null"
 
 check "All Rust tests pass" \
-    "cd $ROOT_DIR/code && cargo test --workspace 2>/dev/null"
+    "cd '$ROOT_DIR/code' && cargo test --workspace 2>/dev/null"
 
 check "Clippy clean (no warnings)" \
-    "cd $ROOT_DIR/code && cargo clippy --workspace -- -D warnings 2>/dev/null"
+    "cd '$ROOT_DIR/code' && cargo clippy --workspace -- -D warnings 2>/dev/null"
 
 check "Code formatted" \
-    "cd $ROOT_DIR/code && cargo fmt --all -- --check 2>/dev/null"
+    "cd '$ROOT_DIR/code' && cargo fmt --all -- --check 2>/dev/null"
 
 echo ""
 
@@ -223,7 +225,7 @@ echo ""
 echo "=== Git State ==="
 # ============================================================
 
-UNCOMMITTED=$(cd "$ROOT_DIR/code" && git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+UNCOMMITTED=$(cd "$ROOT_DIR/code" && git status --porcelain 2>/dev/null | wc -l | tr -d ' ') || true
 warn_check "No uncommitted changes in code/ (found: $UNCOMMITTED)" \
     "[ $UNCOMMITTED -eq 0 ]" \
     "Commit or stash changes before claiming done"

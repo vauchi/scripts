@@ -115,29 +115,31 @@ run_coverage() {
         crate_filter="-p $SPECIFIC_CRATE"
     fi
     
-    cd "$CODE_ROOT"
-    
+    cd "$CODE_ROOT" || exit 1
+
     echo -e "${BLUE}Running coverage analysis...${NC}"
-    
+
     if [[ $CHECK_ONLY == true ]]; then
         # Just get text output for checking
+        # shellcheck disable=SC2086
         COVERAGE_OUTPUT=$(cargo llvm-cov --workspace $crate_filter --text 2>/dev/null)
     else
         # Generate reports
         local cov_args="--workspace $crate_filter"
-        
+
         if [[ $GENERATE_HTML == true ]]; then
             cov_args="$cov_args --html --output-path target/llvm-cov/html"
         fi
-        
+
         if [[ $GENERATE_JSON == true ]]; then
             cov_args="$cov_args --json --output-path target/llvm-cov/coverage.json"
         fi
-        
+
+        # shellcheck disable=SC2086
         COVERAGE_OUTPUT=$(cargo llvm-cov $cov_args --text 2>/dev/null)
     fi
-    
-    cd - > /dev/null
+
+    cd - > /dev/null || exit 1
     
     if [[ -z "$COVERAGE_OUTPUT" ]]; then
         echo -e "${RED}Error: Failed to generate coverage report${NC}"
@@ -152,7 +154,7 @@ extract_coverage() {
 
 # Parse detailed coverage by file
 parse_file_coverage() {
-    echo "$COVERAGE_OUTPUT" | grep -E '\.rs:' | while read line; do
+    echo "$COVERAGE_OUTPUT" | grep -E '\.rs:' | while IFS= read -r line; do
         # Extract file path and percentage
         if [[ $line =~ ([^:]+):\ *([0-9]+\.[0-9]+)% ]]; then
             local file="${BASH_REMATCH[1]}"
@@ -269,14 +271,15 @@ main() {
     echo "Configuration:"
     echo "  Minimum coverage: ${MIN_COVERAGE}%"
     echo "  Target crate: ${SPECIFIC_CRATE:-"all"}"
-    echo "  Report types: $([ $GENERATE_HTML == true ] && echo "HTML ")$([ $GENERATE_JSON == true ] && echo "JSON ")$([ $CHECK_ONLY == true ] && echo "check-only" || echo "text")"
+    echo "  Report types: $([ "$GENERATE_HTML" == true ] && echo "HTML ")$([ "$GENERATE_JSON" == true ] && echo "JSON ")$([ "$CHECK_ONLY" == true ] && echo "check-only" || echo "text")"
     echo ""
     
     # Run coverage analysis
     run_coverage
     
     # Extract main coverage percentage
-    local total_coverage=$(extract_coverage)
+    local total_coverage
+    total_coverage=$(extract_coverage)
     
     echo -e "${BLUE}=== Coverage Results ===${NC}"
     echo ""
@@ -293,7 +296,8 @@ main() {
     fi
     
     # Analyze gaps
-    local gap_counts=($(analyze_coverage_gaps))
+    local gap_counts
+    mapfile -t gap_counts < <(analyze_coverage_gaps | tail -1 | tr ' ' '\n')
     local uncovered_count="${gap_counts[-2]}"
     local low_coverage_count="${gap_counts[-1]}"
     

@@ -18,6 +18,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
+# shellcheck disable=SC2034
 MINIMUM_COVERAGE=80
 COVERAGE_TARGETS=(
     "vauchi-core:90"
@@ -54,11 +55,11 @@ setup_coverage_tools() {
     fi
     
     # Install Python dependencies for coverage reporting
-    pip3 install --user coverage>=7.0 pytest-cov>=4.0 codecov>=2.5
+    pip3 install --user 'coverage>=7.0' 'pytest-cov>=4.0' 'codecov>=2.5'
     
     # Install Node.js dependencies for frontend coverage
     if [ -d "code/vauchi-desktop/ui" ]; then
-        cd code/vauchi-desktop/ui
+        cd code/vauchi-desktop/ui || return 1
         npm install --save-dev @vitest/coverage-v8 nyc istanbul
     fi
 }
@@ -67,26 +68,26 @@ setup_coverage_tools() {
 generate_rust_coverage() {
     print_info "Generating Rust coverage reports..."
     
-    cd code
-    
+    cd code || return 1
+
     # Run coverage for each crate
     for crate in vauchi-core vauchi-relay vauchi-tui vauchi-mobile; do
         echo "Processing $crate..."
-        
+
         # Clean previous coverage data
-        cargo llvm-cov clean --package $crate
-        
+        cargo llvm-cov clean --package "$crate"
+
         # Run tests with coverage
-        CARGO_INCREMENTAL=0 cargo llvm-cov --package $crate --lcov --output-path coverage-reports/$crate
-        
+        CARGO_INCREMENTAL=0 cargo llvm-cov --package "$crate" --lcov --output-path "coverage-reports/$crate"
+
         # Generate HTML report
-        cargo llvm-cov --package $crate --html --output-path coverage-reports/$crate
-        
+        cargo llvm-cov --package "$crate" --html --output-path "coverage-reports/$crate"
+
         # Generate JSON for trend tracking
-        cargo llvm-cov --package $crate --json --output-path coverage-reports/$crate
-        
+        cargo llvm-cov --package "$crate" --json --output-path "coverage-reports/$crate"
+
         # Generate summary for quick checking
-        cargo llvm-cov --package $crate --summary --output-path coverage-reports/$crate
+        cargo llvm-cov --package "$crate" --summary --output-path "coverage-reports/$crate"
     done
 }
 
@@ -94,8 +95,8 @@ generate_rust_coverage() {
 generate_frontend_coverage() {
     if [ -d "code/vauchi-desktop/ui" ]; then
         print_info "Generating frontend coverage reports..."
-        
-        cd code/vauchi-desktop/ui
+
+        cd code/vauchi-desktop/ui || return 1
         
         # Run tests with coverage
         npm run test:coverage
@@ -115,7 +116,8 @@ parse_coverage_percentages() {
     # Parse Rust coverage
     for crate in vauchi-core vauchi-relay vauchi-tui vauchi-mobile; do
         if [ -f "coverage-reports/$crate/coverage.json" ]; then
-            local percentage=$(python3 -c "
+            local percentage
+            percentage=$(python3 -c "
 import json
 with open('coverage-reports/$crate/coverage.json') as f:
     data = json.load(f)
@@ -125,10 +127,11 @@ with open('coverage-reports/$crate/coverage.json') as f:
             coverage_data+=("$crate:$percentage")
         fi
     done
-    
+
     # Parse frontend coverage
     if [ -f "coverage-reports/desktop/coverage-summary.json" ]; then
-        local percentage=$(python3 -c "
+        local percentage
+        percentage=$(python3 -c "
 import json
 with open('coverage-reports/desktop/coverage-summary.json') as f:
     data = json.load(f)
@@ -145,7 +148,8 @@ with open('coverage-reports/desktop/coverage-summary.json') as f:
 check_coverage_targets() {
     print_info "Checking coverage against targets..."
     
-    local coverage_data=($(parse_coverage_percentages))
+    local coverage_data
+    mapfile -t coverage_data < <(parse_coverage_percentages | tr ' ' '\n')
     local failed_targets=()
     local passed_targets=()
     
@@ -192,8 +196,10 @@ check_coverage_targets() {
 generate_trend_data() {
     print_info "Generating trend tracking data..."
     
-    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    local coverage_data=($(parse_coverage_percentages))
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local coverage_data
+    mapfile -t coverage_data < <(parse_coverage_percentages | tr ' ' '\n')
     local trend_file="coverage-reports/trend-data.json"
     
     # Create or update trend data
@@ -210,7 +216,8 @@ generate_trend_data() {
     # Append to trend file
     if [ -f "$trend_file" ]; then
         # Append to existing array
-        local temp_file=$(mktemp)
+        local temp_file
+        temp_file=$(mktemp)
         python3 -c "
 import json
 with open('$trend_file') as f:
@@ -239,8 +246,9 @@ with open('$trend_file', 'w') as f:
 generate_coverage_badges() {
     print_info "Generating coverage badges..."
     
-    local coverage_data=($(parse_coverage_percentages))
-    
+    local coverage_data
+    mapfile -t coverage_data < <(parse_coverage_percentages | tr ' ' '\n')
+
     for data in "${coverage_data[@]}"; do
         local crate="${data%%:*}"
         local percentage="${data##*:}"

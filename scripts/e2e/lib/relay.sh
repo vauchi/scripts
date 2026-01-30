@@ -13,6 +13,7 @@
 
 # Source common utilities if not already loaded
 if [ -z "$E2E_LIB_DIR" ]; then
+    # shellcheck source=/dev/null
     source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 fi
 
@@ -170,14 +171,14 @@ relay_start_local() {
 
     # Start relay in background
     log_step "Starting relay server on port $relay_port"
-    cd "$PROJECT_ROOT"
+    cd "$PROJECT_ROOT" || exit 1
     RELAY_LISTEN_ADDR="127.0.0.1:$relay_port" \
     RELAY_STORAGE_BACKEND="memory" \
     RUST_LOG=info \
     cargo run -p vauchi-relay &>"$LOGS_DIR/relay.log" &
     local relay_pid=$!
     echo "$relay_pid" > "$LOCAL_RELAY_PID_FILE"
-    register_bg_pid $relay_pid
+    register_bg_pid "$relay_pid"
 
     # Wait for relay to start
     if wait_for_port "127.0.0.1" "$relay_port" 30; then
@@ -210,7 +211,7 @@ EOF
     caddy run --config "$caddyfile" &>"$LOGS_DIR/caddy.log" &
     local caddy_pid=$!
     echo "$caddy_pid" > "$LOCAL_CADDY_PID_FILE"
-    register_bg_pid $caddy_pid
+    register_bg_pid "$caddy_pid"
 
     # Wait for Caddy
     if wait_for_port "127.0.0.1" "$tls_port" 10; then

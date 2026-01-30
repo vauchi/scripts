@@ -20,6 +20,7 @@ set -e
 
 # Source common variables
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/_common.sh"
 
 # Configuration
@@ -100,7 +101,7 @@ main() {
 
     # Start relay in background
     echo "[1/2] Starting relay server..."
-    cd "$PROJECT_ROOT"
+    cd "$PROJECT_ROOT" || exit 1
     export RELAY_LISTEN_ADDR="${HOST}:${RELAY_PORT}"
     export RELAY_STORAGE_BACKEND="memory"
     RUST_LOG=info cargo run -p vauchi-relay &
@@ -115,6 +116,7 @@ main() {
     CADDY_PID=$!
 
     # Cleanup on exit
+    # shellcheck disable=SC2317
     cleanup() {
         echo ""
         echo "Shutting down..."

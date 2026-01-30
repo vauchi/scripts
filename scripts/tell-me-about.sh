@@ -69,7 +69,7 @@ KEYWORDS=$(ollama run "$MODEL" "$KEYWORDS_PROMPT" 2>/dev/null | grep -v '^$' | h
 TOPIC_WORDS=$(echo "$TOPIC" | tr ' ' '\n' | grep -v '^$')
 KEYWORDS="$TOPIC_WORDS"$'\n'"$KEYWORDS"
 
-echo -e "${DIM}Keywords: $(echo $KEYWORDS | tr '\n' ', ')${NC}"
+echo -e "${DIM}Keywords: $(echo "$KEYWORDS" | tr '\n' ', ')${NC}"
 echo ""
 
 # Step 2: Search for files
@@ -78,7 +78,7 @@ echo -e "${CYAN}Searching files...${NC}"
 FOUND_FILES=""
 FOUND_CONTENT=""
 
-cd "$PROJECT_ROOT"
+cd "$PROJECT_ROOT" || exit 1
 
 # Search for matching files by name
 while IFS= read -r keyword; do
@@ -87,7 +87,8 @@ while IFS= read -r keyword; do
     clean_kw=$(echo "$keyword" | tr -d '"' | tr -d "'" | tr -cs '[:alnum:]_-' ' ' | xargs)
     [[ -z "$clean_kw" ]] && continue
 
-    # File search
+    # File search (clean_kw may contain spaces used as alternation for grep)
+    # shellcheck disable=SC2086
     files=$(find . -type f \( -name "*.rs" -o -name "*.swift" -o -name "*.kt" -o -name "*.md" -o -name "*.sh" -o -name "*.feature" -o -name "*.toml" -o -name "*.json" \) \
         -not -path "*/target/*" -not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/DerivedData/*" \
         2>/dev/null | grep -i "$clean_kw" | head -5) || true
@@ -115,8 +116,8 @@ while IFS= read -r keyword; do
 done <<< "$KEYWORDS"
 
 # Deduplicate and limit results
-FOUND_FILES=$(echo "$FOUND_FILES" | sort -u | grep -v '^$' | head -$MAX_RESULTS)
-FOUND_CONTENT=$(echo "$FOUND_CONTENT" | sort -u | grep -v '^$' | head -$MAX_CONTENT_LINES)
+FOUND_FILES=$(echo "$FOUND_FILES" | sort -u | grep -v '^$' | head -"$MAX_RESULTS")
+FOUND_CONTENT=$(echo "$FOUND_CONTENT" | sort -u | grep -v '^$' | head -"$MAX_CONTENT_LINES")
 
 # Step 3: Display results
 echo ""

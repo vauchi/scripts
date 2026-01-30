@@ -16,6 +16,7 @@ PROJECT_PATH="${PROJECT_PATH:-/Volumes/Workspace/vauchi}"
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+# shellcheck disable=SC2034  # Kept for consistency with other scripts
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
@@ -113,7 +114,7 @@ cmd_simulator_boot() {
 
 cmd_xcode() {
   echo -e "${BLUE}Opening Xcode with project...${NC}"
-  ssh_cmd "cd $PROJECT_PATH/ios && open -a Xcode *.xcodeproj 2>/dev/null || open -a Xcode *.xcworkspace 2>/dev/null || echo 'No Xcode project found'"
+  ssh_cmd "cd '$PROJECT_PATH/ios' && open -a Xcode *.xcodeproj 2>/dev/null || open -a Xcode *.xcworkspace 2>/dev/null || echo 'No Xcode project found'"
 }
 
 cmd_stop() {
@@ -142,7 +143,7 @@ cmd_sync() {
 
 cmd_build_ios() {
   echo -e "${BLUE}Building iOS project on remote macOS...${NC}"
-  ssh_cmd "cd $PROJECT_PATH && ./ios/build-ios.sh"
+  ssh_cmd "cd '$PROJECT_PATH' && ./ios/build-ios.sh"
 }
 
 cmd_run() {

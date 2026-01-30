@@ -14,6 +14,7 @@
 
 # Source common utilities if not already loaded
 if [ -z "$E2E_LIB_DIR" ]; then
+    # shellcheck source=/dev/null
     source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 fi
 
@@ -39,14 +40,14 @@ ios_select_simulator() {
     while IFS= read -r sim; do
         # Extract just the name (before the parentheses)
         local sim_name
-        sim_name=$(echo "$sim" | sed 's/ (.*$//')
+        sim_name="${sim%% (*}"
         echo "  $i) $sim_name"
         sim_array+=("$sim_name")
         i=$((i + 1))
     done <<< "$simulators"
 
     echo ""
-    read -p "Select simulator [1-$((i-1))]: " selection
+    read -r -p "Select simulator [1-$((i-1))]: " selection
 
     if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -lt "$i" ]; then
         echo "${sim_array[$((selection-1))]}"
@@ -158,10 +159,12 @@ ios_install() {
 
     log_step "Installing iOS app: $app_path"
     local output
-    output=$(ssh_mac "xcrun simctl install booted '$app_path'" 2>&1)
+    local install_exit_code=0
+    output=$(ssh_mac "xcrun simctl install booted '$app_path'" 2>&1) || install_exit_code=$?
 
-    if [ $? -ne 0 ] || echo "$output" | grep -qi "error"; then
+    if [ $install_exit_code -ne 0 ] || echo "$output" | grep -qi "error"; then
         log_error "Failed to install iOS app"
+        # shellcheck disable=SC2001 # Multi-line indentation
         echo "$output" | sed 's/^/  /'
         echo ""
         log_info "Try rebuilding the app in Xcode (Cmd+B)"
@@ -185,10 +188,12 @@ ios_launch() {
     log_step "Launching iOS app: $bundle_id"
 
     local output
-    output=$(ssh_mac "xcrun simctl launch booted '$bundle_id'" 2>&1)
+    local launch_exit_code=0
+    output=$(ssh_mac "xcrun simctl launch booted '$bundle_id'" 2>&1) || launch_exit_code=$?
 
-    if [ $? -ne 0 ] || echo "$output" | grep -qi "error"; then
+    if [ $launch_exit_code -ne 0 ] || echo "$output" | grep -qi "error"; then
         log_error "Failed to launch iOS app"
+        # shellcheck disable=SC2001 # Multi-line indentation
         echo "$output" | sed 's/^/  /'
         return 1
     fi
@@ -221,7 +226,8 @@ ios_is_installed() {
 # Take screenshot of simulator
 ios_screenshot() {
     local output="${1:-ios_screenshot_$(timestamp).png}"
-    local remote_path="/tmp/ios_screenshot_$(timestamp).png"
+    local remote_path
+    remote_path="/tmp/ios_screenshot_$(timestamp).png"
 
     log_step "Taking iOS screenshot"
     ssh_mac "xcrun simctl io booted screenshot '$remote_path'"

@@ -13,6 +13,7 @@
 
 # Source common utilities if not already loaded
 if [ -z "$E2E_LIB_DIR" ]; then
+    # shellcheck source=/dev/null
     source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 fi
 
@@ -31,7 +32,7 @@ TUI_RELAY_URL="${TUI_RELAY_URL:-${RELAY_URL:-wss://relay.vauchi.app}}"
 # Build TUI binary
 tui_build() {
     log_step "Building TUI"
-    cd "$PROJECT_ROOT/tui"
+    cd "$PROJECT_ROOT/tui" || exit 1
     cargo build --target-dir "$PROJECT_ROOT/target"
     log_success "TUI built"
 }
@@ -98,7 +99,7 @@ tui_list_instances() {
 # Clean all TUI instances
 tui_clean_instances() {
     log_step "Cleaning TUI instances"
-    rm -rf "$TUI_TEST_DATA_DIR"/*
+    rm -rf "${TUI_TEST_DATA_DIR:?}"/*
     mkdir -p "$TUI_TEST_DATA_DIR"
     log_success "TUI instances cleaned"
 }
@@ -115,11 +116,12 @@ tui_prompt_instance() {
     echo ""
     if [ -n "$existing" ]; then
         echo "Existing TUI instances:"
+        # shellcheck disable=SC2001 # Multi-line indentation
         echo "$existing" | sed 's/^/  /'
         echo ""
     fi
 
-    read -p "Enter instance name (e.g., alice, bob): " instance_name
+    read -r -p "Enter instance name (e.g., alice, bob): " instance_name
     if [ -z "$instance_name" ]; then
         log_error "Instance name required"
         return 1

@@ -64,7 +64,7 @@ print_step "Installing Android targets..."
 for target in aarch64-linux-android x86_64-linux-android; do
     if ! rustup target list --installed | grep -q "^$target$"; then
         echo "Installing $target..."
-        rustup target add $target
+        rustup target add "$target"
     else
         print_success "$target already installed"
     fi
@@ -76,7 +76,7 @@ NDK_HOME=""
 if [ -n "$ANDROID_NDK_HOME" ] && [ -d "$ANDROID_NDK_HOME" ]; then
     NDK_HOME="$ANDROID_NDK_HOME"
 elif [ -d "$HOME/Android/Sdk/ndk" ]; then
-    NDK_HOME=$(ls -d "$HOME/Android/Sdk/ndk/"* 2>/dev/null | sort -V -r | head -n 1)
+    NDK_HOME=$(find "$HOME/Android/Sdk/ndk" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -V -r | head -n 1)
 fi
 
 if [ -z "$NDK_HOME" ]; then

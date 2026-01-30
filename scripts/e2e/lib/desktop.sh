@@ -15,6 +15,7 @@
 
 # Source common utilities if not already loaded
 if [ -z "$E2E_LIB_DIR" ]; then
+    # shellcheck source=/dev/null
     source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 fi
 
@@ -33,7 +34,7 @@ DESKTOP_DIR="$PROJECT_ROOT/desktop"
 # Build desktop app (development)
 desktop_build_dev() {
     log_step "Building desktop app (dev)"
-    cd "$DESKTOP_DIR"
+    cd "$DESKTOP_DIR" || exit 1
 
     # Install frontend dependencies if needed
     if [ ! -d "node_modules" ]; then
@@ -51,7 +52,7 @@ desktop_build_dev() {
 # Build desktop app (release)
 desktop_build_release() {
     log_step "Building desktop app (release)"
-    cd "$DESKTOP_DIR"
+    cd "$DESKTOP_DIR" || exit 1
 
     # Install frontend dependencies if needed
     if [ ! -d "node_modules" ]; then
@@ -130,7 +131,7 @@ desktop_list_instances() {
 # Clean all desktop instances
 desktop_clean_instances() {
     log_step "Cleaning desktop instances"
-    rm -rf "$DESKTOP_TEST_DATA_DIR"/*
+    rm -rf "${DESKTOP_TEST_DATA_DIR:?}"/*
     mkdir -p "$DESKTOP_TEST_DATA_DIR"
     log_success "Desktop instances cleaned"
 }
@@ -147,11 +148,12 @@ desktop_prompt_instance() {
     echo ""
     if [ -n "$existing" ]; then
         echo "Existing Desktop instances:"
+        # shellcheck disable=SC2001 # Multi-line indentation
         echo "$existing" | sed 's/^/  /'
         echo ""
     fi
 
-    read -p "Enter instance name (e.g., alice, bob, default): " instance_name
+    read -r -p "Enter instance name (e.g., alice, bob, default): " instance_name
     if [ -z "$instance_name" ]; then
         instance_name="default"
     fi
@@ -189,7 +191,7 @@ desktop_launch_dev() {
     log_info "Relay: $relay_url"
     echo ""
 
-    cd "$DESKTOP_DIR"
+    cd "$DESKTOP_DIR" || exit 1
     VAUCHI_DATA_DIR="$data_dir" VAUCHI_RELAY_URL="$relay_url" cargo tauri dev
 }
 

@@ -22,12 +22,19 @@ set -e
 
 # Source libraries
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/ios.sh"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/android.sh"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/relay.sh"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/cli.sh"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/tui.sh"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/desktop.sh"
 
 # ═══════════════════════════════════════════════════════════════
@@ -112,7 +119,7 @@ cmd_deploy() {
     android_deploy || android_result=$?
 
     # Wait for iOS
-    wait $ios_pid || ios_result=$?
+    wait "$ios_pid" || ios_result=$?
 
     # Summary
     echo ""
@@ -446,6 +453,7 @@ cmd_report() {
 
     # Find the latest report file
     local latest_report
+    # shellcheck disable=SC2012 # Filenames are generated timestamps, no special chars
     latest_report=$(ls -t "$TMP_DIR"/e2e_report_*.txt 2>/dev/null | head -1)
 
     if [[ -z "$latest_report" ]]; then
@@ -465,6 +473,7 @@ cmd_report() {
 # ═══════════════════════════════════════════════════════════════
 
 # Scenario result tracking
+# shellcheck disable=SC2034 # Written to by run_scenario, available for external inspection
 declare -A SCENARIO_RESULTS
 
 # List available scenarios
@@ -497,11 +506,12 @@ run_scenario() {
 
     # Run the scenario function and capture exit code
     set +e
-    $func > "$result_file" 2>&1
+    "$func" > "$result_file" 2>&1
     local exit_code=$?
     set -e
 
     # Store result
+    # shellcheck disable=SC2034 # Results stored for later inspection
     SCENARIO_RESULTS["$name"]=$exit_code
 
     if [ $exit_code -eq 0 ]; then
@@ -626,7 +636,8 @@ cmd_scenario_all() {
     echo ""
 
     # Save full results
-    local report_file="$TMP_DIR/e2e_report_$(timestamp).txt"
+    local report_file
+    report_file="$TMP_DIR/e2e_report_$(timestamp).txt"
     {
         echo "E2E Test Report"
         echo "==============="
@@ -663,7 +674,7 @@ cmd_scenario() {
         echo "  7) full-flow"
         echo "  a) all - Run all automated scenarios"
         echo ""
-        read -p "Enter choice [1-7, a]: " choice
+        read -r -p "Enter choice [1-7, a]: " choice
 
         case "$choice" in
             1) scenario="cli-exchange" ;;
@@ -969,7 +980,7 @@ cmd_exchange() {
     # Step 1: Take iOS screenshot (assuming QR is displayed)
     log_step "Step 1: Capturing iOS QR code"
     echo "Make sure the QR code is displayed on iOS, then press Enter"
-    read -p ""
+    read -r -p ""
 
     local ios_screenshot="$SCREENSHOTS_DIR/ios_qr_${ts}.png"
     ios_screenshot "$ios_screenshot"
@@ -988,7 +999,7 @@ cmd_exchange() {
 
     # Step 3: Inject via deep link on Android
     log_step "Step 3: Opening deep link on Android"
-    android_open_url "vauchi://exchange?data=$(echo "$qr_data" | jq -sRr @uri)"
+    android_open_url "vauchi://exchange?data=$(printf '%s' "$qr_data" | jq -sRr @uri)"
 
     log_success "Exchange initiated"
     echo ""
@@ -1006,10 +1017,13 @@ cmd_map() {
     local relay_status="○"
     local relay_text="Not connected"
     local cli_status="○"
+    # shellcheck disable=SC2034 # Reserved for future diagram enhancement
     local cli_text="Not built"
     local tui_status="○"
+    # shellcheck disable=SC2034 # Reserved for future diagram enhancement
     local tui_text="Not built"
     local desktop_status="○"
+    # shellcheck disable=SC2034 # Reserved for future diagram enhancement
     local desktop_text="Not available"
     local ios_status="○"
     local ios_text="Not available"
@@ -1026,15 +1040,24 @@ cmd_map() {
     fi
 
     if cli_is_built 2>/dev/null; then
-        cli_status="●"; cli_text="Built"
+        # shellcheck disable=SC2034
+        cli_status="●"
+        # shellcheck disable=SC2034
+        cli_text="Built"
     fi
 
     if tui_is_built 2>/dev/null; then
-        tui_status="●"; tui_text="Built"
+        # shellcheck disable=SC2034
+        tui_status="●"
+        # shellcheck disable=SC2034
+        tui_text="Built"
     fi
 
     if desktop_is_dev_available 2>/dev/null || desktop_is_built 2>/dev/null; then
-        desktop_status="●"; desktop_text="Available"
+        # shellcheck disable=SC2034
+        desktop_status="●"
+        # shellcheck disable=SC2034
+        desktop_text="Available"
     fi
 
     if check_ssh_mac 2>/dev/null; then
@@ -1085,8 +1108,11 @@ cmd_map() {
     fi
 
     # Format instance lists for display
+    # shellcheck disable=SC2034 # Reserved for future diagram enhancement
     local cli_inst_str="${cli_instances[*]:-none}"
+    # shellcheck disable=SC2034
     local tui_inst_str="${tui_instances[*]:-none}"
+    # shellcheck disable=SC2034
     local desktop_inst_str="${desktop_instances[*]:-none}"
 
     echo ""
@@ -1097,7 +1123,7 @@ cmd_map() {
     echo "  ║   ┌────────────────────────────────────────────────────────────────────────────┐   ║"
     echo "  ║   │                        🖥️  ORCHESTRATOR (Linux)                             │   ║"
     echo "  ║   │                                                                            │   ║"
-    printf "  ║   │   [$cli_status] CLI              [$tui_status] TUI              [$desktop_status] Desktop               │   ║\n"
+    printf "  ║   │   [%s] CLI              [%s] TUI              [%s] Desktop               │   ║\n" "$cli_status" "$tui_status" "$desktop_status"
     echo "  ║   │       (vauchi)            (vauchi-tui)           (Tauri)               │   ║"
     echo "  ║   │          │                    │                    │                   │   ║"
     echo "  ║   │          └────────────────────┼────────────────────┘                   │   ║"
@@ -1108,7 +1134,7 @@ cmd_map() {
     echo "  ║                                   ▼                                            ║"
     echo "  ║   ┌────────────────────────────────────────────────────────────────────────────┐ ║"
     echo "  ║   │                         ☁️  RELAY SERVER                                    │ ║"
-    printf "  ║   │                           [$relay_status] %-12s                               │ ║\n" "$relay_text"
+    printf "  ║   │                           [%s] %-12s                               │ ║\n" "$relay_status" "$relay_text"
     echo "  ║   │                                                                            │ ║"
     echo "  ║   │           Production: wss://relay.vauchi.app                               │ ║"
     echo "  ║   │           Local:      wss://localhost:8443                                 │ ║"
@@ -1119,11 +1145,11 @@ cmd_map() {
     echo "  ║                    ▼                             ▼                             ║"
     echo "  ║   ┌──────────────────────────────────┐ ┌──────────────────────────────────┐    ║"
     echo "  ║   │     🍎 macOS VM (SSH:2222)       │ │     🤖 Android (Local)           │    ║"
-    printf "  ║   │        [$macos_vm_status] %-19s │ │        [$android_status] %-19s │    ║\n" "$macos_vm_text" "$android_text"
+    printf "  ║   │        [%s] %-19s │ │        [%s] %-19s │    ║\n" "$macos_vm_status" "$macos_vm_text" "$android_status" "$android_text"
     echo "  ║   │                                  │ │                                  │    ║"
     echo "  ║   │   ┌──────────────────────────┐   │ │   ┌──────────────────────────┐   │    ║"
     echo "  ║   │   │     📱 iOS Simulator      │   │ │   │   📱 Android Emulator    │   │    ║"
-    printf "  ║   │   │     [$ios_status] %-16s │   │ │   │   [$android_status] %-16s │   │    ║\n" "${ios_text:0:16}" "${android_text:0:16}"
+    printf "  ║   │   │     [%s] %-16s │   │ │   │   [%s] %-16s │   │    ║\n" "$ios_status" "${ios_text:0:16}" "$android_status" "${android_text:0:16}"
     echo "  ║   │   │                          │   │ │   │                          │   │    ║"
     echo "  ║   │   │   ┌──────────────────┐   │   │ │   │   ┌──────────────────┐   │   │    ║"
     echo "  ║   │   │   │    Vauchi App    │   │   │ │   │   │    Vauchi App    │   │   │    ║"

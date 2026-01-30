@@ -18,6 +18,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+# shellcheck disable=SC2034  # Used in generated scripts
 CODE_ROOT="$WORKSPACE_ROOT/core"
 
 # Colors for output
@@ -84,6 +85,7 @@ print_success() {
     echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
+# shellcheck disable=SC2317  # Available as utility function
 print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
@@ -530,8 +532,8 @@ EOF
 
 # Main execution
 main() {
-    cd "$WORKSPACE_ROOT"
-    
+    cd "$WORKSPACE_ROOT" || exit 1
+
     if [[ $INSTALL_HOOKS == true || $STRICT_TDD == true ]]; then
         check_dependencies
         install_git_hooks

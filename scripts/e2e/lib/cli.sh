@@ -13,6 +13,7 @@
 
 # Source common utilities if not already loaded
 if [ -z "$E2E_LIB_DIR" ]; then
+    # shellcheck source=/dev/null
     source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 fi
 
@@ -31,7 +32,7 @@ CLI_RELAY_URL="${CLI_RELAY_URL:-${RELAY_URL:-wss://relay.vauchi.app}}"
 # Build CLI binary
 cli_build() {
     log_step "Building CLI"
-    cd "$PROJECT_ROOT/cli"
+    cd "$PROJECT_ROOT/cli" || exit 1
     cargo build --target-dir "$PROJECT_ROOT/target"
     log_success "CLI built"
 }
@@ -91,7 +92,7 @@ cli_list_instances() {
 # Clean all CLI instances
 cli_clean_instances() {
     log_step "Cleaning CLI instances"
-    rm -rf "$CLI_TEST_DATA_DIR"/*
+    rm -rf "${CLI_TEST_DATA_DIR:?}"/*
     mkdir -p "$CLI_TEST_DATA_DIR"
     log_success "CLI instances cleaned"
 }
@@ -108,11 +109,12 @@ cli_prompt_instance() {
     echo ""
     if [ -n "$existing" ]; then
         echo "Existing CLI instances:"
+        # shellcheck disable=SC2001 # Multi-line indentation
         echo "$existing" | sed 's/^/  /'
         echo ""
     fi
 
-    read -p "Enter instance name (e.g., alice, bob): " instance_name
+    read -r -p "Enter instance name (e.g., alice, bob): " instance_name
     if [ -z "$instance_name" ]; then
         log_error "Instance name required"
         return 1

@@ -21,11 +21,14 @@ PROJECT_ROOT="$(cd "$E2E_DIR/../../.." && pwd)"
 
 # Load configuration
 if [ -f "$E2E_DIR/config.env" ]; then
+    # shellcheck source=/dev/null
     source "$E2E_DIR/config.env"
 fi
 
 # Directories
+# shellcheck disable=SC2034 # Used by scripts that source this file
 TMP_DIR="$PROJECT_ROOT/tmp"
+# shellcheck disable=SC2034 # Used by scripts that source this file
 CACHE_DIR="$PROJECT_ROOT/cache"
 SCREENSHOTS_DIR="$PROJECT_ROOT/${E2E_SCREENSHOTS_DIR:-tmp/e2e-screenshots}"
 LOGS_DIR="$PROJECT_ROOT/${E2E_LOGS_DIR:-tmp/e2e-logs}"
@@ -34,12 +37,19 @@ LOGS_DIR="$PROJECT_ROOT/${E2E_LOGS_DIR:-tmp/e2e-logs}"
 # Colors
 # ═══════════════════════════════════════════════════════════════
 
+# shellcheck disable=SC2034 # Colors are used by scripts that source this file
 RED='\033[0;31m'
+# shellcheck disable=SC2034
 GREEN='\033[0;32m'
+# shellcheck disable=SC2034
 YELLOW='\033[1;33m'
+# shellcheck disable=SC2034
 BLUE='\033[0;34m'
+# shellcheck disable=SC2034
 CYAN='\033[0;36m'
+# shellcheck disable=SC2034
 BOLD='\033[1m'
+# shellcheck disable=SC2034
 NC='\033[0m' # No Color
 
 # ═══════════════════════════════════════════════════════════════
@@ -75,12 +85,12 @@ ensure_dirs() {
 }
 
 clean_screenshots() {
-    rm -rf "$SCREENSHOTS_DIR"/*
+    rm -rf "${SCREENSHOTS_DIR:?}"/*
     mkdir -p "$SCREENSHOTS_DIR"
 }
 
 clean_logs() {
-    rm -rf "$LOGS_DIR"/*
+    rm -rf "${LOGS_DIR:?}"/*
     mkdir -p "$LOGS_DIR"
 }
 
@@ -221,7 +231,7 @@ wait_for_port() {
     local timeout="${3:-30}"
     local elapsed=0
 
-    while [ $elapsed -lt $timeout ]; do
+    while [ "$elapsed" -lt "$timeout" ]; do
         if nc -z "$host" "$port" 2>/dev/null; then
             return 0
         fi
@@ -262,10 +272,10 @@ confirm() {
 
     local yn
     if [ "$default" = "y" ]; then
-        read -p "$prompt [Y/n] " yn
+        read -r -p "$prompt [Y/n] " yn
         yn="${yn:-y}"
     else
-        read -p "$prompt [y/N] " yn
+        read -r -p "$prompt [y/N] " yn
         yn="${yn:-n}"
     fi
 

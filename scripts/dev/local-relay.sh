@@ -10,6 +10,7 @@
 set -e
 
 # Source common variables (sets CODE_DIR, PROJECT_ROOT, etc.)
+# shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # Default port and host
@@ -27,7 +28,7 @@ echo ""
 echo "Press Ctrl+C to stop"
 echo ""
 
-cd "$CODE_DIR"
+cd "$CODE_DIR" || exit 1
 # Relay uses environment variables for configuration
 export RELAY_LISTEN_ADDR="${HOST}:${PORT}"
 export RELAY_STORAGE_BACKEND="memory"  # Use memory storage for local testing

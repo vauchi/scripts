@@ -14,6 +14,7 @@
 
 # Source common utilities if not already loaded
 if [ -z "$E2E_LIB_DIR" ]; then
+    # shellcheck source=/dev/null
     source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 fi
 
@@ -92,7 +93,7 @@ android_select_avd() {
     done <<< "$available_avds"
 
     echo ""
-    read -p "Select AVD [1-$((i-1))]: " selection
+    read -r -p "Select AVD [1-$((i-1))]: " selection
 
     if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -lt "$i" ]; then
         echo "${avd_array[$((selection-1))]}"
@@ -144,7 +145,8 @@ android_boot() {
     fi
 
     # Create log file for emulator output
-    local emu_log="$LOGS_DIR/emulator_$(timestamp).log"
+    local emu_log
+    emu_log="$LOGS_DIR/emulator_$(timestamp).log"
     mkdir -p "$LOGS_DIR"
 
     # Start emulator in background with error logging
@@ -154,7 +156,7 @@ android_boot() {
     log_info "Log file: $emu_log"
     QT_QPA_PLATFORM="$qt_platform" emulator -avd "$avd" -no-snapshot-load -no-boot-anim -gpu auto 2>&1 | tee "$emu_log" &
     local emulator_pid=$!
-    register_bg_pid $emulator_pid
+    register_bg_pid "$emulator_pid"
 
     # Give it a moment to fail fast if there's an immediate error
     sleep 3
@@ -193,14 +195,15 @@ android_boot_sw() {
         return 0
     fi
 
-    local emu_log="$LOGS_DIR/emulator_$(timestamp).log"
+    local emu_log
+    emu_log="$LOGS_DIR/emulator_$(timestamp).log"
     mkdir -p "$LOGS_DIR"
 
     local qt_platform="${ANDROID_QT_PLATFORM:-xcb}"
     log_info "Using software rendering (slower but more compatible)"
     QT_QPA_PLATFORM="$qt_platform" emulator -avd "$avd" -no-snapshot-load -no-boot-anim -gpu swiftshader_indirect 2>&1 | tee "$emu_log" &
     local emulator_pid=$!
-    register_bg_pid $emulator_pid
+    register_bg_pid "$emulator_pid"
 
     sleep 3
     if ! kill -0 "$emulator_pid" 2>/dev/null; then
@@ -283,6 +286,7 @@ android_install() {
         log_success "App installed"
     else
         log_error "Failed to install APK"
+        # shellcheck disable=SC2001 # Multi-line indentation, not a simple substitution
         echo "$output" | sed 's/^/  /'
         return 1
     fi
@@ -307,6 +311,7 @@ android_launch() {
 
     if echo "$output" | grep -q "Error"; then
         log_error "Failed to launch app"
+        # shellcheck disable=SC2001 # Multi-line indentation
         echo "$output" | sed 's/^/  /'
         return 1
     fi

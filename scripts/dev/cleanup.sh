@@ -10,6 +10,7 @@
 set -e
 
 # Source common variables
+# shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 usage() {
@@ -40,10 +41,12 @@ show_status() {
     echo ""
 
     if [ -d "$TMP_DIR" ]; then
-        local tmp_size=$(du -sh "$TMP_DIR" 2>/dev/null | awk '{print $1}')
+        local tmp_size
+        tmp_size=$(du -sh "$TMP_DIR" 2>/dev/null | awk '{print $1}')
         echo "tmp/:   $tmp_size"
         if [ -d "$TEST_DATA_DIR" ]; then
-            local test_size=$(du -sh "$TEST_DATA_DIR" 2>/dev/null | awk '{print $1}')
+            local test_size
+            test_size=$(du -sh "$TEST_DATA_DIR" 2>/dev/null | awk '{print $1}')
             echo "  test-data/: $test_size"
         fi
     else
@@ -53,14 +56,17 @@ show_status() {
     echo ""
 
     if [ -d "$CACHE_DIR" ]; then
-        local cache_size=$(du -sh "$CACHE_DIR" 2>/dev/null | awk '{print $1}')
+        local cache_size
+        cache_size=$(du -sh "$CACHE_DIR" 2>/dev/null | awk '{print $1}')
         echo "cache/: $cache_size"
         if [ -d "$ANDROID_CACHE_DIR" ]; then
-            local android_size=$(du -sh "$ANDROID_CACHE_DIR" 2>/dev/null | awk '{print $1}')
+            local android_size
+            android_size=$(du -sh "$ANDROID_CACHE_DIR" 2>/dev/null | awk '{print $1}')
             echo "  android/: $android_size"
         fi
         if [ -d "$IOS_CACHE_DIR" ]; then
-            local ios_size=$(du -sh "$IOS_CACHE_DIR" 2>/dev/null | awk '{print $1}')
+            local ios_size
+            ios_size=$(du -sh "$IOS_CACHE_DIR" 2>/dev/null | awk '{print $1}')
             echo "  ios/: $ios_size"
         fi
     else
@@ -77,7 +83,9 @@ clean_android() {
 
     # Stop emulators first
     if command -v adb &>/dev/null; then
-        local emulators=$(adb devices 2>/dev/null | grep "emulator-" | awk '{print $1}')
+        local emulators
+        emulators=$(adb devices 2>/dev/null | grep "emulator-" | awk '{print $1}')
+        local serial
         for serial in $emulators; do
             echo "Stopping $serial..."
             adb -s "$serial" emu kill 2>/dev/null || true
@@ -86,7 +94,7 @@ clean_android() {
 
     # Clean cache/android
     if [ -d "$ANDROID_CACHE_DIR" ]; then
-        rm -rf "$ANDROID_CACHE_DIR"/*
+        rm -rf "${ANDROID_CACHE_DIR:?}"/*
         mkdir -p "$ANDROID_AVD_DIR"
         echo "Cleaned: $ANDROID_CACHE_DIR"
     fi
@@ -108,7 +116,7 @@ clean_ios() {
 
     # Clean cache/ios
     if [ -d "$IOS_CACHE_DIR" ]; then
-        rm -rf "$IOS_CACHE_DIR"/*
+        rm -rf "${IOS_CACHE_DIR:?}"/*
         mkdir -p "$IOS_DERIVED_DATA_DIR"
         echo "Cleaned: $IOS_CACHE_DIR"
     fi

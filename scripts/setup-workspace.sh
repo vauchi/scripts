@@ -156,7 +156,8 @@ echo ""
 info "Workspace setup complete!"
 echo ""
 echo "Workspace structure:"
-ls -1 "$WORKSPACE" 2>/dev/null | sed 's/^/  /'
+# shellcheck disable=SC2012
+ls -1 "$WORKSPACE" 2>/dev/null | while IFS= read -r entry; do echo "  $entry"; done
 echo ""
 echo "Next steps:"
 echo "  cd $WORKSPACE/code"

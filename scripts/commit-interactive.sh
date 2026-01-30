@@ -26,6 +26,7 @@ SHOW_HELP=true
 
 info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+# shellcheck disable=SC2317  # Available as utility function
 error() { echo -e "${RED}[ERROR]${NC} $1"; }
 header() { echo -e "\n${BLUE}${BOLD}=== $1 ===${NC}"; }
 
@@ -60,7 +61,7 @@ find_repos() {
 # Check if repo has changes
 has_changes() {
     local repo_dir="$1"
-    cd "$repo_dir"
+    cd "$repo_dir" || return 1
     # Check for staged, unstaged, or untracked files
     if ! git diff --quiet 2>/dev/null || \
        ! git diff --cached --quiet 2>/dev/null || \
@@ -75,14 +76,16 @@ show_status() {
     local repo_dir="$1"
     local repo_name="$2"
 
-    cd "$repo_dir"
+    cd "$repo_dir" || return 1
 
     echo -e "${CYAN}Status:${NC}"
     git status -sb
 
     # Show brief diff summary
-    local staged=$(git diff --cached --stat 2>/dev/null | tail -1)
-    local unstaged=$(git diff --stat 2>/dev/null | tail -1)
+    local staged
+    staged=$(git diff --cached --stat 2>/dev/null | tail -1)
+    local unstaged
+    unstaged=$(git diff --stat 2>/dev/null | tail -1)
 
     if [[ -n "$staged" ]]; then
         echo -e "\n${GREEN}Staged changes:${NC}"
@@ -95,11 +98,13 @@ show_status() {
     fi
 
     # Show untracked files
-    local untracked=$(git ls-files --others --exclude-standard 2>/dev/null)
+    local untracked
+    untracked=$(git ls-files --others --exclude-standard 2>/dev/null)
     if [[ -n "$untracked" ]]; then
         echo -e "\n${RED}Untracked files:${NC}"
         echo "$untracked" | head -10
-        local count=$(echo "$untracked" | wc -l)
+        local count
+        count=$(echo "$untracked" | wc -l)
         if [[ $count -gt 10 ]]; then
             echo "  ... and $((count - 10)) more"
         fi
@@ -128,9 +133,9 @@ prompt_action() {
     if [[ "$SHOW_HELP" == "true" ]]; then
         show_help_box "$repo_name"
         echo ""
-        read -p "Choice [a/s/d/c/r/n/q/?]: " -n 1 CHOICE
+        read -rp "Choice [a/s/d/c/r/n/q/?]: " -n 1 CHOICE
     else
-        read -p "${repo_name} [a/s/d/c/r/n/q/?]: " -n 1 CHOICE
+        read -rp "${repo_name} [a/s/d/c/r/n/q/?]: " -n 1 CHOICE
     fi
     echo ""
 }
@@ -140,7 +145,7 @@ do_commit() {
     local repo_dir="$1"
     local repo_name="$2"
 
-    cd "$repo_dir"
+    cd "$repo_dir" || return 1
 
     # Check if there's anything staged
     if git diff --cached --quiet 2>/dev/null; then
@@ -149,7 +154,7 @@ do_commit() {
     fi
 
     echo ""
-    read -p "Commit message: " message
+    read -rp "Commit message: " message
 
     if [[ -z "$message" ]]; then
         warn "Empty message, skipping commit"
@@ -171,6 +176,7 @@ main() {
     # Find repos with changes
     local repos_with_changes=()
 
+    # shellcheck disable=SC2046
     for repo in $(find_repos); do
         local repo_dir="$WORKSPACE/$repo"
         if has_changes "$repo_dir"; then
@@ -194,7 +200,8 @@ main() {
     # Process each repo
     for repo in "${repos_with_changes[@]}"; do
         local repo_dir="$WORKSPACE/$repo"
-        local name=$(display_name "$repo")
+        local name
+        name=$(display_name "$repo")
 
         header "$name"
         show_status "$repo_dir" "$name"
@@ -204,14 +211,14 @@ main() {
 
             case "$CHOICE" in
                 a|A)
-                    cd "$repo_dir"
+                    cd "$repo_dir" || break
                     git add -A
                     info "Staged all changes"
                     do_commit "$repo_dir" "$name" || true
                     break
                     ;;
                 s|S)
-                    cd "$repo_dir"
+                    cd "$repo_dir" || break
                     git add -p
                     if ! git diff --cached --quiet 2>/dev/null; then
                         do_commit "$repo_dir" "$name" || true
@@ -219,7 +226,7 @@ main() {
                     break
                     ;;
                 d|D)
-                    cd "$repo_dir"
+                    cd "$repo_dir" || break
                     echo ""
                     git diff --color | head -100
                     echo -e "\n${YELLOW}(showing first 100 lines)${NC}"
@@ -234,9 +241,9 @@ main() {
                     ;;
                 r|R)
                     echo ""
-                    read -p "Are you sure you want to discard all changes? [y/N] " confirm
+                    read -rp "Are you sure you want to discard all changes? [y/N] " confirm
                     if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
-                        cd "$repo_dir"
+                        cd "$repo_dir" || break
                         git checkout -- .
                         git clean -fd
                         info "Changes discarded"
@@ -273,8 +280,9 @@ main() {
     header "Summary"
     for repo in "${repos_with_changes[@]}"; do
         local repo_dir="$WORKSPACE/$repo"
-        local name=$(display_name "$repo")
-        cd "$repo_dir"
+        local name
+        name=$(display_name "$repo")
+        cd "$repo_dir" || continue
         local status=""
         if has_changes "$repo_dir"; then
             status="${YELLOW}has uncommitted changes${NC}"

@@ -80,12 +80,14 @@ fi
 
 # Install Android targets
 print_step "Installing Android Rust targets..."
+# shellcheck disable=SC2034 # Reserved for future conditional logic
 TARGETS_NEEDED=false
 for target in aarch64-linux-android x86_64-linux-android; do
     if ! rustup target list --installed | grep -q "^$target$"; then
+        # shellcheck disable=SC2034
         TARGETS_NEEDED=true
         echo "Installing $target..."
-        rustup target add $target
+        rustup target add "$target"
     else
         print_success "$target already installed"
     fi
@@ -107,12 +109,12 @@ NDK_HOME=""
 if [ -n "$ANDROID_NDK_HOME" ] && find_ndk "$ANDROID_NDK_HOME" >/dev/null 2>&1; then
     NDK_HOME="$ANDROID_NDK_HOME"
 elif [ -d "$HOME/Android/Sdk/ndk" ]; then
-    for ndk in $(ls -d "$HOME/Android/Sdk/ndk/"* 2>/dev/null | sort -V -r); do
+    while IFS= read -r ndk; do
         if find_ndk "$ndk" >/dev/null 2>&1; then
             NDK_HOME="$ndk"
             break
         fi
-    done
+    done < <(find "$HOME/Android/Sdk/ndk" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -V -r)
 fi
 
 if [ -z "$NDK_HOME" ]; then
@@ -132,7 +134,7 @@ print_success "Android NDK found: $NDK_HOME"
 # Build native libraries
 print_step "Building native libraries..."
 echo "This may take a few minutes on first build..."
-cd "$CODE_DIR"
+cd "$CODE_DIR" || exit 1
 if ./scripts/build-android.sh; then
     print_success "Native libraries built successfully"
 else
@@ -148,13 +150,13 @@ JNILIBS_DIR="$ANDROID_DIR/app/src/main/jniLibs"
 KOTLIN_DIR="$ANDROID_DIR/app/src/main/kotlin/uniffi/vauchi_mobile"
 
 if [ -f "$JNILIBS_DIR/arm64-v8a/libvauchi_mobile.so" ]; then
-    print_success "ARM64 library: $(ls -lh "$JNILIBS_DIR/arm64-v8a/libvauchi_mobile.so" | awk '{print $5}')"
+    print_success "ARM64 library: $(stat -f%z "$JNILIBS_DIR/arm64-v8a/libvauchi_mobile.so" 2>/dev/null || wc -c < "$JNILIBS_DIR/arm64-v8a/libvauchi_mobile.so") bytes"
 else
     print_error "ARM64 library not found"
 fi
 
 if [ -f "$JNILIBS_DIR/x86_64/libvauchi_mobile.so" ]; then
-    print_success "x86_64 library: $(ls -lh "$JNILIBS_DIR/x86_64/libvauchi_mobile.so" | awk '{print $5}')"
+    print_success "x86_64 library: $(stat -f%z "$JNILIBS_DIR/x86_64/libvauchi_mobile.so" 2>/dev/null || wc -c < "$JNILIBS_DIR/x86_64/libvauchi_mobile.so") bytes"
 else
     print_error "x86_64 library not found"
 fi

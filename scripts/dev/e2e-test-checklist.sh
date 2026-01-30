@@ -64,7 +64,9 @@ declare -a TESTS=(
 # Initialize results file
 init_results() {
     if [ ! -f "$RESULTS_FILE" ]; then
-        echo '{"tests":{},"started":"'$(date -Iseconds)'","tester":"","build":""}' > "$RESULTS_FILE"
+        local now
+        now=$(date -Iseconds)
+        echo '{"tests":{},"started":"'"$now"'","tester":"","build":""}' > "$RESULTS_FILE"
     fi
 }
 
@@ -82,7 +84,8 @@ get_status() {
 set_status() {
     local test_id="$1"
     local status="$2"
-    local tmp=$(mktemp)
+    local tmp
+    tmp=$(mktemp)
     jq ".tests[\"$test_id\"] = \"$status\"" "$RESULTS_FILE" > "$tmp" && mv "$tmp" "$RESULTS_FILE"
 }
 
@@ -108,8 +111,10 @@ show_status() {
     local current_section=""
 
     for test in "${TESTS[@]}"; do
+        # shellcheck disable=SC2034
         IFS='|' read -r id name desc <<< "$test"
-        local status=$(get_status "$id")
+        local status
+        status=$(get_status "$id")
 
         # Section headers
         local section="${id%%_*}"
@@ -127,7 +132,7 @@ show_status() {
             esac
         fi
 
-        echo -e "  $(status_icon $status) $name"
+        echo -e "  $(status_icon "$status") $name"
 
         case "$status" in
             pass) pass=$((pass + 1)) ;;
@@ -143,9 +148,12 @@ show_status() {
     echo "───────────────────────────────────────────────────────────────"
 
     if [ -f "$RESULTS_FILE" ]; then
-        local tester=$(jq -r '.tester // ""' "$RESULTS_FILE")
-        local build=$(jq -r '.build // ""' "$RESULTS_FILE")
-        local started=$(jq -r '.started // ""' "$RESULTS_FILE")
+        local tester
+        tester=$(jq -r '.tester // ""' "$RESULTS_FILE")
+        local build
+        build=$(jq -r '.build // ""' "$RESULTS_FILE")
+        local started
+        started=$(jq -r '.started // ""' "$RESULTS_FILE")
         [ -n "$tester" ] && echo "  Tester: $tester"
         [ -n "$build" ] && echo "  Build: $build"
         [ -n "$started" ] && echo "  Started: $started"
@@ -162,10 +170,11 @@ run_interactive() {
     echo ""
 
     # Get tester info
-    read -p "Tester name: " tester
-    read -p "Build version/date: " build
+    read -r -p "Tester name: " tester
+    read -r -p "Build version/date: " build
 
-    local tmp=$(mktemp)
+    local tmp
+    tmp=$(mktemp)
     jq ".tester = \"$tester\" | .build = \"$build\"" "$RESULTS_FILE" > "$tmp" && mv "$tmp" "$RESULTS_FILE"
 
     echo ""
@@ -182,11 +191,12 @@ run_interactive() {
 
     for test in "${TESTS[@]}"; do
         IFS='|' read -r id name desc <<< "$test"
-        local status=$(get_status "$id")
+        local status
+        status=$(get_status "$id")
 
         # Skip already completed tests
         if [ "$status" = "pass" ] || [ "$status" = "fail" ]; then
-            echo -e "$(status_icon $status) $name (already recorded)"
+            echo -e "$(status_icon "$status") $name (already recorded)"
             continue
         fi
 
@@ -200,7 +210,7 @@ run_interactive() {
             if [ "$HAS_ORCHESTRATION" = true ]; then
                 prompt_opts="p/f/s/c/l"
             fi
-            read -p "  Result [$prompt_opts/q]: " result
+            read -r -p "  Result [$prompt_opts/q]: " result
             case "$result" in
                 p|P|pass)
                     set_status "$id" "pass"
@@ -208,10 +218,11 @@ run_interactive() {
                     break
                     ;;
                 f|F|fail)
-                    read -p "  Failure notes: " notes
+                    read -r -p "  Failure notes: " notes
                     set_status "$id" "fail"
                     # Store notes
-                    local tmp=$(mktemp)
+                    local tmp
+                    tmp=$(mktemp)
                     jq ".notes[\"$id\"] = \"$notes\"" "$RESULTS_FILE" > "$tmp" && mv "$tmp" "$RESULTS_FILE"
                     echo -e "  ${RED}✗ Marked as FAIL${NC}"
                     # Automatically collect logs on failure
@@ -281,6 +292,7 @@ deploy_apps() {
 
 # Take screenshot using orchestrator
 take_screenshot() {
+    # shellcheck disable=SC2034
     local step_name="${1:-screenshot}"
     if [ "$HAS_ORCHESTRATION" = true ]; then
         echo -e "${CYAN}Taking screenshots...${NC}"
@@ -304,26 +316,34 @@ collect_logs() {
 export_markdown() {
     local outfile="${1:-e2e-test-results.md}"
 
-    echo "# E2E Test Results" > "$outfile"
-    echo "" >> "$outfile"
-    echo "**Date**: $(date)" >> "$outfile"
+    {
+        echo "# E2E Test Results"
+        echo ""
+        echo "**Date**: $(date)"
+    } > "$outfile"
 
     if [ -f "$RESULTS_FILE" ]; then
-        local tester=$(jq -r '.tester // "Unknown"' "$RESULTS_FILE")
-        local build=$(jq -r '.build // "Unknown"' "$RESULTS_FILE")
+        local tester
+        tester=$(jq -r '.tester // "Unknown"' "$RESULTS_FILE")
+        local build
+        build=$(jq -r '.build // "Unknown"' "$RESULTS_FILE")
         echo "**Tester**: $tester" >> "$outfile"
         echo "**Build**: $build" >> "$outfile"
     fi
 
-    echo "" >> "$outfile"
-    echo "## Results" >> "$outfile"
-    echo "" >> "$outfile"
-    echo "| Test | Status | Notes |" >> "$outfile"
-    echo "|------|--------|-------|" >> "$outfile"
+    {
+        echo ""
+        echo "## Results"
+        echo ""
+        echo "| Test | Status | Notes |"
+        echo "|------|--------|-------|"
+    } >> "$outfile"
 
     for test in "${TESTS[@]}"; do
+        # shellcheck disable=SC2034
         IFS='|' read -r id name desc <<< "$test"
-        local status=$(get_status "$id")
+        local status
+        status=$(get_status "$id")
         local notes=""
         if [ -f "$RESULTS_FILE" ]; then
             notes=$(jq -r ".notes[\"$id\"] // \"\"" "$RESULTS_FILE" 2>/dev/null || echo "")
@@ -340,9 +360,11 @@ export_markdown() {
         echo "| $name | $icon $status | $notes |" >> "$outfile"
     done
 
-    echo "" >> "$outfile"
-    echo "---" >> "$outfile"
-    echo "Generated by e2e-test-checklist.sh" >> "$outfile"
+    {
+        echo ""
+        echo "---"
+        echo "Generated by e2e-test-checklist.sh"
+    } >> "$outfile"
 
     echo "Results exported to: $outfile"
 }

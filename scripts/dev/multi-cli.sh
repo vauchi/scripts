@@ -10,6 +10,7 @@
 set -e
 
 # Source common variables
+# shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # Use project-local tmp for test data
@@ -60,7 +61,7 @@ fi
 case "$1" in
     clean)
         echo "Cleaning test data directory: $TEST_DATA_BASE"
-        rm -rf "$TEST_DATA_BASE"/*
+        rm -rf "${TEST_DATA_BASE:?}"/*
         echo "Done."
         exit 0
         ;;
@@ -88,5 +89,5 @@ echo "[${INSTANCE_NAME}] Data: ${DATA_DIR}"
 echo "[${INSTANCE_NAME}] Relay: ${RELAY}"
 echo ""
 
-cd "$CODE_DIR"
+cd "$CODE_DIR" || exit 1
 cargo run -p vauchi-cli --quiet -- --data-dir "$DATA_DIR" --relay "$RELAY" "$@"

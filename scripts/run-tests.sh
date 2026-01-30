@@ -56,11 +56,12 @@ test_code() {
     fi
 
     header "Rust Tests (code/)"
-    cd "$code_dir"
+    cd "$code_dir" || return 1
 
     local flags=""
     [[ "$verbose" == "true" ]] && flags="-- --nocapture"
 
+    # shellcheck disable=SC2086
     cargo test --workspace $flags
 
     info "Rust tests passed!"
@@ -75,7 +76,7 @@ test_android() {
     fi
 
     header "Android Tests (android/)"
-    cd "$android_dir"
+    cd "$android_dir" || return 1
 
     if [[ -f "gradlew" ]]; then
         ./gradlew test
@@ -102,7 +103,7 @@ test_ios() {
     fi
 
     header "iOS Tests (ios/)"
-    cd "$ios_dir"
+    cd "$ios_dir" || return 1
 
     xcodebuild test \
         -scheme Vauchi \
