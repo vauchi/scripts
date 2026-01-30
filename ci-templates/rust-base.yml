@@ -103,7 +103,7 @@ workflow:
 # ============================================================
 
 # Base configuration for self-hosted runners
-# - Uses SSH git clone (avoids CI job token issues)
+# - Uses HTTPS git clone with CI_JOB_TOKEN (no SSH keys needed)
 # - Initializes sccache for faster builds
 .self-hosted:
   variables:
@@ -113,15 +113,15 @@ workflow:
     SCCACHE_DIR: ${CI_PROJECT_DIR}/.sccache
   before_script:
     - |
-      # Ensure gitlab.com SSH host key is trusted
-      mkdir -p ~/.ssh && ssh-keyscan -t ed25519,rsa gitlab.com >> ~/.ssh/known_hosts 2>/dev/null
+      # Clone/fetch via HTTPS using CI_JOB_TOKEN (no SSH keys needed)
+      REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
       if [ ! -d ".git" ]; then
         git init
-        git remote add origin "git@gitlab.com:${CI_PROJECT_PATH}.git"
+        git remote add origin "$REPO_URL"
       else
-        git remote set-url origin "git@gitlab.com:${CI_PROJECT_PATH}.git"
+        git remote set-url origin "$REPO_URL"
       fi
-      # For MR pipelines, fetch the source branch (merge refs aren't fetchable via SSH)
+      # For MR pipelines, fetch the source branch (merge refs aren't directly fetchable)
       if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
         git fetch origin "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}" --depth 20
         git checkout -f "origin/${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
