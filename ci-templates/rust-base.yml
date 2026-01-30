@@ -59,16 +59,20 @@ workflow:
 # ============================================================
 
 # Optimized Rust cache using Cargo.lock for smart invalidation
+# Fallback keys allow reuse of caches from other branches/jobs when exact key misses,
+# avoiding cold builds on Cargo.lock changes (saves 15-25 min per cold build).
 .rust-cache:
   cache:
     key:
       files:
         - Cargo.lock
       prefix: rust-${CI_JOB_NAME}
+    fallback_keys:
+      - rust-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
+      - rust-${CI_JOB_NAME}
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
-      - .sccache/
       - target/
     policy: pull-push
 
@@ -79,10 +83,12 @@ workflow:
       files:
         - Cargo.lock
       prefix: rust-${CI_JOB_NAME}
+    fallback_keys:
+      - rust-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
+      - rust-${CI_JOB_NAME}
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
-      - .sccache/
       - target/
     policy: pull
 
@@ -93,10 +99,27 @@ workflow:
       files:
         - Cargo.lock
       prefix: rust-minimal
+    fallback_keys:
+      - rust-minimal-${CI_DEFAULT_BRANCH}
+      - rust-minimal
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
     policy: pull
+
+# ============================================================
+# Tool Installation Helper
+# ============================================================
+# Uses cargo-binstall for pre-built binaries (5-10s vs 60-90s compile).
+# Falls back to cargo install if binstall is unavailable or fails.
+
+.ensure-binstall:
+  before_script:
+    - |
+      # Install cargo-binstall if not present (one-time, ~5s)
+      if ! command -v cargo-binstall >/dev/null 2>&1; then
+        curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+      fi
 
 # ============================================================
 # Self-Hosted Runner Templates
@@ -110,7 +133,9 @@ workflow:
     GIT_STRATEGY: none
     # sccache is available on self-hosted runners
     RUSTC_WRAPPER: sccache
-    SCCACHE_DIR: ${CI_PROJECT_DIR}/.sccache
+    # Persistent path outside CI_PROJECT_DIR so sccache survives cache key changes.
+    # Falls back to in-project path if home dir isn't writable.
+    SCCACHE_DIR: ${HOME}/.sccache
   before_script:
     - |
       # Clone/fetch via HTTPS using CI_JOB_TOKEN (no SSH keys needed)
@@ -131,8 +156,13 @@ workflow:
       fi
     # Ensure a Rust toolchain is configured (self-hosted runners may not have a default)
     - rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
-    # Ensure sccache is available
-    - command -v sccache >/dev/null || cargo install sccache --locked
+    # Ensure sccache is available (prefer binstall for speed)
+    - |
+      if ! command -v sccache >/dev/null 2>&1; then
+        cargo binstall sccache --no-confirm 2>/dev/null || cargo install sccache --locked
+      fi
+    # Stop any stale server before starting (prevents silent fallback to non-cached builds)
+    - sccache --stop-server 2>/dev/null || true
     - sccache --start-server || true
   after_script:
     - sccache --show-stats || true
@@ -157,10 +187,12 @@ workflow:
       files:
         - Cargo.lock
       prefix: rust-${CI_JOB_NAME}
+    fallback_keys:
+      - rust-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
+      - rust-${CI_JOB_NAME}
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
-      - .sccache/
       - target/
     policy: pull-push
 
@@ -178,10 +210,12 @@ workflow:
       files:
         - Cargo.lock
       prefix: rust-${CI_JOB_NAME}
+    fallback_keys:
+      - rust-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
+      - rust-${CI_JOB_NAME}
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
-      - .sccache/
       - target/
     policy: pull-push
 
@@ -220,7 +254,6 @@ workflow:
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
-      - .sccache/
       - target/
     policy: pull  # Read-only - lint jobs don't need to update cache
   script:
@@ -235,7 +268,7 @@ workflow:
   before_script:
     - !reference [.self-hosted, before_script]
     - rustup component add llvm-tools-preview
-    - cargo install cargo-llvm-cov --locked || true
+    - cargo binstall cargo-llvm-cov --no-confirm 2>/dev/null || cargo install cargo-llvm-cov --locked || true
   script:
     - cargo llvm-cov --workspace --lcov --output-path lcov.info
     - cargo llvm-cov report

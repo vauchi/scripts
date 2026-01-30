@@ -74,7 +74,7 @@ secret_detection:
 .security-audit:
   stage: security
   script:
-    - cargo install cargo-audit || true
+    - cargo binstall cargo-audit --no-confirm 2>/dev/null || cargo install cargo-audit || true
     - cargo audit
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -88,7 +88,7 @@ secret_detection:
 .security-licenses:
   stage: security
   script:
-    - cargo install cargo-deny || true
+    - cargo binstall cargo-deny --no-confirm 2>/dev/null || cargo install cargo-deny || true
     - cargo deny check licenses
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -102,7 +102,7 @@ secret_detection:
 .security-bans:
   stage: security
   script:
-    - cargo install cargo-deny || true
+    - cargo binstall cargo-deny --no-confirm 2>/dev/null || cargo install cargo-deny || true
     - cargo deny check bans
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -116,7 +116,7 @@ secret_detection:
 .security-deny:
   stage: security
   script:
-    - cargo install cargo-deny || true
+    - cargo binstall cargo-deny --no-confirm 2>/dev/null || cargo install cargo-deny || true
     - cargo deny check
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
