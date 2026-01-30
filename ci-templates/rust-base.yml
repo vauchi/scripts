@@ -129,6 +129,8 @@ workflow:
         git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20
         git checkout -f "${CI_COMMIT_SHA}"
       fi
+    # Ensure a Rust toolchain is configured (self-hosted runners may not have a default)
+    - rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
     # Ensure sccache is available
     - command -v sccache >/dev/null || cargo install sccache --locked
     - sccache --start-server || true
