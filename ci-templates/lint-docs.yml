@@ -86,8 +86,12 @@ check-doc-naming:
 lint-markdown:
   stage: lint
   image: node:20-alpine
+  cache:
+    key: npm-lint-tools
+    paths:
+      - .npm/
   before_script:
-    - npm install -g markdownlint-cli
+    - npm install -g markdownlint-cli --cache .npm
   script:
     - markdownlint '**/*.md' --ignore node_modules --ignore target || true
   rules:
@@ -104,8 +108,12 @@ lint-markdown:
 lint-links:
   stage: lint
   image: node:20-alpine
+  cache:
+    key: npm-lint-tools
+    paths:
+      - .npm/
   before_script:
-    - npm install -g markdown-link-check
+    - npm install -g markdown-link-check --cache .npm
   script:
     - |
       find . -name "*.md" -not -path "./node_modules/*" -not -path "./target/*" | while read file; do
@@ -126,8 +134,12 @@ lint-links:
 lint-gherkin:
   stage: lint
   image: node:20-alpine
+  cache:
+    key: npm-lint-tools
+    paths:
+      - .npm/
   before_script:
-    - npm install -g @cucumber/gherkin-utils
+    - npm install -g @cucumber/gherkin-utils --cache .npm
   script:
     - |
       if ls *.feature 1> /dev/null 2>&1 || ls **/*.feature 1> /dev/null 2>&1; then

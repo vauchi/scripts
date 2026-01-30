@@ -26,6 +26,7 @@
 # Verify tag is on main branch before proceeding
 # CRITICAL: Tags must only be created on commits that are on main
 .release-verify:
+  interruptible: false
   stage: build
   script:
     - |
@@ -47,6 +48,7 @@
 
 # Build release binary
 .release-build:
+  interruptible: false
   stage: build
   script:
     - cargo build --release
@@ -59,6 +61,7 @@
 
 # Build release with specific binary name
 .release-build-binary:
+  interruptible: false
   stage: build
   variables:
     BINARY_NAME: ""
@@ -77,6 +80,7 @@
 
 # Package with checksums
 .release-package:
+  interruptible: false
   stage: package
   variables:
     ARTIFACT_NAME: ""
@@ -102,6 +106,8 @@
 
 # Publish to GitLab Generic Package Registry
 .release-publish-generic:
+  interruptible: false
+  resource_group: release-publish
   stage: publish
   variables:
     PACKAGE_NAME: ""
@@ -121,6 +127,8 @@
 
 # Publish Rust crate to GitLab registry
 .release-publish-crate:
+  interruptible: false
+  resource_group: release-publish
   stage: publish
   variables:
     CRATE_NAME: ""
@@ -146,6 +154,8 @@
 
 # Create GitLab release with artifacts
 .release-create:
+  interruptible: false
+  resource_group: release-publish
   stage: publish
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   tags:
@@ -167,6 +177,7 @@
 
 # Trigger downstream repository pipeline
 .release-trigger:
+  interruptible: false
   stage: trigger
   variables:
     DOWNSTREAM_PROJECT: ""
@@ -178,6 +189,7 @@
 
 # Trigger multiple downstream repos (use with parallel matrix)
 .release-trigger-multiple:
+  interruptible: false
   stage: trigger
   variables:
     DOWNSTREAM_PROJECT: ""

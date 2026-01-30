@@ -22,8 +22,9 @@
 variables:
   CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
   RUST_BACKTRACE: "1"
-  # Shallow clone for faster checkout (full history not needed for most jobs)
-  GIT_DEPTH: "20"
+  # Minimal clone depth — lint/test/build jobs don't need history.
+  # Release/verify jobs override with deeper depth where needed.
+  GIT_DEPTH: "1"
   # Note: RUSTC_WRAPPER is only set for self-hosted runners that have sccache installed
   # Shared GitLab runners don't have sccache, so we don't set it globally
 
@@ -191,6 +192,7 @@ workflow:
       - rust-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
       - rust-${CI_JOB_NAME}
     paths:
+      - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
       - target/
@@ -214,6 +216,7 @@ workflow:
       - rust-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
       - rust-${CI_JOB_NAME}
     paths:
+      - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
       - target/
