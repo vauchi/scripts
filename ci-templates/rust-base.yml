@@ -113,6 +113,8 @@ workflow:
     SCCACHE_DIR: ${CI_PROJECT_DIR}/.sccache
   before_script:
     - |
+      # Ensure gitlab.com SSH host key is trusted
+      mkdir -p ~/.ssh && ssh-keyscan -t ed25519,rsa gitlab.com >> ~/.ssh/known_hosts 2>/dev/null
       if [ ! -d ".git" ]; then
         git init
         git remote add origin "git@gitlab.com:${CI_PROJECT_PATH}.git"
