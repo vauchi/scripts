@@ -87,10 +87,13 @@
 # ============================================================
 
 # Job that runs when triggered from upstream (core)
-# Accepts both "trigger" (Pipeline Trigger API) and "pipeline" (trigger: keyword)
+# Accepts all trigger sources:
+#   "trigger" = Pipeline Trigger API (trigger-downstream.sh from CI)
+#   "pipeline" = GitLab trigger: keyword (multi-project pipeline)
+#   "api" = Pipeline API with PRIVATE-TOKEN (trigger-downstream.sh locally, or glab)
 .on-upstream-trigger:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
+    - if: ($CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "api") && $UPSTREAM_VERSION
 
 # Rebuild bindings when triggered from upstream
 .rebuild-from-upstream:

@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Timeout Templates
+# Standard timeout definitions for CI jobs
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/timeouts.yml'
+#
+# Provides:
+#   - .timeout-quick: 10 minutes (lint, format check)
+#   - .timeout-standard: 30 minutes (unit tests, build)
+#   - .timeout-long: 1 hour (full test suite, coverage, cross-compile)
+#   - .timeout-extended: 2 hours (iOS build, Android multi-arch)
+
+# Quick jobs (lint, format check) - 10 minutes
+.timeout-quick:
+  timeout: 10 minutes
+
+# Standard jobs (unit tests, build) - 30 minutes
+.timeout-standard:
+  timeout: 30 minutes
+
+# Long jobs (full test suite, coverage, cross-compile) - 1 hour
+.timeout-long:
+  timeout: 1 hour
+
+# Very long jobs (iOS build, Android multi-arch) - 2 hours
+.timeout-extended:
+  timeout: 2 hours

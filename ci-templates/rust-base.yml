@@ -375,7 +375,9 @@ workflow:
 # ============================================================
 # Timeout Templates
 # ============================================================
-# Use these to set appropriate timeouts for different job types
+# Use these to set appropriate timeouts for different job types.
+# Also available as standalone include: /ci-templates/timeouts.yml
+# (for non-Rust repos that don't include rust-base.yml).
 
 # Quick jobs (lint, format check) - 10 minutes
 .timeout-quick:

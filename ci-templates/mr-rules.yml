@@ -71,20 +71,24 @@
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - "**/*.rs"
-        - "**/Cargo.toml"
-        - "**/Cargo.lock"
-        - ".gitlab-ci.yml"
-        - "rust-toolchain.toml"
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/*.rs"
+          - "**/Cargo.toml"
+          - "**/Cargo.lock"
+          - ".gitlab-ci.yml"
+          - "rust-toolchain.toml"
 
 # Run on dependency changes only (for security:audit)
 .validation-deps:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - "**/Cargo.toml"
-        - "**/Cargo.lock"
-        - ".gitlab-ci.yml"
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/Cargo.toml"
+          - "**/Cargo.lock"
+          - ".gitlab-ci.yml"
 
 # Run on any file change (for lint:reuse)
 # REUSE verifies ALL files have proper SPDX headers, so it must run
@@ -99,30 +103,36 @@
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - "**/Cargo.toml"
-        - "**/Cargo.lock"
-        - "deny.toml"
-        - ".gitlab-ci.yml"
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/Cargo.toml"
+          - "**/Cargo.lock"
+          - "deny.toml"
+          - ".gitlab-ci.yml"
 
 # Run on mobile binding changes
 .validation-mobile:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - "**/*.rs"
-        - "**/Cargo.toml"
-        - "**/Cargo.lock"
-        - "vauchi-mobile/**/*"
-        - "scripts/build-bindings.sh"
-        - ".gitlab-ci.yml"
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/*.rs"
+          - "**/Cargo.toml"
+          - "**/Cargo.lock"
+          - "vauchi-mobile/**/*"
+          - "scripts/build-bindings.sh"
+          - ".gitlab-ci.yml"
 
 # Run on script changes
 .validation-scripts:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - "scripts/**/*"
-        - ".gitlab-ci.yml"
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "scripts/**/*"
+          - ".gitlab-ci.yml"
 
 # ============================================================
 # Combined Rules Templates
@@ -138,6 +148,8 @@
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - "**/Cargo.toml"
-        - "**/Cargo.lock"
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/Cargo.toml"
+          - "**/Cargo.lock"
     - if: $CI_PIPELINE_SOURCE == "schedule"

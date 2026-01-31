@@ -50,10 +50,15 @@ variables:
 # ============================================================
 
 # Semgrep SAST analyzer - use Docker runner
+# Runs on MRs, main branch, and scheduled pipelines.
+# Repos needing language-specific change detection can override
+# the rules locally (e.g., changes: ["**/*.kt"]).
 semgrep-sast:
   tags: [docker]
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
 
 # Disable Gemnasium dependency scanning (use cargo-audit for Rust)
 gemnasium-dependency_scanning:
@@ -65,6 +70,8 @@ secret_detection:
   tags: [docker]
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
 
 # ============================================================
 # Rust Security Jobs
