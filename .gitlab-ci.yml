@@ -12,6 +12,7 @@
 include:
   - local: '/ci-templates/lint-docs.yml'
   - local: '/ci-templates/mr-rules.yml'
+  - local: '/ci-templates/reuse.yml'
 
 stages:
   - lint

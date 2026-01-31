@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Shared REUSE compliance check
+#
+# REUSE verifies ALL files have proper SPDX headers, so it must run
+# whenever any file is added or modified to catch missing headers.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/reuse.yml'
+#
+# Requires: lint stage defined in the consuming pipeline.
+
+reuse-lint:
+  image:
+    name: fsfe/reuse:latest
+    entrypoint: [""]
+  stage: lint
+  script:
+    - reuse lint
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
