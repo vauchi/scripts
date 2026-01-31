@@ -134,9 +134,8 @@ workflow:
     GIT_STRATEGY: none
     # sccache is available on self-hosted runners
     RUSTC_WRAPPER: sccache
-    # Persistent path outside CI_PROJECT_DIR so sccache survives cache key changes.
-    # Falls back to in-project path if home dir isn't writable.
-    SCCACHE_DIR: ${HOME}/.sccache
+    # Note: SCCACHE_DIR is set in before_script using shell $HOME because
+    # GitLab CI variable expansion doesn't have access to shell env vars.
   before_script:
     - |
       # Clone/fetch via HTTPS using CI_JOB_TOKEN (no SSH keys needed)
@@ -162,6 +161,8 @@ workflow:
       if ! command -v sccache >/dev/null 2>&1; then
         cargo binstall sccache --no-confirm 2>/dev/null || cargo install sccache --locked
       fi
+    # Set SCCACHE_DIR using shell $HOME (GitLab CI variables can't expand shell env vars)
+    - export SCCACHE_DIR="${HOME}/.sccache" && mkdir -p "$SCCACHE_DIR"
     # Stop any stale server before starting (prevents silent fallback to non-cached builds)
     - sccache --stop-server 2>/dev/null || true
     - sccache --start-server || true
