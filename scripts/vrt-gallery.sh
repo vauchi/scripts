@@ -331,7 +331,7 @@ if [ "$desktop_count" -gt 0 ]; then
     for f in "$OUTPUT_DIR"/images/desktop/*.png; do
         [ -f "$f" ] || continue
         name="$(basename "$f" .png)"
-        label=$(echo "$name" | sed 's/-/ /g')
+        label="${name//-/ }"
         echo "<div class=\"card\"><h3>$label</h3><img src=\"images/desktop/$(basename "$f")\" alt=\"$label\" loading=\"lazy\" onclick=\"openLightbox(this)\"></div>" >> "$OUTPUT_FILE"
     done
 else
