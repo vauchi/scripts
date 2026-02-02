@@ -13,11 +13,13 @@
 #
 # Provides:
 #   - .rust-cache: Cargo caching with Cargo.lock-based keys
-#   - .self-hosted: Self-hosted runner with SSH git clone and sccache
-#   - .linux-runner: Linux VM runner configuration
+#   - .self-hosted: Self-hosted runner with HTTPS git clone
+#   - .linux-runner: Linux VM runner configuration (pull-push cache)
+#   - .linux-runner-readonly: Linux VM runner (pull-only cache)
+#   - .linux-runner-nocache: Linux VM runner (no cache)
 #   - .macos-runner: macOS VM runner configuration
 #   - .docker-runner: Docker executor for containers
-#   - Variables: CARGO_HOME, RUSTC_WRAPPER, SCCACHE_DIR
+#   - Variables: CARGO_HOME, CARGO_INCREMENTAL
 
 variables:
   CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
@@ -25,8 +27,8 @@ variables:
   # Minimal clone depth — lint/test/build jobs don't need history.
   # Release/verify jobs override with deeper depth where needed.
   GIT_DEPTH: "1"
-  # Note: RUSTC_WRAPPER is only set for self-hosted runners that have sccache installed
-  # Shared GitLab runners don't have sccache, so we don't set it globally
+  # Note: CARGO_INCREMENTAL is set to 0 for self-hosted runners via .self-hosted
+  # to reduce target/ directory size and improve cache efficiency
 
 # ============================================================
 # Default Job Configuration
@@ -128,14 +130,13 @@ workflow:
 
 # Base configuration for self-hosted runners
 # - Uses HTTPS git clone with CI_JOB_TOKEN (no SSH keys needed)
-# - Initializes sccache for faster builds
+# - Disables incremental compilation to reduce target/ size
 .self-hosted:
   variables:
     GIT_STRATEGY: none
-    # sccache is available on self-hosted runners
-    RUSTC_WRAPPER: sccache
-    # Note: SCCACHE_DIR is set in before_script using shell $HOME because
-    # GitLab CI variable expansion doesn't have access to shell env vars.
+    # Disable incremental compilation — reduces target/ directory size significantly,
+    # improving cache upload/download times on CI where builds are rarely incremental.
+    CARGO_INCREMENTAL: "0"
   before_script:
     - |
       # Clone/fetch via HTTPS using CI_JOB_TOKEN (no SSH keys needed)
@@ -156,18 +157,7 @@ workflow:
       fi
     # Ensure a Rust toolchain is configured (self-hosted runners may not have a default)
     - rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
-    # Ensure sccache is available (prefer binstall for speed)
-    - |
-      if ! command -v sccache >/dev/null 2>&1; then
-        cargo binstall sccache --no-confirm 2>/dev/null || cargo install sccache --locked
-      fi
-    # Set SCCACHE_DIR using shell $HOME (GitLab CI variables can't expand shell env vars)
-    - export SCCACHE_DIR="${HOME}/.sccache" && mkdir -p "$SCCACHE_DIR"
-    # Stop any stale server before starting (prevents silent fallback to non-cached builds)
-    - sccache --stop-server 2>/dev/null || true
-    - sccache --start-server || true
   after_script:
-    - sccache --show-stats || true
     # Clean up build artifacts to save disk space (keep cache intact)
     - rm -rf target/debug/deps/*.d target/debug/incremental 2>/dev/null || true
 
@@ -198,6 +188,43 @@ workflow:
       - .cargo/registry/cache/
       - target/
     policy: pull-push
+
+# Linux self-hosted runner with read-only cache
+# Use for: lint/security jobs that consume but don't produce build artifacts
+.linux-runner-readonly:
+  extends: .self-hosted
+  tags:
+    - linux
+    - self-hosted
+  before_script:
+    - !reference [.self-hosted, before_script]
+    - command -v mold >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq mold)
+  cache:
+    key:
+      files:
+        - Cargo.lock
+      prefix: rust-${CI_JOB_NAME}
+    fallback_keys:
+      - rust-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
+      - rust-${CI_JOB_NAME}
+    paths:
+      - .cargo/bin/
+      - .cargo/registry/index/
+      - .cargo/registry/cache/
+      - target/
+    policy: pull
+
+# Linux self-hosted runner with no cache
+# Use for: jobs that don't need target/ at all (e.g., cargo fmt)
+.linux-runner-nocache:
+  extends: .self-hosted
+  tags:
+    - linux
+    - self-hosted
+  before_script:
+    - !reference [.self-hosted, before_script]
+    - command -v mold >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq mold)
+  cache: {}
 
 # macOS self-hosted runner (QEMU VM)
 # Tags: macos, self-hosted
@@ -303,7 +330,7 @@ workflow:
 # Use these to clean up runner disk space after pipelines
 
 # Cleanup job for self-hosted runners
-# Cleans cargo target directory, sccache, and old artifacts
+# Cleans cargo target directory and old artifacts
 .cleanup-runner:
   stage: .post
   extends: .linux-runner
@@ -320,12 +347,6 @@ workflow:
         # Remove old incremental compilation artifacts
         find target -name "incremental" -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
         echo "Target size after: $(du -sh target 2>/dev/null | cut -f1)"
-      fi
-    # Clean sccache (it has its own size limit, but we can show stats)
-    - |
-      if command -v sccache >/dev/null 2>&1; then
-        echo "sccache stats:"
-        sccache --show-stats 2>/dev/null || true
       fi
     # Clean old cargo registry cache
     - |
