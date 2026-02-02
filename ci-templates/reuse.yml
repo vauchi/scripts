@@ -20,6 +20,8 @@ reuse-lint:
     name: fsfe/reuse:latest
     entrypoint: [""]
   stage: lint
+  before_script:
+    - command -v reuse >/dev/null 2>&1 || pip3 install --quiet reuse
   script:
     - reuse lint
   rules:
