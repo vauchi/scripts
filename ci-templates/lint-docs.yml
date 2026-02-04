@@ -90,10 +90,11 @@ lint-markdown:
     key: npm-lint-tools
     paths:
       - .npm/
+      - node_modules/
   before_script:
-    - npm install -g markdownlint-cli --cache .npm
+    - npm install markdownlint-cli --cache .npm
   script:
-    - markdownlint '**/*.md' --ignore node_modules --ignore target || true
+    - npx markdownlint '**/*.md' --ignore node_modules --ignore target || true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
@@ -112,13 +113,14 @@ lint-links:
     key: npm-lint-tools
     paths:
       - .npm/
+      - node_modules/
   before_script:
-    - npm install -g markdown-link-check --cache .npm
+    - npm install markdown-link-check --cache .npm
   script:
     - |
       find . -name "*.md" -not -path "./node_modules/*" -not -path "./target/*" | while read file; do
         echo "Checking: $file"
-        markdown-link-check "$file" --quiet || true
+        npx markdown-link-check "$file" --quiet || true
       done
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -138,8 +140,9 @@ lint-gherkin:
     key: npm-lint-tools
     paths:
       - .npm/
+      - node_modules/
   before_script:
-    - npm install -g @cucumber/gherkin-utils --cache .npm
+    - npm install @cucumber/gherkin-utils --cache .npm
   script:
     - |
       if ls *.feature 1> /dev/null 2>&1 || ls **/*.feature 1> /dev/null 2>&1; then
@@ -147,7 +150,9 @@ lint-gherkin:
         for file in $(find . -name "*.feature" -type f); do
           echo "Checking: $file"
           # Basic syntax check - gherkin parser will fail on syntax errors
-          cat "$file" | head -20
+          npx gherkin-utils format "$file" > /dev/null 2>&1 || {
+            echo "WARNING: Invalid Gherkin syntax in $file"
+          }
         done
         echo "Gherkin validation complete."
       else
