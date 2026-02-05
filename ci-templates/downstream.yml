@@ -18,8 +18,8 @@
 #   - .on-upstream-trigger: Rule for jobs triggered by upstream
 #
 # Mobile distribution repos (vauchi-mobile-swift, vauchi-mobile-android) are
-# triggered via core/scripts/trigger-downstream.sh using the Pipeline Trigger
-# API, not the GitLab trigger: keyword. This allows passing UPSTREAM_VERSION.
+# triggered via the GitLab trigger: keyword in core/.gitlab-ci.yml, passing
+# UPSTREAM_VERSION so downstream repos know which tag to build bindings from.
 
 # ============================================================
 # Trigger Templates
@@ -51,17 +51,16 @@
 # Mobile Distribution Triggers
 # ============================================================
 #
-# NOTE: Mobile distribution repos (vauchi-mobile-swift, vauchi-mobile-android)
-# are triggered via core/scripts/trigger-downstream.sh on release tags.
-# The script uses the Pipeline Trigger API to pass UPSTREAM_VERSION, which
-# the distribution repos need to download and update their bindings.
+# Mobile distribution repos (vauchi-mobile-swift, vauchi-mobile-android)
+# are triggered via the GitLab trigger: keyword in core/.gitlab-ci.yml.
+# The trigger: keyword passes UPSTREAM_VERSION and uses CI_JOB_TOKEN
+# implicitly (no extra tokens needed).
 #
-# The GitLab trigger: keyword approach is NOT used for mobile distributions
-# because it doesn't pass variables and sets CI_PIPELINE_SOURCE to "pipeline"
-# instead of "trigger", causing rule mismatches in downstream repos.
+# Downstream repos see CI_PIPELINE_SOURCE == "pipeline" and use the
+# .on-upstream-trigger rule to detect upstream-initiated pipelines.
 #
-# Generic trigger templates (.trigger-on-merge, .trigger-on-tag) above
-# remain available for other downstream repos that don't need variables.
+# scripts/trigger-downstream.sh remains for local/manual use with
+# GITLAB_TOKEN (personal access token).
 
 # ============================================================
 # Multi-Repo Trigger (using parallel matrix)
