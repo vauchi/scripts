@@ -145,7 +145,6 @@ lint-links:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "**/*.md"
-  allow_failure: true
 
 # ============================================================
 # License Text Check
