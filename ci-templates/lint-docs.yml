@@ -139,20 +139,14 @@ check-license-text:
   stage: lint
   image: alpine:latest
   before_script:
-    - apk add --no-cache bash grep
+    - apk add --no-cache grep
   script:
     - |
       ERRORS=0
 
-      # Patterns that indicate this project claims to be MIT-licensed
+      # Check for patterns that indicate this project claims to be MIT-licensed
       # (not references to third-party MIT-licensed dependencies)
-      WRONG_PATTERNS=(
-        "licensed under MIT"
-        "License: MIT"
-      )
-
-      for pattern in "${WRONG_PATTERNS[@]}"; do
-        # Grep, then filter out references to third-party projects
+      for pattern in "licensed under MIT" "License: MIT"; do
         MATCHES=$(grep -rn --include="*.md" -i "$pattern" . \
           --exclude-dir=node_modules --exclude-dir=target --exclude-dir=.git \
           --exclude-dir=knowledge 2>/dev/null \
