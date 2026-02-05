@@ -14,7 +14,8 @@
 # Provides:
 #   - check-doc-naming: Validate YYYY-MM-DD-name.md naming convention
 #   - lint-markdown: Markdown syntax and style checking
-#   - lint-links: Check for broken links
+#   - lint-links: Check for broken links (lychee)
+#   - check-license-text: Catch wrong license references in prose
 #   - lint-gherkin: Validate Gherkin feature files (for features repo)
 
 stages:
@@ -102,31 +103,78 @@ lint-markdown:
   allow_failure: true
 
 # ============================================================
-# Link Checking
+# Link Checking (lychee)
 # ============================================================
 
-# Check for broken links in markdown files
+# Check for broken local links in markdown files
+# Uses lychee (Rust) — fast, single binary, good local file resolution
+# Only checks local file links (no network requests in CI)
 lint-links:
   stage: lint
-  image: node:20-alpine
-  cache:
-    key: npm-lint-tools
-    paths:
-      - .npm/
-      - node_modules/
+  image: alpine:latest
   before_script:
-    - npm install markdown-link-check --cache .npm
+    - apk add --no-cache curl bash
+    - curl -sL https://github.com/lycheeverse/lychee/releases/latest/download/lychee-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
   script:
     - |
-      find . -name "*.md" -not -path "./node_modules/*" -not -path "./target/*" | while read file; do
-        echo "Checking: $file"
-        npx markdown-link-check "$file" --quiet || true
-      done
+      lychee --offline --no-progress \
+        --exclude-path node_modules \
+        --exclude-path target \
+        --exclude-path .git \
+        '**/*.md'
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "**/*.md"
   allow_failure: true
+
+# ============================================================
+# License Text Check
+# ============================================================
+
+# Catch wrong license references in prose (e.g., "licensed under MIT"
+# when the project uses GPL-3.0-or-later). REUSE checks SPDX headers
+# but not body text — this fills the gap.
+check-license-text:
+  stage: lint
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache bash grep
+  script:
+    - |
+      ERRORS=0
+
+      # Patterns that indicate this project claims to be MIT-licensed
+      # (not references to third-party MIT-licensed dependencies)
+      WRONG_PATTERNS=(
+        "licensed under MIT"
+        "License: MIT"
+      )
+
+      for pattern in "${WRONG_PATTERNS[@]}"; do
+        # Grep, then filter out references to third-party projects
+        MATCHES=$(grep -rn --include="*.md" -i "$pattern" . \
+          --exclude-dir=node_modules --exclude-dir=target --exclude-dir=.git \
+          --exclude-dir=knowledge 2>/dev/null \
+          | grep -iv "catppuccin\|dracula\|nord\|solarized\|gruvbox\|third.party\|external\|dependency" || true)
+        if [ -n "$MATCHES" ]; then
+          echo "$MATCHES"
+          echo "ERROR: Found wrong license reference: '$pattern'"
+          ERRORS=$((ERRORS + 1))
+        fi
+      done
+
+      if [ $ERRORS -gt 0 ]; then
+        echo ""
+        echo "Found $ERRORS wrong license reference(s) in documentation."
+        echo "This project is licensed under GPL-3.0-or-later."
+        exit 1
+      fi
+
+      echo "No wrong license references found."
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # ============================================================
 # Gherkin Linting (for features repo)
