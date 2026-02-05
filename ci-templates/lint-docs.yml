@@ -36,22 +36,41 @@ check-doc-naming:
   script:
     - |
       # Check for files that should have date prefix but don't
-      # Exceptions: README.md, CLAUDE.md, CONTRIBUTING.md, roadmap.md, diagrams/*, PRINCIPLES.md
+      # Exceptions: well-known filenames, problem record artifacts,
+      # diagrams/, ideas/, strategy/, infra/, knowledge/
       ERRORS=0
 
       for file in $(git diff --name-only origin/$CI_DEFAULT_BRANCH...HEAD -- '*.md' 2>/dev/null || find . -name "*.md" -type f); do
         filename=$(basename "$file")
         dirname=$(dirname "$file")
 
-        # Skip exceptions
+        # Skip well-known filenames that don't need date prefixes
         case "$filename" in
-          README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md)
+          README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|VISIBILITY_POLICY.md)
+            continue
+            ;;
+          STRUCTURE.md|ARCHITECTURE.md|SECURITY.md|CHECKLIST.md)
+            continue
+            ;;
+          investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md)
             continue
             ;;
         esac
 
-        # Skip diagrams directory
+        # Skip directories where date prefix convention doesn't apply
         if echo "$dirname" | grep -q "diagrams"; then
+          continue
+        fi
+        if echo "$dirname" | grep -q "ideas"; then
+          continue
+        fi
+        if echo "$dirname" | grep -q "strategy"; then
+          continue
+        fi
+        if echo "$dirname" | grep -q "infra"; then
+          continue
+        fi
+        if echo "$dirname" | grep -q "knowledge"; then
           continue
         fi
 
