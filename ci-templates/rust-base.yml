@@ -46,16 +46,32 @@ default:
       - stuck_or_timeout_failure
 
 # ============================================================
-# Workflow Rules - Auto-Cancel Redundant Pipelines
+# Workflow Rules
 # ============================================================
-# When a new commit is pushed to a branch with an existing pipeline,
-# auto-cancel the old pipeline to free up runners.
-# Note: Repos using this template should NOT define their own workflow rules
+# Controls which pipeline sources are accepted and auto-cancel behavior.
+# Repos using this template should NOT define their own workflow rules
 # unless they want to override this behavior.
+#
+# Accepted sources:
+#   - push: Branch pushes (main, tags)
+#   - merge_request_event: MR pipelines (primary validation path)
+#   - pipeline: GitLab trigger: keyword (upstream verification triggers)
+#   - trigger: Pipeline Trigger API (trigger-downstream.sh)
+#   - api: Pipeline API (manual triggers via glab/curl)
+#   - schedule: Scheduled pipelines (cleanup, periodic checks)
+#   - web: Manual "Run pipeline" from GitLab UI
 
 workflow:
   auto_cancel:
     on_new_commit: interruptible
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+    - if: $CI_PIPELINE_SOURCE == "api"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
 # ============================================================
 # Rust Cache Configuration
