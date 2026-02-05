@@ -103,3 +103,20 @@
   script:
     - echo "Triggered by upstream with tag ${UPSTREAM_TAG:-none}"
     - echo "Rebuilding bindings..."
+
+# ============================================================
+# Upstream Compatibility Verification
+# ============================================================
+#
+# For Rust consumer repos (desktop, cli, tui) that depend on vauchi-core
+# via git dependency (branch = "main"). When core merges to main, these
+# repos are triggered to verify they still build and pass tests.
+#
+# Unlike mobile distribution repos, these don't need UPSTREAM_VERSION —
+# they just need to rebuild against the updated core main branch.
+
+# Rule for jobs triggered by upstream for compatibility verification.
+# Does NOT require UPSTREAM_VERSION (unlike .on-upstream-trigger).
+.verify-on-upstream:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
