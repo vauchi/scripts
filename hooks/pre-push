@@ -1,71 +1,85 @@
 #!/bin/bash
-# Pre-push hook: Run tests before pushing
-# Install with: ./install-hooks.sh
+# Pre-push hook: Runs lint:format, lint:clippy, test:unit before every push.
+# Matches CI pipeline checks exactly. Skip with: git push --no-verify
 #
-# This hook runs tests to catch issues before they reach CI.
-# Skip with: git push --no-verify
+# Install with: just install-hooks
 
 set -e
 
-echo "=== Pre-push checks ==="
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_DIR="$(basename "$REPO_ROOT")"
 
-# Only run full checks if pushing to main or develop
-remote="$1"
-url="$2"
+# ─── Detect Cargo.toml ───────────────────────────────────────────────
 
-# Read stdin for refs being pushed
-while read local_ref local_sha remote_ref remote_sha; do
-    if [[ "$remote_ref" =~ refs/heads/(main|develop|master) ]]; then
-        echo "Pushing to protected branch: ${remote_ref#refs/heads/}"
-        echo "Running full test suite..."
+WORK_DIR="$REPO_ROOT"
+if [[ "$REPO_DIR" == "desktop" ]]; then
+    WORK_DIR="$REPO_ROOT/src-tauri"
+fi
 
-        # Run Rust tests
-        if command -v cargo &> /dev/null && [[ -d "code" ]]; then
-            echo "[1/2] Running Rust tests..."
-            cd code
-            if ! cargo test --workspace 2>&1 | tail -20; then
-                echo ""
-                echo "ERROR: Tests failed. Push blocked."
-                echo "Fix the failing tests before pushing to $remote_ref"
-                exit 1
-            fi
-            cd ..
-            echo "  Rust tests passed"
+if [[ ! -f "$WORK_DIR/Cargo.toml" ]]; then
+    exit 0
+fi
+
+cd "$WORK_DIR"
+
+# ─── Build per-repo command flags ────────────────────────────────────
+
+CLIPPY_EXTRA=()
+TEST_CMD=(cargo test)
+
+case "$REPO_DIR" in
+    core)
+        TEST_CMD+=(--workspace)
+        ;;
+    cli)
+        TEST_CMD+=(--all-targets --no-default-features)
+        ;;
+    tui)
+        TEST_CMD+=(--all-targets)
+        LOCALES_DIR="$REPO_ROOT/../locales"
+        if [[ -d "$LOCALES_DIR" ]]; then
+            export VAUCHI_LOCALES_DIR="$LOCALES_DIR"
         fi
+        ;;
+    desktop)
+        CLIPPY_EXTRA=(--no-default-features --features custom-protocol)
+        TEST_CMD+=(--all-targets --no-default-features --features custom-protocol)
+        ;;
+    *)
+        TEST_CMD+=(--all-targets)
+        ;;
+esac
 
-        # Run clippy
-        if command -v cargo &> /dev/null && [[ -d "code" ]]; then
-            echo "[2/2] Running clippy..."
-            cd code
-            if ! cargo clippy --workspace -- -D warnings 2>&1 | tail -10; then
-                echo ""
-                echo "WARNING: Clippy warnings detected."
-                echo "Consider fixing these before pushing."
-                # Don't block - just warn
-            fi
-            cd ..
-            echo "  Clippy check complete"
-        fi
+# ─── Run checks (fail-fast: fastest → slowest) ──────────────────────
 
-        echo ""
-        echo "=== Pre-push checks passed ==="
-    else
-        echo "Pushing to feature branch, running quick checks only..."
+echo "=== Pre-push checks ($REPO_DIR) ==="
 
-        # Just check formatting on feature branches
-        if command -v cargo &> /dev/null && [[ -d "code" ]]; then
-            cd code
-            if ! cargo fmt --all -- --check 2>/dev/null; then
-                echo ""
-                echo "WARNING: Code is not formatted."
-                echo "Run 'cargo fmt --all' to fix."
-                # Don't block feature branches for formatting
-            fi
-            cd ..
-        fi
+echo ""
+echo "[1/3] Checking formatting..."
+if ! cargo fmt --all -- --check; then
+    echo ""
+    echo "FAILED: Format check failed. Run 'cargo fmt --all' to fix."
+    exit 1
+fi
+echo "  Format OK"
 
-        echo "=== Quick checks complete ==="
-    fi
-done
+echo ""
+echo "[2/3] Running clippy..."
+if ! cargo clippy --all-targets "${CLIPPY_EXTRA[@]}" -- -D warnings; then
+    echo ""
+    echo "FAILED: Clippy check failed. Fix warnings before pushing."
+    exit 1
+fi
+echo "  Clippy OK"
 
-exit 0
+echo ""
+echo "[3/3] Running tests..."
+if ! "${TEST_CMD[@]}"; then
+    echo ""
+    echo "FAILED: Tests failed. Fix before pushing."
+    exit 1
+fi
+echo "  Tests OK"
+
+echo ""
+echo "=== All pre-push checks passed ==="
