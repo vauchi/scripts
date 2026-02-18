@@ -52,10 +52,6 @@ lint:ci-templates:
   tags:
     - linux
     - self-hosted
-  before_script:
-    - command -v pip3 >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq python3-pip)
-    - pip3 install --user yamllint
-    - export PATH="$HOME/.local/bin:$PATH"
   script:
     - |
       echo "Validating CI template YAML..."
@@ -74,7 +70,3 @@ reuse-lint:
   tags:
     - linux
     - self-hosted
-  before_script:
-    - command -v pip3 >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq python3-pip)
-    - pip3 install --user reuse
-    - export PATH="$HOME/.local/bin:$PATH"
