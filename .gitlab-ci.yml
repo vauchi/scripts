@@ -53,6 +53,7 @@ lint:ci-templates:
     - linux
     - self-hosted
   before_script:
+    - command -v pip3 >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq python3-pip)
     - pip3 install --user yamllint
     - export PATH="$HOME/.local/bin:$PATH"
   script:
@@ -74,5 +75,6 @@ reuse-lint:
     - linux
     - self-hosted
   before_script:
+    - command -v pip3 >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq python3-pip)
     - pip3 install --user reuse
     - export PATH="$HOME/.local/bin:$PATH"
