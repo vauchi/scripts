@@ -49,9 +49,12 @@ shellcheck:
 lint:ci-templates:
   extends: .mr-or-main
   stage: lint
-  image: python:3.11-alpine
+  tags:
+    - linux
+    - self-hosted
   before_script:
-    - pip install yamllint
+    - pip3 install --user yamllint
+    - export PATH="$HOME/.local/bin:$PATH"
   script:
     - |
       echo "Validating CI template YAML..."
@@ -63,3 +66,13 @@ lint:ci-templates:
 
       echo "CI template validation complete."
   allow_failure: true
+
+# Override reuse-lint from reuse.yml to run on self-hosted (no Docker)
+reuse-lint:
+  image: null
+  tags:
+    - linux
+    - self-hosted
+  before_script:
+    - pip3 install --user reuse
+    - export PATH="$HOME/.local/bin:$PATH"
