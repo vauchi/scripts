@@ -318,15 +318,17 @@ workflow:
     - cargo binstall cargo-llvm-cov --no-confirm 2>/dev/null || cargo install cargo-llvm-cov --locked || true
   script:
     - cargo llvm-cov --workspace --lcov --output-path lcov.info
+    - cargo llvm-cov report --cobertura --output-path cobertura.xml
     - cargo llvm-cov report
   coverage: '/Total:\s+(\d+(?:\.\d+)?%)/'
   artifacts:
     reports:
       coverage_report:
         coverage_format: cobertura
-        path: lcov.info
+        path: cobertura.xml
     paths:
       - lcov.info
+      - cobertura.xml
     expire_in: 1 week
 
 # Rust build job template
