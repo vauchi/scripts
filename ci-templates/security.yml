@@ -89,7 +89,6 @@ secret_detection:
         - "**/Cargo.toml"
         - "**/Cargo.lock"
     - if: $CI_PIPELINE_SOURCE == "schedule"
-  allow_failure: true
 
 # Rust license compliance (cargo-deny)
 .security-licenses:
@@ -103,7 +102,6 @@ secret_detection:
         - "**/Cargo.toml"
         - "**/Cargo.lock"
         - "deny.toml"
-  allow_failure: true
 
 # Rust ban check (cargo-deny)
 .security-bans:
@@ -117,7 +115,6 @@ secret_detection:
         - "**/Cargo.toml"
         - "**/Cargo.lock"
         - "deny.toml"
-  allow_failure: true
 
 # Full cargo-deny check (all checks)
 .security-deny:
@@ -127,4 +124,3 @@ secret_detection:
     - cargo deny check
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  allow_failure: true
