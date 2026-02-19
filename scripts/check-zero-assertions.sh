@@ -29,6 +29,7 @@ for DIR in "$@"; do
         continue
     fi
 
+    # shellcheck disable=SC2016
     find "$DIR" -name '*.rs' -print0 | xargs -0 awk '
     FNR == 1 { file_line_offset = NR - 1 }
     /^[[:space:]]*#\[test\]/ {
