@@ -93,3 +93,45 @@ quality:test-ratio:
         fi
       done
   timeout: 5 minutes
+
+# ============================================================
+# Engineering Metrics Dashboard (PI-21)
+# ============================================================
+# Aggregates 10 key metrics across all repos. Runs monthly on
+# schedule, outputs markdown report as CI artifact.
+#
+# To include GitLab API metrics, set GITLAB_TOKEN in CI/CD variables.
+# Without it, only locally-measurable metrics are reported.
+
+quality:metrics-dashboard:
+  stage: lint
+  image: python:3.12-slim
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  allow_failure: true
+  script:
+    - apt-get update -qq && apt-get install -y -qq git findutils gawk >/dev/null 2>&1
+    - git clone --depth=1 https://gitlab.com/vauchi/scripts.git /tmp/scripts
+    - chmod +x /tmp/scripts/scripts/engineering-metrics.sh
+    - |
+      # Clone all Rust repos for local measurement
+      mkdir -p /tmp/workspace
+      for repo in core relay cli tui desktop e2e; do
+        git clone --depth=1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/${repo}.git" "/tmp/workspace/${repo}" 2>/dev/null || true
+      done
+    - |
+      VAUCHI_ROOT=/tmp/workspace \
+      GITLAB_TOKEN="${GITLAB_TOKEN:-}" \
+        /tmp/scripts/scripts/engineering-metrics.sh --gitlab | tee metrics-dashboard.md
+    - |
+      VAUCHI_ROOT=/tmp/workspace \
+      GITLAB_TOKEN="${GITLAB_TOKEN:-}" \
+        /tmp/scripts/scripts/engineering-metrics.sh --gitlab --json > metrics-dashboard.json
+  artifacts:
+    paths:
+      - metrics-dashboard.md
+      - metrics-dashboard.json
+    expire_in: 90 days
+  timeout: 10 minutes
