@@ -10,7 +10,11 @@
 #
 # Exits non-zero if any zero-assertion test functions are found.
 # A "zero-assertion test" is a #[test] function that contains no assert!(),
-# assert_eq!(), assert_ne!(), assert_matches!(), prop_assert!(), or #[should_panic].
+# assert_eq!(), assert_ne!(), assert_matches!(), prop_assert!(), #[should_panic],
+# insta snapshot assertions, or .expect() calls.
+#
+# Suppression: Add "// allow(zero_assertions)" inside a test function body
+# to suppress the warning (e.g., for intentional no-panic fuzz tests).
 
 set -euo pipefail
 
@@ -34,28 +38,63 @@ for DIR in "$@"; do
     FNR == 1 { file_line_offset = NR - 1 }
     /^[[:space:]]*#\[test\]/ {
         in_test = 1
+        in_body = 0
+        paren_depth = 0
         brace_depth = 0
         has_assert = 0
         test_line = FNR
         test_name = ""
         next
     }
-    in_test && /fn[[:space:]]+[a-zA-Z_][a-zA-Z0-9_]*/ {
-        s = $0
-        gsub(/.*fn[[:space:]]+/, "", s)
-        gsub(/[^a-zA-Z0-9_].*/, "", s)
-        test_name = s
+    # Phase 1: Parse function signature (before body opening brace).
+    # Track paren depth to skip braces inside proptest argument patterns
+    # like `name in "[A-Za-z ]{1,50}"` which would confuse the brace counter.
+    # Also check for #[should_panic] which appears between #[test] and fn.
+    in_test && !in_body {
+        if (/fn[[:space:]]+[a-zA-Z_][a-zA-Z0-9_]*/) {
+            s = $0
+            gsub(/.*fn[[:space:]]+/, "", s)
+            gsub(/[^a-zA-Z0-9_].*/, "", s)
+            test_name = s
+        }
+        # Check for #[should_panic] attribute (appears before fn signature)
+        if ($0 ~ /#\[should_panic/) {
+            has_assert = 1
+        }
+        n = split($0, chars, "")
+        for (i = 1; i <= n; i++) {
+            if (chars[i] == "(") paren_depth++
+            if (chars[i] == ")" && paren_depth > 0) paren_depth--
+            if (chars[i] == "{" && paren_depth == 0) {
+                in_body = 1
+                brace_depth = 1
+                break
+            }
+        }
+        next
     }
-    in_test {
+    # Phase 2: Parse function body — count braces and look for assertions.
+    in_test && in_body {
         n = split($0, chars, "")
         for (i = 1; i <= n; i++) {
             if (chars[i] == "{") brace_depth++
             if (chars[i] == "}") brace_depth--
         }
-        if ($0 ~ /assert!|assert_eq!|assert_ne!|assert_matches!|prop_assert|#\[should_panic/) {
+        # Recognized assertion patterns:
+        #   assert!, assert_eq!, assert_ne!, assert_matches!  (stdlib macros)
+        #   assert_foo(                                       (helper functions named assert_*)
+        #   prop_assert, prop_assert_eq, prop_assert_ne       (proptest)
+        #   assert_snapshot!, assert_debug_snapshot!, etc.     (insta)
+        #   .expect(                                          (intentional panic-on-fail)
+        #   #[should_panic]                                   (expected-panic tests)
+        if ($0 ~ /assert[a-z_]*!|assert_[a-z_]+\(|prop_assert|\.expect\(|#\[should_panic]/) {
             has_assert = 1
         }
-        if (brace_depth == 0 && FNR != test_line) {
+        # Suppression: // allow(zero_assertions) inside the test body
+        if ($0 ~ /\/\/.*allow\(zero_assertions\)/) {
+            has_assert = 1
+        }
+        if (brace_depth == 0) {
             if (!has_assert) {
                 printf "ZERO %s:%d %s\n", FILENAME, test_line, test_name
             }
@@ -82,8 +121,9 @@ if [ "$ZERO_ASSERTION_TESTS" -gt 0 ]; then
     done
     echo ""
     echo "FAIL: Found test functions with zero assertions."
-    echo "Every #[test] function must contain at least one assert!(), assert_eq!(),"
-    echo "assert_ne!(), assert_matches!(), prop_assert!(), or #[should_panic] annotation."
+    echo "Every #[test] function must contain at least one assertion macro (assert*!,"
+    echo "prop_assert*!, insta snapshot), .expect(), or #[should_panic] annotation."
+    echo "For intentional no-panic tests, add: // allow(zero_assertions)"
     exit 1
 else
     echo "PASS: All test functions contain assertions."
