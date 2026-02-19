@@ -391,7 +391,6 @@ workflow:
       - target/
     policy: pull  # Read-only - lint jobs don't need to update cache
   script:
-    - rustup component add rustfmt clippy
     - cargo fmt --all -- --check
     - cargo clippy --all-targets -- -D warnings
 
@@ -401,8 +400,6 @@ workflow:
   stage: test
   before_script:
     - !reference [.self-hosted, before_script]
-    - rustup component add llvm-tools-preview
-    - cargo binstall cargo-llvm-cov --no-confirm 2>/dev/null || cargo install cargo-llvm-cov --locked || true
   script:
     - cargo llvm-cov --workspace --lcov --output-path lcov.info
     - cargo llvm-cov report --cobertura --output-path cobertura.xml
