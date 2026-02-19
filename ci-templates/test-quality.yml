@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Test Quality Gates Template
+# Automated checks for test code quality (PI-06, PI-14)
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/test-quality.yml'
+#
+# Provides:
+#   - quality:zero-assertions: Fails if any #[test] function has zero assertions
+#   - quality:test-ratio: Reports test-to-code ratio as CI metric
+#
+# Both jobs clone vauchi/scripts to access the scanner scripts,
+# so consuming repos don't need to vendor the scripts.
+
+# ============================================================
+# Zero-Assertion Scanner (PI-06)
+# ============================================================
+# Scans for #[test] functions that contain no assert!() calls.
+# Catches "tests" that don't actually verify anything.
+
+quality:zero-assertions:
+  stage: lint
+  image: rust:1.93.1
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        compare_to: refs/heads/main
+        paths:
+          - "**/*.rs"
+          - ".gitlab-ci.yml"
+  script:
+    - |
+      git clone --depth=1 https://gitlab.com/vauchi/scripts.git /tmp/scripts
+      chmod +x /tmp/scripts/scripts/check-zero-assertions.sh
+
+      # Scan all Rust source directories that contain tests
+      DIRS=""
+      for dir in src tests; do
+        if [ -d "$dir" ]; then
+          DIRS="$DIRS $dir"
+        fi
+      done
+      # Also check workspace member directories
+      for dir in */src */tests; do
+        if [ -d "$dir" ]; then
+          DIRS="$DIRS $dir"
+        fi
+      done
+
+      if [ -n "$DIRS" ]; then
+        /tmp/scripts/scripts/check-zero-assertions.sh $DIRS
+      else
+        echo "No test directories found — skipping"
+      fi
+  timeout: 5 minutes
+
+# ============================================================
+# Test-to-Code Ratio (PI-14)
+# ============================================================
+# Measures TLOC/ELOC ratio and reports it. Advisory — does not
+# fail the pipeline, but tracks progress toward 50% target.
+
+quality:test-ratio:
+  stage: lint
+  image: rust:1.93.1
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        compare_to: refs/heads/main
+        paths:
+          - "**/*.rs"
+          - ".gitlab-ci.yml"
+  allow_failure: true
+  script:
+    - |
+      git clone --depth=1 https://gitlab.com/vauchi/scripts.git /tmp/scripts
+      chmod +x /tmp/scripts/scripts/test-code-ratio.sh
+
+      # Measure ratio for each crate directory that has src/
+      for dir in . */; do
+        dir="${dir%/}"
+        if [ -d "$dir/src" ]; then
+          echo ""
+          /tmp/scripts/scripts/test-code-ratio.sh "$dir"
+        fi
+      done
+  timeout: 5 minutes
