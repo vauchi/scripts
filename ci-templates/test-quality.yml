@@ -28,6 +28,9 @@ quality:zero-assertions:
   stage: lint
   image: rust:1.93.1
   needs: []
+  # Advisory until pre-existing zero-assertion tests are remediated (164 remaining).
+  # Will become blocking once the remediation child problem is resolved.
+  allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
