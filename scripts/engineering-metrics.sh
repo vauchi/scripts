@@ -427,7 +427,7 @@ printf "|%-37s|%17s|%22s|%-8s|\n" "-------------------------------------" "-----
 # 1. Build time
 status="--"
 if [[ "${METRICS[build_time]}" =~ ^[0-9] ]]; then
-    val=$(echo "${METRICS[build_time]}" | sed 's/ min//')
+    val="${METRICS[build_time]// min/}"
     if awk "BEGIN { exit !($val <= 5) }"; then status="PASS"; else status="FAIL"; fi
 fi
 metric_row "Build time (unit test results)" "${METRICS[build_time]}" "< 5 min" "$status"
