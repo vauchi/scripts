@@ -15,17 +15,20 @@
 #
 # Requires: lint stage defined in the consuming pipeline.
 #
-# Performance: Uses self-hosted shell runner where reuse is pre-installed
+# Performance: Uses self-hosted shell runners where reuse is pre-installed
 # (< 5s) instead of Docker (fsfe/reuse:latest = 4-6 min Docker overhead).
 # Falls back to pip install if reuse is not available.
+#
+# Runner requirement: any self-hosted runner tagged with "reuse".
+# Currently: allyson (linux) and nell (macOS).
 #
 # NOTE: This template is self-contained — it does NOT depend on rust-base.yml
 # so that non-Rust repos (android, ios, features, etc.) can include it.
 
 reuse-lint:
   tags:
-    - linux
     - self-hosted
+    - reuse
   stage: lint
   needs: []
   timeout: 2m

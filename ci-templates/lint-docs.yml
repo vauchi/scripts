@@ -103,18 +103,17 @@ check-doc-naming:
 # ============================================================
 
 # Lint markdown files with markdownlint
+# Uses self-hosted shell runner where markdownlint is pre-installed (< 5s)
+# instead of Docker node:20-alpine + npm install (~30s overhead).
 lint-markdown:
   stage: lint
-  image: node:20-alpine
-  cache:
-    key: npm-lint-tools
-    paths:
-      - .npm/
-      - node_modules/
-  before_script:
-    - npm install markdownlint-cli --cache .npm
+  tags:
+    - self-hosted
+    - markdownlint
+  needs: []
+  timeout: 2m
   script:
-    - npx markdownlint '**/*.md' --ignore node_modules --ignore target || true
+    - markdownlint '**/*.md' --ignore node_modules --ignore target || true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
@@ -193,16 +192,17 @@ check-license-text:
 # ============================================================
 
 # Validate Gherkin feature files
+# Uses self-hosted shell runner with pre-installed Node.js.
+# npm package still installed at runtime (not worth a global install for one job).
 lint-gherkin:
   stage: lint
-  image: node:20-alpine
-  cache:
-    key: npm-lint-tools
-    paths:
-      - .npm/
-      - node_modules/
+  tags:
+    - self-hosted
+    - node
+  needs: []
+  timeout: 2m
   before_script:
-    - npm install @cucumber/gherkin-utils --cache .npm
+    - npm install --prefer-offline --no-audit --no-fund @cucumber/gherkin-utils
   script:
     - |
       if ls *.feature 1> /dev/null 2>&1 || ls **/*.feature 1> /dev/null 2>&1; then
