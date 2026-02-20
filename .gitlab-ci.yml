@@ -17,14 +17,13 @@ include:
 stages:
   - lint
 
-variables:
-  SHELLCHECK_VERSION: "0.9.0"
-
 # Lint shell scripts with shellcheck
 shellcheck:
   extends: .mr-or-main
   stage: lint
-  image: koalaman/shellcheck-alpine:v${SHELLCHECK_VERSION}
+  tags:
+    - self-hosted
+    - shellcheck
   script:
     - |
       echo "Linting shell scripts..."
@@ -50,8 +49,8 @@ lint:ci-templates:
   extends: .mr-or-main
   stage: lint
   tags:
-    - linux
     - self-hosted
+    - yamllint
   script:
     - |
       echo "Validating CI template YAML..."
