@@ -27,6 +27,7 @@
 quality:zero-assertions:
   stage: lint
   image: rust:1.93.1
+  tags: [docker]
   needs: []
   # Advisory until pre-existing zero-assertion tests are remediated (164 remaining).
   # Will become blocking once the remediation child problem is resolved.
@@ -73,6 +74,7 @@ quality:zero-assertions:
 quality:test-ratio:
   stage: lint
   image: rust:1.93.1
+  tags: [docker]
   needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -109,6 +111,7 @@ quality:test-ratio:
 quality:metrics-dashboard:
   stage: lint
   image: python:3.12-slim
+  tags: [docker]
   needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"

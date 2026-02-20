@@ -19,6 +19,7 @@ reuse-lint:
   image:
     name: fsfe/reuse:latest
     entrypoint: [""]
+  tags: [docker]
   stage: lint
   before_script:
     - command -v reuse >/dev/null 2>&1 || pip3 install --quiet reuse
