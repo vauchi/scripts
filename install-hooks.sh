@@ -2,39 +2,47 @@
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Installs git hooks from scripts/hooks/ to .git/hooks/
+# Sets core.hooksPath in all repos to use shared hooks from scripts/hooks/.
+# No symlinks or copies — git reads hooks directly from the shared directory.
 # Usage: ./scripts/install-hooks.sh
+# Idempotent — safe to re-run on pull or setup.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-HOOKS_SRC="$SCRIPT_DIR/hooks"
-HOOKS_DST="$REPO_ROOT/.git/hooks"
+HOOKS_DIR="$SCRIPT_DIR/hooks"
 
-if [[ ! -d "$HOOKS_SRC" ]]; then
-    echo "No hooks directory found at $HOOKS_SRC"
+if [[ ! -d "$HOOKS_DIR" ]]; then
+    echo "No hooks directory found at $HOOKS_DIR"
     exit 1
 fi
 
-echo "Installing git hooks..."
+chmod +x "$HOOKS_DIR"/*
 
-for hook in "$HOOKS_SRC"/*; do
-    if [[ -f "$hook" ]]; then
-        hook_name=$(basename "$hook")
-        dst="$HOOKS_DST/$hook_name"
+# All repos that get hooks
+REPOS=(
+    "$REPO_ROOT"
+    "$REPO_ROOT/core"
+    "$REPO_ROOT/cli"
+    "$REPO_ROOT/tui"
+    "$REPO_ROOT/relay"
+    "$REPO_ROOT/desktop"
+    "$REPO_ROOT/e2e"
+    "$REPO_ROOT/ios"
+    "$REPO_ROOT/android"
+)
 
-        # Backup existing hook if it exists and isn't a symlink
-        if [[ -f "$dst" && ! -L "$dst" ]]; then
-            echo "  Backing up existing $hook_name to $hook_name.backup"
-            mv "$dst" "$dst.backup"
-        fi
+echo "Setting core.hooksPath → $HOOKS_DIR"
 
-        # Create symlink
-        ln -sf "$hook" "$dst"
-        chmod +x "$hook"
-        echo "  Installed: $hook_name"
+for repo in "${REPOS[@]}"; do
+    name="$(basename "$repo")"
+    if [[ -d "$repo/.git" ]]; then
+        git -C "$repo" config core.hooksPath "$HOOKS_DIR"
+        echo "  OK: $name"
+    else
+        echo "  SKIP: $name (not cloned)"
     fi
 done
 
-echo "Done! Hooks installed to .git/hooks/"
+echo "Done!"

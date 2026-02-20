@@ -37,10 +37,17 @@ For testing sync/exchange between multiple "devices":
 
 ## Git Hooks
 
-Install with `just install-hooks`. Checks:
+Install with `just install-hooks`. Installs to all sub-repos (core, cli, tui, relay, desktop, e2e, ios, android).
+
+**pre-commit** — blocks commit on:
 - Rust formatting
-- Inline test markers
+- Inline test markers (missing `INLINE_TEST_REQUIRED`)
 - Potential secrets
+
+**pre-push** — blocks push on (repo-type dependent):
+- Rust repos: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`
+- iOS: `swiftformat --lint`, `swiftlint --strict`
+- Android: `compileDebugKotlin`, `gradle lint`
 
 ## See Also
 

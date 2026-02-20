@@ -1,6 +1,11 @@
 #!/bin/bash
-# Pre-push hook: Runs lint:format, lint:clippy, test:unit before every push.
+# Pre-push hook: Runs format, lint, and test checks before every push.
 # Matches CI pipeline checks exactly. Skip with: git push --no-verify
+#
+# Supported repo types:
+# - Rust (core, cli, tui, relay, desktop, e2e): cargo fmt, clippy, test
+# - Swift/iOS: swiftformat, swiftlint
+# - Android/Kotlin: compileDebugKotlin, lint
 #
 # Install with: just install-hooks
 
@@ -9,77 +14,142 @@ set -e
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 REPO_DIR="$(basename "$REPO_ROOT")"
 
-# ─── Detect Cargo.toml ───────────────────────────────────────────────
+echo "=== Pre-push checks ($REPO_DIR) ==="
+
+# ─── Rust repos ──────────────────────────────────────────────────────
 
 WORK_DIR="$REPO_ROOT"
 if [[ "$REPO_DIR" == "desktop" ]]; then
     WORK_DIR="$REPO_ROOT/src-tauri"
 fi
 
-if [[ ! -f "$WORK_DIR/Cargo.toml" ]]; then
+if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
+    cd "$WORK_DIR"
+
+    CLIPPY_EXTRA=()
+    TEST_CMD=(cargo test)
+
+    case "$REPO_DIR" in
+        core)
+            TEST_CMD+=(--workspace)
+            ;;
+        cli)
+            TEST_CMD+=(--all-targets --no-default-features)
+            ;;
+        tui)
+            TEST_CMD+=(--all-targets)
+            LOCALES_DIR="$REPO_ROOT/../locales"
+            if [[ -d "$LOCALES_DIR" ]]; then
+                export VAUCHI_LOCALES_DIR="$LOCALES_DIR"
+            fi
+            ;;
+        desktop)
+            CLIPPY_EXTRA=(--no-default-features --features custom-protocol)
+            TEST_CMD+=(--all-targets --no-default-features --features custom-protocol)
+            ;;
+        *)
+            TEST_CMD+=(--all-targets)
+            ;;
+    esac
+
+    echo ""
+    echo "[1/3] Checking formatting..."
+    if ! cargo fmt --all -- --check; then
+        echo ""
+        echo "FAILED: Format check failed. Run 'cargo fmt --all' to fix."
+        exit 1
+    fi
+    echo "  Format OK"
+
+    echo ""
+    echo "[2/3] Running clippy..."
+    if ! cargo clippy --all-targets "${CLIPPY_EXTRA[@]}" -- -D warnings; then
+        echo ""
+        echo "FAILED: Clippy check failed. Fix warnings before pushing."
+        exit 1
+    fi
+    echo "  Clippy OK"
+
+    echo ""
+    echo "[3/3] Running tests..."
+    if ! "${TEST_CMD[@]}"; then
+        echo ""
+        echo "FAILED: Tests failed. Fix before pushing."
+        exit 1
+    fi
+    echo "  Tests OK"
+
+# ─── Swift/iOS repo ──────────────────────────────────────────────────
+
+elif [[ -f "$REPO_ROOT/Package.swift" ]] || [[ "$REPO_DIR" == "ios" ]]; then
+    cd "$REPO_ROOT"
+    STEP=1
+    TOTAL=2
+
+    echo ""
+    echo "[$STEP/$TOTAL] Checking Swift formatting..."
+    if command -v swiftformat &> /dev/null; then
+        if ! swiftformat --lint . 2>&1; then
+            echo ""
+            echo "FAILED: SwiftFormat check failed. Run 'swiftformat .' to fix."
+            exit 1
+        fi
+        echo "  SwiftFormat OK"
+    else
+        echo "  (swiftformat not found, skipping)"
+    fi
+
+    STEP=2
+    echo ""
+    echo "[$STEP/$TOTAL] Running SwiftLint..."
+    if command -v swiftlint &> /dev/null; then
+        if ! swiftlint lint --strict --quiet 2>&1; then
+            echo ""
+            echo "FAILED: SwiftLint found violations. Fix before pushing."
+            exit 1
+        fi
+        echo "  SwiftLint OK"
+    else
+        echo "  (swiftlint not found, skipping)"
+    fi
+
+# ─── Android/Kotlin repo ─────────────────────────────────────────────
+
+elif [[ "$REPO_DIR" == "android" ]]; then
+    cd "$REPO_ROOT"
+
+    echo ""
+    echo "[1/2] Compiling Kotlin..."
+    if [[ -x "$REPO_ROOT/gradlew" ]]; then
+        if ! ./gradlew compileDebugKotlin --quiet 2>&1; then
+            echo ""
+            echo "FAILED: Kotlin compilation failed. Fix errors before pushing."
+            exit 1
+        fi
+        echo "  Compilation OK"
+    else
+        echo "  (gradlew not found, skipping)"
+    fi
+
+    echo ""
+    echo "[2/2] Running Android lint..."
+    if [[ -x "$REPO_ROOT/gradlew" ]]; then
+        if ! ./gradlew lint --quiet 2>&1; then
+            echo ""
+            echo "FAILED: Android lint failed. Fix before pushing."
+            exit 1
+        fi
+        echo "  Lint OK"
+    else
+        echo "  (gradlew not found, skipping)"
+    fi
+
+# ─── Unknown repo type ───────────────────────────────────────────────
+
+else
+    echo "  No recognized project type, skipping checks."
     exit 0
 fi
-
-cd "$WORK_DIR"
-
-# ─── Build per-repo command flags ────────────────────────────────────
-
-CLIPPY_EXTRA=()
-TEST_CMD=(cargo test)
-
-case "$REPO_DIR" in
-    core)
-        TEST_CMD+=(--workspace)
-        ;;
-    cli)
-        TEST_CMD+=(--all-targets --no-default-features)
-        ;;
-    tui)
-        TEST_CMD+=(--all-targets)
-        LOCALES_DIR="$REPO_ROOT/../locales"
-        if [[ -d "$LOCALES_DIR" ]]; then
-            export VAUCHI_LOCALES_DIR="$LOCALES_DIR"
-        fi
-        ;;
-    desktop)
-        CLIPPY_EXTRA=(--no-default-features --features custom-protocol)
-        TEST_CMD+=(--all-targets --no-default-features --features custom-protocol)
-        ;;
-    *)
-        TEST_CMD+=(--all-targets)
-        ;;
-esac
-
-# ─── Run checks (fail-fast: fastest → slowest) ──────────────────────
-
-echo "=== Pre-push checks ($REPO_DIR) ==="
-
-echo ""
-echo "[1/3] Checking formatting..."
-if ! cargo fmt --all -- --check; then
-    echo ""
-    echo "FAILED: Format check failed. Run 'cargo fmt --all' to fix."
-    exit 1
-fi
-echo "  Format OK"
-
-echo ""
-echo "[2/3] Running clippy..."
-if ! cargo clippy --all-targets "${CLIPPY_EXTRA[@]}" -- -D warnings; then
-    echo ""
-    echo "FAILED: Clippy check failed. Fix warnings before pushing."
-    exit 1
-fi
-echo "  Clippy OK"
-
-echo ""
-echo "[3/3] Running tests..."
-if ! "${TEST_CMD[@]}"; then
-    echo ""
-    echo "FAILED: Tests failed. Fix before pushing."
-    exit 1
-fi
-echo "  Tests OK"
 
 echo ""
 echo "=== All pre-push checks passed ==="
