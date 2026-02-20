@@ -14,15 +14,23 @@
 #       file: '/ci-templates/reuse.yml'
 #
 # Requires: lint stage defined in the consuming pipeline.
+#
+# Performance: Uses self-hosted shell runner where reuse is pre-installed
+# (< 5s) instead of Docker (fsfe/reuse:latest = 4-6 min Docker overhead).
+# Falls back to pip install if reuse is not available.
+#
+# NOTE: This template is self-contained — it does NOT depend on rust-base.yml
+# so that non-Rust repos (android, ios, features, etc.) can include it.
 
 reuse-lint:
-  image:
-    name: fsfe/reuse:latest
-    entrypoint: [""]
-  tags: [docker]
+  tags:
+    - linux
+    - self-hosted
   stage: lint
+  needs: []
+  timeout: 2m
   before_script:
-    - command -v reuse >/dev/null 2>&1 || pip3 install --quiet reuse
+    - command -v reuse >/dev/null 2>&1 || pip3 install --quiet --user reuse
   script:
     - reuse lint
   rules:

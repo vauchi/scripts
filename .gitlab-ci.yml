@@ -63,10 +63,3 @@ lint:ci-templates:
 
       echo "CI template validation complete."
   allow_failure: true
-
-# Override reuse-lint from reuse.yml to run on self-hosted (no Docker)
-reuse-lint:
-  image: null
-  tags:
-    - linux
-    - self-hosted

@@ -27,11 +27,20 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
     cd "$WORK_DIR"
 
     CLIPPY_EXTRA=()
-    TEST_CMD=(cargo test)
+    # Use nextest if available (12x faster than cargo test)
+    if command -v cargo-nextest &> /dev/null; then
+        TEST_CMD=(cargo nextest run)
+    else
+        TEST_CMD=(cargo test)
+    fi
 
     case "$REPO_DIR" in
         core)
-            TEST_CMD+=(--workspace)
+            if command -v cargo-nextest &> /dev/null; then
+                TEST_CMD+=(--workspace)
+            else
+                TEST_CMD+=(--workspace)
+            fi
             ;;
         cli)
             TEST_CMD+=(--all-targets --no-default-features)

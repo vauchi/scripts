@@ -30,6 +30,11 @@ variables:
   # Minimal clone depth — lint/test/build jobs don't need history.
   # Release/verify jobs override with deeper depth where needed.
   GIT_DEPTH: "1"
+  # Keep sccache daemon alive between jobs (avoids restart overhead)
+  SCCACHE_IDLE_TIMEOUT: "0"
+  # Use faster zstd compression for CI artifacts/cache
+  ARTIFACT_COMPRESSION_LEVEL: fastest
+  FF_USE_FASTZIP: "true"
   # Note: CARGO_INCREMENTAL is set to 0 for self-hosted runners via .self-hosted
   # to reduce target/ directory size and improve cache efficiency
 
@@ -95,6 +100,7 @@ workflow:
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
+      - .cargo/git/db/
       - target/
     policy: pull-push
 
@@ -111,6 +117,7 @@ workflow:
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
+      - .cargo/git/db/
       - target/
     policy: pull
 
@@ -192,6 +199,8 @@ workflow:
   tags:
     - linux
     - self-hosted
+  variables:
+    CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   before_script:
     - !reference [.self-hosted, before_script]
     # Ensure mold linker is available (required by .cargo/config.toml for faster linking)
@@ -208,6 +217,7 @@ workflow:
       - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
+      - .cargo/git/db/
       - target/
     policy: pull-push
 
@@ -218,6 +228,8 @@ workflow:
   tags:
     - linux
     - self-hosted
+  variables:
+    CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   before_script:
     - !reference [.self-hosted, before_script]
     - command -v mold >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq mold)
@@ -233,6 +245,7 @@ workflow:
       - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
+      - .cargo/git/db/
       - target/
     policy: pull
 
@@ -243,6 +256,8 @@ workflow:
   tags:
     - linux
     - self-hosted
+  variables:
+    CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   before_script:
     - !reference [.self-hosted, before_script]
     - command -v mold >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq mold)
@@ -279,6 +294,7 @@ workflow:
       - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
+      - .cargo/git/db/
       - target/
     policy: pull-push
 
@@ -306,6 +322,7 @@ workflow:
       - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
+      - .cargo/git/db/
       - target/
     policy: pull
 
@@ -344,6 +361,7 @@ workflow:
       - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
+      - .cargo/git/db/
       - target/
     policy: pull-push
 
