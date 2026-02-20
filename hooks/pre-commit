@@ -24,11 +24,17 @@ if command -v cargo &> /dev/null; then
         # Check if cargo fmt is available
         if cargo fmt --version &> /dev/null; then
             # Check formatting without making changes
-            cd core 2>/dev/null || true
+            # cd to the directory containing Cargo.toml (core/ for core workspace,
+            # src-tauri/ for desktop, or stay in repo root for cli/tui/relay/e2e)
+            if [ -d core ]; then
+                cd core
+            elif [ -d src-tauri ]; then
+                cd src-tauri
+            fi
             if ! cargo fmt --all -- --check 2>/dev/null; then
                 echo ""
                 echo "ERROR: Rust formatting check failed."
-                echo "Run 'cargo fmt --all' in the core/ directory to fix."
+                echo "Run 'cargo fmt --all' to fix."
                 exit 1
             fi
             cd - > /dev/null 2>&1 || true
