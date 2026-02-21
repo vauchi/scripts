@@ -169,20 +169,36 @@ workflow:
     - export PATH="$HOME/.cargo/bin:${PATH}"
     - |
       # Clone/fetch via HTTPS using CI_JOB_TOKEN (no SSH keys needed)
+      # GIT_STRATEGY: none preserves .git/ across runs. If the state is
+      # corrupt (force push, stale shallow refs), nuke and start fresh.
       REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+      if [ -d ".git" ]; then
+        git remote set-url origin "$REPO_URL" 2>/dev/null || true
+        rm -f .git/shallow .git/shallow.lock 2>/dev/null || true
+      fi
+
+      fetch_ref() {
+        if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
+          git fetch origin "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}" --depth 20
+          git checkout -f "origin/${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
+        else
+          git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20
+          git checkout -f "${CI_COMMIT_SHA}"
+        fi
+      }
+
       if [ ! -d ".git" ]; then
         git init
         git remote add origin "$REPO_URL"
-      else
-        git remote set-url origin "$REPO_URL"
       fi
-      # For MR pipelines, fetch the source branch (merge refs aren't directly fetchable)
-      if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
-        git fetch origin "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}" --depth 20
-        git checkout -f "origin/${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
-      else
-        git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20
-        git checkout -f "${CI_COMMIT_SHA}"
+
+      # Try fetch; if it fails (force push, corrupt objects), start fresh
+      if ! fetch_ref 2>/dev/null; then
+        echo "Fetch failed — resetting .git for clean clone"
+        rm -rf .git
+        git init
+        git remote add origin "$REPO_URL"
+        fetch_ref
       fi
     # Ensure a Rust toolchain is configured (self-hosted runners may not have a default)
     - rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
