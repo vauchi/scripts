@@ -17,7 +17,7 @@ YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
 # Directories to scan (public directories only)
-PUBLIC_DIRS="docs scripts assets website core cli tui desktop relay e2e features android ios"
+PUBLIC_DIRS="docs scripts assets themes locales website core cli tui desktop relay e2e features android ios"
 
 # Patterns that indicate sensitive content
 SENSITIVE_PATTERNS=(

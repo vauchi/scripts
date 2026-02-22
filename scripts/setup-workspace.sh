@@ -22,16 +22,20 @@ PUBLIC_REPOS=(
     "features"
     "android"
     "ios"
-    "dev-tools"
+    "docs"
+    "website"
+    "scripts"
+    "assets"
+    "themes"
+    "locales"
+    "gitlab-profile"
+    "vauchi-mobile-swift"
+    "vauchi-mobile-android"
 )
 
 # Private repos (require access, cloned with _ prefix)
 PRIVATE_REPOS=(
-    "assets"
-    "docs"
-    "website"
-    "strategy"
-    "infra"
+    "private"
 )
 
 # Colors
