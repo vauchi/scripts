@@ -186,6 +186,10 @@ workflow:
       fi
     # Ensure a Rust toolchain is configured (self-hosted runners may not have a default)
     - rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
+    # Clear extracted crate sources (shell runners persist registry across jobs;
+    # interrupted extractions leave partial source dirs that fail to compile).
+    # Cargo re-extracts from cached .crate tarballs — fast, no re-download.
+    - rm -rf "$HOME/.cargo/registry/src" .cargo/registry/src 2>/dev/null || true
   after_script:
     # Clean up build artifacts to save disk space (keep cache intact)
     - rm -rf target/debug/deps/*.d target/debug/incremental 2>/dev/null || true
