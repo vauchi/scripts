@@ -167,6 +167,10 @@ workflow:
     # Ensure user-installed cargo tools are in PATH (CARGO_HOME is overridden
     # to ${CI_PROJECT_DIR}/.cargo for caching, so ~/.cargo/bin isn't automatic)
     - export PATH="$HOME/.cargo/bin:${PATH}"
+    # Re-export CARGO_HOME at runtime — YAML variable expansion of
+    # ${CI_PROJECT_DIR} can resolve to empty in triggered pipelines,
+    # causing cargo to write to /.cargo/ (read-only on macOS).
+    - export CARGO_HOME="${CI_PROJECT_DIR:-.}/.cargo"
     - |
       # Clone/fetch via HTTPS using CI_JOB_TOKEN (no SSH keys needed)
       # GIT_STRATEGY: none preserves .git/ across runs. If the state is
