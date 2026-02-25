@@ -46,7 +46,7 @@ REPOS_FIX="core cli relay tui e2e desktop-rust desktop-ui ios"
 
 # Get the directory for a repo name (absolute path)
 repo_dir() {
-    local name="$1"
+    local name="${1:?repo_dir requires a repo name argument}"
     for entry in "${REPO_REGISTRY[@]}"; do
         IFS=: read -r n d t <<< "$entry"
         if [[ "$n" == "$name" ]]; then
@@ -60,7 +60,7 @@ repo_dir() {
 
 # Get the toolchain for a repo name
 repo_toolchain() {
-    local name="$1"
+    local name="${1:?repo_toolchain requires a repo name argument}"
     for entry in "${REPO_REGISTRY[@]}"; do
         IFS=: read -r n d t <<< "$entry"
         if [[ "$n" == "$name" ]]; then
@@ -125,6 +125,10 @@ resolve_repo() {
                     result="$result $part"
                 fi
             done
+            if [[ -z "${result# }" ]]; then
+                echo "ERROR: 'desktop' has no parts that support '$operation'" >&2
+                return 1
+            fi
             echo "${result# }"
             return 0
         fi
@@ -149,6 +153,10 @@ resolve_repo() {
                     result="$result $part"
                 fi
             done
+            if [[ -z "${result# }" ]]; then
+                echo "ERROR: 'desktop' has no parts that support '$operation'" >&2
+                return 1
+            fi
             echo "${result# }"
         elif echo " $allowed " | grep -q " $detected "; then
             echo "$detected"
@@ -161,4 +169,65 @@ resolve_repo() {
 
     # At workspace root: all
     echo "$allowed"
+}
+
+# ── GitLab helpers ──────────────────────────────────────────────────
+
+# Map directory name to GitLab project name.
+# Most are identity (core → core), with exceptions:
+#   desktop-rust, desktop-ui → desktop
+_dir_to_gitlab_name() {
+    local name="$1"
+    case "$name" in
+        desktop-rust|desktop-ui) echo "desktop" ;;
+        *)                       echo "$name" ;;
+    esac
+}
+
+# Resolve repo arg to a single GitLab project name.
+# Unlike resolve_repo (which returns multiple), this returns exactly one.
+resolve_gitlab_repo() {
+    local arg="${1:-}"
+
+    # Explicit name
+    if [[ -n "$arg" ]]; then
+        _dir_to_gitlab_name "$arg"
+        return 0
+    fi
+
+    # Detect from pwd
+    local detected
+    if detected=$(_detect_repo_from_pwd); then
+        _dir_to_gitlab_name "$detected"
+        return 0
+    fi
+
+    # At workspace root — ambiguous for GitLab ops
+    echo "ERROR: specify a repo (cannot target all repos for GitLab operations)" >&2
+    return 1
+}
+
+# Get the working directory for a repo (for git branch detection etc.)
+gitlab_repo_dir() {
+    local arg="${1:-}"
+
+    if [[ -n "$arg" ]]; then
+        # Map to first matching directory
+        case "$arg" in
+            desktop-rust) echo "$WORKSPACE_ROOT/desktop/src-tauri" ;;
+            desktop-ui)   echo "$WORKSPACE_ROOT/desktop/ui" ;;
+            desktop)      echo "$WORKSPACE_ROOT/desktop" ;;
+            *)            echo "$WORKSPACE_ROOT/$arg" ;;
+        esac
+        return 0
+    fi
+
+    # Detect from pwd
+    local detected
+    if detected=$(_detect_repo_from_pwd); then
+        repo_dir "$detected"
+        return 0
+    fi
+
+    echo "$WORKSPACE_ROOT"
 }
