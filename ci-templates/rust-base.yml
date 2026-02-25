@@ -179,6 +179,14 @@ workflow:
       if [ -d ".git" ]; then
         git remote set-url origin "$REPO_URL" 2>/dev/null || true
         rm -f .git/shallow .git/shallow.lock 2>/dev/null || true
+        # Detect corrupted git objects before attempting fetch.
+        # Shell runners persist .git/ across jobs; a partial fetch or
+        # force push can leave unreachable/broken objects that cause
+        # "Could not read <sha>" errors on subsequent fetches.
+        if ! git fsck --no-dangling --connectivity-only 2>/dev/null; then
+          echo "Corrupted .git detected (fsck failed) — resetting for clean clone"
+          rm -rf .git
+        fi
       fi
 
       fetch_ref() {
