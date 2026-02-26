@@ -45,7 +45,7 @@ Install with `just install-hooks`. Installs to all sub-repos (core, cli, tui, re
 - Potential secrets
 
 **pre-push** — blocks push on (repo-type dependent):
-- Rust repos: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`
+- Rust repos: `just fmt <repo>`, `just lint <repo>`, `just test <repo>` (or raw: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`)
 - iOS: `swiftformat --lint`, `swiftlint --strict`
 - Android: `compileDebugKotlin`, `gradle lint`
 
