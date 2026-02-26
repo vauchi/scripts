@@ -30,6 +30,8 @@ REPO_REGISTRY=(
     "features:features:gherkin"
     "website:website:html"
     "scripts:scripts:shell"
+    "gitlab-profile:gitlab-profile:none"
+    "github-profile:github-profile:none"
 )
 
 # "desktop" is a virtual name that expands to desktop-rust + desktop-ui
