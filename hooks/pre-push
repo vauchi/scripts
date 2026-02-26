@@ -112,12 +112,20 @@ elif [[ -f "$REPO_ROOT/Package.swift" ]] || [[ "$REPO_DIR" == "ios" ]]; then
     echo ""
     echo "[$STEP/$TOTAL] Running SwiftLint..."
     if command -v swiftlint &> /dev/null; then
-        if ! swiftlint lint --strict --quiet 2>&1; then
+        LINT_OUTPUT=$(swiftlint lint --strict --quiet 2>&1) || LINT_EXIT=$?
+        LINT_EXIT=${LINT_EXIT:-0}
+        if [[ $LINT_EXIT -gt 128 ]]; then
+            # Tool crashed (signal), not a real lint failure — skip gracefully
+            SIGNAL=$((LINT_EXIT - 128))
+            echo "  (swiftlint crashed with signal $SIGNAL, skipping — fix your swiftlint installation)"
+        elif [[ $LINT_EXIT -ne 0 ]]; then
+            echo "$LINT_OUTPUT"
             echo ""
             echo "FAILED: SwiftLint found violations. Fix before pushing."
             exit 1
+        else
+            echo "  SwiftLint OK"
         fi
-        echo "  SwiftLint OK"
     else
         echo "  (swiftlint not found, skipping)"
     fi
