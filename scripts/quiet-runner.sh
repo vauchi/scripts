@@ -155,13 +155,15 @@ _qr_print_table() {
     echo ""
 
     # Show captured output for failures
-    for entry in "${failed_entries[@]}"; do
-        local flabel flog
-        IFS='|' read -r flabel flog <<< "$entry"
-        echo -e "${_QR_RED}=== Output from failed: $flabel ===${_QR_NC}"
-        cat "$flog"
-        echo ""
-    done
+    if [[ ${#failed_entries[@]} -gt 0 ]]; then
+        for entry in "${failed_entries[@]}"; do
+            local flabel flog
+            IFS='|' read -r flabel flog <<< "$entry"
+            echo -e "${_QR_RED}=== Output from failed: $flabel ===${_QR_NC}"
+            cat "$flog"
+            echo ""
+        done
+    fi
 
     return $any_failed
 }
@@ -207,13 +209,15 @@ qr_print_shared_summary() {
     fi
     echo ""
 
-    for entry in "${failed_entries[@]}"; do
-        local flabel flog
-        IFS='|' read -r flabel flog <<< "$entry"
-        echo -e "${_QR_RED}=== Output from failed: $flabel ===${_QR_NC}"
-        [[ -f "$flog" ]] && cat "$flog"
-        echo ""
-    done
+    if [[ ${#failed_entries[@]} -gt 0 ]]; then
+        for entry in "${failed_entries[@]}"; do
+            local flabel flog
+            IFS='|' read -r flabel flog <<< "$entry"
+            echo -e "${_QR_RED}=== Output from failed: $flabel ===${_QR_NC}"
+            [[ -f "$flog" ]] && cat "$flog"
+            echo ""
+        done
+    fi
 
     return $any_failed
 }
