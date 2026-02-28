@@ -1,6 +1,8 @@
 #!/bin/bash
 # Pre-push hook: Runs format, lint, and test checks before every push.
-# Matches CI pipeline checks exactly. Skip with: git push --no-verify
+# Matches CI pipeline checks exactly.
+# Skip all checks: git push --no-verify
+# Skip tests only:  SKIP_TESTS=1 git push
 #
 # Supported repo types:
 # - Rust (core, cli, tui, relay, desktop, e2e): cargo fmt, clippy, test
@@ -79,14 +81,19 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
     fi
     echo "  Clippy OK"
 
-    echo ""
-    echo "[3/3] Running tests..."
-    if ! "${TEST_CMD[@]}"; then
+    if [[ "${SKIP_TESTS:-}" == "1" ]]; then
         echo ""
-        echo "FAILED: Tests failed. Fix before pushing."
-        exit 1
+        echo "[3/3] Skipping tests (SKIP_TESTS=1)"
+    else
+        echo ""
+        echo "[3/3] Running tests... (set SKIP_TESTS=1 to skip)"
+        if ! "${TEST_CMD[@]}"; then
+            echo ""
+            echo "FAILED: Tests failed. Fix before pushing."
+            exit 1
+        fi
+        echo "  Tests OK"
     fi
-    echo "  Tests OK"
 
 # ─── Swift/iOS repo ──────────────────────────────────────────────────
 
