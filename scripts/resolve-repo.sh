@@ -15,6 +15,7 @@ WORKSPACE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # Format: name:dir:toolchain
 # "dir" is relative to WORKSPACE_ROOT
 REPO_REGISTRY=(
+    "root:.:none"
     "core:core:rust"
     "cli:cli:rust"
     "relay:relay:rust"
@@ -30,6 +31,7 @@ REPO_REGISTRY=(
     "features:features:gherkin"
     "website:website:html"
     "scripts:scripts:shell"
+    "_private:_private:none"
     "gitlab-profile:gitlab-profile:none"
     "github-profile:github-profile:none"
 )
@@ -182,6 +184,8 @@ _dir_to_gitlab_name() {
     local name="$1"
     case "$name" in
         desktop-rust|desktop-ui) echo "desktop" ;;
+        _private)                echo "private" ;;
+        root)                    echo "vauchi" ;;
         *)                       echo "$name" ;;
     esac
 }
@@ -219,6 +223,7 @@ gitlab_repo_dir() {
             desktop-rust) echo "$WORKSPACE_ROOT/desktop/src-tauri" ;;
             desktop-ui)   echo "$WORKSPACE_ROOT/desktop/ui" ;;
             desktop)      echo "$WORKSPACE_ROOT/desktop" ;;
+            root)         echo "$WORKSPACE_ROOT" ;;
             *)            echo "$WORKSPACE_ROOT/$arg" ;;
         esac
         return 0
