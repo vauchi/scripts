@@ -27,17 +27,18 @@ count() { if [ -f "$1" ]; then wc -l < "$1" | tr -d ' '; else echo 0; fi; }
 
 color_type() {
   case "$1" in
-    caught)  printf "${G}caught${Z}" ;;
-    missed)  printf "${R}MISSED${Z}" ;;
-    timeout) printf "${Y}timeout${Z}" ;;
-    *)       printf "${D}unviable${Z}" ;;
+    caught)  printf '%b' "${G}caught${Z}" ;;
+    missed)  printf '%b' "${R}MISSED${Z}" ;;
+    timeout) printf '%b' "${Y}timeout${Z}" ;;
+    *)       printf '%b' "${D}unviable${Z}" ;;
   esac
 }
 
 last_mutant() {
   local f
-  f=$(ls -t "$MUTANTS_OUT"/caught.txt "$MUTANTS_OUT"/missed.txt \
-        "$MUTANTS_OUT"/timeout.txt "$MUTANTS_OUT"/unviable.txt 2>/dev/null | head -1)
+  f=$(find "$MUTANTS_OUT" -maxdepth 1 -name '*.txt' \
+        \( -name caught.txt -o -name missed.txt -o -name timeout.txt -o -name unviable.txt \) \
+        -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
   if [ -n "$f" ]; then
     printf "  \xe2\x94\x94 %s \xe2\x80\x94 %b\n" "$(tail -1 "$f")" "$(color_type "$(basename "$f" .txt)")"
   fi
@@ -54,7 +55,7 @@ fi
 TOTAL=$(python3 -c "import json; print(len(json.load(open('$MUTANTS_OUT/mutants.json'))))" 2>/dev/null || echo "0")
 
 printf "\033[0Ksection_start:%s:baseline[collapsed=true]\r\033[0K" "$(date +%s)"
-printf "${B}${C}Baseline: compiling and running unmutated tests${Z}\n"
+printf '%b' "${B}${C}Baseline: compiling and running unmutated tests${Z}\n"
 
 SECONDS=0; BASELINE_OPEN=true; TESTING_OPEN=false
 
@@ -72,7 +73,7 @@ while kill -0 "$MUTANTS_PID" 2>/dev/null; do
   if $BASELINE_OPEN; then
     printf "\033[0Ksection_end:%s:baseline\r\033[0K" "$(date +%s)"
     printf "\033[0Ksection_start:%s:testing\r\033[0K" "$(date +%s)"
-    printf "${B}${C}Testing %d mutants${Z}\n" "$TOTAL"
+    printf '%b' "${B}${C}Testing ${TOTAL} mutants${Z}\n"
     BASELINE_OPEN=false; TESTING_OPEN=true
   fi
 
@@ -83,8 +84,8 @@ while kill -0 "$MUTANTS_PID" 2>/dev/null; do
     eta="  ${D}(~${rem}m remaining)${Z}"
   fi
 
-  printf "[%3d/%d %2d%%] ${G}%d caught${Z}, ${R}%d missed${Z}, ${Y}%d timeout${Z}, ${D}%d unviable${Z}%b\n" \
-    "$d" "$TOTAL" "$pct" "$c" "$m" "$t" "$u" "$eta"
+  printf '[%3d/%d %2d%%] %b%d caught%b, %b%d missed%b, %b%d timeout%b, %b%d unviable%b%b\n' \
+    "$d" "$TOTAL" "$pct" "$G" "$c" "$Z" "$R" "$m" "$Z" "$Y" "$t" "$Z" "$D" "$u" "$Z" "$eta"
   last_mutant
 done
 
@@ -100,16 +101,16 @@ d=$((c + m + t + u))
 [ "$TOTAL" -gt 0 ] 2>/dev/null && cpct=$((c * 100 / TOTAL)) || cpct=0
 
 echo ""
-printf "${B}=== Mutation Testing Summary ===${Z}\n"
+printf '%b' "${B}=== Mutation Testing Summary ===${Z}\n"
 printf "  Total:    %d / %d\n" "$d" "$TOTAL"
-printf "  Caught:   ${G}%d (%d%%)${Z}\n" "$c" "$cpct"
-printf "  Missed:   ${R}%d${Z}\n" "$m"
-printf "  Timeout:  ${Y}%d${Z}\n" "$t"
-printf "  Unviable: ${D}%d${Z}\n" "$u"
+printf '  Caught:   %b%d (%d%%)%b\n' "$G" "$c" "$cpct" "$Z"
+printf '  Missed:   %b%d%b\n' "$R" "$m" "$Z"
+printf '  Timeout:  %b%d%b\n' "$Y" "$t" "$Z"
+printf '  Unviable: %b%d%b\n' "$D" "$u" "$Z"
 if [ -s "$MUTANTS_OUT/missed.txt" ]; then
   echo ""
-  printf "${R}${B}Missed mutants:${Z}\n"
-  while IFS= read -r line; do printf "  ${R}%s${Z}\n" "$line"; done < "$MUTANTS_OUT/missed.txt"
+  printf '%b' "${R}${B}Missed mutants:${Z}\n"
+  while IFS= read -r line; do printf '  %b%s%b\n' "$R" "$line" "$Z"; done < "$MUTANTS_OUT/missed.txt"
 fi
 
 exit "$EXIT_CODE"
