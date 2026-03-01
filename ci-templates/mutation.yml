@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Mutation Testing Template
+# Shared configuration for cargo-mutants CI jobs
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/mutation.yml'
+#
+# Provides:
+#   - .mutation-nightly: Full mutation testing (scheduled pipeline)
+#   - .mutation-incremental: Per-MR incremental mutation testing (advisory)
+#
+# Variables (set by consumer jobs):
+#   MUTATION_PACKAGE:              -p flag value (omit for whole crate)
+#   MUTATION_EXTRA_FLAGS:          additional cargo-mutants flags (e.g. --no-default-features)
+#   MUTATION_TIMEOUT_NIGHTLY:      per-mutant timeout in seconds for nightly (default: 60)
+#   MUTATION_TIMEOUT_INCREMENTAL:  per-mutant timeout in seconds for incremental (default: 90)
+#
+# Consumer jobs must also extend a runner template (.linux-runner, .rust-runner, etc.)
+# and .timeout-extended for the job timeout.
+#
+# Example:
+#   mutation:nightly:
+#     extends: [.mutation-nightly, .linux-runner, .timeout-extended]
+#     variables:
+#       MUTATION_PACKAGE: "vauchi-core"
+
+# Nightly full mutation testing (scheduled pipeline)
+.mutation-nightly:
+  stage: mutation
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  variables:
+    MUTATION_PACKAGE: ""
+    MUTATION_EXTRA_FLAGS: ""
+    MUTATION_TIMEOUT_NIGHTLY: "60"
+  script:
+    - command -v cargo-mutants >/dev/null 2>&1 || cargo binstall cargo-mutants --no-confirm 2>/dev/null || cargo install cargo-mutants --locked || true
+    - |
+      # Fetch mutation-progress.sh from vauchi/scripts
+      curl --silent --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fmutation-progress.sh/raw?ref=main" \
+        -o mutation-progress.sh
+      chmod +x mutation-progress.sh
+    - |
+      MUTANTS_OUT="target/mutants"
+      PACKAGE_FLAG="${MUTATION_PACKAGE:+-p ${MUTATION_PACKAGE}}"
+      cargo mutants ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
+      MUTANTS_PID=$!
+      trap 'kill $MUTANTS_PID 2>/dev/null; wait $MUTANTS_PID 2>/dev/null' EXIT
+      ./mutation-progress.sh "$MUTANTS_PID" "$MUTANTS_OUT"
+  artifacts:
+    paths:
+      - target/mutants/
+    expire_in: 1 week
+
+# Per-MR incremental mutation testing (advisory, runs after tests pass)
+.mutation-incremental:
+  stage: mutation
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true
+  variables:
+    GIT_DEPTH: "100"
+    MUTATION_PACKAGE: ""
+    MUTATION_EXTRA_FLAGS: ""
+    MUTATION_TIMEOUT_INCREMENTAL: "90"
+  script:
+    - command -v cargo-mutants >/dev/null 2>&1 || cargo binstall cargo-mutants --no-confirm 2>/dev/null || cargo install cargo-mutants --locked || true
+    - |
+      # Fetch mutation-progress.sh from vauchi/scripts
+      curl --silent --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fmutation-progress.sh/raw?ref=main" \
+        -o mutation-progress.sh
+      chmod +x mutation-progress.sh
+    - git fetch origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" --depth=100
+    - git diff "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"...HEAD > mr.diff
+    - |
+      MUTANTS_OUT="mutants.out"
+      PACKAGE_FLAG="${MUTATION_PACKAGE:+-p ${MUTATION_PACKAGE}}"
+      cargo mutants ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} --in-diff mr.diff --timeout "${MUTATION_TIMEOUT_INCREMENTAL}" --baseline skip &
+      MUTANTS_PID=$!
+      trap 'kill $MUTANTS_PID 2>/dev/null; wait $MUTANTS_PID 2>/dev/null' EXIT
+      ./mutation-progress.sh "$MUTANTS_PID" "$MUTANTS_OUT"
+  artifacts:
+    paths:
+      - mutants.out/
+    expire_in: 1 week
+    when: always
