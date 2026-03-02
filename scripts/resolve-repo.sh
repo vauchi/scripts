@@ -185,7 +185,7 @@ _dir_to_gitlab_name() {
     case "$name" in
         desktop-rust|desktop-ui) echo "desktop" ;;
         _private)                echo "private" ;;
-        root)                    echo "vauchi" ;;
+        root|.)                  echo "vauchi" ;;
         *)                       echo "$name" ;;
     esac
 }
