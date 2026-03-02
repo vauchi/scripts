@@ -222,6 +222,13 @@ workflow:
         git remote add origin "$REPO_URL"
         fetch_ref
       fi
+
+      # Remove stale untracked files left from previous checkouts.
+      # GIT_STRATEGY:none + fetch/checkout doesn't clean deleted files,
+      # so renamed modules (e.g. foo.rs → foo/mod.rs) leave the old file
+      # on disk, breaking rustfmt ("file for module found at both").
+      # Exclude build artifacts to preserve sccache/cargo incremental state.
+      git clean -ffd -e target/ -e .cargo/ -e .cache/
     # Ensure a Rust toolchain is configured (self-hosted runners may not have a default)
     - rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
     # Clear extracted crate sources (shell runners persist registry across jobs;
