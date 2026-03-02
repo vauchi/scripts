@@ -74,6 +74,9 @@ workflow:
     on_new_commit: interruptible
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Suppress push pipelines when an MR is already open (prevents ghost duplicates)
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "push"
     - if: $CI_PIPELINE_SOURCE == "pipeline"
     - if: $CI_PIPELINE_SOURCE == "trigger"
@@ -163,6 +166,10 @@ workflow:
     # Disable incremental compilation — reduces target/ directory size significantly,
     # improving cache upload/download times on CI where builds are rarely incremental.
     CARGO_INCREMENTAL: "0"
+    # sccache: shared compilation cache across jobs (30-50% faster recompilation)
+    RUSTC_WRAPPER: "sccache"
+    SCCACHE_DIR: "/tmp/sccache"
+    SCCACHE_CACHE_SIZE: "5G"
   before_script:
     # Ensure user-installed cargo tools are in PATH (CARGO_HOME is overridden
     # to ${CI_PROJECT_DIR}/.cargo for caching, so ~/.cargo/bin isn't automatic)
@@ -218,9 +225,14 @@ workflow:
     # interrupted extractions leave partial source dirs that fail to compile).
     # Cargo re-extracts from cached .crate tarballs — fast, no re-download.
     - rm -rf "$HOME/.cargo/registry/src" .cargo/registry/src 2>/dev/null || true
+    # Ensure sccache is available and start the daemon
+    - command -v sccache >/dev/null 2>&1 || cargo binstall sccache --no-confirm 2>/dev/null || true
+    - sccache --start-server 2>/dev/null || true
   after_script:
     # Clean up build artifacts to save disk space (keep cache intact)
     - rm -rf target/debug/deps/*.d target/debug/incremental 2>/dev/null || true
+    # Show sccache hit/miss stats for debugging cache effectiveness
+    - sccache --show-stats 2>/dev/null || true
 
 # Linux self-hosted runner (QEMU VM)
 # Tags: linux, self-hosted

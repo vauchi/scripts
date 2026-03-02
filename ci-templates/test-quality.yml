@@ -39,8 +39,9 @@ quality:zero-assertions:
           - ".gitlab-ci.yml"
   script:
     - |
-      git clone --depth=1 https://gitlab.com/vauchi/scripts.git /tmp/scripts
-      chmod +x /tmp/scripts/scripts/check-zero-assertions.sh
+      # Fetch single script via GitLab API (faster than git clone)
+      curl -fsSL "https://gitlab.com/vauchi/scripts/-/raw/main/scripts/check-zero-assertions.sh" -o /tmp/check-zero-assertions.sh
+      chmod +x /tmp/check-zero-assertions.sh
 
       # Scan all Rust source directories that contain tests
       DIRS=""
@@ -57,7 +58,7 @@ quality:zero-assertions:
       done
 
       if [ -n "$DIRS" ]; then
-        /tmp/scripts/scripts/check-zero-assertions.sh $DIRS
+        /tmp/check-zero-assertions.sh $DIRS
       else
         echo "No test directories found — skipping"
       fi
@@ -84,15 +85,16 @@ quality:test-ratio:
   allow_failure: true
   script:
     - |
-      git clone --depth=1 https://gitlab.com/vauchi/scripts.git /tmp/scripts
-      chmod +x /tmp/scripts/scripts/test-code-ratio.sh
+      # Fetch single script via GitLab API (faster than git clone)
+      curl -fsSL "https://gitlab.com/vauchi/scripts/-/raw/main/scripts/test-code-ratio.sh" -o /tmp/test-code-ratio.sh
+      chmod +x /tmp/test-code-ratio.sh
 
       # Measure ratio for each crate directory that has src/
       for dir in . */; do
         dir="${dir%/}"
         if [ -d "$dir/src" ]; then
           echo ""
-          /tmp/scripts/scripts/test-code-ratio.sh "$dir"
+          /tmp/test-code-ratio.sh "$dir"
         fi
       done
   timeout: 5 minutes

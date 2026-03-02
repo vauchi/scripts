@@ -56,6 +56,9 @@ variables:
 semgrep-sast:
   tags: [docker]
   rules:
+    # Skip on triggered pipelines (downstream verification checks compatibility, not security)
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -69,6 +72,9 @@ gemnasium-dependency_scanning:
 secret_detection:
   tags: [docker]
   rules:
+    # Skip on triggered pipelines (downstream verification checks compatibility, not security)
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "schedule"
