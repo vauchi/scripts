@@ -45,6 +45,7 @@ REPOS_TEST="core cli relay tui e2e desktop-rust desktop-ui android ios docs"
 REPOS_FMT="core cli relay tui e2e desktop-rust desktop-ui ios"
 REPOS_LINT="core cli relay tui e2e desktop-rust desktop-ui android ios docs locales themes features scripts"
 REPOS_FIX="core cli relay tui e2e desktop-rust desktop-ui ios"
+REPOS_COVERAGE="core cli relay tui e2e desktop-rust ios android desktop-ui"
 
 # ── Functions ───────────────────────────────────────────────────────
 
@@ -105,12 +106,13 @@ resolve_repo() {
     # Get the allowed repos for this operation
     local allowed
     case "$operation" in
-        build) allowed="$REPOS_BUILD" ;;
-        test)  allowed="$REPOS_TEST" ;;
-        fmt)   allowed="$REPOS_FMT" ;;
-        lint)  allowed="$REPOS_LINT" ;;
-        fix)   allowed="$REPOS_FIX" ;;
-        *)     allowed="$REPOS_BUILD" ;;
+        build)    allowed="$REPOS_BUILD" ;;
+        test)     allowed="$REPOS_TEST" ;;
+        fmt)      allowed="$REPOS_FMT" ;;
+        lint)     allowed="$REPOS_LINT" ;;
+        fix)      allowed="$REPOS_FIX" ;;
+        coverage) allowed="$REPOS_COVERAGE" ;;
+        *)        allowed="$REPOS_BUILD" ;;
     esac
 
     # Explicit "all"
