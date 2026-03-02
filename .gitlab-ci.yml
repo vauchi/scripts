@@ -16,6 +16,7 @@ include:
 
 stages:
   - lint
+  - metrics
 
 # Lint shell scripts with shellcheck
 shellcheck:
@@ -61,4 +62,27 @@ lint:ci-templates:
       done
 
       echo "CI template validation complete."
+  allow_failure: true
+
+# Push engineering metrics to Prometheus pushgateway (daily schedule)
+metrics:daily:
+  stage: metrics
+  tags:
+    - self-hosted
+    - shellcheck
+    - linux
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+  variables:
+    GIT_STRATEGY: clone
+    GIT_DEPTH: "1"
+  before_script:
+    - mkdir -p ~/.ssh
+    - echo "$DEPLOY_SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+    - chmod 600 ~/.ssh/id_ed25519
+    - ssh-keyscan -H bold-hopper-vps >> ~/.ssh/known_hosts 2>/dev/null
+  script:
+    - scripts/ci/metrics-push.sh --ci
   allow_failure: true
