@@ -19,6 +19,22 @@ HOOK_START=$SECONDS
 
 echo "=== Pre-push checks ($REPO_DIR) ==="
 
+# ─── CI lint (all repos with .gitlab-ci.yml changes) ────────────────
+
+if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]] && command -v glab &> /dev/null; then
+    if git diff --name-only origin/main...HEAD 2>/dev/null | grep -q '^\.gitlab-ci\.yml$'; then
+        echo ""
+        echo "[0] Validating .gitlab-ci.yml..."
+        if ! glab ci lint "$REPO_ROOT/.gitlab-ci.yml" > /dev/null 2>&1; then
+            echo ""
+            echo "FAILED: CI config is invalid:"
+            glab ci lint "$REPO_ROOT/.gitlab-ci.yml" 2>&1
+            exit 1
+        fi
+        echo "  CI lint OK"
+    fi
+fi
+
 # ─── Timing helpers ──────────────────────────────────────────────────
 
 declare -a STEP_NAMES=()
