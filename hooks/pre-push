@@ -222,6 +222,7 @@ done
 
 # ─── Show MRs for this branch ────────────────────────────────────────
 
+cd "$REPO_ROOT"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
 if [[ "$BRANCH" != "main" ]] && command -v glab &> /dev/null; then
