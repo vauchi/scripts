@@ -475,7 +475,7 @@ workflow:
     - cargo llvm-cov --workspace --lcov --output-path lcov.info
     - cargo llvm-cov report --cobertura --output-path cobertura.xml
     - cargo llvm-cov report
-  coverage: '/Total:\s+(\d+(?:\.\d+)?%)/'
+  coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\.\d+%\s+\d+\s+\d+\s+\d+\.\d+%\s+\d+\s+\d+\s+(\d+\.\d+%)/'
   artifacts:
     reports:
       coverage_report:

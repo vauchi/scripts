@@ -5,8 +5,9 @@
 
 # metrics-push.sh — Push engineering metrics to Prometheus Pushgateway
 #
-# Collects pipeline, coverage, test quality, and cycle metrics from
+# Collects pipeline, test quality, and cycle metrics from
 # GitLab API + local workspace, then pushes to Prometheus via SSH.
+# Note: Coverage metrics are pushed by individual CI jobs via push-coverage.sh.
 #
 # Usage:
 #   metrics-push.sh                     # Local: all metrics, push via SSH
@@ -194,27 +195,6 @@ collect_e2e_metrics() {
         ratio=$(awk "BEGIN { printf \"%.4f\", $success / $total }")
         append_metric "vauchi_eng_e2e_pass_ratio" "" "$ratio"
     fi
-}
-
-# Project-level coverage (GitLab API)
-collect_coverage_metrics() {
-    for repo in "${!GITLAB_PROJECTS[@]}"; do
-        local pid
-        pid=$(urlencode "${GITLAB_PROJECTS[$repo]}")
-
-        local coverage
-        coverage=$(gitlab_get "/projects/${pid}" \
-            | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-cov = data.get('coverage')
-print(cov if cov is not None else '')
-" 2>/dev/null || echo "")
-
-        if [ -n "$coverage" ]; then
-            append_metric "vauchi_eng_coverage_percent" "repo=\"${repo}\"" "$coverage"
-        fi
-    done
 }
 
 # Test count, ratio, zero-assertion violations, escaped defects (local only)
@@ -444,9 +424,6 @@ collect_pipeline_metrics
 
 echo "  Collecting e2e metrics..." >&2
 collect_e2e_metrics
-
-echo "  Collecting coverage metrics..." >&2
-collect_coverage_metrics
 
 if ! $CI_MODE; then
     echo "  Collecting test metrics (local)..." >&2
