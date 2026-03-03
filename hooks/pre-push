@@ -4,6 +4,9 @@
 # Skip all checks: git push --no-verify
 # Skip tests only:  SKIP_TESTS=1 git push
 #
+# Fast path: If `just check` was run on the current HEAD, checks are skipped
+# (TDD stamp mechanism — see scripts/scripts/stamp.sh).
+#
 # Supported repo types:
 # - Rust (core, cli, tui, relay, desktop, e2e): cargo fmt, clippy, test
 # - Swift/iOS: swiftformat, swiftlint
@@ -16,8 +19,41 @@ set -e
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 REPO_DIR="$(basename "$REPO_ROOT")"
 HOOK_START=$SECONDS
+_STAMP_SKIP=0
 
 echo "=== Pre-push checks ($REPO_DIR) ==="
+
+# ─── TDD stamp check ───────────────────────────────────────────────
+# If `just check` already passed for this commit, skip all checks.
+
+STAMP_SH="$REPO_ROOT/../scripts/scripts/stamp.sh"
+if [[ -f "$STAMP_SH" ]]; then
+    source "$STAMP_SH"
+    STAMP_REPO=$(stamp_repo_from_dir "$REPO_DIR" 2>/dev/null) || STAMP_REPO=""
+    if [[ -n "$STAMP_REPO" ]] && stamp_valid "$STAMP_REPO"; then
+        echo ""
+        echo "  Stamp valid — skipping checks (just check already passed for HEAD)"
+        _STAMP_SKIP=1
+    fi
+fi
+
+# ─── Non-code change detection ─────────────────────────────────────
+# If only docs/config files changed (no source code), skip checks.
+
+if [[ "$_STAMP_SKIP" != "1" ]]; then
+    CHANGED_FILES=$(git diff --name-only origin/main...HEAD 2>/dev/null || echo "")
+    if [[ -n "$CHANGED_FILES" ]]; then
+        CODE_PATTERN='\.(rs|swift|kt|java|ts|tsx|js|jsx|css|scss|html)$'
+        BUILD_PATTERN='(Cargo\.(toml|lock)|package.*\.json|.*\.gradle)'
+        HAS_CODE=$(echo "$CHANGED_FILES" | grep -E "$CODE_PATTERN" || true)
+        HAS_BUILD=$(echo "$CHANGED_FILES" | grep -E "$BUILD_PATTERN" || true)
+        if [[ -z "$HAS_CODE" && -z "$HAS_BUILD" ]]; then
+            echo ""
+            echo "  Only non-code files changed — skipping checks"
+            _STAMP_SKIP=1
+        fi
+    fi
+fi
 
 # ─── CI lint (all repos with .gitlab-ci.yml changes) ────────────────
 
@@ -35,6 +71,8 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]] && command -v glab &> /dev/null; then
     fi
 fi
 
+if [[ "$_STAMP_SKIP" != "1" ]]; then
+
 # ─── Timing helpers ──────────────────────────────────────────────────
 
 declare -a STEP_NAMES=()
@@ -49,6 +87,20 @@ time_step() {
     STEP_NAMES+=("$name")
     STEP_TIMES+=("${elapsed}s")
 }
+
+# ─── Check for gate-push dedup ──────────────────────────────────────
+# If gate-push.sh already ran fmt+clippy for this commit recently, skip those.
+
+_GATE_DEDUP=0
+_GATE_DEDUP_FILE="/tmp/.vauchi-gate-${REPO_DIR}-$(git rev-parse HEAD 2>/dev/null || echo none)"
+if [[ -f "$_GATE_DEDUP_FILE" ]]; then
+    _GATE_AGE=$(( $(date +%s) - $(stat -c %Y "$_GATE_DEDUP_FILE" 2>/dev/null || stat -f %m "$_GATE_DEDUP_FILE" 2>/dev/null || echo 0) ))
+    if [[ "$_GATE_AGE" -lt 300 ]]; then
+        echo ""
+        echo "  gate-push already ran fmt+clippy (${_GATE_AGE}s ago) — skipping those"
+        _GATE_DEDUP=1
+    fi
+fi
 
 # ─── Rust repos ──────────────────────────────────────────────────────
 
@@ -95,29 +147,31 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
             ;;
     esac
 
-    run_fmt() {
-        echo ""
-        echo "[1/3] Checking formatting..."
-        if ! cargo fmt --all -- --check; then
+    if [[ "$_GATE_DEDUP" != "1" ]]; then
+        run_fmt() {
             echo ""
-            echo "FAILED: Format check failed. Run 'cargo fmt --all' to fix."
-            exit 1
-        fi
-        echo "  Format OK"
-    }
-    time_step "Format" run_fmt
+            echo "[1/3] Checking formatting..."
+            if ! cargo fmt --all -- --check; then
+                echo ""
+                echo "FAILED: Format check failed. Run 'cargo fmt --all' to fix."
+                exit 1
+            fi
+            echo "  Format OK"
+        }
+        time_step "Format" run_fmt
 
-    run_clippy() {
-        echo ""
-        echo "[2/3] Running clippy..."
-        if ! cargo clippy --all-targets "${CLIPPY_EXTRA[@]}" -- -D warnings; then
+        run_clippy() {
             echo ""
-            echo "FAILED: Clippy check failed. Fix warnings before pushing."
-            exit 1
-        fi
-        echo "  Clippy OK"
-    }
-    time_step "Clippy" run_clippy
+            echo "[2/3] Running clippy..."
+            if ! cargo clippy --all-targets "${CLIPPY_EXTRA[@]}" -- -D warnings; then
+                echo ""
+                echo "FAILED: Clippy check failed. Fix warnings before pushing."
+                exit 1
+            fi
+            echo "  Clippy OK"
+        }
+        time_step "Clippy" run_clippy
+    fi
 
     run_tests() {
         if [[ "${SKIP_TESTS:-}" == "1" ]]; then
@@ -224,6 +278,8 @@ else
     echo "  No recognized project type, skipping checks."
     exit 0
 fi
+
+fi  # end _STAMP_SKIP guard
 
 # ─── Summary ─────────────────────────────────────────────────────────
 
