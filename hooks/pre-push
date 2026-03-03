@@ -15,8 +15,24 @@ set -e
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 REPO_DIR="$(basename "$REPO_ROOT")"
+HOOK_START=$SECONDS
 
 echo "=== Pre-push checks ($REPO_DIR) ==="
+
+# ─── Timing helpers ──────────────────────────────────────────────────
+
+declare -a STEP_NAMES=()
+declare -a STEP_TIMES=()
+
+time_step() {
+    local step_start=$SECONDS
+    local name="$1"
+    shift
+    "$@"
+    local elapsed=$(( SECONDS - step_start ))
+    STEP_NAMES+=("$name")
+    STEP_TIMES+=("${elapsed}s")
+}
 
 # ─── Rust repos ──────────────────────────────────────────────────────
 
@@ -63,110 +79,128 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
             ;;
     esac
 
-    echo ""
-    echo "[1/3] Checking formatting..."
-    if ! cargo fmt --all -- --check; then
+    run_fmt() {
         echo ""
-        echo "FAILED: Format check failed. Run 'cargo fmt --all' to fix."
-        exit 1
-    fi
-    echo "  Format OK"
-
-    echo ""
-    echo "[2/3] Running clippy..."
-    if ! cargo clippy --all-targets "${CLIPPY_EXTRA[@]}" -- -D warnings; then
-        echo ""
-        echo "FAILED: Clippy check failed. Fix warnings before pushing."
-        exit 1
-    fi
-    echo "  Clippy OK"
-
-    if [[ "${SKIP_TESTS:-}" == "1" ]]; then
-        echo ""
-        echo "[3/3] Skipping tests (SKIP_TESTS=1)"
-    else
-        echo ""
-        echo "[3/3] Running tests... (set SKIP_TESTS=1 to skip)"
-        if ! "${TEST_CMD[@]}"; then
+        echo "[1/3] Checking formatting..."
+        if ! cargo fmt --all -- --check; then
             echo ""
-            echo "FAILED: Tests failed. Fix before pushing."
+            echo "FAILED: Format check failed. Run 'cargo fmt --all' to fix."
             exit 1
         fi
-        echo "  Tests OK"
-    fi
+        echo "  Format OK"
+    }
+    time_step "Format" run_fmt
+
+    run_clippy() {
+        echo ""
+        echo "[2/3] Running clippy..."
+        if ! cargo clippy --all-targets "${CLIPPY_EXTRA[@]}" -- -D warnings; then
+            echo ""
+            echo "FAILED: Clippy check failed. Fix warnings before pushing."
+            exit 1
+        fi
+        echo "  Clippy OK"
+    }
+    time_step "Clippy" run_clippy
+
+    run_tests() {
+        if [[ "${SKIP_TESTS:-}" == "1" ]]; then
+            echo ""
+            echo "[3/3] Skipping tests (SKIP_TESTS=1)"
+        else
+            echo ""
+            echo "[3/3] Running tests... (set SKIP_TESTS=1 to skip)"
+            if ! "${TEST_CMD[@]}"; then
+                echo ""
+                echo "FAILED: Tests failed. Fix before pushing."
+                exit 1
+            fi
+            echo "  Tests OK"
+        fi
+    }
+    time_step "Tests" run_tests
 
 # ─── Swift/iOS repo ──────────────────────────────────────────────────
 
 elif [[ -f "$REPO_ROOT/Package.swift" ]] || [[ "$REPO_DIR" == "ios" ]]; then
     cd "$REPO_ROOT"
-    STEP=1
-    TOTAL=2
 
-    echo ""
-    echo "[$STEP/$TOTAL] Checking Swift formatting..."
-    if command -v swiftformat &> /dev/null; then
-        if ! swiftformat --lint . 2>&1; then
-            echo ""
-            echo "FAILED: SwiftFormat check failed. Run 'swiftformat .' to fix."
-            exit 1
-        fi
-        echo "  SwiftFormat OK"
-    else
-        echo "  (swiftformat not found, skipping)"
-    fi
-
-    STEP=2
-    echo ""
-    echo "[$STEP/$TOTAL] Running SwiftLint..."
-    if command -v swiftlint &> /dev/null; then
-        LINT_OUTPUT=$(swiftlint lint --strict --quiet 2>&1) || LINT_EXIT=$?
-        LINT_EXIT=${LINT_EXIT:-0}
-        if [[ $LINT_EXIT -gt 128 ]]; then
-            # Tool crashed (signal), not a real lint failure — skip gracefully
-            SIGNAL=$((LINT_EXIT - 128))
-            echo "  (swiftlint crashed with signal $SIGNAL, skipping — fix your swiftlint installation)"
-        elif [[ $LINT_EXIT -ne 0 ]]; then
-            echo "$LINT_OUTPUT"
-            echo ""
-            echo "FAILED: SwiftLint found violations. Fix before pushing."
-            exit 1
+    run_swiftformat() {
+        echo ""
+        echo "[1/2] Checking Swift formatting..."
+        if command -v swiftformat &> /dev/null; then
+            if ! swiftformat --lint . 2>&1; then
+                echo ""
+                echo "FAILED: SwiftFormat check failed. Run 'swiftformat .' to fix."
+                exit 1
+            fi
+            echo "  SwiftFormat OK"
         else
-            echo "  SwiftLint OK"
+            echo "  (swiftformat not found, skipping)"
         fi
-    else
-        echo "  (swiftlint not found, skipping)"
-    fi
+    }
+    time_step "SwiftFormat" run_swiftformat
+
+    run_swiftlint() {
+        echo ""
+        echo "[2/2] Running SwiftLint..."
+        if command -v swiftlint &> /dev/null; then
+            LINT_OUTPUT=$(swiftlint lint --strict --quiet 2>&1) || LINT_EXIT=$?
+            LINT_EXIT=${LINT_EXIT:-0}
+            if [[ $LINT_EXIT -gt 128 ]]; then
+                # Tool crashed (signal), not a real lint failure — skip gracefully
+                SIGNAL=$((LINT_EXIT - 128))
+                echo "  (swiftlint crashed with signal $SIGNAL, skipping — fix your swiftlint installation)"
+            elif [[ $LINT_EXIT -ne 0 ]]; then
+                echo "$LINT_OUTPUT"
+                echo ""
+                echo "FAILED: SwiftLint found violations. Fix before pushing."
+                exit 1
+            else
+                echo "  SwiftLint OK"
+            fi
+        else
+            echo "  (swiftlint not found, skipping)"
+        fi
+    }
+    time_step "SwiftLint" run_swiftlint
 
 # ─── Android/Kotlin repo ─────────────────────────────────────────────
 
 elif [[ "$REPO_DIR" == "android" ]]; then
     cd "$REPO_ROOT"
 
-    echo ""
-    echo "[1/2] Compiling Kotlin..."
-    if [[ -x "$REPO_ROOT/gradlew" ]]; then
-        if ! ./gradlew compileDebugKotlin --quiet 2>&1; then
-            echo ""
-            echo "FAILED: Kotlin compilation failed. Fix errors before pushing."
-            exit 1
+    run_kotlin_compile() {
+        echo ""
+        echo "[1/2] Compiling Kotlin..."
+        if [[ -x "$REPO_ROOT/gradlew" ]]; then
+            if ! ./gradlew compileDebugKotlin --quiet 2>&1; then
+                echo ""
+                echo "FAILED: Kotlin compilation failed. Fix errors before pushing."
+                exit 1
+            fi
+            echo "  Compilation OK"
+        else
+            echo "  (gradlew not found, skipping)"
         fi
-        echo "  Compilation OK"
-    else
-        echo "  (gradlew not found, skipping)"
-    fi
+    }
+    time_step "Kotlin compile" run_kotlin_compile
 
-    echo ""
-    echo "[2/2] Running Android lint..."
-    if [[ -x "$REPO_ROOT/gradlew" ]]; then
-        if ! ./gradlew lint --quiet 2>&1; then
-            echo ""
-            echo "FAILED: Android lint failed. Fix before pushing."
-            exit 1
+    run_android_lint() {
+        echo ""
+        echo "[2/2] Running Android lint..."
+        if [[ -x "$REPO_ROOT/gradlew" ]]; then
+            if ! ./gradlew lint --quiet 2>&1; then
+                echo ""
+                echo "FAILED: Android lint failed. Fix before pushing."
+                exit 1
+            fi
+            echo "  Lint OK"
+        else
+            echo "  (gradlew not found, skipping)"
         fi
-        echo "  Lint OK"
-    else
-        echo "  (gradlew not found, skipping)"
-    fi
+    }
+    time_step "Android lint" run_android_lint
 
 # ─── Unknown repo type ───────────────────────────────────────────────
 
@@ -175,5 +209,58 @@ else
     exit 0
 fi
 
+# ─── Summary ─────────────────────────────────────────────────────────
+
+HOOK_ELAPSED=$(( SECONDS - HOOK_START ))
+
 echo ""
-echo "=== All pre-push checks passed ==="
+echo "=== All pre-push checks passed (${HOOK_ELAPSED}s) ==="
+echo ""
+for i in "${!STEP_NAMES[@]}"; do
+    printf "  %-20s %s\n" "${STEP_NAMES[$i]}" "${STEP_TIMES[$i]}"
+done
+
+# ─── Show MRs for this branch ────────────────────────────────────────
+
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+
+if [[ "$BRANCH" != "main" ]] && command -v glab &> /dev/null; then
+    echo ""
+    # Timestamp from hook start minus 2 minute buffer
+    SINCE="$(date -u -v-$((HOOK_ELAPSED + 120))S '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+          || date -u -d "$((HOOK_ELAPSED + 120)) seconds ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+          || echo "")"
+
+    # Open MRs for this branch
+    OPEN_MRS="$(glab mr list --source-branch="$BRANCH" --state=opened 2>/dev/null)" || OPEN_MRS=""
+    if [[ -n "$OPEN_MRS" ]]; then
+        echo "Open MRs on branch $BRANCH:"
+        echo "$OPEN_MRS"
+    else
+        echo "No open MR for branch $BRANCH"
+    fi
+
+    # Recently merged MRs for this branch
+    if [[ -n "$SINCE" ]]; then
+        MERGED_MRS="$(glab mr list --source-branch="$BRANCH" --state=merged 2>/dev/null)" || MERGED_MRS=""
+        if [[ -n "$MERGED_MRS" ]]; then
+            # Filter to MRs merged after $SINCE
+            RECENT=""
+            while IFS= read -r line; do
+                MR_NUM="$(echo "$line" | grep -oE '![0-9]+' | head -1 | tr -d '!')"
+                if [[ -n "$MR_NUM" ]]; then
+                    MERGED_AT="$(glab api "projects/:id/merge_requests/$MR_NUM" 2>/dev/null \
+                               | python3 -c "import sys,json; print(json.load(sys.stdin).get('merged_at',''))" 2>/dev/null)" || MERGED_AT=""
+                    if [[ -n "$MERGED_AT" && "$MERGED_AT" > "$SINCE" ]]; then
+                        RECENT="${RECENT}${line}\n"
+                    fi
+                fi
+            done <<< "$MERGED_MRS"
+            if [[ -n "$RECENT" ]]; then
+                echo ""
+                echo "Recently merged MRs on branch $BRANCH:"
+                echo -e "$RECENT"
+            fi
+        fi
+    fi
+fi
