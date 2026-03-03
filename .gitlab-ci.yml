@@ -82,7 +82,14 @@ metrics:daily:
     - mkdir -p ~/.ssh
     - base64 -d "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
     - chmod 600 ~/.ssh/id_ed25519
-    - ssh-keyscan -H bold-hopper-vps >> ~/.ssh/known_hosts 2>/dev/null
+    - |
+      cat >> ~/.ssh/config <<'SSHEOF'
+      Host bold-hopper-vps
+        HostName 87.106.25.46
+        User vauchi
+        StrictHostKeyChecking accept-new
+      SSHEOF
+    - chmod 600 ~/.ssh/config
   script:
     - scripts/ci/metrics-push.sh --ci
   allow_failure: true
