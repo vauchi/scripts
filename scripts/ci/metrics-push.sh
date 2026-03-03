@@ -430,12 +430,10 @@ else:
 
 echo "vauchi metrics-push: collecting metrics (ci=${CI_MODE}, dry-run=${DRY_RUN})" >&2
 
-# In CI mode, clone _private to /tmp if not already available
-if $CI_MODE && [ ! -d "$PRIVATE_DIR/docs/problems" ]; then
-    echo "Cloning _private repo for cycle metrics..." >&2
-    PRIVATE_DIR="/tmp/vauchi-private"
-    git clone --depth 1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/private.git" \
-        "$PRIVATE_DIR" 2>/dev/null || echo "WARNING: Could not clone _private, cycle metrics skipped" >&2
+# In CI mode, skip _private clone — cycle metrics are pushed by _private's own
+# metrics:cycle job on merge to main. Local runs still collect if _private exists.
+if $CI_MODE; then
+    echo "  Skipping _private clone (cycle metrics pushed by _private CI)" >&2
 fi
 
 # Run collectors
@@ -453,8 +451,12 @@ if ! $CI_MODE; then
     collect_test_metrics
 fi
 
-echo "  Collecting cycle metrics..." >&2
-collect_cycle_metrics
+if ! $CI_MODE; then
+    echo "  Collecting cycle metrics..." >&2
+    collect_cycle_metrics
+else
+    echo "  Skipping cycle metrics (handled by _private CI)..." >&2
+fi
 
 echo "  Collecting branch metrics..." >&2
 collect_branch_metrics
