@@ -97,6 +97,7 @@ if [ -n "${PUSHGATEWAY_URL:-}" ]; then
     echo "$METRICS_TEXT" | curl -s --data-binary @- \
         "${PUSHGATEWAY_URL}/metrics/job/vauchi_coverage/repo/${REPO_NAME}"
 else
+    # shellcheck disable=SC2029  # intentional client-side expansion of REPO_NAME
     echo "$METRICS_TEXT" | ssh vauchi@bold-hopper-vps \
         "curl -s --data-binary @- http://localhost:9091/metrics/job/vauchi_coverage/repo/${REPO_NAME}"
 fi
