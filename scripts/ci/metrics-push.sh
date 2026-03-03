@@ -293,7 +293,7 @@ collect_test_metrics() {
 
 # Problem record cycle metrics (parsed from _private)
 collect_cycle_metrics() {
-    [ -d "$PRIVATE_DIR/docs/problems" ] || return
+    [ -d "$PRIVATE_DIR/docs/problems" ] || return 0
 
     local -A status_counts
     local -A oldest_days
@@ -434,7 +434,7 @@ echo "vauchi metrics-push: collecting metrics (ci=${CI_MODE}, dry-run=${DRY_RUN}
 if $CI_MODE && [ ! -d "$PRIVATE_DIR/docs/problems" ]; then
     echo "Cloning _private repo for cycle metrics..." >&2
     PRIVATE_DIR="/tmp/vauchi-private"
-    git clone --depth 1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/vauchi-private.git" \
+    git clone --depth 1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/private.git" \
         "$PRIVATE_DIR" 2>/dev/null || echo "WARNING: Could not clone _private, cycle metrics skipped" >&2
 fi
 
