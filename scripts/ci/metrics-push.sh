@@ -40,6 +40,8 @@ declare -A GITLAB_PROJECTS=(
     [cli]="vauchi/cli"
     [tui]="vauchi/tui"
     [desktop]="vauchi/desktop"
+    [ios]="vauchi/ios"
+    [android]="vauchi/android"
     [e2e]="vauchi/e2e"
 )
 
@@ -281,7 +283,7 @@ collect_test_metrics() {
 
     # Escaped defects (fix: commits in 30 days)
     local escaped=0
-    for project in core relay cli tui desktop e2e; do
+    for project in core relay cli tui desktop ios android e2e; do
         local dir="$VAUCHI_ROOT/$project"
         [ -d "$dir/.git" ] || continue
         local count
