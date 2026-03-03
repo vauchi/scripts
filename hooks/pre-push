@@ -23,6 +23,24 @@ _STAMP_SKIP=0
 
 echo "=== Pre-push checks ($REPO_DIR) ==="
 
+# ─── WIP commit guard ────────────────────────────────────────────────
+# Block pushing if HEAD is a WIP checkpoint commit (created by `just git wip`).
+# WIP commits are temporary saves — undo with `just git wip-undo` before pushing.
+
+HEAD_MSG="$(git -C "$REPO_ROOT" log -1 --format=%s 2>/dev/null || true)"
+if [[ "$HEAD_MSG" == wip:* ]]; then
+    echo ""
+    echo "BLOCKED: HEAD commit is a WIP checkpoint:"
+    echo "  $HEAD_MSG"
+    echo ""
+    echo "WIP commits must not be pushed. Undo first:"
+    echo "  just git wip-undo"
+    echo ""
+    echo "Or squash the WIP commit into the previous one:"
+    echo "  git reset --soft HEAD~1 && git commit --amend"
+    exit 1
+fi
+
 # ─── TDD stamp check ───────────────────────────────────────────────
 # If `just check` already passed for this commit, skip all checks.
 
