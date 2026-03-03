@@ -46,6 +46,7 @@ REPOS_FMT="core cli relay tui e2e desktop-rust desktop-ui ios"
 REPOS_LINT="core cli relay tui e2e desktop-rust desktop-ui android ios docs locales themes features scripts"
 REPOS_FIX="core cli relay tui e2e desktop-rust desktop-ui ios"
 REPOS_COVERAGE="core cli relay tui e2e desktop-rust ios android desktop-ui"
+REPOS_BENCH="core relay"
 
 # ── Functions ───────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ resolve_repo() {
         lint)     allowed="$REPOS_LINT" ;;
         fix)      allowed="$REPOS_FIX" ;;
         coverage) allowed="$REPOS_COVERAGE" ;;
+        bench)    allowed="$REPOS_BENCH" ;;
         *)        allowed="$REPOS_BUILD" ;;
     esac
 
