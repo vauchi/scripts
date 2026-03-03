@@ -14,7 +14,7 @@
 # Provides:
 #   - .timeout-quick: 10 minutes (lint, format check)
 #   - .timeout-standard: 30 minutes (unit tests, build)
-#   - .timeout-long: 1 hour (full test suite, coverage, cross-compile)
+#   - .timeout-long: 1 hour (coverage, full test suite, cross-compile)
 #   - .timeout-extended: 2 hours (iOS build, Android multi-arch)
 
 # Quick jobs (lint, format check) - 10 minutes
