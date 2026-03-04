@@ -5,6 +5,8 @@
 # Mutation Testing Template
 # Shared configuration for cargo-mutants CI jobs
 #
+# Dependencies: cargo-mutants, cargo-nextest (for parallel test execution)
+#
 # Usage:
 #   include:
 #     - project: 'vauchi/scripts'
@@ -19,6 +21,7 @@
 #   MUTATION_EXTRA_FLAGS:          additional cargo-mutants flags (e.g. --no-default-features)
 #   MUTATION_TIMEOUT_NIGHTLY:      per-mutant timeout in seconds for nightly (default: 60)
 #   MUTATION_WORKDIR:              subdirectory to cd into before running (default: ".", e.g. "src-tauri")
+#   MUTATION_TEST_TOOL:            test runner for cargo-mutants (default: "nextest", alt: "cargo")
 #
 # Consumer jobs must also extend a runner template (.linux-runner, .rust-runner, etc.)
 # and .timeout-extended for the job timeout.
@@ -41,8 +44,10 @@
     MUTATION_EXTRA_FLAGS: ""
     MUTATION_TIMEOUT_NIGHTLY: "60"
     MUTATION_WORKDIR: "."
+    MUTATION_TEST_TOOL: "nextest"
   script:
     - command -v cargo-mutants >/dev/null 2>&1 || cargo binstall cargo-mutants --no-confirm 2>/dev/null || cargo install cargo-mutants --locked || true
+    - command -v cargo-nextest >/dev/null 2>&1 || cargo binstall cargo-nextest --no-confirm 2>/dev/null || cargo install cargo-nextest --locked || true
     - |
       # Fetch mutation-progress.sh and push-mutation.sh from vauchi/scripts (public repo, no auth needed)
       for script in mutation-progress.sh push-mutation.sh; do
@@ -58,7 +63,7 @@
       MUTANTS_OUT="target/mutants"
       mkdir -p "$MUTANTS_OUT"
       PACKAGE_FLAG="${MUTATION_PACKAGE:+-p ${MUTATION_PACKAGE}}"
-      cargo mutants ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
+      cargo mutants --test-tool "${MUTATION_TEST_TOOL}" ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
       MUTANTS_PID=$!
       trap 'kill $MUTANTS_PID 2>/dev/null; wait $MUTANTS_PID 2>/dev/null' EXIT
       "$PROGRESS_SCRIPT" "$MUTANTS_PID" "$MUTANTS_OUT"
