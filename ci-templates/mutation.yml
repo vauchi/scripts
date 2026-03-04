@@ -18,6 +18,7 @@
 #   MUTATION_PACKAGE:              -p flag value (omit for whole crate)
 #   MUTATION_EXTRA_FLAGS:          additional cargo-mutants flags (e.g. --no-default-features)
 #   MUTATION_TIMEOUT_NIGHTLY:      per-mutant timeout in seconds for nightly (default: 60)
+#   MUTATION_WORKDIR:              subdirectory to cd into before running (default: ".", e.g. "src-tauri")
 #
 # Consumer jobs must also extend a runner template (.linux-runner, .rust-runner, etc.)
 # and .timeout-extended for the job timeout.
@@ -38,22 +39,25 @@
     MUTATION_PACKAGE: ""
     MUTATION_EXTRA_FLAGS: ""
     MUTATION_TIMEOUT_NIGHTLY: "60"
+    MUTATION_WORKDIR: "."
   script:
     - command -v cargo-mutants >/dev/null 2>&1 || cargo binstall cargo-mutants --no-confirm 2>/dev/null || cargo install cargo-mutants --locked || true
     - |
-      # Fetch mutation-progress.sh from vauchi/scripts
-      curl --silent --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+      # Fetch mutation-progress.sh from vauchi/scripts (public repo, no auth needed)
+      curl --silent --fail \
         "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fmutation-progress.sh/raw?ref=main" \
         -o mutation-progress.sh
       chmod +x mutation-progress.sh
     - |
+      PROGRESS_SCRIPT="$(pwd)/mutation-progress.sh"
+      cd "${MUTATION_WORKDIR}"
       MUTANTS_OUT="target/mutants"
       PACKAGE_FLAG="${MUTATION_PACKAGE:+-p ${MUTATION_PACKAGE}}"
       cargo mutants ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
       MUTANTS_PID=$!
       trap 'kill $MUTANTS_PID 2>/dev/null; wait $MUTANTS_PID 2>/dev/null' EXIT
-      ./mutation-progress.sh "$MUTANTS_PID" "$MUTANTS_OUT"
+      "$PROGRESS_SCRIPT" "$MUTANTS_PID" "$MUTANTS_OUT"
   artifacts:
     paths:
-      - target/mutants/
+      - ${MUTATION_WORKDIR}/target/mutants/
     expire_in: 1 week
