@@ -12,7 +12,7 @@
 #       file: '/ci-templates/mutation.yml'
 #
 # Provides:
-#   - .mutation-nightly: Full mutation testing (scheduled pipeline)
+#   - .mutation-nightly: Full mutation testing (scheduled pipeline, advisory, pushes metrics)
 #
 # Variables (set by consumer jobs):
 #   MUTATION_PACKAGE:              -p flag value (omit for whole crate)
@@ -33,6 +33,7 @@
 .mutation-nightly:
   stage: mutation
   needs: []
+  allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   variables:
@@ -43,13 +44,16 @@
   script:
     - command -v cargo-mutants >/dev/null 2>&1 || cargo binstall cargo-mutants --no-confirm 2>/dev/null || cargo install cargo-mutants --locked || true
     - |
-      # Fetch mutation-progress.sh from vauchi/scripts (public repo, no auth needed)
-      curl --silent --fail \
-        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fmutation-progress.sh/raw?ref=main" \
-        -o mutation-progress.sh
-      chmod +x mutation-progress.sh
+      # Fetch mutation-progress.sh and push-mutation.sh from vauchi/scripts (public repo, no auth needed)
+      for script in mutation-progress.sh push-mutation.sh; do
+        curl --silent --fail \
+          "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2F${script}/raw?ref=main" \
+          -o "${script}"
+        chmod +x "${script}"
+      done
     - |
       PROGRESS_SCRIPT="$(pwd)/mutation-progress.sh"
+      PUSH_SCRIPT="$(pwd)/push-mutation.sh"
       cd "${MUTATION_WORKDIR}"
       MUTANTS_OUT="target/mutants"
       PACKAGE_FLAG="${MUTATION_PACKAGE:+-p ${MUTATION_PACKAGE}}"
@@ -57,6 +61,10 @@
       MUTANTS_PID=$!
       trap 'kill $MUTANTS_PID 2>/dev/null; wait $MUTANTS_PID 2>/dev/null' EXIT
       "$PROGRESS_SCRIPT" "$MUTANTS_PID" "$MUTANTS_OUT"
+      MUTATION_EXIT=$?
+      # Push metrics to Grafana regardless of pass/fail, then exit with mutation status
+      "$PUSH_SCRIPT" "$MUTANTS_OUT" "${CI_PROJECT_NAME}" || true
+      exit $MUTATION_EXIT
   artifacts:
     paths:
       - ${MUTATION_WORKDIR}/target/mutants/

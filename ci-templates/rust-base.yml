@@ -448,54 +448,41 @@ workflow:
       - .cargo/git/db/
       - target/
 
-# Rust lint job template (uses read-only cache - lint doesn't produce build artifacts)
-.rust-lint:
-  extends: [.linux-runner, .timeout-quick]
+# Rust format check (cargo fmt)
+.lint-format:
   stage: lint
-  cache:
-    key:
-      files:
-        - Cargo.lock
-      prefix: rust-lint
-    paths:
-      - .cargo/registry/index/
-      - .cargo/registry/cache/
-    policy: pull  # Read-only - lint jobs don't need to update cache
+  needs: []
   script:
     - cargo fmt --all -- --check
+
+# Rust clippy linter (cargo clippy)
+.lint-clippy:
+  stage: lint
+  needs: []
+  script:
     - cargo clippy --all-targets -- -D warnings
 
-# Rust test job template
-.rust-test:
-  extends: [.linux-runner, .timeout-standard]
-  stage: test
+# Clone locales repository (for TUI/desktop i18n)
+.clone-locales:
   before_script:
-    - !reference [.self-hosted, before_script]
-  script:
-    - cargo llvm-cov --workspace --lcov --output-path lcov.info
-    - cargo llvm-cov report --cobertura --output-path cobertura.xml
-    - cargo llvm-cov report
-  coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\.\d+%\s+\d+\s+\d+\s+\d+\.\d+%\s+\d+\s+\d+\s+(\d+\.\d+%)/'
-  artifacts:
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: cobertura.xml
-    paths:
-      - lcov.info
-      - cobertura.xml
-    expire_in: 1 week
+    - |
+      if [ ! -d ../locales ]; then
+        (git clone --depth=1 https://gitlab.com/vauchi/locales.git ../locales || \
+         (sleep 2 && git clone --depth=1 https://gitlab.com/vauchi/locales.git ../locales))
+      else
+        git -C ../locales pull --ff-only 2>/dev/null || true
+      fi
 
-# Rust build job template
-.rust-build:
-  extends: [.linux-runner, .timeout-standard]
-  stage: build
-  script:
-    - cargo build --release
-  artifacts:
-    paths:
-      - target/release/*
-    expire_in: 1 week
+# Clone themes repository (for desktop UI theming)
+.clone-themes:
+  before_script:
+    - |
+      if [ ! -d ../themes ]; then
+        (git clone --depth=1 https://gitlab.com/vauchi/themes.git ../themes || \
+         (sleep 2 && git clone --depth=1 https://gitlab.com/vauchi/themes.git ../themes))
+      else
+        git -C ../themes pull --ff-only 2>/dev/null || true
+      fi
 
 # ============================================================
 # Cleanup Job Templates

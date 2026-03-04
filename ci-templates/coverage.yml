@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Code Coverage Template
+# Shared configuration for cargo llvm-cov coverage jobs
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/coverage.yml'
+#
+# Provides:
+#   - .coverage-job: Standardized Rust coverage job (llvm-cov + Pushgateway push)
+#
+# Variables (set by consumer jobs):
+#   COVERAGE_PACKAGE:       Package to measure (-p flag, omit for workspace)
+#   COVERAGE_EXTRA_FLAGS:   Additional cargo-llvm-cov flags (e.g. --no-default-features)
+#   COVERAGE_WORKDIR:       Subdirectory to cd into before running (default: ".", e.g. "src-tauri")
+#   COVERAGE_REPO_LABEL:    Label for Pushgateway metrics (defaults to CI_PROJECT_NAME)
+#   COVERAGE_USE_NEXTEST:   Use nextest runner for faster coverage (default: "true")
+#
+# Consumer jobs must also extend a runner template (.linux-runner, .rust-runner, etc.)
+# and optionally a timeout template (.timeout-standard or .timeout-long recommended).
+#
+# Example:
+#   coverage:core:
+#     extends: [.coverage-job, .linux-runner, .timeout-long]
+#     variables:
+#       COVERAGE_PACKAGE: "vauchi-core"
+#       COVERAGE_REPO_LABEL: "core"
+
+# Standard Rust coverage job (llvm-cov + metrics push)
+.coverage-job:
+  stage: test
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  variables:
+    COVERAGE_PACKAGE: ""
+    COVERAGE_EXTRA_FLAGS: ""
+    COVERAGE_WORKDIR: "."
+    COVERAGE_REPO_LABEL: ""
+    COVERAGE_USE_NEXTEST: "true"
+  script:
+    - command -v cargo-binstall >/dev/null 2>&1 || (curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash)
+    - |
+      # Ensure cargo-llvm-cov and cargo-nextest are installed
+      cargo binstall cargo-llvm-cov --no-confirm 2>/dev/null || cargo install cargo-llvm-cov --locked || true
+      if [ "$COVERAGE_USE_NEXTEST" = "true" ]; then
+        cargo binstall cargo-nextest --no-confirm 2>/dev/null || cargo install cargo-nextest --locked || true
+      fi
+    - |
+      # Fetch push-coverage.sh from vauchi/scripts (public repo, no auth needed)
+      curl --silent --fail \
+        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fpush-coverage.sh/raw?ref=main" \
+        -o push-coverage.sh
+      chmod +x push-coverage.sh
+    - |
+      PROJECT_ROOT="$(pwd -P)"
+      cd "${COVERAGE_WORKDIR}"
+      PACKAGE_FLAG="${COVERAGE_PACKAGE:+-p ${COVERAGE_PACKAGE}}"
+
+      # Run coverage (lcov + cobertura + text summary for GitLab regex)
+      # nextest is a subcommand, not a flag — must come right after llvm-cov
+      if [ "$COVERAGE_USE_NEXTEST" = "true" ]; then
+        cargo llvm-cov nextest ${PACKAGE_FLAG} ${COVERAGE_EXTRA_FLAGS} \
+          --lcov --output-path lcov.info
+      else
+        cargo llvm-cov ${PACKAGE_FLAG} ${COVERAGE_EXTRA_FLAGS} \
+          --lcov --output-path lcov.info
+      fi
+      cargo llvm-cov report --cobertura --output-path cobertura.xml
+      cargo llvm-cov report
+
+      # Push metrics to Grafana
+      REPO_LABEL="${COVERAGE_REPO_LABEL:-${CI_PROJECT_NAME}}"
+      "${PROJECT_ROOT}/push-coverage.sh" cobertura.xml "${REPO_LABEL}" || true
+  coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\.\d+%\s+\d+\s+\d+\s+\d+\.\d+%\s+\d+\s+\d+\s+(\d+\.\d+%)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: ${COVERAGE_WORKDIR}/cobertura.xml
+    paths:
+      - ${COVERAGE_WORKDIR}/lcov.info
+      - ${COVERAGE_WORKDIR}/cobertura.xml
+    expire_in: 1 week

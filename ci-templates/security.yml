@@ -88,12 +88,6 @@ secret_detection:
   stage: security
   script:
     - cargo audit
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - "**/Cargo.toml"
-        - "**/Cargo.lock"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
 
 # Rust license compliance (cargo-deny)
 .security-licenses:
@@ -124,5 +118,3 @@ secret_detection:
   stage: security
   script:
     - cargo deny check
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
