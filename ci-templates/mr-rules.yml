@@ -33,7 +33,7 @@
 # Tags must be created on commits that are on main branch
 .release-only:
   rules:
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
 
 # Main branch only (post-merge jobs)
 # Use for benchmark, e2e-full, downstream triggers
