@@ -56,6 +56,7 @@
       PUSH_SCRIPT="$(pwd)/push-mutation.sh"
       cd "${MUTATION_WORKDIR}"
       MUTANTS_OUT="target/mutants"
+      mkdir -p "$MUTANTS_OUT"
       PACKAGE_FLAG="${MUTATION_PACKAGE:+-p ${MUTATION_PACKAGE}}"
       cargo mutants ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
       MUTANTS_PID=$!
