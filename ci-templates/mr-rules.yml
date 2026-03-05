@@ -57,12 +57,8 @@
 
 # Main branch only (post-merge jobs)
 # Use for benchmark, e2e-full, downstream triggers
-# Excludes triggered pipelines (CI_PIPELINE_SOURCE == "pipeline") so that
-# jobs like auto-tag:version don't run in upstream-triggered child pipelines.
 .main-only:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "pipeline"
-      when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # Scheduled pipelines only
