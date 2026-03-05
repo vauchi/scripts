@@ -55,6 +55,13 @@
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+-(dev|rc)\.\d+$/
 
+# Release or dev tag — for binding builds that should run on any tag
+# Use this instead of .release-only when dev tags need the same pipeline
+.release-or-dev:
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+-dev\.\d+$/
+
 # Main branch only (post-merge jobs)
 # Use for benchmark, e2e-full, downstream triggers
 .main-only:
