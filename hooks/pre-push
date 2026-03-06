@@ -213,6 +213,21 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
 elif [[ -f "$REPO_ROOT/Package.swift" ]] || [[ "$REPO_DIR" == "ios" ]]; then
     cd "$REPO_ROOT"
 
+    run_xcodegen() {
+        if [[ "$REPO_DIR" == "ios" ]] && command -v xcodegen &>/dev/null; then
+            echo ""
+            echo "[0] Regenerating Xcode project..."
+            xcodegen generate 2>&1
+            if ! git diff --quiet Vauchi.xcodeproj/; then
+                echo ""
+                echo "FAILED: Xcode project is out of date. Run 'xcodegen generate' and commit."
+                exit 1
+            fi
+            echo "  Xcode project up to date"
+        fi
+    }
+    time_step "XcodeGen" run_xcodegen
+
     run_swiftformat() {
         echo ""
         echo "[1/2] Checking Swift formatting..."
