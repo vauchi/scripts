@@ -262,7 +262,13 @@ elif [[ "$REPO_DIR" == "android" ]]; then
         echo ""
         echo "[1/2] Compiling Kotlin..."
         if [[ -x "$REPO_ROOT/gradlew" ]]; then
-            if ! ./gradlew compileDebugKotlin --quiet 2>&1; then
+            # Use -PlocalBindings when local bindings are present (new types not yet in Maven AAR)
+            GRADLE_ARGS=""
+            if [[ -d "$REPO_ROOT/app/src/local-bindings/kotlin/uniffi" ]]; then
+                GRADLE_ARGS="-PlocalBindings"
+                echo "  Local bindings detected, using -PlocalBindings"
+            fi
+            if ! ./gradlew compileDebugKotlin $GRADLE_ARGS --quiet 2>&1; then
                 echo ""
                 echo "FAILED: Kotlin compilation failed. Fix errors before pushing."
                 exit 1
