@@ -14,6 +14,7 @@
 # Provides:
 #   - .validation-only: Run on MRs only (main validated via MR pipeline)
 #   - .release-only: Run on version tags only
+#   - .release-or-rc: Run on stable + RC tags (binding builds)
 #   - .main-only: Run on main branch only
 #   - .scheduled-only: Run on scheduled pipelines only
 #   - .mr-or-main: Run on MRs and main branch
@@ -55,12 +56,19 @@
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+-(dev|rc)\.\d+$/
 
-# Release or dev tag — for binding builds that should run on any tag
-# Use this instead of .release-only when dev tags need the same pipeline
+# Release or dev tag — for verification jobs on any tagged commit
+# Use .release-or-rc instead for binding builds (dev tags skip those)
 .release-or-dev:
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+-dev\.\d+$/
+
+# Release or RC tag — for binding builds that need quality validation
+# Dev tags skip binding builds (use just bindings-local for dev)
+.release-or-rc:
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+-rc\.\d+$/
 
 # Main branch only (post-merge jobs)
 # Use for benchmark, e2e-full, downstream triggers
