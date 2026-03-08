@@ -299,7 +299,7 @@ elif [[ "$REPO_DIR" == "android" ]]; then
         echo ""
         echo "[2/2] Running Android lint..."
         if [[ -x "$REPO_ROOT/gradlew" ]]; then
-            if ! ./gradlew lint --quiet 2>&1; then
+            if ! ./gradlew lint $GRADLE_ARGS --quiet 2>&1; then
                 echo ""
                 echo "FAILED: Android lint failed. Fix before pushing."
                 exit 1
