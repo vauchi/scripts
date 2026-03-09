@@ -38,6 +38,9 @@
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: never
+    # Skip on triggered pipelines (upstream verification doesn't need coverage)
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
+      when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "schedule"
   variables:
@@ -82,6 +85,7 @@
       "${PROJECT_ROOT}/push-coverage.sh" cobertura.xml "${REPO_LABEL}" || true
   coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\.\d+%\s+\d+\s+\d+\s+\d+\.\d+%\s+\d+\s+\d+\s+(\d+\.\d+%)/'
   artifacts:
+    when: always
     reports:
       coverage_report:
         coverage_format: cobertura

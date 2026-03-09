@@ -15,6 +15,8 @@
 #   - GitLab Ultimate security templates (SAST, Dependency Scanning, Secret Detection)
 #   - Rust-specific security jobs (cargo-audit, cargo-deny)
 #   - Configured analyzer overrides for self-hosted runners
+#   - .security-audit-job: Ready-to-use cargo-audit job (extend with runner)
+#   - .security-deny-job: Ready-to-use cargo-deny job (extend with runner)
 #
 # NOT included (add directly if needed):
 #   - Container-Scanning (only for repos that build Docker images)
@@ -118,3 +120,38 @@ secret_detection:
   stage: security
   script:
     - cargo deny check
+
+# ============================================================
+# Ready-to-Use Security Jobs
+# ============================================================
+# Complete job templates with tool installation and rules.
+# Extend with a runner template (e.g. .rust-runner-readonly).
+#
+# Example:
+#   security:audit:
+#     extends: [.rust-runner-readonly, .security-audit-job]
+#   security:deny:
+#     extends: [.rust-runner-readonly, .security-deny-job]
+
+# cargo-audit with auto-install (MR dependency changes only)
+.security-audit-job:
+  extends: [.security-audit, .validation-deps, .timeout-quick]
+  needs: []
+  before_script:
+    - !reference [.self-hosted, before_script]
+    - command -v cargo-audit >/dev/null 2>&1 || cargo binstall cargo-audit --no-confirm 2>/dev/null || cargo install cargo-audit
+
+# cargo-deny with auto-install (MR + scheduled)
+.security-deny-job:
+  extends: [.security-deny, .timeout-quick]
+  needs:
+    - job: lint:format
+      optional: true
+    - job: lint:clippy
+      optional: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  before_script:
+    - !reference [.self-hosted, before_script]
+    - command -v cargo-deny >/dev/null 2>&1 || cargo binstall cargo-deny --no-confirm 2>/dev/null || cargo install cargo-deny

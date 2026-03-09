@@ -15,7 +15,10 @@
 #   - .trigger-on-merge: Trigger downstream when merged to main
 #   - .trigger-on-tag: Trigger downstream on version tags
 #   - .trigger-parallel: Trigger multiple repos in parallel via matrix
-#   - .on-upstream-trigger: Rule for jobs triggered by upstream
+#   - .on-upstream-trigger: Rule for jobs triggered by upstream (requires UPSTREAM_VERSION)
+#   - .verify-on-upstream: Rule for upstream compat verification (no version required)
+#   - .verify-on-upstream-prerelease: Rule for upstream pre-release verification (requires UPSTREAM_CORE_VERSION)
+#   - .verify-nextest-artifacts: Junit artifact template for nextest verify jobs
 #
 # Mobile distribution repos (vauchi-platform-swift, vauchi-platform-kotlin) are
 # triggered via the GitLab trigger: keyword in core/.gitlab-ci.yml, passing
@@ -140,3 +143,32 @@
 .verify-on-upstream:
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
+
+# Rule for jobs triggered by upstream pre-release tags (dev/RC).
+# Requires UPSTREAM_CORE_VERSION (set by .trigger-parallel-prerelease).
+.verify-on-upstream-prerelease:
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api") && $UPSTREAM_CORE_VERSION
+
+# ============================================================
+# Verify Job Artifacts
+# ============================================================
+# Reusable artifact templates for upstream verification jobs.
+# Extend these alongside runner + rule templates to get consistent
+# junit reporting across all consumer repos.
+#
+# Example:
+#   verify:upstream-compat:
+#     extends: [.rust-runner, .verify-on-upstream, .verify-nextest-artifacts, .timeout-standard]
+#     stage: verify
+#     needs: []
+#     script:
+#       - cargo nextest run --profile ci --all-targets
+
+# Nextest junit artifacts (for repos using cargo-nextest with --profile ci)
+.verify-nextest-artifacts:
+  artifacts:
+    when: always
+    reports:
+      junit: target/nextest/ci/junit.xml
+    expire_in: 1 week
