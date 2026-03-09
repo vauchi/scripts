@@ -21,8 +21,6 @@ REPO_REGISTRY=(
     "relay:relay:rust"
     "tui:tui:rust"
     "e2e:e2e:rust"
-    "desktop-rust:desktop/src-tauri:rust"
-    "desktop-ui:desktop/ui:npm"
     "android:android:gradle"
     "ios:ios:xcode"
     "docs:docs:mkdocs"
@@ -34,18 +32,20 @@ REPO_REGISTRY=(
     "_private:_private:none"
     "gitlab-profile:gitlab-profile:none"
     "github-profile:github-profile:none"
+    "macos:macos:xcode"
+    "windows:windows:dotnet"
+    "linux-gtk:linux-gtk:rust"
+    "linux-qt:linux-qt:cmake"
+    "web-demo:web-demo:npm"
 )
 
-# "desktop" is a virtual name that expands to desktop-rust + desktop-ui
-DESKTOP_PARTS="desktop-rust desktop-ui"
-
 # ── Which repos support which operations ────────────────────────────
-REPOS_BUILD="core cli relay tui e2e desktop-rust desktop-ui android ios docs"
-REPOS_TEST="core cli relay tui e2e desktop-rust desktop-ui android ios docs"
-REPOS_FMT="core cli relay tui e2e desktop-rust desktop-ui ios"
-REPOS_LINT="core cli relay tui e2e desktop-rust desktop-ui android ios docs locales themes features scripts"
-REPOS_FIX="core cli relay tui e2e desktop-rust desktop-ui ios"
-REPOS_COVERAGE="core cli relay tui e2e desktop-rust ios android desktop-ui"
+REPOS_BUILD="core cli relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo"
+REPOS_TEST="core cli relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo"
+REPOS_FMT="core cli relay tui e2e ios linux-gtk"
+REPOS_LINT="core cli relay tui e2e android ios docs locales themes features scripts linux-gtk macos"
+REPOS_FIX="core cli relay tui e2e ios linux-gtk"
+REPOS_COVERAGE="core cli relay tui e2e ios android linux-gtk"
 REPOS_BENCH="core relay"
 
 # ── Functions ───────────────────────────────────────────────────────
@@ -90,11 +90,6 @@ _detect_repo_from_pwd() {
             return 0
         fi
     done
-    # Check if we're in desktop/ (but not src-tauri/ or ui/ specifically)
-    if [[ "$cwd" == "$WORKSPACE_ROOT/desktop" || "$cwd" == "$WORKSPACE_ROOT/desktop/"* ]]; then
-        echo "desktop"
-        return 0
-    fi
     # Check if we're exactly at workspace root (the "root:.:none" entry)
     if [[ "$cwd" == "$WORKSPACE_ROOT" ]]; then
         echo "root"
@@ -130,21 +125,6 @@ resolve_repo() {
 
     # Explicit repo name
     if [[ -n "$arg" ]]; then
-        # Expand "desktop" virtual name
-        if [[ "$arg" == "desktop" ]]; then
-            local result=""
-            for part in $DESKTOP_PARTS; do
-                if echo " $allowed " | grep -q " $part "; then
-                    result="$result $part"
-                fi
-            done
-            if [[ -z "${result# }" ]]; then
-                echo "ERROR: 'desktop' has no parts that support '$operation'" >&2
-                return 1
-            fi
-            echo "${result# }"
-            return 0
-        fi
         # Validate it's in the allowed list
         if echo " $allowed " | grep -q " $arg "; then
             echo "$arg"
@@ -158,20 +138,7 @@ resolve_repo() {
     # No argument: detect from pwd
     local detected
     if detected=$(_detect_repo_from_pwd); then
-        # Expand desktop if needed
-        if [[ "$detected" == "desktop" ]]; then
-            local result=""
-            for part in $DESKTOP_PARTS; do
-                if echo " $allowed " | grep -q " $part "; then
-                    result="$result $part"
-                fi
-            done
-            if [[ -z "${result# }" ]]; then
-                echo "ERROR: 'desktop' has no parts that support '$operation'" >&2
-                return 1
-            fi
-            echo "${result# }"
-        elif echo " $allowed " | grep -q " $detected "; then
+        if echo " $allowed " | grep -q " $detected "; then
             echo "$detected"
         else
             echo "ERROR: detected repo '$detected' does not support '$operation'" >&2
@@ -187,12 +154,10 @@ resolve_repo() {
 # ── GitLab helpers ──────────────────────────────────────────────────
 
 # Map directory name to GitLab project name.
-# Most are identity (core → core), with exceptions:
-#   desktop-rust, desktop-ui → desktop
+# Most are identity (core → core), with exceptions listed below.
 _dir_to_gitlab_name() {
     local name="$1"
     case "$name" in
-        desktop-rust|desktop-ui) echo "desktop" ;;
         _private)                echo "private" ;;
         root|.)                  echo "vauchi" ;;
         *)                       echo "$name" ;;
@@ -229,9 +194,6 @@ gitlab_repo_dir() {
     if [[ -n "$arg" ]]; then
         # Map to first matching directory
         case "$arg" in
-            desktop-rust) echo "$WORKSPACE_ROOT/desktop/src-tauri" ;;
-            desktop-ui)   echo "$WORKSPACE_ROOT/desktop/ui" ;;
-            desktop)      echo "$WORKSPACE_ROOT/desktop" ;;
             root|vauchi)  echo "$WORKSPACE_ROOT" ;;
             *)            echo "$WORKSPACE_ROOT/$arg" ;;
         esac
