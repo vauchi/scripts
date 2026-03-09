@@ -95,6 +95,11 @@ _detect_repo_from_pwd() {
         echo "desktop"
         return 0
     fi
+    # Check if we're exactly at workspace root (the "root:.:none" entry)
+    if [[ "$cwd" == "$WORKSPACE_ROOT" ]]; then
+        echo "root"
+        return 0
+    fi
     return 1
 }
 
@@ -227,7 +232,7 @@ gitlab_repo_dir() {
             desktop-rust) echo "$WORKSPACE_ROOT/desktop/src-tauri" ;;
             desktop-ui)   echo "$WORKSPACE_ROOT/desktop/ui" ;;
             desktop)      echo "$WORKSPACE_ROOT/desktop" ;;
-            root)         echo "$WORKSPACE_ROOT" ;;
+            root|vauchi)  echo "$WORKSPACE_ROOT" ;;
             *)            echo "$WORKSPACE_ROOT/$arg" ;;
         esac
         return 0
