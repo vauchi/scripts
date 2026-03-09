@@ -146,8 +146,8 @@
           - "deny.toml"
           - ".gitlab-ci.yml"
 
-# Run on mobile binding changes
-.validation-mobile:
+# Run on platform binding changes
+.validation-platform:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
