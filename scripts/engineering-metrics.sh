@@ -42,7 +42,7 @@ OUTPUT_JSON=false
 DATE=$(date +%Y-%m-%d)
 
 # Rust repos with test code
-CORE_REPOS=("core/vauchi-core" "core/vauchi-protocol" "core/vauchi-mobile")
+CORE_REPOS=("core/vauchi-core" "core/vauchi-protocol" "core/vauchi-platform")
 CLIENT_REPOS=("relay" "cli" "tui" "desktop/src-tauri")
 ALL_RUST_REPOS=("${CORE_REPOS[@]}" "${CLIENT_REPOS[@]}")
 

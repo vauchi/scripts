@@ -100,7 +100,7 @@ printf "%s\n" "─────────────────────�
 TOTAL_TESTS=0
 TOTAL_TEST_FILES=0
 
-for crate_dir in vauchi-core vauchi-cli vauchi-tui vauchi-relay vauchi-mobile vauchi-desktop/src-tauri; do
+for crate_dir in vauchi-core vauchi-cli vauchi-tui vauchi-relay vauchi-platform vauchi-desktop/src-tauri; do
     crate_name=$(basename "$crate_dir")
     tests_dir="$CODE_ROOT/$crate_dir/tests"
     src_dir="$CODE_ROOT/$crate_dir/src"

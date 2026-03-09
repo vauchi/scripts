@@ -54,54 +54,54 @@ fi
 
 wire_ios() {
     local ios_dir="$WORKSPACE_ROOT/ios"
-    local spm_dir="$WORKSPACE_ROOT/vauchi-mobile-swift"
+    local spm_dir="$WORKSPACE_ROOT/vauchi-platform-swift"
     local gen_dir="$ios_dir/Vauchi/Generated"
     local libs_dir="$ios_dir/Vauchi/Libs"
 
     echo -e "${BLUE}=== Wiring iOS local bindings ===${NC}"
 
     # Verify prerequisites
-    if [[ ! -f "$gen_dir/vauchi_mobile.swift" ]]; then
-        echo -e "${RED}Error: $gen_dir/vauchi_mobile.swift not found.${NC}"
+    if [[ ! -f "$gen_dir/vauchi_platform.swift" ]]; then
+        echo -e "${RED}Error: $gen_dir/vauchi_platform.swift not found.${NC}"
         echo "Run 'just bindings' first."
         exit 1
     fi
     if [[ ! -d "$spm_dir" ]]; then
         echo -e "${RED}Error: $spm_dir not found.${NC}"
-        echo "Clone vauchi-mobile-swift as a sibling repo."
+        echo "Clone vauchi-platform-swift as a sibling repo."
         exit 1
     fi
 
     # 1. Copy Swift bindings to local SPM package
-    echo -e "${YELLOW}Copying Swift bindings to vauchi-mobile-swift...${NC}"
-    cp "$gen_dir/vauchi_mobile.swift" "$spm_dir/Sources/VauchiMobile/vauchi_mobile.swift"
+    echo -e "${YELLOW}Copying Swift bindings to vauchi-platform-swift...${NC}"
+    cp "$gen_dir/vauchi_platform.swift" "$spm_dir/Sources/VauchiPlatform/vauchi_platform.swift"
 
     # 2. Update XCFramework with local static libs and headers
-    for slice_dir in "$spm_dir"/VauchiMobileFFI.xcframework/ios-*/; do
-        local fw_dir="$slice_dir/VauchiMobileFFI.framework"
+    for slice_dir in "$spm_dir"/VauchiPlatformFFI.xcframework/ios-*/; do
+        local fw_dir="$slice_dir/VauchiPlatformFFI.framework"
         [[ -d "$fw_dir" ]] || continue
 
         local slice_name
         slice_name="$(basename "$slice_dir")"
 
         # Copy header
-        cp "$gen_dir/vauchi_mobileFFI.h" "$fw_dir/Headers/vauchi_mobileFFI.h"
+        cp "$gen_dir/vauchi_platformFFI.h" "$fw_dir/Headers/vauchi_platformFFI.h"
 
         # Fix modulemap: UniFFI generates lowercase module name, but the
-        # framework module must match the framework name (VauchiMobileFFI)
+        # framework module must match the framework name (VauchiPlatformFFI)
         cat > "$fw_dir/Modules/module.modulemap" <<'MODULEMAP'
-framework module VauchiMobileFFI {
-    header "vauchi_mobileFFI.h"
+framework module VauchiPlatformFFI {
+    header "vauchi_platformFFI.h"
     export *
 }
 MODULEMAP
 
         # Copy the right static library into the framework binary
-        if [[ "$slice_name" == *"simulator"* ]] && [[ -f "$libs_dir/libvauchi_mobile_sim.a" ]]; then
-            cp "$libs_dir/libvauchi_mobile_sim.a" "$fw_dir/VauchiMobileFFI"
+        if [[ "$slice_name" == *"simulator"* ]] && [[ -f "$libs_dir/libvauchi_platform_sim.a" ]]; then
+            cp "$libs_dir/libvauchi_platform_sim.a" "$fw_dir/VauchiPlatformFFI"
             echo -e "  ${GREEN}Updated $slice_name (simulator)${NC}"
-        elif [[ -f "$libs_dir/libvauchi_mobile_device.a" ]]; then
-            cp "$libs_dir/libvauchi_mobile_device.a" "$fw_dir/VauchiMobileFFI"
+        elif [[ -f "$libs_dir/libvauchi_platform_device.a" ]]; then
+            cp "$libs_dir/libvauchi_platform_device.a" "$fw_dir/VauchiPlatformFFI"
             echo -e "  ${GREEN}Updated $slice_name (device)${NC}"
         fi
     done
@@ -117,17 +117,17 @@ path = sys.argv[1]
 with open(path) as f:
     content = f.read()
 # Match the .binaryTarget block with URL
-pattern = r'(        )\.binaryTarget\(\s*\n\s*name: \"VauchiMobileFFI\",\s*\n\s*url:.*\n\s*checksum:.*\n\s*\),'
+pattern = r'(        )\.binaryTarget\(\s*\n\s*name: \"VauchiPlatformFFI\",\s*\n\s*url:.*\n\s*checksum:.*\n\s*\),'
 replacement = r'''\1// REMOTE (original, restored by wire-bindings-remote.sh):
 \1// .binaryTarget(
-\1//     name: \"VauchiMobileFFI\",
+\1//     name: \"VauchiPlatformFFI\",
 \1//     url: \"...\",
 \1//     checksum: checksum
 \1// ),
 \1// LOCAL (set by wire-bindings-local.sh):
 \1.binaryTarget(
-\1    name: \"VauchiMobileFFI\",
-\1    path: \"VauchiMobileFFI.xcframework\"
+\1    name: \"VauchiPlatformFFI\",
+\1    path: \"VauchiPlatformFFI.xcframework\"
 \1),'''
 result = re.sub(pattern, replacement, content)
 with open(path, 'w') as f:
@@ -149,7 +149,7 @@ with open(path, 'w') as f:
       location = "container:Vauchi.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:../vauchi-mobile-swift">
+      location = "group:../vauchi-platform-swift">
    </FileRef>
 </Workspace>
 WORKSPACE

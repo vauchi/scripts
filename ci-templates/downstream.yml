@@ -17,7 +17,7 @@
 #   - .trigger-parallel: Trigger multiple repos in parallel via matrix
 #   - .on-upstream-trigger: Rule for jobs triggered by upstream
 #
-# Mobile distribution repos (vauchi-mobile-swift, vauchi-mobile-android) are
+# Mobile distribution repos (vauchi-platform-swift, vauchi-platform-kotlin) are
 # triggered via the GitLab trigger: keyword in core/.gitlab-ci.yml, passing
 # UPSTREAM_VERSION so downstream repos know which tag to build bindings from.
 
@@ -51,7 +51,7 @@
 # Mobile Distribution Triggers
 # ============================================================
 #
-# Mobile distribution repos (vauchi-mobile-swift, vauchi-mobile-android)
+# Mobile distribution repos (vauchi-platform-swift, vauchi-platform-kotlin)
 # are triggered via the GitLab trigger: keyword in core/.gitlab-ci.yml.
 # The trigger: keyword passes UPSTREAM_VERSION and uses CI_JOB_TOKEN
 # implicitly (no extra tokens needed).

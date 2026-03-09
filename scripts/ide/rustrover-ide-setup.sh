@@ -70,7 +70,7 @@ for target in aarch64-linux-android x86_64-linux-android; do
     fi
 done
 
-# 3. Check for Android NDK (required for vauchi-mobile build)
+# 3. Check for Android NDK (required for vauchi-platform build)
 print_step "Checking for Android NDK..."
 NDK_HOME=""
 if [ -n "$ANDROID_NDK_HOME" ] && [ -d "$ANDROID_NDK_HOME" ]; then

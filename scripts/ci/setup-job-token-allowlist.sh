@@ -12,7 +12,7 @@
 #   - glab CLI authenticated (glab auth status)
 #
 # What this does:
-#   1. Adds vauchi-mobile-android and vauchi-mobile-swift to core's
+#   1. Adds vauchi-platform-kotlin and vauchi-platform-swift to core's
 #      job token allowlist (so core CI can trigger distribution repos)
 #   2. Adds core to distribution repos' allowlists (so they can
 #      download packages from core)
@@ -99,36 +99,36 @@ echo ""
 # ── Show current state ──────────────────────────────────────────
 echo "── Current allowlists ──"
 show_allowlist "${GROUP}/core"
-show_allowlist "${GROUP}/vauchi-mobile-android"
-show_allowlist "${GROUP}/vauchi-mobile-swift"
+show_allowlist "${GROUP}/vauchi-platform-kotlin"
+show_allowlist "${GROUP}/vauchi-platform-swift"
 show_allowlist "${GROUP}/android"
 show_allowlist "${GROUP}/ios"
 echo ""
 
 # ── Step 1: Core can be accessed by distribution repos ──────────
 echo "── Step 1: Core ← Distribution repos (package access) ──"
-add_to_allowlist "${GROUP}/core" "${GROUP}/vauchi-mobile-android"
-add_to_allowlist "${GROUP}/core" "${GROUP}/vauchi-mobile-swift"
+add_to_allowlist "${GROUP}/core" "${GROUP}/vauchi-platform-kotlin"
+add_to_allowlist "${GROUP}/core" "${GROUP}/vauchi-platform-swift"
 echo ""
 
 # ── Step 2: Distribution repos can be triggered by core ─────────
 echo "── Step 2: Distribution repos ← Core (trigger access) ──"
-add_to_allowlist "${GROUP}/vauchi-mobile-android" "${GROUP}/core"
-add_to_allowlist "${GROUP}/vauchi-mobile-swift" "${GROUP}/core"
+add_to_allowlist "${GROUP}/vauchi-platform-kotlin" "${GROUP}/core"
+add_to_allowlist "${GROUP}/vauchi-platform-swift" "${GROUP}/core"
 echo ""
 
 # ── Step 3: App repos can be triggered by distribution repos ────
 echo "── Step 3: App repos ← Distribution repos (trigger access) ──"
-add_to_allowlist "${GROUP}/android" "${GROUP}/vauchi-mobile-android"
-add_to_allowlist "${GROUP}/ios" "${GROUP}/vauchi-mobile-swift"
+add_to_allowlist "${GROUP}/android" "${GROUP}/vauchi-platform-kotlin"
+add_to_allowlist "${GROUP}/ios" "${GROUP}/vauchi-platform-swift"
 echo ""
 
 # ── Show final state ────────────────────────────────────────────
 if [[ "$DRY_RUN" == "false" ]]; then
     echo "── Updated allowlists ──"
     show_allowlist "${GROUP}/core"
-    show_allowlist "${GROUP}/vauchi-mobile-android"
-    show_allowlist "${GROUP}/vauchi-mobile-swift"
+    show_allowlist "${GROUP}/vauchi-platform-kotlin"
+    show_allowlist "${GROUP}/vauchi-platform-swift"
     show_allowlist "${GROUP}/android"
     show_allowlist "${GROUP}/ios"
     echo ""

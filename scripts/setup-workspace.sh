@@ -29,8 +29,8 @@ PUBLIC_REPOS=(
     "themes"
     "locales"
     "gitlab-profile"
-    "vauchi-mobile-swift"
-    "vauchi-mobile-android"
+    "vauchi-platform-swift"
+    "vauchi-platform-kotlin"
 )
 
 # Private repos (require access, cloned with _ prefix)

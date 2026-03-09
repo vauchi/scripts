@@ -24,7 +24,7 @@ COVERAGE_TARGETS=(
     "vauchi-core:90"
     "vauchi-relay:75" 
     "vauchi-tui:70"
-    "vauchi-mobile:65"
+    "vauchi-platform:65"
     "vauchi-desktop:60"
 )
 
@@ -71,7 +71,7 @@ generate_rust_coverage() {
     cd code || return 1
 
     # Run coverage for each crate
-    for crate in vauchi-core vauchi-relay vauchi-tui vauchi-mobile; do
+    for crate in vauchi-core vauchi-relay vauchi-tui vauchi-platform; do
         echo "Processing $crate..."
 
         # Clean previous coverage data
@@ -114,7 +114,7 @@ parse_coverage_percentages() {
     local coverage_data=()
     
     # Parse Rust coverage
-    for crate in vauchi-core vauchi-relay vauchi-tui vauchi-mobile; do
+    for crate in vauchi-core vauchi-relay vauchi-tui vauchi-platform; do
         if [ -f "coverage-reports/$crate/coverage.json" ]; then
             local percentage
             percentage=$(python3 -c "
@@ -288,7 +288,7 @@ import json
 import glob
 
 combined = {}
-for crate in ['vauchi-core', 'vauchi-relay', 'vauchi-tui', 'vauchi-mobile']:
+for crate in ['vauchi-core', 'vauchi-relay', 'vauchi-tui', 'vauchi-platform']:
     pattern = f'coverage-reports/{crate}*/coverage.json'
     files = glob.glob(pattern)
     

@@ -156,7 +156,7 @@
           - "**/*.rs"
           - "**/Cargo.toml"
           - "**/Cargo.lock"
-          - "vauchi-mobile/**/*"
+          - "vauchi-platform/**/*"
           - "scripts/build-bindings.sh"
           - ".gitlab-ci.yml"
 

@@ -147,21 +147,21 @@ print_step "Verifying build outputs..."
 
 ANDROID_DIR="$WORKSPACE_ROOT/android"
 JNILIBS_DIR="$ANDROID_DIR/app/src/main/jniLibs"
-KOTLIN_DIR="$ANDROID_DIR/app/src/main/kotlin/uniffi/vauchi_mobile"
+KOTLIN_DIR="$ANDROID_DIR/app/src/main/kotlin/uniffi/vauchi_platform"
 
-if [ -f "$JNILIBS_DIR/arm64-v8a/libvauchi_mobile.so" ]; then
-    print_success "ARM64 library: $(stat -f%z "$JNILIBS_DIR/arm64-v8a/libvauchi_mobile.so" 2>/dev/null || wc -c < "$JNILIBS_DIR/arm64-v8a/libvauchi_mobile.so") bytes"
+if [ -f "$JNILIBS_DIR/arm64-v8a/libvauchi_platform.so" ]; then
+    print_success "ARM64 library: $(stat -f%z "$JNILIBS_DIR/arm64-v8a/libvauchi_platform.so" 2>/dev/null || wc -c < "$JNILIBS_DIR/arm64-v8a/libvauchi_platform.so") bytes"
 else
     print_error "ARM64 library not found"
 fi
 
-if [ -f "$JNILIBS_DIR/x86_64/libvauchi_mobile.so" ]; then
-    print_success "x86_64 library: $(stat -f%z "$JNILIBS_DIR/x86_64/libvauchi_mobile.so" 2>/dev/null || wc -c < "$JNILIBS_DIR/x86_64/libvauchi_mobile.so") bytes"
+if [ -f "$JNILIBS_DIR/x86_64/libvauchi_platform.so" ]; then
+    print_success "x86_64 library: $(stat -f%z "$JNILIBS_DIR/x86_64/libvauchi_platform.so" 2>/dev/null || wc -c < "$JNILIBS_DIR/x86_64/libvauchi_platform.so") bytes"
 else
     print_error "x86_64 library not found"
 fi
 
-if [ -f "$KOTLIN_DIR/vauchi_mobile.kt" ]; then
+if [ -f "$KOTLIN_DIR/vauchi_platform.kt" ]; then
     print_success "Kotlin bindings generated"
 else
     print_error "Kotlin bindings not found"

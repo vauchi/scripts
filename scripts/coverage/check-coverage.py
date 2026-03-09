@@ -45,7 +45,7 @@ def check_minimum_coverage(minimum_percent):
         "coverage-reports/vauchi-core*/coverage.json",
         "coverage-reports/vauchi-relay*/coverage.json",
         "coverage-reports/vauchi-tui*/coverage.json",
-        "coverage-reports/vauchi-mobile*/coverage.json",
+        "coverage-reports/vauchi-platform*/coverage.json",
     ]
 
     rust_results = []

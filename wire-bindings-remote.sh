@@ -50,7 +50,7 @@ fi
 
 unwire_ios() {
     local ios_dir="$WORKSPACE_ROOT/ios"
-    local spm_dir="$WORKSPACE_ROOT/vauchi-mobile-swift"
+    local spm_dir="$WORKSPACE_ROOT/vauchi-platform-swift"
 
     echo -e "${BLUE}=== Restoring iOS remote bindings ===${NC}"
 
@@ -61,7 +61,7 @@ unwire_ios() {
     fi
 
     # 2. Restore Package.swift to remote binaryTarget
-    if [[ -d "$spm_dir" ]] && grep -q 'path: "VauchiMobileFFI.xcframework"' "$spm_dir/Package.swift" 2>/dev/null; then
+    if [[ -d "$spm_dir" ]] && grep -q 'path: "VauchiPlatformFFI.xcframework"' "$spm_dir/Package.swift" 2>/dev/null; then
         echo -e "${YELLOW}Restoring Package.swift to remote binaryTarget...${NC}"
         cd "$spm_dir" && git checkout -- Package.swift
         echo -e "  ${GREEN}Package.swift restored from git${NC}"
@@ -71,7 +71,7 @@ unwire_ios() {
 
     # 3. Restore Swift bindings from git
     if [[ -d "$spm_dir" ]]; then
-        cd "$spm_dir" && git checkout -- Sources/VauchiMobile/vauchi_mobile.swift 2>/dev/null || true
+        cd "$spm_dir" && git checkout -- Sources/VauchiPlatform/vauchi_platform.swift 2>/dev/null || true
         echo -e "  ${GREEN}Swift bindings restored from git${NC}"
     fi
 
