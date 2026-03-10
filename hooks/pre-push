@@ -316,27 +316,35 @@ elif [[ "$REPO_DIR" == "android" ]]; then
 elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
     cd "$REPO_ROOT"
 
-    run_spdx_check() {
+    run_reuse_check() {
         echo ""
-        echo "[1/3] Checking SPDX headers on new files..."
-        MISSING=0
-        for file in $(git diff --name-only --diff-filter=A origin/main...HEAD -- '*.md' 2>/dev/null); do
-            if ! head -2 "$file" | grep -q 'SPDX-'; then
-                echo "  MISSING SPDX header: $file"
-                MISSING=$((MISSING + 1))
+        echo "[1/3] Checking REUSE compliance..."
+        if command -v reuse &> /dev/null; then
+            if ! reuse lint > /dev/null 2>&1; then
+                echo ""
+                echo "FAILED: REUSE compliance check failed:"
+                reuse lint 2>&1 | tail -30
+                exit 1
             fi
-        done
-        if [[ $MISSING -gt 0 ]]; then
-            echo ""
-            echo "FAILED: $MISSING new file(s) missing SPDX headers."
-            echo "Add to top of each file:"
-            echo '  <!-- SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me> -->'
-            echo '  <!-- SPDX-License-Identifier: GPL-3.0-or-later -->'
-            exit 1
+            echo "  REUSE lint OK"
+        else
+            # Fallback: basic SPDX header check on new markdown files
+            MISSING=0
+            for file in $(git diff --name-only --diff-filter=A origin/main...HEAD -- '*.md' 2>/dev/null); do
+                if ! head -2 "$file" | grep -q 'SPDX-'; then
+                    echo "  MISSING SPDX header: $file"
+                    MISSING=$((MISSING + 1))
+                fi
+            done
+            if [[ $MISSING -gt 0 ]]; then
+                echo ""
+                echo "FAILED: $MISSING new file(s) missing SPDX headers. Install 'reuse' for full check."
+                exit 1
+            fi
+            echo "  SPDX headers OK (basic check — install 'reuse' for full compliance check)"
         fi
-        echo "  SPDX headers OK"
     }
-    time_step "SPDX" run_spdx_check
+    time_step "REUSE" run_reuse_check
 
     run_doc_naming_check() {
         echo ""
