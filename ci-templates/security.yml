@@ -17,6 +17,7 @@
 #   - Configured analyzer overrides for self-hosted runners
 #   - .security-audit-job: Ready-to-use cargo-audit job (extend with runner)
 #   - .security-deny-job: Ready-to-use cargo-deny job (extend with runner)
+#   - .security-vet-job: Ready-to-use cargo-vet supply chain audit job (extend with runner)
 #
 # NOT included (add directly if needed):
 #   - Container-Scanning (only for repos that build Docker images)
@@ -155,3 +156,28 @@ secret_detection:
   before_script:
     - !reference [.self-hosted, before_script]
     - command -v cargo-deny >/dev/null 2>&1 || cargo binstall cargo-deny --no-confirm 2>/dev/null || cargo install cargo-deny
+
+# cargo-vet supply chain verification (MR dependency changes + main + scheduled)
+# Checks that all dependencies are either audited, trusted, or explicitly exempted.
+# Repos must have a supply-chain/ directory (created by `cargo vet init`).
+.security-vet-job:
+  extends: .timeout-quick
+  stage: security
+  needs:
+    - job: lint:format
+      optional: true
+    - job: lint:clippy
+      optional: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
+        - "supply-chain/**"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  before_script:
+    - !reference [.self-hosted, before_script]
+    - command -v cargo-vet >/dev/null 2>&1 || cargo binstall cargo-vet --no-confirm 2>/dev/null || cargo install cargo-vet
+  script:
+    - cargo vet
