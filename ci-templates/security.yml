@@ -180,4 +180,6 @@ secret_detection:
     - !reference [.self-hosted, before_script]
     - command -v cargo-vet >/dev/null 2>&1 || cargo binstall cargo-vet --no-confirm 2>/dev/null || cargo install cargo-vet
   script:
+    # Regenerate lockfile if needed (path overrides or minor version drift can make it stale)
+    - cargo generate-lockfile 2>/dev/null || true
     - cargo vet
