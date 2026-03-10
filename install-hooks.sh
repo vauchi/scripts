@@ -31,6 +31,13 @@ REPOS=(
     "$REPO_ROOT/e2e"
     "$REPO_ROOT/ios"
     "$REPO_ROOT/android"
+    "$REPO_ROOT/docs"
+    "$REPO_ROOT/_private"
+    "$REPO_ROOT/linux-gtk"
+    "$REPO_ROOT/linux-qt"
+    "$REPO_ROOT/macos"
+    "$REPO_ROOT/windows"
+    "$REPO_ROOT/web-demo"
 )
 
 echo "Setting core.hooksPath → $HOOKS_DIR"
