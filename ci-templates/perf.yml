@@ -13,6 +13,7 @@
 #
 # Provides:
 #   - .lint-duplicates-job: Detect duplicate dependencies (MR lint stage)
+#   - .lint-machete-job: Detect unused dependencies (MR lint stage)
 #   - .binary-size-tracking-job: Track release binary size via Pushgateway (main/tags)
 #
 # Consumer jobs must extend a runner template (.linux-runner, .rust-runner, etc.)
@@ -71,6 +72,29 @@
         echo "  Run locally: just perf-duplicates"
         # Advisory — don't fail the pipeline
       fi
+
+# ============================================================
+# Unused Dependency Check (MR lint stage)
+# ============================================================
+# Detects unused crate dependencies via cargo-machete.
+# Fast (~10s) — uses heuristic analysis, no compilation needed.
+# Runs on MRs when Cargo.toml or Cargo.lock changes.
+
+.lint-machete-job:
+  stage: lint
+  needs: []
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  before_script:
+    - !reference [.self-hosted, before_script]
+    - command -v cargo-machete >/dev/null 2>&1 || cargo binstall cargo-machete --no-confirm 2>/dev/null || cargo install cargo-machete
+  script:
+    - cargo machete
 
 # ============================================================
 # Binary Size Tracking (main merges + release tags)
