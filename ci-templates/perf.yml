@@ -1,0 +1,195 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Build Performance Template
+# Shared configuration for build performance CI jobs
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/perf.yml'
+#
+# Provides:
+#   - .lint-duplicates-job: Detect duplicate dependencies (MR lint stage)
+#   - .binary-size-tracking-job: Track release binary size via Pushgateway (main/tags)
+#
+# Consumer jobs must extend a runner template (.linux-runner, .rust-runner, etc.)
+#
+# Example:
+#   lint:duplicates:
+#     extends: [.lint-duplicates-job, .linux-runner-readonly]
+#
+#   perf:binary-size:
+#     extends: [.binary-size-tracking-job, .linux-runner]
+#     variables:
+#       BINARY_SIZE_PACKAGES: "vauchi-core vauchi-platform"
+#       BINARY_SIZE_REPO_LABEL: "core"
+
+# ============================================================
+# Duplicate Dependency Check (MR lint stage)
+# ============================================================
+# Detects multiple versions of the same crate in the dependency tree.
+# Fast (~5s) — just parses Cargo.lock, no compilation needed.
+# Runs on MRs when Cargo.toml or Cargo.lock changes.
+
+.lint-duplicates-job:
+  stage: lint
+  needs: []
+  allow_failure: true
+  variables:
+    DUPLICATES_THRESHOLD: "0"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/Cargo.toml"
+        - "**/Cargo.lock"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  before_script:
+    - !reference [.self-hosted, before_script]
+    - command -v cargo-duplicates >/dev/null 2>&1 || cargo binstall cargo-duplicates --no-confirm 2>/dev/null || cargo install cargo-duplicates
+  script:
+    - |
+      echo "=== Duplicate Dependency Check ==="
+      OUTPUT=$(cargo duplicates 2>&1) || true
+
+      if [ -z "$OUTPUT" ] || echo "$OUTPUT" | grep -q "no duplicates"; then
+        echo "✓ No duplicate dependencies found"
+        exit 0
+      fi
+
+      echo "$OUTPUT"
+
+      # Count duplicate crate groups
+      COUNT=$(echo "$OUTPUT" | grep -c "^[a-zA-Z]" || true)
+      echo ""
+      echo "Found $COUNT crate(s) with duplicate versions"
+
+      if [ "$COUNT" -gt "${DUPLICATES_THRESHOLD}" ]; then
+        echo "⚠ Exceeds threshold of ${DUPLICATES_THRESHOLD} — review dependency tree"
+        echo "  Run locally: just perf-duplicates"
+        # Advisory — don't fail the pipeline
+      fi
+
+# ============================================================
+# Binary Size Tracking (main merges + release tags)
+# ============================================================
+# Builds release binaries and pushes size metrics to Pushgateway
+# for Grafana dashboards. Detects size regressions over time.
+#
+# Variables:
+#   BINARY_SIZE_PACKAGES:   Space-separated list of -p flags (e.g. "vauchi-core vauchi-platform")
+#   BINARY_SIZE_REPO_LABEL: Label for Pushgateway metrics (defaults to CI_PROJECT_NAME)
+#   BINARY_SIZE_EXTRA_FLAGS: Additional cargo build flags
+
+.binary-size-tracking-job:
+  stage: test
+  needs: []
+  rules:
+    # Skip MR pipelines (release build is too slow for per-push feedback)
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    # Skip triggered pipelines
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  variables:
+    BINARY_SIZE_PACKAGES: ""
+    BINARY_SIZE_REPO_LABEL: ""
+    BINARY_SIZE_EXTRA_FLAGS: ""
+  script:
+    - |
+      echo "=== Binary Size Tracking ==="
+
+      # Build release binaries
+      PACKAGE_FLAGS=""
+      for pkg in ${BINARY_SIZE_PACKAGES}; do
+        PACKAGE_FLAGS="${PACKAGE_FLAGS} -p ${pkg}"
+      done
+
+      echo "Building release binaries... (${BINARY_SIZE_PACKAGES:-workspace})"
+      cargo build --release ${PACKAGE_FLAGS} ${BINARY_SIZE_EXTRA_FLAGS}
+
+      # Collect binary sizes
+      REPO_LABEL="${BINARY_SIZE_REPO_LABEL:-${CI_PROJECT_NAME}}"
+      METRICS_TEXT=""
+      FOUND=false
+
+      echo ""
+      echo "Release binary sizes:"
+      echo "─────────────────────"
+
+      for bin in target/release/*; do
+        # Skip non-executable files and build artifacts
+        if [ ! -f "$bin" ] || [ ! -x "$bin" ]; then continue; fi
+        case "$bin" in
+          *.d|*.o|*.rmeta|*.so|*.dylib|*.rlib) continue ;;
+          */build/*|*/deps/*|*/.fingerprint/*) continue ;;
+        esac
+
+        BIN_NAME=$(basename "$bin")
+        SIZE_BYTES=$(stat -c%s "$bin" 2>/dev/null || stat -f%z "$bin" 2>/dev/null)
+        SIZE_HUMAN=$(ls -lh "$bin" | awk '{print $5}')
+
+        echo "  ${BIN_NAME}: ${SIZE_HUMAN} (${SIZE_BYTES} bytes)"
+        METRICS_TEXT+="vauchi_eng_binary_size_bytes{repo=\"${REPO_LABEL}\",binary=\"${BIN_NAME}\"} ${SIZE_BYTES}"$'\n'
+        FOUND=true
+      done
+
+      # Also check for library outputs (.so, .dylib, .a)
+      for lib in target/release/*.{so,dylib,a} target/release/lib*.{so,dylib,a}; do
+        if [ ! -f "$lib" ]; then continue; fi
+
+        LIB_NAME=$(basename "$lib")
+        SIZE_BYTES=$(stat -c%s "$lib" 2>/dev/null || stat -f%z "$lib" 2>/dev/null)
+        SIZE_HUMAN=$(ls -lh "$lib" | awk '{print $5}')
+
+        echo "  ${LIB_NAME}: ${SIZE_HUMAN} (${SIZE_BYTES} bytes)"
+        METRICS_TEXT+="vauchi_eng_binary_size_bytes{repo=\"${REPO_LABEL}\",binary=\"${LIB_NAME}\"} ${SIZE_BYTES}"$'\n'
+        FOUND=true
+      done
+
+      if ! $FOUND; then
+        echo "  (no release binaries found)"
+        exit 0
+      fi
+
+      echo ""
+
+      # Push to Pushgateway via SSH (same pattern as push-coverage.sh)
+      if [ -z "$METRICS_TEXT" ]; then
+        echo "No metrics to push"
+        exit 0
+      fi
+
+      # Set up SSH if DEPLOY_SSH_PRIVATE_KEY is available and key not already present
+      if [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ] && [ ! -f ~/.ssh/id_ed25519 ]; then
+        mkdir -p ~/.ssh
+        base64 -d "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        cat >> ~/.ssh/config <<'SSHEOF'
+      Host bold-hopper-vps
+        HostName 87.106.25.46
+        User vauchi
+        StrictHostKeyChecking accept-new
+      SSHEOF
+        chmod 600 ~/.ssh/config
+        trap 'rm -f ~/.ssh/id_ed25519' EXIT
+      fi
+
+      if [ -n "${PUSHGATEWAY_URL:-}" ]; then
+        echo "$METRICS_TEXT" | curl -s --data-binary @- \
+          "${PUSHGATEWAY_URL}/metrics/job/vauchi_binary_size/repo/${REPO_LABEL}"
+      elif [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
+        echo "$METRICS_TEXT" | ssh vauchi@bold-hopper-vps \
+          "curl -s --data-binary @- http://localhost:9091/metrics/job/vauchi_binary_size/repo/${REPO_LABEL}"
+      else
+        echo "⚠ No PUSHGATEWAY_URL or DEPLOY_SSH_PRIVATE_KEY — metrics not pushed"
+        echo "  Binary sizes logged above for manual review"
+        exit 0
+      fi
+
+      echo "✓ Binary size metrics pushed for ${REPO_LABEL}"
