@@ -1,0 +1,254 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Design Drift Template
+# Checks that a platform repo implements all Component variants from design specs
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/design-drift.yml'
+#
+# Provides:
+#   - .design-drift-job: Checks component implementation coverage against design specs
+#
+# Variables (set by consumer jobs):
+#   DESIGN_DRIFT_COMPONENT_DIR:  Path to component implementation dir (required for file mode)
+#   DESIGN_DRIFT_FILE_EXT:       File extension for component files (default: ".rs")
+#   DESIGN_DRIFT_REPO_LABEL:     Label for Pushgateway metrics (defaults to CI_PROJECT_NAME)
+#   DESIGN_DRIFT_FILE_PREFIX:    Prefix added to filenames when matching (default: "")
+#   DESIGN_DRIFT_FILE_SUFFIX:    Suffix added before extension (default: "")
+#   DESIGN_DRIFT_CASE:           Filename case: "kebab", "snake" (default), "pascal", "lower"
+#   DESIGN_DRIFT_MATCH_MODE:     "file" (default) = one file per component, "grep" = grep in renderer file
+#   DESIGN_DRIFT_GREP_FILE:      Path to renderer file (required when MATCH_MODE=grep)
+#
+# Match modes:
+#   file  — Looks for a file per component in DESIGN_DRIFT_COMPONENT_DIR.
+#           Uses exact match first, then prefix-glob (handles iOS mixed suffixes).
+#   grep  — Searches for PascalCase variant name in DESIGN_DRIFT_GREP_FILE.
+#           Useful for CLI/TUI that handle all components in one match block.
+#
+# Case conventions and platform mapping:
+#   snake  — field_list.rs        (Rust: linux-gtk, tui)
+#   kebab  — field-list.rs        (rare)
+#   pascal — FieldListComponent.kt (Kotlin, Swift, TypeScript, C#)
+#   lower  — fieldlistcomponent.cpp (C++: linux-qt)
+#
+# ── Examples ─────────────────────────────────────────────────────
+#
+# Rust / snake_case (linux-gtk):
+#   check:design-drift:
+#     extends: .design-drift-job
+#     variables:
+#       DESIGN_DRIFT_COMPONENT_DIR: "src/core_ui/components"
+#
+# Kotlin / PascalCase (android):
+#   check:design-drift:
+#     extends: .design-drift-job
+#     variables:
+#       DESIGN_DRIFT_COMPONENT_DIR: "app/src/main/kotlin/app/vauchi/ui/coreui/components"
+#       DESIGN_DRIFT_FILE_EXT: ".kt"
+#       DESIGN_DRIFT_FILE_SUFFIX: "Component"
+#       DESIGN_DRIFT_CASE: "pascal"
+#
+# Swift / PascalCase (ios, macos — glob handles mixed suffixes):
+#   check:design-drift:
+#     extends: .design-drift-job
+#     variables:
+#       DESIGN_DRIFT_COMPONENT_DIR: "Vauchi/CoreUI/Components"
+#       DESIGN_DRIFT_FILE_EXT: ".swift"
+#       DESIGN_DRIFT_CASE: "pascal"
+#
+# C++ / lowercase (linux-qt):
+#   check:design-drift:
+#     extends: .design-drift-job
+#     variables:
+#       DESIGN_DRIFT_COMPONENT_DIR: "src/coreui/components"
+#       DESIGN_DRIFT_FILE_EXT: ".cpp"
+#       DESIGN_DRIFT_FILE_SUFFIX: "component"
+#       DESIGN_DRIFT_CASE: "lower"
+#
+# TypeScript / PascalCase (web-demo):
+#   check:design-drift:
+#     extends: .design-drift-job
+#     variables:
+#       DESIGN_DRIFT_COMPONENT_DIR: "src/core-ui/components"
+#       DESIGN_DRIFT_FILE_EXT: ".tsx"
+#       DESIGN_DRIFT_FILE_SUFFIX: "Component"
+#       DESIGN_DRIFT_CASE: "pascal"
+#
+# C# / PascalCase (windows):
+#   check:design-drift:
+#     extends: .design-drift-job
+#     variables:
+#       DESIGN_DRIFT_COMPONENT_DIR: "Vauchi/CoreUI/Components"
+#       DESIGN_DRIFT_FILE_EXT: ".xaml.cs"
+#       DESIGN_DRIFT_FILE_SUFFIX: "Component"
+#       DESIGN_DRIFT_CASE: "pascal"
+#
+# Grep mode (cli, tui — single renderer file):
+#   check:design-drift:
+#     extends: .design-drift-job
+#     variables:
+#       DESIGN_DRIFT_MATCH_MODE: "grep"
+#       DESIGN_DRIFT_GREP_FILE: "src/ui/screen_renderer.rs"
+
+.design-drift-job:
+  stage: lint
+  image: alpine:latest
+  needs: []
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    DESIGN_DRIFT_COMPONENT_DIR: ""
+    DESIGN_DRIFT_FILE_EXT: ".rs"
+    DESIGN_DRIFT_REPO_LABEL: ""
+    DESIGN_DRIFT_FILE_PREFIX: ""
+    DESIGN_DRIFT_FILE_SUFFIX: ""
+    DESIGN_DRIFT_CASE: "snake"
+    DESIGN_DRIFT_MATCH_MODE: "file"
+    DESIGN_DRIFT_GREP_FILE: ""
+  before_script:
+    - apk add --no-cache curl openssh-client bash grep 2>/dev/null || true
+  script:
+    - |
+      set -euo pipefail
+
+      if [ "$DESIGN_DRIFT_MATCH_MODE" = "file" ] && [ -z "$DESIGN_DRIFT_COMPONENT_DIR" ]; then
+        echo "ERROR: DESIGN_DRIFT_COMPONENT_DIR must be set in file mode" >&2
+        exit 1
+      fi
+      if [ "$DESIGN_DRIFT_MATCH_MODE" = "grep" ] && [ -z "$DESIGN_DRIFT_GREP_FILE" ]; then
+        echo "ERROR: DESIGN_DRIFT_GREP_FILE must be set in grep mode" >&2
+        exit 1
+      fi
+
+      REPO_LABEL="${DESIGN_DRIFT_REPO_LABEL:-${CI_PROJECT_NAME}}"
+
+      # ── Fetch canonical component list from _private designs ──
+      PRIVATE_PROJECT="vauchi%2Fprivate"
+      COMPONENTS_JSON=$(curl --silent --fail \
+        --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${PRIVATE_PROJECT}/repository/tree?path=designs/components&ref=main&per_page=100" \
+        2>/dev/null || echo "[]")
+
+      if [ "$COMPONENTS_JSON" = "[]" ]; then
+        echo "WARNING: Could not fetch component list from _private — skipping check"
+        exit 0
+      fi
+
+      # Extract component names from .md filenames (kebab-case, strip .md)
+      # Exclude planned (Phase 2) components not yet in core
+      PLANNED="show-toast inline-confirm editable-text"
+      EXPECTED_COMPONENTS=""
+      EXPECTED_COUNT=0
+
+      for name in $(echo "$COMPONENTS_JSON" | sed -n 's/.*"name":"\([^"]*\.md\)".*/\1/gp' | sed 's/\.md$//' | sort); do
+        case "$name" in README|INDEX) continue ;; esac
+        SKIP=false
+        for p in $PLANNED; do
+          if [ "$name" = "$p" ]; then SKIP=true; break; fi
+        done
+        if $SKIP; then continue; fi
+        EXPECTED_COMPONENTS="${EXPECTED_COMPONENTS} ${name}"
+        EXPECTED_COUNT=$((EXPECTED_COUNT + 1))
+      done
+
+      echo "Design spec components (${EXPECTED_COUNT}):"
+      for c in $EXPECTED_COMPONENTS; do echo "  - $c"; done
+      echo ""
+
+      # ── Name conversion helpers ──
+      to_pascal() {
+        echo "$1" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1' | tr -d ' '
+      }
+      to_snake() {
+        echo "$1" | tr '-' '_'
+      }
+      to_lower() {
+        echo "$1" | tr -d '-'
+      }
+
+      # ── Check each component ──
+      IMPLEMENTED=0
+      MISSING=""
+      MISSING_COUNT=0
+
+      for component in $EXPECTED_COMPONENTS; do
+        FOUND=false
+        pascal=$(to_pascal "$component")
+
+        if [ "$DESIGN_DRIFT_MATCH_MODE" = "grep" ]; then
+          # Grep mode: search for Component::Variant or .variant pattern in renderer
+          if grep -q "Component::${pascal}\b\|\.${pascal}\b\|is ${pascal}\b\|case.*${pascal}" "$DESIGN_DRIFT_GREP_FILE" 2>/dev/null; then
+            echo "  OK: $component → found in $DESIGN_DRIFT_GREP_FILE"
+            FOUND=true
+          fi
+        else
+          # File mode: convert name to platform convention
+          case "$DESIGN_DRIFT_CASE" in
+            kebab)  base="$component" ;;
+            snake)  base=$(to_snake "$component") ;;
+            pascal) base="$pascal" ;;
+            lower)  base=$(to_lower "$component") ;;
+            *)      base="$component" ;;
+          esac
+
+          # Try exact filename match
+          filename="${DESIGN_DRIFT_FILE_PREFIX}${base}${DESIGN_DRIFT_FILE_SUFFIX}${DESIGN_DRIFT_FILE_EXT}"
+          filepath="${DESIGN_DRIFT_COMPONENT_DIR}/${filename}"
+
+          if [ -f "$filepath" ]; then
+            echo "  OK: $component → $filepath"
+            FOUND=true
+          else
+            # Glob: prefix match (handles iOS mixed suffixes like TextComponentView vs TextInputView)
+            for candidate in "${DESIGN_DRIFT_COMPONENT_DIR}/${DESIGN_DRIFT_FILE_PREFIX}${base}"*"${DESIGN_DRIFT_FILE_EXT}"; do
+              if [ -f "$candidate" ]; then
+                echo "  OK: $component → $candidate"
+                FOUND=true
+                break
+              fi
+            done
+          fi
+        fi
+
+        if $FOUND; then
+          IMPLEMENTED=$((IMPLEMENTED + 1))
+        else
+          if [ "$DESIGN_DRIFT_MATCH_MODE" = "grep" ]; then
+            echo "  MISSING: $component (${pascal}) → not found in $DESIGN_DRIFT_GREP_FILE"
+          else
+            echo "  MISSING: $component → expected ${DESIGN_DRIFT_COMPONENT_DIR}/${DESIGN_DRIFT_FILE_PREFIX}${base}*${DESIGN_DRIFT_FILE_EXT}"
+          fi
+          MISSING="${MISSING}${MISSING:+,}${component}"
+          MISSING_COUNT=$((MISSING_COUNT + 1))
+        fi
+      done
+
+      echo ""
+      echo "Design drift: ${IMPLEMENTED}/${EXPECTED_COUNT} components implemented (${MISSING_COUNT} missing)"
+
+      # ── Push metrics ──
+      curl --silent --fail \
+        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fpush-design-drift.sh/raw?ref=main" \
+        -o push-design-drift.sh 2>/dev/null || true
+      chmod +x push-design-drift.sh 2>/dev/null || true
+
+      if [ -f push-design-drift.sh ]; then
+        ./push-design-drift.sh "$REPO_LABEL" "$IMPLEMENTED" "$EXPECTED_COUNT" "${MISSING:-none}" || true
+      fi
+
+      # ── Exit code ──
+      if [ "$MISSING_COUNT" -gt 0 ]; then
+        echo ""
+        echo "DRIFT: Missing components: ${MISSING}"
+        exit 1
+      else
+        echo ""
+        echo "PASS: All design-specified components are implemented."
+      fi
