@@ -9,14 +9,13 @@
 # spec component list and pushes coverage metrics to Prometheus Pushgateway.
 #
 # Usage:
-#   push-design-drift.sh <repo-name> <implemented-count> <expected-count> <missing-list>
-#   push-design-drift.sh <repo-name> <implemented-count> <expected-count> <missing-list> --dry-run
+#   push-design-drift.sh <repo-name> <implemented-count> <expected-count>
+#   push-design-drift.sh <repo-name> <implemented-count> <expected-count> --dry-run
 #
 # Arguments:
 #   repo-name          — Platform repo label (e.g. "linux-gtk", "android")
 #   implemented-count  — Number of components the platform implements
 #   expected-count     — Total component count from design specs
-#   missing-list       — Comma-separated list of missing component names (or "none")
 #
 # Environment variables:
 #   DEPLOY_SSH_PRIVATE_KEY  — Base64-encoded SSH private key (auto-set in CI)
@@ -29,7 +28,6 @@ set -euo pipefail
 REPO_NAME="${1:-}"
 IMPLEMENTED="${2:-}"
 EXPECTED="${3:-}"
-MISSING_LIST="${4:-none}"
 DRY_RUN=false
 
 for arg in "$@"; do

@@ -240,7 +240,7 @@
       chmod +x push-design-drift.sh 2>/dev/null || true
 
       if [ -f push-design-drift.sh ]; then
-        ./push-design-drift.sh "$REPO_LABEL" "$IMPLEMENTED" "$EXPECTED_COUNT" "${MISSING:-none}" || true
+        ./push-design-drift.sh "$REPO_LABEL" "$IMPLEMENTED" "$EXPECTED_COUNT" || true
       fi
 
       # ── Exit code ──
