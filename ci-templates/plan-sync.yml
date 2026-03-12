@@ -32,7 +32,7 @@
   start_in: 5 minutes
   interruptible: true
   before_script:
-    - apt-get update -qq && apt-get install -y -qq git curl > /dev/null 2>&1
+    - apt-get update -qq && apt-get install -y -qq git curl python3 > /dev/null 2>&1
     - cd drift-detector && npm ci --silent && npm run build && cd ..
   script:
     - |
@@ -168,3 +168,9 @@
       else
         echo "Updated existing plan-sync MR on branch $BRANCH"
       fi
+
+      # --- Update sync cursor ---
+      git checkout "$CI_DEFAULT_BRANCH"
+      git update-ref refs/plan-sync/last-processed "$CI_COMMIT_SHA"
+      git push origin refs/plan-sync/last-processed 2>/dev/null || true
+      echo "Sync cursor updated to $CI_COMMIT_SHA"
