@@ -308,7 +308,6 @@ workflow:
       - rust-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
       - rust-${CI_JOB_NAME}
     paths:
-      - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
       - .cargo/git/db/
@@ -383,7 +382,6 @@ workflow:
       - rust-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
       - rust-${CI_JOB_NAME}
     paths:
-      - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
       - .cargo/git/db/
