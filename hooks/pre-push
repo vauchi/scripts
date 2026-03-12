@@ -41,6 +41,33 @@ if [[ "$HEAD_MSG" == wip:* ]]; then
     exit 1
 fi
 
+# ─── Stale base guard ──────────────────────────────────────────────
+# If pushing a feature branch that is not rebased on origin/main,
+# auto-rebase to avoid "needs rebase" MRs. Fetch is fast (depth 1).
+
+BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+if [[ -n "$BRANCH" && "$BRANCH" != "main" ]]; then
+    git -C "$REPO_ROOT" fetch origin main --depth=1 --quiet 2>/dev/null || true
+    ORIGIN_MAIN="$(git -C "$REPO_ROOT" rev-parse origin/main 2>/dev/null || true)"
+    if [[ -n "$ORIGIN_MAIN" ]]; then
+        MERGE_BASE="$(git -C "$REPO_ROOT" merge-base HEAD "$ORIGIN_MAIN" 2>/dev/null || true)"
+        if [[ -n "$MERGE_BASE" && "$MERGE_BASE" != "$ORIGIN_MAIN" ]]; then
+            BEHIND=$(git -C "$REPO_ROOT" rev-list --count "$MERGE_BASE".."$ORIGIN_MAIN" 2>/dev/null || echo "?")
+            echo ""
+            echo "  Branch is ${BEHIND} commit(s) behind origin/main — auto-rebasing..."
+            if git -C "$REPO_ROOT" rebase origin/main --quiet 2>/dev/null; then
+                echo "  Rebased successfully."
+            else
+                git -C "$REPO_ROOT" rebase --abort 2>/dev/null || true
+                echo ""
+                echo "BLOCKED: Branch is behind origin/main and auto-rebase failed (conflicts)."
+                echo "  Rebase manually: git fetch origin main && git rebase origin/main"
+                exit 1
+            fi
+        fi
+    fi
+fi
+
 # ─── TDD stamp check ───────────────────────────────────────────────
 # If `just check` already passed for this commit, skip all checks.
 
