@@ -68,6 +68,23 @@ if [[ -n "$BRANCH" && "$BRANCH" != "main" ]]; then
     fi
 fi
 
+# ─── Plan-Task trailer advisory ──────────────────────────────────────
+if [[ -n "$BRANCH" && "$BRANCH" == feature/* ]]; then
+    COMMITS_WITHOUT_TRAILER=$(git -C "$REPO_ROOT" log origin/main..HEAD \
+        --format='%h %s' \
+        --invert-grep --grep='Plan-Task:' 2>/dev/null || true)
+    if [[ -n "$COMMITS_WITHOUT_TRAILER" ]]; then
+        COUNT=$(echo "$COMMITS_WITHOUT_TRAILER" | wc -l | tr -d ' ')
+        echo "⚠ ${COUNT} commit(s) on ${BRANCH} have no Plan-Task: trailer:"
+        echo "$COMMITS_WITHOUT_TRAILER" | head -5 | sed 's/^/  /'
+        if [[ $COUNT -gt 5 ]]; then
+            echo "  ... and $((COUNT - 5)) more"
+        fi
+        echo "  (This is informational — push continues)"
+        echo ""
+    fi
+fi
+
 # ─── TDD stamp check ───────────────────────────────────────────────
 # If `just check` already passed for this commit, skip all checks.
 
