@@ -1,6 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me> -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 
+[![Pipeline](https://vauchi.gitlab.io/scripts/badges/pipeline.svg)](https://gitlab.com/vauchi/scripts/-/pipelines)
 [![REUSE](https://api.reuse.software/badge/gitlab.com/vauchi/scripts)](https://api.reuse.software/info/gitlab.com/vauchi/scripts)
 
 # Vauchi Dev Tools
