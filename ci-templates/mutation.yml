@@ -46,8 +46,8 @@
     MUTATION_WORKDIR: "."
     MUTATION_TEST_TOOL: "nextest"
   script:
-    - command -v cargo-mutants >/dev/null 2>&1 || cargo binstall cargo-mutants --no-confirm 2>/dev/null || cargo install cargo-mutants --locked || true
-    - command -v cargo-nextest >/dev/null 2>&1 || cargo binstall cargo-nextest --no-confirm 2>/dev/null || cargo install cargo-nextest --locked || true
+    - command -v cargo-mutants >/dev/null 2>&1 || cargo binstall cargo-mutants --no-confirm 2>/dev/null || true
+    - command -v cargo-nextest >/dev/null 2>&1 || cargo binstall cargo-nextest --no-confirm 2>/dev/null || true
     - |
       # Fetch mutation-progress.sh and push-mutation.sh from vauchi/scripts (public repo, no auth needed)
       for script in mutation-progress.sh push-mutation.sh; do

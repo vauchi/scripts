@@ -53,9 +53,9 @@
     - command -v cargo-binstall >/dev/null 2>&1 || (curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash)
     - |
       # Ensure cargo-llvm-cov and cargo-nextest are installed
-      cargo binstall cargo-llvm-cov --no-confirm 2>/dev/null || cargo install cargo-llvm-cov --locked || true
+      cargo binstall cargo-llvm-cov --no-confirm 2>/dev/null || true
       if [ "$COVERAGE_USE_NEXTEST" = "true" ]; then
-        cargo binstall cargo-nextest --no-confirm 2>/dev/null || cargo install cargo-nextest --locked || true
+        cargo binstall cargo-nextest --no-confirm 2>/dev/null || true
       fi
     - |
       # Fetch push-coverage.sh from vauchi/scripts (public repo, no auth needed)

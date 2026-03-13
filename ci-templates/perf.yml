@@ -49,7 +49,7 @@
     - if: $CI_PIPELINE_SOURCE == "schedule"
   before_script:
     - !reference [.self-hosted, before_script]
-    - command -v cargo-duplicates >/dev/null 2>&1 || cargo binstall cargo-duplicates --no-confirm 2>/dev/null || cargo install cargo-duplicates
+    - command -v cargo-duplicates >/dev/null 2>&1 || cargo binstall cargo-duplicates --no-confirm 2>/dev/null || true
   script:
     - |
       echo "=== Duplicate Dependency Check ==="
@@ -92,7 +92,7 @@
     - if: $CI_PIPELINE_SOURCE == "schedule"
   before_script:
     - !reference [.self-hosted, before_script]
-    - command -v cargo-machete >/dev/null 2>&1 || cargo binstall cargo-machete --no-confirm 2>/dev/null || cargo install cargo-machete
+    - command -v cargo-machete >/dev/null 2>&1 || cargo binstall cargo-machete --no-confirm 2>/dev/null || true
   script:
     - cargo machete
 
