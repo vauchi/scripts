@@ -37,6 +37,9 @@ REPO_REGISTRY=(
     "linux-gtk:linux-gtk:rust"
     "linux-qt:linux-qt:cmake"
     "web-demo:web-demo:npm"
+    "assets:assets:none"
+    "vauchi-platform-swift:vauchi-platform-swift:swift"
+    "vauchi-platform-kotlin:vauchi-platform-kotlin:gradle"
 )
 
 # ── Which repos support which operations ────────────────────────────
