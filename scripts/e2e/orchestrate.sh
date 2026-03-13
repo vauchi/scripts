@@ -9,7 +9,7 @@
 # Usage:
 #   ./orchestrate.sh status       # Check status of all components
 #   ./orchestrate.sh deploy       # Deploy apps to all devices
-#   ./orchestrate.sh deploy-ios   # Deploy iOS app to macOS VM simulator
+#   ./orchestrate.sh deploy-ios   # Deploy iOS app to macOS simulator
 #   ./orchestrate.sh deploy-android # Deploy Android APK to local emulator
 #   ./orchestrate.sh test         # Run E2E test checklist
 #   ./orchestrate.sh relay        # Start local TLS relay
@@ -1354,7 +1354,7 @@ cmd_help() {
     echo ""
     echo "Mobile Testing:"
     echo "  deploy              Deploy apps to all mobile devices"
-    echo "  deploy-ios          Deploy iOS app to macOS VM simulator"
+    echo "  deploy-ios          Deploy iOS app to macOS simulator"
     echo "  deploy-android      Deploy Android APK to local emulator"
     echo "  test                Run E2E test checklist interactively"
     echo "  screenshot          Take screenshots from mobile devices"
