@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Badge Generation Template
+# Generates pipeline status and coverage badges as static SVGs,
+# deployed via GitLab Pages. This avoids the need for public_jobs=true
+# which would also expose job logs and artifacts.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/badges.yml'
+#
+#   pages:
+#     extends: .badges-pages
+#
+# The generated badges are accessible at:
+#   https://vauchi.gitlab.io/<repo>/badges/pipeline.svg
+#   https://vauchi.gitlab.io/<repo>/badges/coverage.svg
+#
+# For repos that already have a pages job (docs, website), merge the
+# badge generation into the existing job instead of using this template.
+# See the script generate-badges.sh for details.
+#
+# Note: The badge job queries the current pipeline's status via the
+# GitLab API using CI_JOB_TOKEN. Coverage data comes from the pipeline
+# API response (requires coverage regex to be configured in CI).
+
+.badges-pages:
+  stage: deploy
+  rules:
+    # Only deploy badges on main branch (not MRs, not triggered pipelines)
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: always
+  # Run even if earlier stages failed — we want the badge to reflect failure
+  allow_failure: true
+  needs: []
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - |
+      # Fetch generate-badges.sh from vauchi/scripts (public repo, no auth needed)
+      curl --silent --fail \
+        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fgenerate-badges.sh/raw?ref=main" \
+        -o generate-badges.sh
+      chmod +x generate-badges.sh
+    - ./generate-badges.sh public/badges
+  artifacts:
+    paths:
+      - public
