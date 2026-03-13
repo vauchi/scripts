@@ -40,19 +40,21 @@
 # Uses Docker runner with Alpine for minimal footprint.
 #
 # Variables:
-#   AUTO_TAG_VERSION_CMD:    Shell command to extract version (default: single crate)
+#   AUTO_TAG_VERSION_CMD:     Shell command to extract version (default: single crate)
 #   AUTO_TAG_SKIP_PRERELEASE: "true" to skip dev/rc versions (default: "true")
+#   AUTO_TAG_DEV_FALLBACK:    "true" to auto-create dev tag when version tag exists (default: "false")
 #
 # Example:
 #   auto-tag:version:
 #     extends: .auto-tag
 #
-#   # Workspace repo (e.g. core):
+#   # Workspace repo with dev-fallback (e.g. core):
 #   auto-tag:version:
 #     extends: .auto-tag
 #     variables:
 #       AUTO_TAG_VERSION_CMD: "grep -A5 '^\\[workspace\\.package\\]' Cargo.toml | grep '^version' | sed 's/.*\"\\(.*\\)\"/\\1/'"
 #       AUTO_TAG_SKIP_PRERELEASE: "false"
+#       AUTO_TAG_DEV_FALLBACK: "true"
 
 .auto-tag:
   stage: auto-tag
@@ -64,6 +66,7 @@
     GIT_DEPTH: "1"
     AUTO_TAG_VERSION_CMD: "grep '^version' Cargo.toml | head -1 | sed 's/.*\"\\(.*\\)\"/\\1/'"
     AUTO_TAG_SKIP_PRERELEASE: "true"
+    AUTO_TAG_DEV_FALLBACK: "false"
   script:
     - apk add --no-cache git
     - |
@@ -80,14 +83,6 @@
         fi
       fi
 
-      # Check if tag already exists
-      if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
-        echo "✓ Tag ${TAG} already exists — nothing to do"
-        exit 0
-      fi
-
-      echo "Tag ${TAG} does not exist — creating it..."
-
       git config user.name "vauchi-gitlab-runner"
       git config user.email "noreply@vauchi.app"
 
@@ -96,6 +91,32 @@
       # tag push must trigger the release pipeline (build/package/publish stages).
       # PROJECT_ACCESS_TOKEN is set at group level in Settings > CI/CD > Variables.
       git remote set-url origin "https://vauchi-gitlab-runner:${PROJECT_ACCESS_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+
+      # Check if tag already exists
+      if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+        if [ "${AUTO_TAG_DEV_FALLBACK}" = "true" ]; then
+          echo "Tag ${TAG} already exists — creating dev tag instead"
+          BASE_VERSION=$(echo "${VERSION}" | sed 's/-.*//')
+          LAST_DEV=$(git ls-remote --tags origin "refs/tags/v${BASE_VERSION}-dev.*" \
+            | sed 's|.*/||' | sort -V | tail -1 || true)
+          if [ -n "${LAST_DEV}" ]; then
+            N=$(echo "${LAST_DEV}" | grep -oE '[0-9]+$')
+            N=$((N + 1))
+          else
+            N=1
+          fi
+          DEV_TAG="v${BASE_VERSION}-dev.${N}"
+          echo "Creating dev tag: ${DEV_TAG}"
+          git tag -a "${DEV_TAG}" -m "Dev build ${DEV_TAG}"
+          git push origin "${DEV_TAG}"
+          echo "✓ Created and pushed dev tag ${DEV_TAG}"
+        else
+          echo "✓ Tag ${TAG} already exists — nothing to do"
+        fi
+        exit 0
+      fi
+
+      echo "Tag ${TAG} does not exist — creating it..."
 
       git tag -a "${TAG}" -m "Release ${TAG}"
       git push origin "${TAG}"
