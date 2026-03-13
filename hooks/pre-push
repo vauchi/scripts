@@ -510,13 +510,28 @@ if [[ "$BRANCH" != "main" ]] && command -v glab &> /dev/null; then
         echo "$OPEN_MRS"
     else
         echo "No open MR for branch $BRANCH"
+
+        # Guard: block push to a branch whose MR was already merged.
+        # Pushing to such a branch silently recreates it on the remote,
+        # orphaning the commits (they won't be in any MR).
+        MERGED_MRS="$(glab mr list --source-branch="$BRANCH" --state=merged 2>/dev/null)" || MERGED_MRS=""
+        if [[ -n "$MERGED_MRS" && "${ALLOW_MERGED_BRANCH:-}" != "1" ]]; then
+            echo ""
+            echo "ERROR: Branch $BRANCH has a merged MR:"
+            echo "$MERGED_MRS"
+            echo ""
+            echo "Pushing to a merged branch silently orphans your commits."
+            echo "Create a new branch instead:  git checkout -b <new-branch>"
+            echo ""
+            echo "To override: ALLOW_MERGED_BRANCH=1 git push"
+            exit 1
+        fi
     fi
 
-    # Recently merged MRs for this branch
-    if [[ -n "$SINCE" ]]; then
-        MERGED_MRS="$(glab mr list --source-branch="$BRANCH" --state=merged 2>/dev/null)" || MERGED_MRS=""
-        if [[ -n "$MERGED_MRS" ]]; then
-            # Filter to MRs merged after $SINCE
+    # Recently merged MRs (informational, for branches with open MRs)
+    if [[ -n "$OPEN_MRS" && -n "$SINCE" ]]; then
+        OTHER_MERGED="$(glab mr list --source-branch="$BRANCH" --state=merged 2>/dev/null)" || OTHER_MERGED=""
+        if [[ -n "$OTHER_MERGED" ]]; then
             RECENT=""
             while IFS= read -r line; do
                 MR_NUM="$(echo "$line" | grep -oE '![0-9]+' | head -1 | tr -d '!')"
@@ -527,7 +542,7 @@ if [[ "$BRANCH" != "main" ]] && command -v glab &> /dev/null; then
                         RECENT="${RECENT}${line}\n"
                     fi
                 fi
-            done <<< "$MERGED_MRS"
+            done <<< "$OTHER_MERGED"
             if [[ -n "$RECENT" ]]; then
                 echo ""
                 echo "Recently merged MRs on branch $BRANCH:"
