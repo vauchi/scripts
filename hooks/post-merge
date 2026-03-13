@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# post-merge hook: auto-reinstall hooks after pulling scripts repo.
+# This ensures hooks stay in sync when scripts/ is updated.
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_NAME="$(basename "$REPO_ROOT")"
+
+# Only auto-reinstall when pulling the scripts repo itself
+if [[ "$REPO_NAME" == "scripts" ]]; then
+    INSTALL_SCRIPT="$REPO_ROOT/install-hooks.sh"
+    if [[ -x "$INSTALL_SCRIPT" ]]; then
+        echo ""
+        echo "Scripts updated — reinstalling hooks..."
+        WORKSPACE_ROOT="$(dirname "$REPO_ROOT")"
+        (cd "$WORKSPACE_ROOT" && bash "$INSTALL_SCRIPT")
+    fi
+fi
