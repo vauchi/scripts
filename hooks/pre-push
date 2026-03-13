@@ -264,6 +264,40 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
             echo "  Clippy OK"
         }
         time_step "Clippy" run_clippy
+
+        # K-H1/K-L4 lint: detect dangerous Clone + manual zeroizing Drop on the SAME type.
+        # Safe: #[derive(Clone, Zeroize, ZeroizeOnDrop)] — both copies auto-zeroized.
+        # Dangerous: #[derive(Clone)] + manual impl Drop { zeroize() } — clone escapes zeroization.
+        run_zeroize_lint() {
+            echo ""
+            echo "[2.5/3] Checking for dangerous Clone+Zeroize anti-pattern..."
+            ZEROIZE_VIOLATIONS=""
+            while IFS= read -r rs_file; do
+                # Extract type names from "impl Drop for <Type>" lines
+                while IFS= read -r type_name; do
+                    [[ -z "$type_name" ]] && continue
+                    # Check if this Drop impl contains zeroize()
+                    # and the same type derives Clone (without ZeroizeOnDrop)
+                    if grep -qE "derive\(.*Clone" "$rs_file" \
+                        && grep -B5 "struct ${type_name}\\b\|enum ${type_name}\\b" "$rs_file" \
+                            | grep -qE "derive\(.*Clone" \
+                        && ! grep -B5 "struct ${type_name}\\b\|enum ${type_name}\\b" "$rs_file" \
+                            | grep -q "ZeroizeOnDrop"; then
+                        ZEROIZE_VIOLATIONS="$ZEROIZE_VIOLATIONS  $rs_file ($type_name)\n"
+                    fi
+                done < <(grep -oE 'impl\s+Drop\s+for\s+(\w+)' "$rs_file" | sed 's/impl\s*Drop\s*for\s*//')
+            done < <(find . -name '*.rs' -not -path '*/target/*')
+            if [[ -n "$ZEROIZE_VIOLATIONS" ]]; then
+                echo ""
+                echo "FAILED: Found derive(Clone) + manual impl Drop with zeroize() on same type:"
+                echo -e "$ZEROIZE_VIOLATIONS"
+                echo "Use #[derive(Clone, Zeroize, ZeroizeOnDrop)] instead of manual Drop."
+                echo "See: _private/docs/problems/2026-03-02-core-zeroization-gaps/README.md"
+                exit 1
+            fi
+            echo "  Zeroize lint OK"
+        }
+        time_step "ZeroizeLint" run_zeroize_lint
     fi
 
     run_tests() {
