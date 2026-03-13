@@ -13,10 +13,12 @@ include:
   - local: '/ci-templates/lint-docs.yml'
   - local: '/ci-templates/mr-rules.yml'
   - local: '/ci-templates/reuse.yml'
+  - local: '/ci-templates/badges.yml'
 
 stages:
   - lint
   - metrics
+  - deploy
 
 # Lint shell scripts with shellcheck
 shellcheck:
@@ -93,3 +95,10 @@ metrics:daily:
   script:
     - scripts/ci/metrics-push.sh --ci
   allow_failure: true
+
+# ============================================================
+# Deploy Stage — Badge Pages
+# ============================================================
+
+pages:
+  extends: .badges-pages
