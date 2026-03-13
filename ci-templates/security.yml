@@ -143,13 +143,11 @@ secret_detection:
     - command -v cargo-audit >/dev/null 2>&1 || cargo binstall cargo-audit --no-confirm 2>/dev/null || true
 
 # cargo-deny with auto-install (MR + scheduled)
+# No compilation needed — starts immediately (needs:[]) in lint stage for fast feedback
 .security-deny-job:
   extends: [.security-deny, .timeout-quick]
-  needs:
-    - job: lint:format
-      optional: true
-    - job: lint:clippy
-      optional: true
+  stage: lint
+  needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -160,14 +158,11 @@ secret_detection:
 # cargo-vet supply chain verification (MR dependency changes + main + scheduled)
 # Checks that all dependencies are either audited, trusted, or explicitly exempted.
 # Repos must have a supply-chain/ directory (created by `cargo vet init`).
+# No compilation needed — starts immediately (needs:[]) in lint stage for fast feedback
 .security-vet-job:
   extends: .timeout-quick
-  stage: security
-  needs:
-    - job: lint:format
-      optional: true
-    - job: lint:clippy
-      optional: true
+  stage: lint
+  needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
@@ -180,6 +175,5 @@ secret_detection:
     - !reference [.self-hosted, before_script]
     - command -v cargo-vet >/dev/null 2>&1 || cargo binstall cargo-vet --no-confirm 2>/dev/null || true
   script:
-    # Regenerate lockfile if needed (path overrides or minor version drift can make it stale)
-    - cargo generate-lockfile 2>/dev/null || true
-    - cargo vet
+    # Use committed Cargo.lock — never regenerate, as newer versions may lack exemptions
+    - cargo vet --locked
