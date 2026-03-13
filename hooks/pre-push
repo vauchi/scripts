@@ -100,7 +100,9 @@ if [[ -f "$STAMP_SH" ]]; then
 fi
 
 # ─── Non-code change detection ─────────────────────────────────────
-# If only docs/config files changed (no source code), skip checks.
+# If only docs/config files changed (no source code), skip compile/lint/test
+# checks. REUSE lint still runs for doc repos (_private, docs) since CI
+# enforces it and markdown files need SPDX headers.
 
 if [[ "$_STAMP_SKIP" != "1" ]]; then
     CHANGED_FILES=$(git diff --name-only origin/main...HEAD 2>/dev/null || echo "")
@@ -112,6 +114,35 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         if [[ -z "$HAS_CODE" && -z "$HAS_BUILD" ]]; then
             echo ""
             echo "  Only non-code files changed — skipping checks"
+            # For doc repos, still run REUSE lint (CI enforces it)
+            if [[ "$REPO_DIR" == "_private" || "$REPO_DIR" == "docs" ]]; then
+                if command -v reuse &> /dev/null; then
+                    echo ""
+                    echo "[1/1] Checking REUSE compliance..."
+                    if ! reuse lint > /dev/null 2>&1; then
+                        echo ""
+                        echo "FAILED: REUSE compliance check failed:"
+                        reuse lint 2>&1 | tail -30
+                        exit 1
+                    fi
+                    echo "  REUSE lint OK"
+                else
+                    # Fallback: basic SPDX header check on new markdown files
+                    MISSING=0
+                    for file in $(git diff --name-only --diff-filter=A origin/main...HEAD -- '*.md' 2>/dev/null); do
+                        if ! head -2 "$file" | grep -q 'SPDX-'; then
+                            echo "  MISSING SPDX header: $file"
+                            MISSING=$((MISSING + 1))
+                        fi
+                    done
+                    if [[ $MISSING -gt 0 ]]; then
+                        echo ""
+                        echo "FAILED: $MISSING new file(s) missing SPDX headers."
+                        exit 1
+                    fi
+                    echo "  SPDX headers OK (basic check)"
+                fi
+            fi
             _STAMP_SKIP=1
         fi
     fi
