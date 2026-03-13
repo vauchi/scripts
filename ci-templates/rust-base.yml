@@ -506,14 +506,17 @@ workflow:
     GIT_STRATEGY: none
   script:
     - echo "Cleaning up runner disk space..."
-    # Clean cargo target (keep only recent builds)
+    # Clean stale cargo artifacts with cargo-sweep (smarter than find -mtime)
     - |
       if [ -d "target" ]; then
         echo "Target size before: $(du -sh target 2>/dev/null | cut -f1)"
-        # Remove debug builds older than 7 days
-        find target/debug -type f -mtime +7 -delete 2>/dev/null || true
-        # Remove old incremental compilation artifacts
-        find target -name "incremental" -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
+        if command -v cargo-sweep >/dev/null 2>&1; then
+          cargo sweep --time 7 . 2>&1 || true
+        else
+          # Fallback: remove debug builds older than 7 days
+          find target/debug -type f -mtime +7 -delete 2>/dev/null || true
+          find target -name "incremental" -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
+        fi
         echo "Target size after: $(du -sh target 2>/dev/null | cut -f1)"
       fi
     # Clean old cargo registry cache
