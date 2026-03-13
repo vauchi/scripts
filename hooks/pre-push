@@ -272,21 +272,24 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
             echo ""
             echo "[2.5/3] Checking for dangerous Clone+Zeroize anti-pattern..."
             ZEROIZE_VIOLATIONS=""
-            while IFS= read -r rs_file; do
-                # Extract type names from "impl Drop for <Type>" lines
-                while IFS= read -r type_name; do
+            # Use rg (ripgrep) if available — handles binary files safely and avoids
+            # Bus errors from BSD grep/sed on large vendored .rs files (e.g. aws-lc-sys).
+            if command -v rg &>/dev/null; then
+                while IFS=: read -r rs_file type_name; do
+                    [[ -z "$type_name" || -z "$rs_file" ]] && continue
+                    type_name=$(echo "$type_name" | sed 's/.*impl[[:space:]]*Drop[[:space:]]*for[[:space:]]*//' | sed 's/[[:space:]]*{.*//' | sed 's/[<(].*//')
                     [[ -z "$type_name" ]] && continue
-                    # Check if this Drop impl contains zeroize()
-                    # and the same type derives Clone (without ZeroizeOnDrop)
-                    if grep -qE "derive\(.*Clone" "$rs_file" \
-                        && grep -B5 "struct ${type_name}\\b\|enum ${type_name}\\b" "$rs_file" \
-                            | grep -qE "derive\(.*Clone" \
-                        && ! grep -B5 "struct ${type_name}\\b\|enum ${type_name}\\b" "$rs_file" \
-                            | grep -q "ZeroizeOnDrop"; then
+                    if rg -q "derive\(.*Clone" "$rs_file" \
+                        && rg -B5 "struct ${type_name}\b|enum ${type_name}\b" "$rs_file" \
+                            | rg -q "derive\(.*Clone" \
+                        && ! rg -B5 "struct ${type_name}\b|enum ${type_name}\b" "$rs_file" \
+                            | rg -q "ZeroizeOnDrop"; then
                         ZEROIZE_VIOLATIONS="$ZEROIZE_VIOLATIONS  $rs_file ($type_name)\n"
                     fi
-                done < <(grep -oE 'impl\s+Drop\s+for\s+(\w+)' "$rs_file" | sed 's/impl\s*Drop\s*for\s*//')
-            done < <(find . -name '*.rs' -not -path '*/target/*')
+                done < <(rg -n 'impl Drop for' --type rust --glob '!target/' . 2>/dev/null || true)
+            else
+                echo "  (rg not found, skipping zeroize lint)"
+            fi
             if [[ -n "$ZEROIZE_VIOLATIONS" ]]; then
                 echo ""
                 echo "FAILED: Found derive(Clone) + manual impl Drop with zeroize() on same type:"
