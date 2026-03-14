@@ -49,6 +49,9 @@ check-doc-naming:
           README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|VISIBILITY_POLICY.md)
             continue
             ;;
+          assumptions.md|master-plan.plan.md)
+            continue
+            ;;
           STRUCTURE.md|ARCHITECTURE.md|SECURITY.md|CHECKLIST.md)
             continue
             ;;
@@ -71,6 +74,12 @@ check-doc-naming:
           continue
         fi
         if echo "$dirname" | grep -q "knowledge"; then
+          continue
+        fi
+        if echo "$dirname" | grep -q "audit-review-frameworks"; then
+          continue
+        fi
+        if echo "$dirname" | grep -q "decisions"; then
           continue
         fi
 
