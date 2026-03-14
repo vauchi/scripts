@@ -1,0 +1,66 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Commit message format validation hook.
+# Enforces: {type}: {description}
+# Valid types: feat, fix, refactor, tidy, docs, test, chore, wip
+#
+# Multi-line messages must have a blank line after the subject.
+# Merge commits and fixup/squash commits are allowed through.
+
+set -e
+
+MSG_FILE="$1"
+SUBJECT=$(head -n 1 "$MSG_FILE")
+
+# Allow merge commits
+if echo "$SUBJECT" | grep -qE "^Merge "; then
+    exit 0
+fi
+
+# Allow fixup/squash commits (git rebase)
+if echo "$SUBJECT" | grep -qE "^(fixup|squash)! "; then
+    exit 0
+fi
+
+# Allow revert commits
+if echo "$SUBJECT" | grep -qE "^Revert \""; then
+    exit 0
+fi
+
+# Validate format: {type}: {description}
+VALID_TYPES="feat|fix|refactor|tidy|docs|test|chore|wip"
+if ! echo "$SUBJECT" | grep -qE "^($VALID_TYPES): .+"; then
+    echo ""
+    echo "ERROR: Invalid commit message format."
+    echo ""
+    echo "  Expected: {type}: {description}"
+    echo "  Got:      $SUBJECT"
+    echo ""
+    echo "  Valid types: feat, fix, refactor, tidy, docs, test, chore, wip"
+    echo ""
+    echo "  Examples:"
+    echo "    feat: implement BLE transport"
+    echo "    fix: correct QR expiry check"
+    echo "    tidy: extract helper for key derivation"
+    echo "    test: add proptest for field validation"
+    echo ""
+    exit 1
+fi
+
+# Check subject line length (soft warning at 72 chars)
+SUBJECT_LEN=${#SUBJECT}
+if [ "$SUBJECT_LEN" -gt 72 ]; then
+    echo "WARNING: Subject line is $SUBJECT_LEN chars (recommended max: 72)"
+fi
+
+# If multi-line, check blank line after subject
+LINE_COUNT=$(wc -l < "$MSG_FILE")
+if [ "$LINE_COUNT" -gt 1 ]; then
+    SECOND_LINE=$(sed -n '2p' "$MSG_FILE")
+    if [ -n "$SECOND_LINE" ]; then
+        echo "WARNING: No blank line after subject (line 2 is not empty)"
+    fi
+fi
