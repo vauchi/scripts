@@ -81,19 +81,32 @@ echo "Pipeline status: ${STATUS_LABEL}"
 generate_badge "pipeline" "$STATUS_LABEL" "$STATUS_COLOR" "${OUTPUT_DIR}/pipeline.svg"
 
 # --- Determine coverage (optional) ---
-# Try to extract coverage from the pipeline API response
-COVERAGE=$(echo "${PIPELINE_JSON:-{}}" | python3 -c "
+# The badge job runs with needs:[] so the current pipeline has no coverage yet.
+# Query the latest COMPLETED main pipeline's jobs for coverage data.
+# GitLab often has coverage at job level but not pipeline level.
+COVERAGE=""
+if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
+  # Find the latest successful main pipeline
+  LAST_PID=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines?ref=${CI_DEFAULT_BRANCH}&status=success&per_page=1" 2>/dev/null \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" 2>/dev/null || echo "")
+
+  if [ -n "$LAST_PID" ]; then
+    # Get the highest coverage from any job in that pipeline
+    COVERAGE=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${LAST_PID}/jobs?per_page=100" 2>/dev/null \
+      | python3 -c "
 import sys, json
-d = json.load(sys.stdin)
-c = d.get('coverage')
-if c is not None:
-    print(f'{float(c):.1f}')
-else:
-    print('')
+jobs = json.load(sys.stdin)
+coverages = [j['coverage'] for j in jobs if j.get('coverage') is not None]
+if coverages:
+    # Use the max coverage (typically the main coverage job, not mobile subset)
+    print(f'{max(coverages):.1f}')
 " 2>/dev/null || echo "")
+  fi
+fi
 
 if [ -n "$COVERAGE" ]; then
-  # Color based on percentage
   COV_INT=${COVERAGE%.*}
   if [ "$COV_INT" -ge 90 ]; then
     COV_COLOR="#4c1"
@@ -111,6 +124,38 @@ if [ -n "$COVERAGE" ]; then
   generate_badge "coverage" "${COVERAGE}%" "$COV_COLOR" "${OUTPUT_DIR}/coverage.svg"
 else
   echo "No coverage data available"
+fi
+
+# --- Determine latest tags (optional) ---
+# Fetch latest stable (vX.Y.Z) and dev (vX.Y.Z-dev.N) tags
+if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
+  TAGS_JSON=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags?per_page=50&order_by=version" 2>/dev/null || echo '[]')
+
+  read -r PROD_TAG DEV_TAG <<< "$(echo "$TAGS_JSON" | python3 -c "
+import sys, json, re
+tags = json.load(sys.stdin)
+prod = dev = ''
+for t in tags:
+    name = t.get('name', '')
+    if not prod and re.match(r'^v\d+\.\d+\.\d+$', name):
+        prod = name
+    elif not dev and re.match(r'^v\d+\.\d+\.\d+-dev\.\d+$', name):
+        dev = name
+    if prod and dev:
+        break
+print(f'{prod} {dev}')
+" 2>/dev/null || echo " ")"
+
+  if [ -n "$PROD_TAG" ]; then
+    echo "Latest release: ${PROD_TAG}"
+    generate_badge "release" "$PROD_TAG" "#0e80c0" "${OUTPUT_DIR}/release.svg"
+  fi
+
+  if [ -n "$DEV_TAG" ]; then
+    echo "Latest dev: ${DEV_TAG}"
+    generate_badge "dev" "$DEV_TAG" "#6e5494" "${OUTPUT_DIR}/dev.svg"
+  fi
 fi
 
 echo "Badges written to ${OUTPUT_DIR}/"
