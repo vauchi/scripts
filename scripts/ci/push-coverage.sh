@@ -63,6 +63,8 @@ except Exception as e:
 COVERAGE_PERCENT=$(awk "BEGIN { printf \"%.2f\", $LINE_RATE * 100 }")
 
 echo "push-coverage: ${REPO_NAME} — ${COVERAGE_PERCENT}% (${LINES_COVERED}/${LINES_VALID} lines)" >&2
+# Print to stdout so GitLab coverage regex can capture it
+echo "Line Coverage: ${COVERAGE_PERCENT}%"
 
 # ─── Build Prometheus Metrics ────────────────────────────────────
 
