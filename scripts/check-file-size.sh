@@ -190,12 +190,12 @@ echo ""
 
 if [ -s "$TMPFILE" ]; then
     # Show warnings first, then failures
-    grep "^WARN" "$TMPFILE" 2>/dev/null | while IFS= read -r line; do
+    grep "^WARN" "$TMPFILE" | while IFS= read -r line; do
         echo "  ${line}"
-    done
-    grep "^FAIL" "$TMPFILE" 2>/dev/null | while IFS= read -r line; do
+    done || true
+    grep "^FAIL" "$TMPFILE" | while IFS= read -r line; do
         echo "  ${line}"
-    done
+    done || true
     echo ""
 fi
 
