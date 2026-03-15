@@ -30,15 +30,19 @@
 #   timer_elapsed                          echo seconds since timer_start
 
 # ── Colors ──────────────────────────────────────────────────────────
-# Disable colors if stdout is not a terminal (piped, redirected)
+# ANSI-C quoting ($'...') embeds real ESC bytes in the variables.
+# This means colors work correctly in printf format strings, %s args,
+# %b args, echo, and pipes — unlike '\033[...]' which only works in
+# printf format strings.
+# Disable colors if stdout is not a terminal (piped, redirected).
 if [[ -t 1 ]]; then
-    GREEN='\033[0;32m'
-    RED='\033[0;31m'
-    YELLOW='\033[1;33m'
-    BLUE='\033[0;34m'
-    DIM='\033[2m'
-    BOLD='\033[1m'
-    NC='\033[0m'
+    GREEN=$'\033[0;32m'
+    RED=$'\033[0;31m'
+    YELLOW=$'\033[1;33m'
+    BLUE=$'\033[0;34m'
+    DIM=$'\033[2m'
+    BOLD=$'\033[1m'
+    NC=$'\033[0m'
 else
     GREEN='' RED='' YELLOW='' BLUE='' DIM='' BOLD='' NC=''
 fi
@@ -111,7 +115,11 @@ timer_start() {
 }
 
 timer_elapsed() {
-    echo $(( SECONDS - _OUT_TIMER_START ))
+    if [[ -z "$_OUT_TIMER_START" ]]; then
+        echo "0"
+    else
+        echo $(( SECONDS - _OUT_TIMER_START ))
+    fi
 }
 
 # ── Compact mode ────────────────────────────────────────────────────
