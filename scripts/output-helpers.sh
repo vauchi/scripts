@@ -50,6 +50,16 @@ fi
 # ── Column width ────────────────────────────────────────────────────
 _OUT_COL=${_OUT_COL:-25}
 
+# Pad a string to _OUT_COL display columns using character count.
+# Unlike printf's %-Ns (which counts bytes), this handles multi-byte
+# UTF-8 correctly by using ${#var} (character count).
+_pad() {
+    local text="$1"
+    local pad=$(( _OUT_COL - ${#text} ))
+    [[ $pad -lt 1 ]] && pad=1
+    printf '%s%*s' "$text" "$pad" ""
+}
+
 # ── Section headers ─────────────────────────────────────────────────
 header() {
     printf "── %s ──\n" "$1"
@@ -57,35 +67,35 @@ header() {
 
 # ── Status lines (colored) ──────────────────────────────────────────
 status_ok() {
-    printf "  ${GREEN}✓${NC} %-${_OUT_COL}s %s\n" "$1" "$2"
+    printf "  ${GREEN}✓${NC} %s %s\n" "$(_pad "$1")" "$2"
 }
 
 status_fail() {
-    printf "  ${RED}✗${NC} %-${_OUT_COL}s %s\n" "$1" "$2"
+    printf "  ${RED}✗${NC} %s %s\n" "$(_pad "$1")" "$2"
 }
 
 status_info() {
-    printf "  ${DIM}·${NC} %-${_OUT_COL}s %s\n" "$1" "$2"
+    printf "  ${DIM}·${NC} %s %s\n" "$(_pad "$1")" "$2"
 }
 
 status_skip() {
-    printf "  ${DIM}-${NC} %-${_OUT_COL}s %s\n" "$1" "$2"
+    printf "  ${DIM}-${NC} %s %s\n" "$(_pad "$1")" "$2"
 }
 
 # ── Progress lines (with counter) ──────────────────────────────────
 progress_ok() {
     local n="$1" total="$2" label="$3" msg="$4"
-    printf "  ${DIM}[%2d/%d]${NC} ${GREEN}✓${NC} %-${_OUT_COL}s %s\n" "$n" "$total" "$label" "$msg"
+    printf "  ${DIM}[%2d/%d]${NC} ${GREEN}✓${NC} %s %s\n" "$n" "$total" "$(_pad "$label")" "$msg"
 }
 
 progress_fail() {
     local n="$1" total="$2" label="$3" msg="$4"
-    printf "  ${DIM}[%2d/%d]${NC} ${RED}✗${NC} %-${_OUT_COL}s %s\n" "$n" "$total" "$label" "$msg"
+    printf "  ${DIM}[%2d/%d]${NC} ${RED}✗${NC} %s %s\n" "$n" "$total" "$(_pad "$label")" "$msg"
 }
 
 progress_info() {
     local n="$1" total="$2" label="$3" msg="$4"
-    printf "  ${DIM}[%2d/%d]${NC} ${DIM}·${NC} %-${_OUT_COL}s %s\n" "$n" "$total" "$label" "$msg"
+    printf "  ${DIM}[%2d/%d]${NC} ${DIM}·${NC} %s %s\n" "$n" "$total" "$(_pad "$label")" "$msg"
 }
 
 # ── Summary footers ────────────────────────────────────────────────
