@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# File Size Enforcement Template
+# Checks Rust source files against line count thresholds.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/file-size.yml'
+#
+# Provides:
+#   - file-size:check: Fails on new files exceeding error threshold (src >1000, test >1200)
+#   - file-size:advisory: Warns on files exceeding warn threshold (src >500, test >800)
+#
+# Grandfathering: existing large files listed in .file-size-baseline
+# are only flagged if they grow beyond their baseline count.
+
+# ============================================================
+# File Size Check (enforced)
+# ============================================================
+# Fails the pipeline if any non-baselined file exceeds the error
+# threshold. Grandfathered files fail only if they grow.
+
+file-size:check:
+  stage: lint
+  image: rust:1.93.1
+  tags: [docker]
+  needs: []
+  allow_failure: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/*.rs"
+          - ".file-size-baseline"
+          - ".gitlab-ci.yml"
+  script:
+    - |
+      # Fetch script via GitLab API (faster than git clone)
+      curl -fsSL "https://gitlab.com/vauchi/scripts/-/raw/${CI_DEFAULT_BRANCH}/scripts/check-file-size.sh" -o /tmp/check-file-size.sh
+      chmod +x /tmp/check-file-size.sh
+
+      # Scan from repo root (script finds *.rs recursively, reads .file-size-baseline)
+      /tmp/check-file-size.sh .
+  timeout: 5 minutes
+
+# ============================================================
+# File Size Advisory (warnings only)
+# ============================================================
+# Reports files exceeding the warn threshold but never fails.
+# Useful for tracking progress on reducing large files.
+
+file-size:advisory:
+  stage: lint
+  image: rust:1.93.1
+  tags: [docker]
+  needs: []
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/*.rs"
+          - ".gitlab-ci.yml"
+  script:
+    - |
+      # Fetch script via GitLab API (faster than git clone)
+      curl -fsSL "https://gitlab.com/vauchi/scripts/-/raw/${CI_DEFAULT_BRANCH}/scripts/check-file-size.sh" -o /tmp/check-file-size.sh
+      chmod +x /tmp/check-file-size.sh
+
+      # Scan from repo root in advisory mode (warnings only, never fails)
+      /tmp/check-file-size.sh --advisory .
+  timeout: 5 minutes
