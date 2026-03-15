@@ -107,14 +107,20 @@ summary_ok() {
 }
 
 summary_mix() {
-    local ok="$1" fail="$2" elapsed="${3:-}"
-    local timing=""
+    local ok="$1" fail="$2" elapsed="${3:-}" other="${4:-0}"
+    local timing="" parts=""
     [[ -n "$elapsed" ]] && timing=" (${elapsed}s)"
-    if [[ "$fail" -eq 0 ]]; then
-        printf "\n── ${GREEN}%d ok${NC}%s ──\n" "$ok" "$timing"
-    else
-        printf "\n── ${GREEN}%d ok${NC}, ${RED}%d failed${NC}%s ──\n" "$ok" "$fail" "$timing"
+    [[ "$ok" -gt 0 ]] && parts="${GREEN}${ok} ok${NC}"
+    if [[ "$fail" -gt 0 ]]; then
+        [[ -n "$parts" ]] && parts="${parts}, "
+        parts="${parts}${RED}${fail} failed${NC}"
     fi
+    if [[ "$other" -gt 0 ]]; then
+        [[ -n "$parts" ]] && parts="${parts}, "
+        parts="${parts}${DIM}${other} skipped${NC}"
+    fi
+    [[ -z "$parts" ]] && parts="0 ok"
+    printf "\n── %b%s ──\n" "$parts" "$timing"
 }
 
 # ── Timing ──────────────────────────────────────────────────────────
@@ -188,11 +194,14 @@ out_end() {
     local all_same=true
     local first_type="${_OUT_TYPES[0]:-}"
     local first_msg="${_OUT_MSGS[0]:-}"
-    local ok_count=0 fail_count=0
+    local ok_count=0 fail_count=0 other_count=0
 
     for i in "${!_OUT_TYPES[@]}"; do
-        [[ "${_OUT_TYPES[$i]}" == "ok" ]] && ok_count=$((ok_count + 1))
-        [[ "${_OUT_TYPES[$i]}" == "fail" ]] && fail_count=$((fail_count + 1))
+        case "${_OUT_TYPES[$i]}" in
+            ok)   ok_count=$((ok_count + 1)) ;;
+            fail) fail_count=$((fail_count + 1)) ;;
+            *)    other_count=$((other_count + 1)) ;;
+        esac
         if [[ "${_OUT_TYPES[$i]}" != "$first_type" || "${_OUT_MSGS[$i]}" != "$first_msg" ]]; then
             all_same=false
         fi
@@ -221,6 +230,6 @@ out_end() {
             esac
         done
         # Summary footer
-        summary_mix "$ok_count" "$fail_count" "${elapsed:-}"
+        summary_mix "$ok_count" "$fail_count" "${elapsed:-}" "$other_count"
     fi
 }
