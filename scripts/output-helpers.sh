@@ -15,8 +15,7 @@
 #   status_fail "label" "message"          ✗ label                     message
 #   status_info "label" "message"          · label                     message
 #   status_skip "label" "message"          - label                     message
-#   summary_ok  count total [elapsed]      ── 25/25 ok (1.2s) ──
-#   summary_mix ok fail [elapsed]          ── 23 ok, 2 failed (1.2s) ──
+#   summary_mix ok fail [elapsed] [other]  ── 23 ok, 2 failed (1.2s) ──
 #
 #   # Compact mode — collects results, prints summary if all identical
 #   out_begin [total]                      start collecting
@@ -99,13 +98,6 @@ progress_info() {
 }
 
 # ── Summary footers ────────────────────────────────────────────────
-summary_ok() {
-    local count="$1" total="$2" elapsed="${3:-}"
-    local timing=""
-    [[ -n "$elapsed" ]] && timing=" (${elapsed}s)"
-    printf "\n── ${GREEN}%d/%d ok${NC}%s ──\n" "$count" "$total" "$timing"
-}
-
 summary_mix() {
     local ok="$1" fail="$2" elapsed="${3:-}" other="${4:-0}"
     local timing="" parts=""
