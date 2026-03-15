@@ -50,52 +50,52 @@ fi
 # ── Column width ────────────────────────────────────────────────────
 _OUT_COL=${_OUT_COL:-25}
 
-# Pad a string to _OUT_COL display columns using character count.
-# Unlike printf's %-Ns (which counts bytes), this handles multi-byte
-# UTF-8 correctly by using ${#var} (character count).
-_pad() {
-    local text="$1"
-    local pad=$(( _OUT_COL - ${#text} ))
-    [[ $pad -lt 1 ]] && pad=1
-    printf '%s%*s' "$text" "$pad" ""
-}
-
 # ── Section headers ─────────────────────────────────────────────────
 header() {
     printf "── %s ──\n" "$1"
 }
 
 # ── Status lines (colored) ──────────────────────────────────────────
+# Padding is inlined (no subprocess) using %*s with computed width.
+# Uses ${#label} (character count) rather than printf's %-Ns field
+# width, which may count bytes in C/POSIX locale.
 status_ok() {
-    printf "  ${GREEN}✓${NC} %s %s\n" "$(_pad "$1")" "$2"
+    local _p=$(( _OUT_COL - ${#1} )); [[ $_p -lt 1 ]] && _p=1
+    printf "  ${GREEN}✓${NC} %s%*s %s\n" "$1" "$_p" "" "$2"
 }
 
 status_fail() {
-    printf "  ${RED}✗${NC} %s %s\n" "$(_pad "$1")" "$2"
+    local _p=$(( _OUT_COL - ${#1} )); [[ $_p -lt 1 ]] && _p=1
+    printf "  ${RED}✗${NC} %s%*s %s\n" "$1" "$_p" "" "$2"
 }
 
 status_info() {
-    printf "  ${DIM}·${NC} %s %s\n" "$(_pad "$1")" "$2"
+    local _p=$(( _OUT_COL - ${#1} )); [[ $_p -lt 1 ]] && _p=1
+    printf "  ${DIM}·${NC} %s%*s %s\n" "$1" "$_p" "" "$2"
 }
 
 status_skip() {
-    printf "  ${DIM}-${NC} %s %s\n" "$(_pad "$1")" "$2"
+    local _p=$(( _OUT_COL - ${#1} )); [[ $_p -lt 1 ]] && _p=1
+    printf "  ${DIM}-${NC} %s%*s %s\n" "$1" "$_p" "" "$2"
 }
 
 # ── Progress lines (with counter) ──────────────────────────────────
 progress_ok() {
     local n="$1" total="$2" label="$3" msg="$4"
-    printf "  ${DIM}[%2d/%d]${NC} ${GREEN}✓${NC} %s %s\n" "$n" "$total" "$(_pad "$label")" "$msg"
+    local _p=$(( _OUT_COL - ${#label} )); [[ $_p -lt 1 ]] && _p=1
+    printf "  ${DIM}[%2d/%d]${NC} ${GREEN}✓${NC} %s%*s %s\n" "$n" "$total" "$label" "$_p" "" "$msg"
 }
 
 progress_fail() {
     local n="$1" total="$2" label="$3" msg="$4"
-    printf "  ${DIM}[%2d/%d]${NC} ${RED}✗${NC} %s %s\n" "$n" "$total" "$(_pad "$label")" "$msg"
+    local _p=$(( _OUT_COL - ${#label} )); [[ $_p -lt 1 ]] && _p=1
+    printf "  ${DIM}[%2d/%d]${NC} ${RED}✗${NC} %s%*s %s\n" "$n" "$total" "$label" "$_p" "" "$msg"
 }
 
 progress_info() {
     local n="$1" total="$2" label="$3" msg="$4"
-    printf "  ${DIM}[%2d/%d]${NC} ${DIM}·${NC} %s %s\n" "$n" "$total" "$(_pad "$label")" "$msg"
+    local _p=$(( _OUT_COL - ${#label} )); [[ $_p -lt 1 ]] && _p=1
+    printf "  ${DIM}[%2d/%d]${NC} ${DIM}·${NC} %s%*s %s\n" "$n" "$total" "$label" "$_p" "" "$msg"
 }
 
 # ── Summary footers ────────────────────────────────────────────────
