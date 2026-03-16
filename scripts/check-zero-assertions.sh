@@ -87,7 +87,7 @@ for DIR in "$@"; do
         #   assert_snapshot!, assert_debug_snapshot!, etc.     (insta)
         #   .expect(                                          (intentional panic-on-fail)
         #   #[should_panic]                                   (expected-panic tests)
-        if ($0 ~ /assert[a-z_]*!|assert_[a-z_]+\(|prop_assert|\.expect\(|#\[should_panic]/) {
+        if ($0 ~ /assert[a-z_]*!|assert_[a-z_]+\(|prop_assert|\.expect\(|\.expect_err\(|#\[should_panic]/) {
             has_assert = 1
         }
         # Suppression: // allow(zero_assertions) inside the test body
