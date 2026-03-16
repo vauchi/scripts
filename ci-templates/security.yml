@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Security Scanning Template
-# GitLab Ultimate security scanning configuration
+# Security Scanning Template (Rust repos)
+# GitLab Ultimate security scanning + Rust-specific security tools
 #
 # Usage:
 #   include:
@@ -12,25 +12,27 @@
 #       file: '/ci-templates/security.yml'
 #
 # Provides:
-#   - GitLab Ultimate security templates (SAST, Dependency Scanning, Secret Detection)
-#   - Rust-specific security jobs (cargo-audit, cargo-deny)
+#   - GitLab Ultimate templates: SAST (Semgrep), Secret Detection
+#   - Rust-specific security jobs (cargo-audit, cargo-deny, cargo-vet)
 #   - Configured analyzer overrides for self-hosted runners
 #   - .security-audit-job: Ready-to-use cargo-audit job (extend with runner)
 #   - .security-deny-job: Ready-to-use cargo-deny job (extend with runner)
 #   - .security-vet-job: Ready-to-use cargo-vet supply chain audit job (extend with runner)
 #
-# NOT included (add directly if needed):
-#   - Container-Scanning (only for repos that build Docker images)
-#   - License-Scanning (removed in GitLab 17.0, use cargo-deny instead)
+# NOT included (language-specific, add directly if needed):
+#   - Dependency-Scanning: Gemnasium does not support Cargo/Rust.
+#     Use cargo-audit + cargo-deny instead. Android includes it directly.
+#   - Container-Scanning: Only for repos that build Docker images (relay).
+#   - License-Scanning: Removed in GitLab 17.0. Use cargo-deny check licenses.
+#
+# Push-based secret detection is enabled at group level in GitLab settings:
+#   Settings > Security & Compliance > Secret Detection > Push Protection
+# This blocks secrets at push time (before they reach the server), complementing
+# the pipeline-based detection configured below.
 
 # GitLab Ultimate Templates
-# Note: License-Scanning template was removed in GitLab 17.0
-# Use cargo-deny for Rust license compliance instead
-# Note: Container-Scanning not included here - only repos that build
-# Docker images (e.g., relay) should include it directly
 include:
   - template: Security/SAST.gitlab-ci.yml
-  - template: Security/Dependency-Scanning.gitlab-ci.yml
   - template: Security/Secret-Detection.gitlab-ci.yml
 
 variables:
@@ -38,10 +40,6 @@ variables:
   SAST_EXCLUDED_PATHS: "target/, node_modules/, dist/, builds/, cache/, tmp/, tests/fixtures/"
   SAST_EXCLUDED_ANALYZERS: ""
   SAST_ANALYZER_IMAGE_TAG: "5"
-
-  # Dependency Scanning
-  DS_EXCLUDED_PATHS: "target/, node_modules/, builds/"
-  DS_EXCLUDED_ANALYZERS: ""
 
   # Secret Detection
   SECRET_DETECTION_EXCLUDED_PATHS: "target/, node_modules/, builds/, cache/, tmp/"
@@ -65,11 +63,6 @@ semgrep-sast:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "schedule"
-
-# Disable Gemnasium dependency scanning (use cargo-audit for Rust)
-gemnasium-dependency_scanning:
-  rules:
-    - when: never
 
 # Secret detection analyzer - use Docker runner
 secret_detection:
