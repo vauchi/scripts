@@ -114,8 +114,10 @@
     # Skip MR pipelines (release build is too slow for per-push feedback)
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: never
-    # Skip triggered pipelines
-    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
+    # Allow API-triggered pipelines when METRICS_REFRESH is set (manual dashboard refresh)
+    - if: ($CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger") && $METRICS_REFRESH == null
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "api" && $METRICS_REFRESH == null
       when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
