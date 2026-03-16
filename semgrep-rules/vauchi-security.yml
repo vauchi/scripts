@@ -1,0 +1,100 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Vauchi SAST rules — security-only
+# These rules go into the GitLab Security Dashboard via sast-ruleset.toml.
+# Only rules that represent actual security concerns belong here.
+#
+# For code quality rules (CC-03, CC-06), see vauchi-quality.yml
+# which is run locally, not in SAST.
+
+rules:
+  # ============================================================
+  # Crypto policy enforcement
+  # ============================================================
+
+  - id: vauchi-no-ring-direct
+    patterns:
+      - pattern: use ring::$MOD
+    message: >
+      Direct use of `ring` is prohibited. Use `aws-lc-rs` instead
+      (FIPS 140-3 compliance). See CLAUDE.md crypto rules.
+      Allowed exceptions: ring is only acceptable as a transitive
+      dependency via rustls or snow.
+    severity: ERROR
+    languages: [rust]
+    metadata:
+      category: security
+      confidence: HIGH
+
+  - id: vauchi-no-ring-dependency
+    patterns:
+      - pattern: ring = ...
+    message: >
+      Direct dependency on `ring` crate is prohibited. Use `aws-lc-rs`
+      instead (FIPS 140-3 compliance). ring is only acceptable as a
+      transitive dependency.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - "**/Cargo.toml"
+
+  # ============================================================
+  # Information leak prevention
+  # ============================================================
+
+  - id: vauchi-no-println-in-lib
+    patterns:
+      - pattern: println!(...)
+    message: >
+      Do not use println!() in library code. Use proper logging
+      (tracing/log crate) or return values. println!() bypasses
+      structured logging and may leak information.
+    severity: WARNING
+    languages: [rust]
+    paths:
+      include:
+        - "**/src/**"
+      exclude:
+        - "**/src/main.rs"
+        - "**/src/bin/**"
+        - "**/examples/**"
+    metadata:
+      category: security
+      confidence: MEDIUM
+
+  - id: vauchi-no-dbg-macro
+    patterns:
+      - pattern: dbg!(...)
+    message: >
+      Remove dbg!() macro before committing. It writes to stderr
+      and may expose sensitive data in production builds.
+    severity: ERROR
+    languages: [rust]
+    paths:
+      exclude:
+        - "**/tests/**"
+    metadata:
+      category: security
+      confidence: HIGH
+
+  - id: vauchi-no-eprintln-in-lib
+    patterns:
+      - pattern: eprintln!(...)
+    message: >
+      Do not use eprintln!() in library code. stderr output may
+      leak diagnostic information in production.
+    severity: WARNING
+    languages: [rust]
+    paths:
+      include:
+        - "**/src/**"
+      exclude:
+        - "**/src/main.rs"
+        - "**/src/bin/**"
+        - "**/examples/**"
+    metadata:
+      category: security
+      confidence: MEDIUM
