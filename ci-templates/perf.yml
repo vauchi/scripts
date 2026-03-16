@@ -155,6 +155,11 @@
         esac
 
         BIN_NAME=$(basename "$bin")
+
+        # Skip test binaries and build scripts (noise in metrics)
+        case "$BIN_NAME" in
+          test-*|*_test|*_tests|test|tests|build-script-*) continue ;;
+        esac
         SIZE_BYTES=$(stat -c%s "$bin" 2>/dev/null || stat -f%z "$bin" 2>/dev/null)
         SIZE_HUMAN=$(ls -lh "$bin" | awk '{print $5}')
 

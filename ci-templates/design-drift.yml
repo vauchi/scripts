@@ -234,13 +234,44 @@
       echo "Design drift: ${IMPLEMENTED}/${EXPECTED_COUNT} components implemented (${MISSING_COUNT} missing)"
 
       # ── Push metrics ──
-      curl --silent --fail \
-        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fpush-design-drift.sh/raw?ref=main" \
-        -o push-design-drift.sh 2>/dev/null || true
-      chmod +x push-design-drift.sh 2>/dev/null || true
+      # Build Prometheus exposition format inline (avoids SSH issues from alpine)
+      SCORE="100.00"
+      if [ "$EXPECTED_COUNT" -gt 0 ]; then
+        SCORE=$(awk "BEGIN { printf \"%.2f\", (100.0 * $IMPLEMENTED / $EXPECTED_COUNT) }")
+      fi
+      METRICS_TEXT=""
+      METRICS_TEXT="${METRICS_TEXT}vauchi_eng_design_drift_expected{repo=\"${REPO_LABEL}\"} ${EXPECTED_COUNT}\n"
+      METRICS_TEXT="${METRICS_TEXT}vauchi_eng_design_drift_implemented{repo=\"${REPO_LABEL}\"} ${IMPLEMENTED}\n"
+      METRICS_TEXT="${METRICS_TEXT}vauchi_eng_design_drift_missing{repo=\"${REPO_LABEL}\"} ${MISSING_COUNT}\n"
+      METRICS_TEXT="${METRICS_TEXT}vauchi_eng_design_drift_score{repo=\"${REPO_LABEL}\"} ${SCORE}\n"
 
-      if [ -f push-design-drift.sh ]; then
-        ./push-design-drift.sh "$REPO_LABEL" "$IMPLEMENTED" "$EXPECTED_COUNT" || true
+      # Push via PUSHGATEWAY_URL (direct) or SSH tunnel (fallback)
+      if [ -n "${PUSHGATEWAY_URL:-}" ]; then
+        printf '%b' "$METRICS_TEXT" | curl -s --fail --max-time 10 --data-binary @- \
+          "${PUSHGATEWAY_URL}/metrics/job/vauchi_design_drift/repo/${REPO_LABEL}" \
+          && echo "✓ Design drift metrics pushed for ${REPO_LABEL}" \
+          || echo "⚠ Pushgateway push failed (non-fatal)"
+      elif [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
+        # Set up SSH for push via VPS tunnel
+        if [ ! -f ~/.ssh/id_ed25519 ]; then
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          cat >> ~/.ssh/config <<'SSHEOF'
+      Host bold-hopper-vps
+        HostName 87.106.25.46
+        User vauchi
+        StrictHostKeyChecking accept-new
+      SSHEOF
+          chmod 600 ~/.ssh/config
+        fi
+        printf '%b' "$METRICS_TEXT" | ssh -o ConnectTimeout=10 vauchi@bold-hopper-vps \
+          "curl -s --fail --max-time 10 --data-binary @- http://localhost:9091/metrics/job/vauchi_design_drift/repo/${REPO_LABEL}" \
+          && echo "✓ Design drift metrics pushed for ${REPO_LABEL}" \
+          || echo "⚠ SSH push failed (non-fatal)"
+      else
+        echo "⚠ No PUSHGATEWAY_URL or DEPLOY_SSH_PRIVATE_KEY — metrics not pushed"
+        printf '%b' "$METRICS_TEXT"
       fi
 
       # ── Exit code ──
