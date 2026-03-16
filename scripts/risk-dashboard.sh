@@ -15,7 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# shellcheck source=output-helpers.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/output-helpers.sh"
 
 JSON_MODE=false
@@ -319,7 +319,7 @@ check_mr_age() {
         if echo "$line" | grep -qE "^\s+\S+\s+!"; then
             local repo mr_info
             repo=$(echo "$line" | awk '{print $1}')
-            mr_info=$(echo "$line" | sed 's/^\s*//')
+            mr_info="${line#"${line%%[![:space:]]*}"}"
             $JSON_MODE || status_info "$repo" "$mr_info"
             mr_count=$((mr_count + 1))
         fi
@@ -349,13 +349,13 @@ run_dashboard() {
 
     echo ""
     if [[ $ISSUES -gt 0 ]]; then
-        printf "  ${RED}■${NC} %d issue(s) requiring action\n" "$ISSUES"
+        printf "  %s■%s %d issue(s) requiring action\n" "$RED" "$NC" "$ISSUES"
     fi
     if [[ $WARNINGS -gt 0 ]]; then
-        printf "  ${YELLOW}■${NC} %d warning(s) to monitor\n" "$WARNINGS"
+        printf "  %s■%s %d warning(s) to monitor\n" "$YELLOW" "$NC" "$WARNINGS"
     fi
     if [[ $ISSUES -eq 0 && $WARNINGS -eq 0 ]]; then
-        printf "  ${GREEN}■${NC} No risk signals detected\n"
+        printf "  %s■%s No risk signals detected\n" "$GREEN" "$NC"
     fi
     echo ""
 }
