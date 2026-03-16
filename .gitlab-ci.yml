@@ -76,6 +76,7 @@ lint:ci-templates:
 # ============================================================
 
 secret_detection:
+  stage: security
   tags: [docker]
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
