@@ -43,11 +43,18 @@ fi
 
 # ─── Stale base guard ──────────────────────────────────────────────
 # If pushing a feature branch that is not rebased on origin/main,
-# auto-rebase to avoid "needs rebase" MRs. Fetch is fast (depth 1).
+# auto-rebase to avoid "needs rebase" MRs.
 
 BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 if [[ -n "$BRANCH" && "$BRANCH" != "main" ]]; then
-    git -C "$REPO_ROOT" fetch origin main --depth=1 --quiet 2>/dev/null || true
+    # Self-healing: unshallow if needed, then normal fetch.
+    # Never use --depth on local dev repos — it progressively cuts history.
+    if git -C "$REPO_ROOT" rev-parse --is-shallow-repository 2>/dev/null | grep -q true; then
+        git -C "$REPO_ROOT" fetch --unshallow origin main --quiet 2>/dev/null || \
+            git -C "$REPO_ROOT" fetch origin main --quiet 2>/dev/null || true
+    else
+        git -C "$REPO_ROOT" fetch origin main --quiet 2>/dev/null || true
+    fi
     ORIGIN_MAIN="$(git -C "$REPO_ROOT" rev-parse origin/main 2>/dev/null || true)"
     if [[ -n "$ORIGIN_MAIN" ]]; then
         MERGE_BASE="$(git -C "$REPO_ROOT" merge-base HEAD "$ORIGIN_MAIN" 2>/dev/null || true)"
