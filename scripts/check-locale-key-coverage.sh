@@ -80,7 +80,7 @@ for locale_file in "$LOCALES_DIR"/*.json; do
         MISS_COUNT=$(echo "$MISSING" | wc -l | tr -d ' ')
         echo ""
         echo "ERROR: $MISS_COUNT key(s) referenced in source but missing from $filename.json:"
-        echo "$MISSING" | sed 's/^/  /'
+        while IFS= read -r key; do echo "  $key"; done <<< "$MISSING"
         ERRORS=$((ERRORS + MISS_COUNT))
     fi
 done
