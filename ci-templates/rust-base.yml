@@ -491,8 +491,8 @@ workflow:
       else
         git -C ../themes pull --ff-only 2>/dev/null || true
       fi
-    # Generate resolved themes.json (v2 hierarchical → flat format for core parser)
-    - python3 ../themes/scripts/generate.py --output-dir ../themes/generated 2>/dev/null || python3 ../themes/scripts/generate.py 2>/dev/null || echo "WARN: theme generator not available (tokens may be stale)"
+      # Generate resolved themes.json (v2 hierarchical → flat format for core parser)
+      python3 ../themes/scripts/generate.py 2>/dev/null || echo "WARN: theme generator not available"
 
 # ============================================================
 # Cleanup Job Templates
