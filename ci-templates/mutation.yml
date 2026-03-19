@@ -19,7 +19,7 @@
 # Variables (set by consumer jobs):
 #   MUTATION_PACKAGE:              -p flag value (omit for whole crate)
 #   MUTATION_EXTRA_FLAGS:          additional cargo-mutants flags (e.g. --no-default-features)
-#   MUTATION_TIMEOUT_NIGHTLY:      per-mutant timeout in seconds for nightly (default: 60)
+#   MUTATION_TIMEOUT_NIGHTLY:      per-mutant timeout in seconds for nightly (default: 30)
 #   MUTATION_WORKDIR:              subdirectory to cd into before running (default: ".", e.g. "src-tauri")
 #   MUTATION_TEST_TOOL:            test runner for cargo-mutants (default: "nextest", alt: "cargo")
 #

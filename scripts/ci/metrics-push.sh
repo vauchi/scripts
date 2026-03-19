@@ -30,6 +30,10 @@ VAUCHI_ROOT="${VAUCHI_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 PRIVATE_DIR="${PRIVATE_DIR:-$VAUCHI_ROOT/_private}"
 GITLAB_API="https://gitlab.com/api/v4"
 
+# Pushgateway SSH target — override via group-level CI variables to change the VPS
+PUSHGATEWAY_SSH_HOST="${PUSHGATEWAY_SSH_HOST:-bold-hopper-vps}"
+PUSHGATEWAY_SSH_USER="${PUSHGATEWAY_SSH_USER:-vauchi}"
+
 CI_MODE=false
 DRY_RUN=false
 METRICS_TEXT=""
@@ -40,7 +44,6 @@ declare -A GITLAB_PROJECTS=(
     [relay]="vauchi/relay"
     [cli]="vauchi/cli"
     [tui]="vauchi/tui"
-    [desktop]="vauchi/desktop"
     [ios]="vauchi/ios"
     [android]="vauchi/android"
     [e2e]="vauchi/e2e"
@@ -48,7 +51,7 @@ declare -A GITLAB_PROJECTS=(
 
 # Repos with Rust test code
 CORE_REPOS=("core/vauchi-core" "core/vauchi-protocol" "core/vauchi-platform")
-CLIENT_REPOS=("relay" "cli" "tui" "desktop/src-tauri")
+CLIENT_REPOS=("relay" "cli" "tui")
 ALL_RUST_REPOS=("${CORE_REPOS[@]}" "${CLIENT_REPOS[@]}")
 
 # ─── Argument Parsing ────────────────────────────────────────────
@@ -65,9 +68,9 @@ done
 
 # ─── Helpers ─────────────────────────────────────────────────────
 
-# URL-encode a string
+# URL-encode a string (pass via env to avoid shell injection)
 urlencode() {
-    python3 -c "import urllib.parse; print(urllib.parse.quote('$1', safe=''))"
+    _URLENCODE_INPUT="$1" python3 -c "import urllib.parse, os; print(urllib.parse.quote(os.environ['_URLENCODE_INPUT'], safe=''))"
 }
 
 # GitLab API GET request (uses CI_JOB_TOKEN in CI, GITLAB_TOKEN locally)
@@ -109,7 +112,7 @@ push_metrics() {
         echo "$METRICS_TEXT" | curl -s --data-binary @- \
             "${PUSHGATEWAY_URL}/metrics/job/vauchi_engineering"
     else
-        echo "$METRICS_TEXT" | ssh vauchi@bold-hopper-vps \
+        echo "$METRICS_TEXT" | ssh "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
             "curl -s --data-binary @- http://localhost:9091/metrics/job/vauchi_engineering"
     fi
 }
@@ -163,12 +166,17 @@ print(f'{sum(durations)/len(durations):.0f}' if durations else '0')
             append_metric "vauchi_eng_pipeline_duration_seconds" "repo=\"${repo}\"" "$avg_secs"
         fi
 
-        # 30-day success ratio
-        local all_count ok_count
-        all_count=$(gitlab_get "/projects/${pid}/pipelines?per_page=100&ref=main&updated_after=${since}" \
-            | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
-        ok_count=$(gitlab_get "/projects/${pid}/pipelines?per_page=100&ref=main&status=success&updated_after=${since}" \
-            | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+        # 30-day success ratio — single API call to avoid race condition
+        local all_json counts all_count ok_count
+        all_json=$(gitlab_get "/projects/${pid}/pipelines?per_page=100&ref=main&updated_after=${since}")
+        counts=$(echo "$all_json" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+total = len(data)
+ok = sum(1 for p in data if p.get('status') == 'success')
+print(f'{total} {ok}')
+" 2>/dev/null || echo "0 0")
+        read -r all_count ok_count <<< "$counts"
 
         if [ "$all_count" -gt 0 ] 2>/dev/null; then
             local ratio
@@ -184,11 +192,17 @@ collect_e2e_metrics() {
     since=$(thirty_days_ago)
     pid=$(urlencode "${GITLAB_PROJECTS[e2e]}")
 
-    local total success
-    total=$(gitlab_get "/projects/${pid}/pipelines?per_page=100&ref=main&updated_after=${since}" \
-        | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
-    success=$(gitlab_get "/projects/${pid}/pipelines?per_page=100&ref=main&status=success&updated_after=${since}" \
-        | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+    # Single API call to avoid race condition between total and success counts
+    local all_json counts total success
+    all_json=$(gitlab_get "/projects/${pid}/pipelines?per_page=100&ref=main&updated_after=${since}")
+    counts=$(echo "$all_json" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+total = len(data)
+ok = sum(1 for p in data if p.get('status') == 'success')
+print(f'{total} {ok}')
+" 2>/dev/null || echo "0 0")
+    read -r total success <<< "$counts"
 
     if [ "$total" -gt 0 ] 2>/dev/null; then
         local ratio
@@ -263,7 +277,7 @@ collect_test_metrics() {
 
     # Escaped defects (fix: commits in 30 days)
     local escaped=0
-    for project in core relay cli tui desktop ios android e2e; do
+    for project in core relay cli tui ios android e2e; do
         local dir="$VAUCHI_ROOT/$project"
         [ -d "$dir/.git" ] || continue
         local count

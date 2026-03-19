@@ -253,19 +253,23 @@
           || echo "⚠ Pushgateway push failed (non-fatal)"
       elif [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
         # Set up SSH for push via VPS tunnel
+        # Override via group-level CI variables: PUSHGATEWAY_SSH_HOST, PUSHGATEWAY_SSH_IP, PUSHGATEWAY_SSH_USER
+        PG_HOST="${PUSHGATEWAY_SSH_HOST:-bold-hopper-vps}"
+        PG_IP="${PUSHGATEWAY_SSH_IP:-87.106.25.46}"
+        PG_USER="${PUSHGATEWAY_SSH_USER:-vauchi}"
         if [ ! -f ~/.ssh/id_ed25519 ]; then
           mkdir -p ~/.ssh
           echo "$DEPLOY_SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          cat >> ~/.ssh/config <<'SSHEOF'
-      Host bold-hopper-vps
-        HostName 87.106.25.46
-        User vauchi
+          cat >> ~/.ssh/config <<SSHEOF
+      Host ${PG_HOST}
+        HostName ${PG_IP}
+        User ${PG_USER}
         StrictHostKeyChecking accept-new
       SSHEOF
           chmod 600 ~/.ssh/config
         fi
-        printf '%b' "$METRICS_TEXT" | ssh -o ConnectTimeout=10 vauchi@bold-hopper-vps \
+        printf '%b' "$METRICS_TEXT" | ssh -o ConnectTimeout=10 "${PG_USER}@${PG_HOST}" \
           "curl -s --fail --max-time 10 --data-binary @- http://localhost:9091/metrics/job/vauchi_design_drift/repo/${REPO_LABEL}" \
           && echo "✓ Design drift metrics pushed for ${REPO_LABEL}" \
           || echo "⚠ SSH push failed (non-fatal)"

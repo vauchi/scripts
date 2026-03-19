@@ -18,6 +18,12 @@
 
 set -euo pipefail
 
+# ─── Pushgateway SSH target ─────────────────────────────────────
+# Override via group-level CI variables to change the VPS
+PUSHGATEWAY_SSH_HOST="${PUSHGATEWAY_SSH_HOST:-bold-hopper-vps}"
+PUSHGATEWAY_SSH_IP="${PUSHGATEWAY_SSH_IP:-87.106.25.46}"
+PUSHGATEWAY_SSH_USER="${PUSHGATEWAY_SSH_USER:-vauchi}"
+
 # ─── Argument Parsing ────────────────────────────────────────────
 
 MUTANTS_DIR="${1:-}"
@@ -89,10 +95,10 @@ if [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ] && [ ! -f ~/.ssh/id_ed25519 ]; then
     mkdir -p ~/.ssh
     base64 -d "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
     chmod 600 ~/.ssh/id_ed25519
-    cat >> ~/.ssh/config <<'SSHEOF'
-Host bold-hopper-vps
-  HostName 87.106.25.46
-  User vauchi
+    cat >> ~/.ssh/config <<SSHEOF
+Host ${PUSHGATEWAY_SSH_HOST}
+  HostName ${PUSHGATEWAY_SSH_IP}
+  User ${PUSHGATEWAY_SSH_USER}
   StrictHostKeyChecking accept-new
 SSHEOF
     chmod 600 ~/.ssh/config
@@ -104,7 +110,7 @@ if [ -n "${PUSHGATEWAY_URL:-}" ]; then
         "${PUSHGATEWAY_URL}/metrics/job/vauchi_mutation/repo/${REPO_NAME}"
 else
     # shellcheck disable=SC2029  # intentional client-side expansion of REPO_NAME
-    echo "$METRICS_TEXT" | ssh vauchi@bold-hopper-vps \
+    echo "$METRICS_TEXT" | ssh "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
         "curl -s --data-binary @- http://localhost:9091/metrics/job/vauchi_mutation/repo/${REPO_NAME}"
 fi
 

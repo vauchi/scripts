@@ -571,9 +571,10 @@ workflow:
 # Also available as standalone include: /ci-templates/timeouts.yml
 # (for non-Rust repos that don't include rust-base.yml).
 
-# Quick jobs (lint, format check) - 7 minutes
+# Quick jobs (lint, format check) - 10 minutes
+# Keep in sync with ci-templates/timeouts.yml (canonical source for non-Rust repos)
 .timeout-quick:
-  timeout: 7 minutes
+  timeout: 10 minutes
 
 # Standard jobs (unit tests, build) - 30 minutes
 .timeout-standard:

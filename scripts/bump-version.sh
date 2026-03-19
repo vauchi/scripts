@@ -70,8 +70,9 @@ if [[ -f "$ANDROID_GRADLE" ]]; then
     fi
     echo "  Updated: $ANDROID_GRADLE"
 
-    # Also increment versionCode
-    CURRENT_CODE=$(grep -oP 'versionCode = \K\d+' "$ANDROID_GRADLE" 2>/dev/null || echo "1")
+    # Also increment versionCode (POSIX-portable — no grep -P)
+    CURRENT_CODE=$(sed -n 's/.*versionCode = \([0-9]*\).*/\1/p' "$ANDROID_GRADLE" | head -1)
+    CURRENT_CODE="${CURRENT_CODE:-1}"
     NEW_CODE=$((CURRENT_CODE + 1))
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' "s/versionCode = [0-9]*/versionCode = $NEW_CODE/" "$ANDROID_GRADLE"
