@@ -141,5 +141,26 @@ fi
 
 echo "  Secrets check OK"
 
+# ============================================================
+# 4. Commit scope warning (non-blocking)
+# ============================================================
+# Warn when staged files span too many concern areas.
+# Catches non-atomic commits (E10 pattern) without blocking.
+STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACMR)
+if [[ -n "$STAGED_ALL" ]]; then
+    # Extract concern buckets: top-2 path components (e.g., "core/src", "just/", "docs/")
+    BUCKETS=$(echo "$STAGED_ALL" | sed 's|/[^/]*$||' | sed 's|/.*||' | sort -u)
+    BUCKET_COUNT=$(echo "$BUCKETS" | wc -l | tr -d ' ')
+    FILE_COUNT=$(echo "$STAGED_ALL" | wc -l | tr -d ' ')
+
+    if [[ "$BUCKET_COUNT" -gt 3 && "$FILE_COUNT" -gt 5 ]]; then
+        echo ""
+        echo "  NOTE: Broad commit — $FILE_COUNT files across $BUCKET_COUNT directories:"
+        echo "$BUCKETS" | sed 's/^/    /'
+        echo "  Consider splitting into atomic commits (one concern each)."
+        echo "  Override: this is a warning, not a block."
+    fi
+fi
+
 echo ""
 echo "=== All pre-commit checks passed ==="
