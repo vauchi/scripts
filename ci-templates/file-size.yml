@@ -24,10 +24,11 @@
 # Fails the pipeline if any non-baselined file exceeds the error
 # threshold. Grandfathered files fail only if they grow.
 
+# Runs on self-hosted runner (~3s) instead of Docker (~40s).
+# Requires rust-base.yml (provides .linux-runner-nocache).
 file-size:check:
+  extends: .linux-runner-nocache
   stage: lint
-  image: rust:1.93.1
-  tags: [docker]
   needs: []
   allow_failure: false
   rules:
@@ -55,9 +56,8 @@ file-size:check:
 # Useful for tracking progress on reducing large files.
 
 file-size:advisory:
+  extends: .linux-runner-nocache
   stage: lint
-  image: rust:1.93.1
-  tags: [docker]
   needs: []
   allow_failure: true
   rules:

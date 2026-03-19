@@ -15,19 +15,22 @@
 #   - quality:zero-assertions: Fails if any #[test] function has zero assertions
 #   - quality:test-ratio: Reports test-to-code ratio as CI metric
 #
-# Both jobs clone vauchi/scripts to access the scanner scripts,
+# Both jobs fetch scripts via GitLab API (no git clone needed),
 # so consuming repos don't need to vendor the scripts.
+#
+# IMPORTANT: These jobs require rust-base.yml to be included (provides
+# .linux-runner-nocache). All Rust repos already include it.
 
 # ============================================================
 # Zero-Assertion Scanner (PI-06)
 # ============================================================
 # Scans for #[test] functions that contain no assert!() calls.
 # Catches "tests" that don't actually verify anything.
+# Runs on self-hosted runner (~5s) instead of Docker (~210s).
 
 quality:zero-assertions:
+  extends: .linux-runner-nocache
   stage: lint
-  image: rust:1.93.1
-  tags: [docker]
   needs: []
   allow_failure: false
   rules:
@@ -71,9 +74,8 @@ quality:zero-assertions:
 # fail the pipeline, but tracks progress toward 50% target.
 
 quality:test-ratio:
+  extends: .linux-runner-nocache
   stage: lint
-  image: rust:1.93.1
-  tags: [docker]
   needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -124,7 +126,7 @@ quality:metrics-dashboard:
     - |
       # Clone all Rust repos for local measurement
       mkdir -p /tmp/workspace
-      for repo in core relay cli tui desktop e2e; do
+      for repo in core relay cli tui e2e; do
         git clone --depth=1 "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/${repo}.git" "/tmp/workspace/${repo}" 2>/dev/null || true
       done
     - |
