@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Token Lint Template
+# Detects hardcoded visual values (hex colors, pixel sizes, dp/sp) that should use design tokens.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/token-lint.yml'
+#
+# Provides:
+#   - .token-lint-job: Scans source files for hardcoded visual values
+#
+# Variables (set by consumer jobs):
+#   TOKEN_LINT_PATHS:     Space-separated directories to scan (required)
+#   TOKEN_LINT_GLOBS:     Space-separated file globs, e.g. "*.swift *.css" (required)
+#   TOKEN_LINT_EXCLUDES:  Space-separated glob patterns to exclude (optional)
+#
+# Rollout strategy:
+#   Phase 1: allow_failure: true — report violations without blocking
+#   Phase 2: Fix violations during L2a token wiring
+#   Phase 3: allow_failure: false — hard gate
+#
+# ── Examples ─────────────────────────────────────────────────────
+#
+# iOS:
+#   check:design-tokens:
+#     extends: .token-lint-job
+#     variables:
+#       TOKEN_LINT_PATHS: "Vauchi"
+#       TOKEN_LINT_GLOBS: "*.swift"
+#
+# Android:
+#   check:design-tokens:
+#     extends: .token-lint-job
+#     variables:
+#       TOKEN_LINT_PATHS: "app/src/main"
+#       TOKEN_LINT_GLOBS: "*.kt"
+#
+# Web:
+#   check:design-tokens:
+#     extends: .token-lint-job
+#     variables:
+#       TOKEN_LINT_PATHS: "src"
+#       TOKEN_LINT_GLOBS: "*.tsx *.css"
+#       TOKEN_LINT_EXCLUDES: "**/tokens.css"
+
+.token-lint-job:
+  stage: lint
+  image: alpine:latest
+  allow_failure: true
+  before_script:
+    - apk add --no-cache bash ripgrep
+  script:
+    - |
+      # Fetch the lint script from the scripts repo
+      if [ -f "$CI_PROJECT_DIR/../scripts/lint-design-tokens.sh" ]; then
+        bash "$CI_PROJECT_DIR/../scripts/lint-design-tokens.sh"
+      elif [ -f "/tmp/lint-design-tokens.sh" ]; then
+        bash /tmp/lint-design-tokens.sh
+      else
+        # Inline fallback: download from scripts repo
+        curl -sSf "https://gitlab.com/vauchi/scripts/-/raw/main/lint-design-tokens.sh" -o /tmp/lint-design-tokens.sh
+        bash /tmp/lint-design-tokens.sh
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
