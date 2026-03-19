@@ -72,19 +72,25 @@
 
       # Run coverage (lcov + cobertura + text summary for GitLab regex)
       # nextest is a subcommand, not a flag — must come right after llvm-cov
+      # --no-fail-fast: run ALL tests even if some fail, so coverage data is
+      # complete. Without this, a single test failure skips 2000+ tests and
+      # the coverage metrics pushed to Grafana are artificially low.
       if [ "$COVERAGE_USE_NEXTEST" = "true" ]; then
-        cargo llvm-cov nextest ${PACKAGE_FLAG} ${COVERAGE_EXTRA_FLAGS} \
-          --lcov --output-path lcov.info
+        cargo llvm-cov nextest --no-fail-fast ${PACKAGE_FLAG} ${COVERAGE_EXTRA_FLAGS} \
+          --lcov --output-path lcov.info || COVERAGE_EXIT=$?
       else
         cargo llvm-cov ${PACKAGE_FLAG} ${COVERAGE_EXTRA_FLAGS} \
-          --lcov --output-path lcov.info
+          --lcov --output-path lcov.info || COVERAGE_EXIT=$?
       fi
       cargo llvm-cov report --cobertura --output-path cobertura.xml
       cargo llvm-cov report
 
-      # Push metrics to Grafana
+      # Push metrics to Grafana (always, even if tests failed — data is still valid)
       REPO_LABEL="${COVERAGE_REPO_LABEL:-${CI_PROJECT_NAME}}"
       "${PROJECT_ROOT}/push-coverage.sh" cobertura.xml "${REPO_LABEL}" || true
+
+      # Propagate test failure after metrics push (so coverage data is always reported)
+      exit ${COVERAGE_EXIT:-0}
   coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\.\d+%\s+\d+\s+\d+\s+\d+\.\d+%\s+\d+\s+\d+\s+(\d+\.\d+%)/'
   artifacts:
     when: always
