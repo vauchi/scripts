@@ -16,8 +16,10 @@
 #
 # Requires: lint stage defined in the consuming pipeline.
 #
-# NOTE: This template is self-contained — it does NOT depend on rust-base.yml
-# so that non-Rust repos can include it.
+# NOTE: Self-contained — does not extend rust-base.yml.
+# Handles PATH setup internally because pipelines that include
+# rust-base.yml set CARGO_HOME=${CI_PROJECT_DIR}/.cargo,
+# which redirects cargo-binstall output away from $HOME/.cargo/bin.
 
 typos-check:
   tags:
@@ -25,10 +27,9 @@ typos-check:
   stage: lint
   needs: []
   timeout: 2m
-  before_script:
-    - export PATH="$HOME/.cargo/bin:${CARGO_HOME:-$PWD/.cargo}/bin:${PATH}"
-    - command -v typos >/dev/null 2>&1 || cargo binstall typos-cli --no-confirm 2>/dev/null || cargo install typos-cli
   script:
+    - export PATH="$HOME/.cargo/bin${CARGO_HOME:+:$CARGO_HOME/bin}:$PATH"
+    - command -v typos >/dev/null 2>&1 || cargo binstall typos-cli --no-confirm 2>/dev/null || cargo install typos-cli
     - typos .
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
