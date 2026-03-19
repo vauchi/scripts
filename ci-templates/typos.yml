@@ -26,6 +26,7 @@ typos-check:
   needs: []
   timeout: 2m
   before_script:
+    - export PATH="$HOME/.cargo/bin:${CARGO_HOME:-$PWD/.cargo}/bin:${PATH}"
     - command -v typos >/dev/null 2>&1 || cargo binstall typos-cli --no-confirm 2>/dev/null || cargo install typos-cli
   script:
     - typos .
