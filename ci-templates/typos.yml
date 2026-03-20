@@ -34,7 +34,10 @@ typos-check:
       if command -v typos >/dev/null 2>&1; then
         echo "Using system typos: $(typos --version)"
       else
-        # Download pre-built binary — works on any runner (Docker or shell)
+        # Download pre-built binary — works on any runner:
+        #   - Docker with curl (Debian/Ubuntu images)
+        #   - Docker without curl (Alpine/DinD — use wget)
+        #   - Shell runners (no write to /usr/local/bin — use ~/.local/bin)
         ARCH=$(uname -m)
         case "$ARCH" in
           x86_64) TARGET="x86_64-unknown-linux-musl" ;;
@@ -43,12 +46,24 @@ typos-check:
         esac
         URL="https://github.com/crate-ci/typos/releases/download/v${TYPOS_VERSION}/typos-v${TYPOS_VERSION}-${TARGET}.tar.gz"
         echo "Downloading typos v${TYPOS_VERSION} for ${TARGET}..."
-        # Try /usr/local/bin (Docker), fall back to ~/.local/bin (shell runners)
+
+        # Pick a download command (curl preferred, wget as fallback for Alpine)
+        if command -v curl >/dev/null 2>&1; then
+          DL="curl -sSfL"
+        elif command -v wget >/dev/null 2>&1; then
+          DL="wget -qO-"
+        else
+          echo "Neither curl nor wget available — installing wget..."
+          apk add --no-cache wget >/dev/null 2>&1 || apt-get update -qq && apt-get install -y -qq wget >/dev/null 2>&1
+          DL="wget -qO-"
+        fi
+
+        # Try /usr/local/bin (Docker root), fall back to ~/.local/bin (shell runners)
         INSTALL_DIR="/usr/local/bin"
-        if ! curl -sSfL "$URL" | tar xz -C "$INSTALL_DIR" typos 2>/dev/null; then
+        if ! $DL "$URL" | tar xz -C "$INSTALL_DIR" typos 2>/dev/null; then
           INSTALL_DIR="$HOME/.local/bin"
           mkdir -p "$INSTALL_DIR"
-          curl -sSfL "$URL" | tar xz -C "$INSTALL_DIR" typos
+          $DL "$URL" | tar xz -C "$INSTALL_DIR" typos
         fi
         export PATH="$INSTALL_DIR:$PATH"
       fi
