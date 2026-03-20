@@ -23,6 +23,7 @@
     - apk add --no-cache bash ripgrep >/dev/null 2>&1
   script:
     - |
+      # Inline token lint scanner — detects hardcoded visual values
       set -euo pipefail
 
       rg_args=()
@@ -30,6 +31,7 @@
         rg_args+=(--glob "$glob")
       done
 
+      # Default excludes
       for pat in '!**/tokens.json' '!**/tokens.css' '!**/themes.json' '!**/generated/**' \
                  '!**/tests/**' '!**/*_test.*' '!**/*_tests.*' '!**/*Test.*' '!**/*Tests.*' \
                  '!**/*spec.*' '!**/package-lock.json' '!**/Cargo.lock' \
@@ -63,6 +65,7 @@
           "${search_paths[@]}" 2>/dev/null || true
       done > "$tmpfile"
 
+      # Filter out comment lines
       filtered=$(mktemp)
       trap 'rm -f "$tmpfile" "$filtered"' EXIT
 
