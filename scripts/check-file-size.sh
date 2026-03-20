@@ -113,9 +113,9 @@ for DIR in "${DIRS[@]}"; do
 
     # Find all .rs files (excluding target/ and build artifacts)
     while IFS= read -r -d '' filepath; do
-        # Skip build artifacts
+        # Skip build artifacts, cargo caches, and vendored dependencies
         case "$filepath" in
-            */target/*|*/build/*) continue ;;
+            */target/*|*/build/*|*/.cargo/*|*/vendor/*) continue ;;
         esac
         # Count lines
         lines=$(wc -l < "$filepath" | tr -d ' ')
@@ -168,7 +168,12 @@ for DIR in "${DIRS[@]}"; do
             echo "WARN $filepath ($lines lines, $kind warn threshold $warn_threshold)" >> "$TMPFILE"
             WARN_COUNT=$((WARN_COUNT + 1))
         fi
-    done < <(find "$DIR" -name '*.rs' -type f -print0 | sort -z)
+    done < <(find "$DIR" -name '*.rs' -type f \
+        -not -path '*/target/*' \
+        -not -path '*/.cargo/*' \
+        -not -path '*/vendor/*' \
+        -not -path '*/build/*' \
+        -print0 | sort -z)
 done
 
 # ── Generate baseline output ─────────────────────────────────────────
