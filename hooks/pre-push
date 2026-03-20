@@ -241,6 +241,17 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
             CLIPPY_EXTRA=(--no-default-features --features custom-protocol)
             TEST_CMD+=(--all-targets --no-default-features --features custom-protocol)
             ;;
+        linux-gtk|linux-qt)
+            TEST_CMD+=(--all-targets)
+            # These repos have Linux-only deps (bluer, AT-SPI). On non-Linux,
+            # only check formatting — clippy/test will fail at compile time.
+            if [[ "$(uname)" != "Linux" ]]; then
+                echo ""
+                echo "  Platform: $(uname) — $REPO_DIR is Linux-only."
+                echo "  Running format check only (clippy/tests require Linux)."
+                _SKIP_CLIPPY_TEST=1
+            fi
+            ;;
         *)
             TEST_CMD+=(--all-targets)
             ;;
@@ -259,6 +270,10 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
         }
         time_step "Format" run_fmt
 
+        if [[ "${_SKIP_CLIPPY_TEST:-}" == "1" ]]; then
+            echo ""
+            echo "[2/3] Skipping clippy (platform-limited repo on $(uname))"
+        else
         run_clippy() {
             echo ""
             echo "[2/3] Running clippy..."
@@ -307,10 +322,14 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
             echo "  Zeroize lint OK"
         }
         time_step "ZeroizeLint" run_zeroize_lint
+        fi  # end _SKIP_CLIPPY_TEST guard
     fi
 
     run_tests() {
-        if [[ "${SKIP_TESTS:-}" == "1" ]]; then
+        if [[ "${_SKIP_CLIPPY_TEST:-}" == "1" ]]; then
+            echo ""
+            echo "[3/3] Skipping tests (platform-limited repo on $(uname))"
+        elif [[ "${SKIP_TESTS:-}" == "1" ]]; then
             echo ""
             echo "[3/3] Skipping tests (SKIP_TESTS=1)"
         else
