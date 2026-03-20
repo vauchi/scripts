@@ -34,7 +34,7 @@ typos-check:
       if command -v typos >/dev/null 2>&1; then
         echo "Using system typos: $(typos --version)"
       else
-        # Download pre-built binary — works on any Linux image
+        # Download pre-built binary — works on any runner (Docker or shell)
         ARCH=$(uname -m)
         case "$ARCH" in
           x86_64) TARGET="x86_64-unknown-linux-musl" ;;
@@ -43,9 +43,15 @@ typos-check:
         esac
         URL="https://github.com/crate-ci/typos/releases/download/v${TYPOS_VERSION}/typos-v${TYPOS_VERSION}-${TARGET}.tar.gz"
         echo "Downloading typos v${TYPOS_VERSION} for ${TARGET}..."
-        curl -sSfL "$URL" | tar xz -C /usr/local/bin typos 2>/dev/null \
-          || (mkdir -p /tmp/typos && curl -sSfL "$URL" | tar xz -C /tmp/typos && export PATH="/tmp/typos:$PATH")
+        # Try /usr/local/bin (Docker), fall back to ~/.local/bin (shell runners)
+        INSTALL_DIR="/usr/local/bin"
+        if ! curl -sSfL "$URL" | tar xz -C "$INSTALL_DIR" typos 2>/dev/null; then
+          INSTALL_DIR="$HOME/.local/bin"
+          mkdir -p "$INSTALL_DIR"
+          curl -sSfL "$URL" | tar xz -C "$INSTALL_DIR" typos
+        fi
+        export PATH="$INSTALL_DIR:$PATH"
       fi
-    - typos .
+      typos .
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
