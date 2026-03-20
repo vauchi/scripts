@@ -17,9 +17,8 @@
 # Requires: lint stage defined in the consuming pipeline.
 #
 # NOTE: Self-contained — does not extend rust-base.yml.
-# Handles PATH setup internally because pipelines that include
-# rust-base.yml set CARGO_HOME=${CI_PROJECT_DIR}/.cargo,
-# which redirects cargo-binstall output away from $HOME/.cargo/bin.
+# Downloads pre-built binary from GitHub so it works on any runner
+# (Docker, shell, macOS, Linux) without requiring cargo.
 
 typos-check:
   tags:
@@ -27,9 +26,26 @@ typos-check:
   stage: lint
   needs: []
   timeout: 2m
+  variables:
+    TYPOS_VERSION: "1.33.1"
   script:
-    - export PATH="$HOME/.cargo/bin${CARGO_HOME:+:$CARGO_HOME/bin}:$PATH"
-    - command -v typos >/dev/null 2>&1 || cargo binstall typos-cli --no-confirm 2>/dev/null || cargo install typos-cli
+    - |
+      # Use system typos if available (e.g. self-hosted shell runners)
+      if command -v typos >/dev/null 2>&1; then
+        echo "Using system typos: $(typos --version)"
+      else
+        # Download pre-built binary — works on any Linux image
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64) TARGET="x86_64-unknown-linux-musl" ;;
+          aarch64|arm64) TARGET="aarch64-unknown-linux-musl" ;;
+          *) echo "Unsupported arch: $ARCH"; exit 1 ;;
+        esac
+        URL="https://github.com/crate-ci/typos/releases/download/v${TYPOS_VERSION}/typos-v${TYPOS_VERSION}-${TARGET}.tar.gz"
+        echo "Downloading typos v${TYPOS_VERSION} for ${TARGET}..."
+        curl -sSfL "$URL" | tar xz -C /usr/local/bin typos 2>/dev/null \
+          || (mkdir -p /tmp/typos && curl -sSfL "$URL" | tar xz -C /tmp/typos && export PATH="/tmp/typos:$PATH")
+      fi
     - typos .
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
