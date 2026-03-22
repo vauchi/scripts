@@ -58,13 +58,17 @@ typos-check:
           DL="wget -qO-"
         fi
 
-        # Try /usr/local/bin (Docker root), fall back to ~/.local/bin (shell runners)
+        # Extract to temp dir, then move binary to install dir.
+        # Avoids tar path-matching issues (./typos vs typos across implementations).
+        TMPDIR=$(mktemp -d)
+        $DL "$URL" | tar xz -C "$TMPDIR"
         INSTALL_DIR="/usr/local/bin"
-        if ! $DL "$URL" | tar xz -C "$INSTALL_DIR" typos 2>/dev/null; then
+        if ! mv "$TMPDIR/typos" "$INSTALL_DIR/typos" 2>/dev/null; then
           INSTALL_DIR="$HOME/.local/bin"
           mkdir -p "$INSTALL_DIR"
-          $DL "$URL" | tar xz -C "$INSTALL_DIR" typos
+          mv "$TMPDIR/typos" "$INSTALL_DIR/typos"
         fi
+        rm -rf "$TMPDIR"
         export PATH="$INSTALL_DIR:$PATH"
       fi
       typos .
