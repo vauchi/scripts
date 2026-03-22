@@ -171,6 +171,36 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]] && command -v glab &> /dev/null; then
     fi
 fi
 
+# ─── Typos auto-fix ───────────────────────────────────────────────────
+# Run typos on files changed vs origin/main. If typos found, auto-fix
+# them, print what changed, and abort push so user can commit the fixes.
+
+if command -v typos &> /dev/null; then
+    CHANGED=$(git diff --name-only origin/main...HEAD 2>/dev/null || echo "")
+    if [[ -n "$CHANGED" ]]; then
+        # Check only changed files (fast — avoids full-repo scan)
+        TYPO_OUTPUT=""
+        while IFS= read -r f; do
+            [[ -f "$REPO_ROOT/$f" ]] || continue
+            result=$(typos --force-exclude "$REPO_ROOT/$f" 2>&1) || TYPO_OUTPUT="${TYPO_OUTPUT}${result}"$'\n'
+        done <<< "$CHANGED"
+
+        if [[ -n "$TYPO_OUTPUT" ]]; then
+            echo ""
+            echo "[typos] Found typos — auto-fixing..."
+            while IFS= read -r f; do
+                [[ -f "$REPO_ROOT/$f" ]] || continue
+                typos --force-exclude --write-changes "$REPO_ROOT/$f" 2>/dev/null || true
+            done <<< "$CHANGED"
+            echo ""
+            echo "$TYPO_OUTPUT"
+            echo ""
+            echo "FIXED: Typos corrected in working tree. Stage + commit the fixes, then push again."
+            exit 1
+        fi
+    fi
+fi
+
 if [[ "$_STAMP_SKIP" != "1" ]]; then
 
 # ─── Timing helpers ──────────────────────────────────────────────────
