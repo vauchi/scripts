@@ -239,6 +239,17 @@ workflow:
         echo "Removing .cargo/config.toml (contains local-dev [patch] overrides)"
         rm .cargo/config.toml
       fi
+
+      # Fail if Cargo.toml has committed [patch] with local path overrides.
+      # These belong in gitignored .cargo/config.toml (via: just setup-path-overrides).
+      # Committed path overrides break Docker builds and create fragile CI that only
+      # passes when stale sibling checkouts exist on shell runners.
+      if sed -n '/^\[patch\./,/^\[/p' Cargo.toml 2>/dev/null | grep -v '^[[:space:]]*#' | grep -Eq 'path[[:space:]]*='; then
+        echo "ERROR: Cargo.toml contains [patch] with local path overrides"
+        echo "Move to .cargo/config.toml (gitignored). See: just setup-path-overrides"
+        exit 1
+      fi
+
     # Ensure a Rust toolchain is configured (self-hosted runners may not have a default)
     - rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
     # Clear extracted crate sources (shell runners persist registry across jobs;
