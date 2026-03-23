@@ -44,6 +44,12 @@
     - if: $CI_PIPELINE_SOURCE == "api" && $METRICS_REFRESH == null
       when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        paths:
+          - "**/*.rs"
+          - "**/Cargo.toml"
+          - "**/Cargo.lock"
+          - ".gitlab-ci.yml"
     - if: $CI_PIPELINE_SOURCE == "schedule"
   variables:
     COVERAGE_PACKAGE: ""
