@@ -72,6 +72,14 @@ check_required "rustup" "Rust toolchain manager" "$RUSTUP_HINT"
 check_required "cargo" "Rust build tool" "install via rustup (above)"
 check_required "rustc" "Rust compiler" "install via rustup (above)"
 
+case "$PLATFORM" in
+    macos)   JUST_HINT="brew install just" ;;
+    linux)   JUST_HINT="cargo install just  (or https://just.systems/man/en/packages.html)" ;;
+    windows) JUST_HINT="winget install Casey.Just  (or cargo install just)" ;;
+    *)       JUST_HINT="cargo install just" ;;
+esac
+check_required "just" "command runner (all build/test/deploy recipes)" "$JUST_HINT"
+
 echo ""
 
 # ── Recommended ───────────────────────────────────────────────────
