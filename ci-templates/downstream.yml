@@ -20,9 +20,9 @@
 #   - .verify-on-upstream-prerelease: Rule for upstream pre-release verification (requires UPSTREAM_CORE_VERSION)
 #   - .verify-nextest-artifacts: Junit artifact template for nextest verify jobs
 #
-# Mobile distribution repos (vauchi-platform-swift, vauchi-platform-kotlin) are
-# triggered via the GitLab trigger: keyword in core/.gitlab-ci.yml, passing
-# UPSTREAM_VERSION so downstream repos know which tag to build bindings from.
+# Mobile distribution: core triggers consumer repos (ios, macos, android) directly.
+# vauchi-platform-swift is updated via core's update:swift-bindings (git push).
+# vauchi-platform-kotlin is archived — Maven AAR published from core's publish:maven.
 
 # ============================================================
 # Trigger Templates
@@ -54,16 +54,15 @@
 # Mobile Distribution Triggers
 # ============================================================
 #
-# Mobile distribution repos (vauchi-platform-swift, vauchi-platform-kotlin)
-# are triggered via the GitLab trigger: keyword in core/.gitlab-ci.yml.
-# The trigger: keyword passes UPSTREAM_VERSION and uses CI_JOB_TOKEN
-# implicitly (no extra tokens needed).
+# Core triggers consumer repos (ios, macos, android) directly via trigger: keyword.
+# vauchi-platform-swift receives bindings via core's update:swift-bindings job (git push).
+# vauchi-platform-kotlin is archived — Maven AAR published from core's publish:maven.
 #
 # Downstream repos see CI_PIPELINE_SOURCE == "pipeline" and use the
 # .on-upstream-trigger rule to detect upstream-initiated pipelines.
 #
 # scripts/trigger-downstream.sh remains for local/manual use with
-# GITLAB_TOKEN (personal access token).
+# GITLAB_TOKEN (personal access token) — triggers platform-swift only.
 
 # ============================================================
 # Multi-Repo Trigger (using parallel matrix)
