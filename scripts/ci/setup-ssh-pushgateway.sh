@@ -28,8 +28,12 @@ setup_ssh_pushgateway() {
 
     mkdir -p ~/.ssh
 
-    # Portable base64 decode: macOS needs -i flag, GNU takes positional arg
-    if ! base64 -d -i "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 2>/dev/null \
+    # Portable base64 decode: macOS needs -i flag, GNU takes positional arg.
+    # Clean up between attempts so a failed first try doesn't leave a partial file.
+    if ! base64 -d -i "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 2>/dev/null; then
+        rm -f ~/.ssh/id_ed25519
+    fi
+    if [ ! -s ~/.ssh/id_ed25519 ] \
        && ! base64 -d "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 2>/dev/null; then
         echo "ERROR: Failed to decode DEPLOY_SSH_PRIVATE_KEY (base64 -d failed)" >&2
         echo "Check that the CI variable contains a valid base64-encoded file." >&2
