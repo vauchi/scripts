@@ -57,11 +57,11 @@ if command -v cargo &> /dev/null; then
         if cargo fmt --version &> /dev/null; then
             # Check formatting without making changes
             # cd to the directory containing Cargo.toml (core/ for core workspace,
-            # src-tauri/ for desktop, or stay in repo root for cli/tui/relay/e2e)
+            # wasm/ for web-demo, or stay in repo root for cli/tui/relay/e2e)
             if [ -d core ]; then
                 cd core
-            elif [ -d src-tauri ]; then
-                cd src-tauri
+            elif [ -d wasm ] && [ -f wasm/Cargo.toml ]; then
+                cd wasm
             fi
             if ! cargo fmt --all -- --check 2>/dev/null; then
                 echo ""
