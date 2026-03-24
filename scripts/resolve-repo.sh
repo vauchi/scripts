@@ -19,6 +19,7 @@ REPO_REGISTRY=(
     "core:core:rust"
     "cli:cli:rust"
     "relay:relay:rust"
+    "ohttp-relay:ohttp-relay:rust"
     "tui:tui:rust"
     "e2e:e2e:rust"
     "android:android:gradle"
@@ -43,12 +44,12 @@ REPO_REGISTRY=(
 )
 
 # ── Which repos support which operations ────────────────────────────
-REPOS_BUILD="core cli relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo"
-REPOS_TEST="core cli relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo"
-REPOS_FMT="core cli relay tui e2e ios linux-gtk"
-REPOS_LINT="core cli relay tui e2e android ios docs locales themes features scripts linux-gtk macos"
-REPOS_FIX="core cli relay tui e2e ios linux-gtk"
-REPOS_COVERAGE="core cli relay tui e2e ios android linux-gtk"
+REPOS_BUILD="core cli relay ohttp-relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo"
+REPOS_TEST="core cli relay ohttp-relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo"
+REPOS_FMT="core cli relay ohttp-relay tui e2e ios linux-gtk"
+REPOS_LINT="core cli relay ohttp-relay tui e2e android ios docs locales themes features scripts linux-gtk macos"
+REPOS_FIX="core cli relay ohttp-relay tui e2e ios linux-gtk"
+REPOS_COVERAGE="core cli relay ohttp-relay tui e2e ios android linux-gtk"
 REPOS_BENCH="core relay"
 
 # ── Functions ───────────────────────────────────────────────────────
