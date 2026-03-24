@@ -90,7 +90,7 @@ if $DRY_RUN; then
     exit 0
 fi
 
-# shellcheck source=setup-ssh-pushgateway.sh
+# shellcheck disable=SC1091  # dynamic source path — not resolvable without -x
 source "$(dirname "$0")/setup-ssh-pushgateway.sh"
 setup_ssh_pushgateway
 

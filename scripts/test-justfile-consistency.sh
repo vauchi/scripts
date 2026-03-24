@@ -12,24 +12,6 @@ set -uo pipefail
 PASS=0
 FAIL=0
 
-assert_no_matches() {
-    local label="$1" pattern="$2"
-    shift 2
-    local files=("$@")
-    local matches
-    matches=$(grep -n "$pattern" "${files[@]}" 2>/dev/null | grep -v "^.*:=.*:=" || true)
-    # Exclude variable definition lines (contain := )
-    matches=$(echo "$matches" | grep -v ':=\s*"' | grep -v "^$" || true)
-    if [[ -z "$matches" ]]; then
-        echo "  PASS: $label"
-        PASS=$(( PASS + 1 ))
-    else
-        echo "  FAIL: $label — found hardcoded values:"
-        echo "$matches" | sed 's/^/    /'
-        FAIL=$(( FAIL + 1 ))
-    fi
-}
-
 assert_variable_defined() {
     local label="$1" var_name="$2" file="$3"
     if grep -q "^${var_name} :=" "$file" 2>/dev/null; then
@@ -37,17 +19,6 @@ assert_variable_defined() {
         PASS=$(( PASS + 1 ))
     else
         echo "  FAIL: $label — variable '$var_name' not defined in $file"
-        FAIL=$(( FAIL + 1 ))
-    fi
-}
-
-assert_variable_referenced() {
-    local label="$1" var_name="$2" file="$3"
-    if grep -q "{{ ${var_name} }}" "$file" 2>/dev/null; then
-        echo "  PASS: $label"
-        PASS=$(( PASS + 1 ))
-    else
-        echo "  FAIL: $label — '{{ ${var_name} }}' not found in $file"
         FAIL=$(( FAIL + 1 ))
     fi
 }
@@ -72,7 +43,7 @@ for f in "${JUST_FILES[@]}"; do
         PASS=$(( PASS + 1 ))
     else
         echo "  FAIL: hardcoded simulator name in $f:"
-        echo "$matches" | sed 's/^/    /'
+        printf '    %s\n' "$matches"
         FAIL=$(( FAIL + 1 ))
     fi
 done
@@ -90,7 +61,7 @@ if [[ -z "$matches" ]]; then
     PASS=$(( PASS + 1 ))
 else
     echo "  FAIL: hardcoded repo list in gitlab.just:"
-    echo "$matches" | sed 's/^/    /'
+    printf '    %s\n' "$matches"
     FAIL=$(( FAIL + 1 ))
 fi
 

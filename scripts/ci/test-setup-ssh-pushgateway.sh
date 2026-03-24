@@ -101,6 +101,7 @@ export PUSHGATEWAY_SSH_HOST="test-host"
 export PUSHGATEWAY_SSH_IP="1.2.3.4"
 export PUSHGATEWAY_SSH_USER="deploy"
 
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/setup-ssh-pushgateway.sh"
 setup_ssh_pushgateway 2>/dev/null
 
@@ -119,6 +120,7 @@ export PUSHGATEWAY_SSH_HOST="test-host"
 export PUSHGATEWAY_SSH_IP="1.2.3.4"
 export PUSHGATEWAY_SSH_USER="deploy"
 
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/setup-ssh-pushgateway.sh"
 setup_ssh_pushgateway 2>/dev/null
 
@@ -146,6 +148,7 @@ export PUSHGATEWAY_SSH_HOST="test-host"
 export PUSHGATEWAY_SSH_IP="1.2.3.4"
 export PUSHGATEWAY_SSH_USER="deploy"
 
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/setup-ssh-pushgateway.sh"
 setup_ssh_pushgateway 2>/dev/null
 
@@ -160,6 +163,7 @@ export PUSHGATEWAY_SSH_HOST="test-host"
 export PUSHGATEWAY_SSH_IP="1.2.3.4"
 export PUSHGATEWAY_SSH_USER="deploy"
 
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/setup-ssh-pushgateway.sh"
 setup_ssh_pushgateway 2>/dev/null
 
@@ -176,6 +180,7 @@ export PUSHGATEWAY_SSH_HOST="test-host"
 export PUSHGATEWAY_SSH_IP="1.2.3.4"
 export PUSHGATEWAY_SSH_USER="deploy"
 
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/setup-ssh-pushgateway.sh"
 if setup_ssh_pushgateway 2>/dev/null; then
     echo "  FAIL: should have returned nonzero on bad base64"
