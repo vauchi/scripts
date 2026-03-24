@@ -382,6 +382,46 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
     }
     time_step "Tests" run_tests
 
+    # ─── Supply chain verification (cargo vet) ────────────────────────
+    # For repos with supply-chain/, verify all deps are audited/trusted.
+    # Must temporarily remove .cargo/config.toml if it contains [patch]
+    # overrides — path-resolved lockfiles can't be verified with --locked
+    # because cargo-vet internally uses --locked for cargo metadata.
+
+    if [[ -d "$REPO_ROOT/supply-chain" ]] && command -v cargo-vet &>/dev/null; then
+        run_vet() {
+            echo ""
+            echo "[4] Checking supply chain (cargo vet)..."
+
+            _VET_CONFIG_MOVED=0
+            if [[ -f "$REPO_ROOT/.cargo/config.toml" ]] \
+                && grep -q '\[patch' "$REPO_ROOT/.cargo/config.toml" 2>/dev/null; then
+                mv "$REPO_ROOT/.cargo/config.toml" "$REPO_ROOT/.cargo/config.toml.vet-bak"
+                _VET_CONFIG_MOVED=1
+                # Re-resolve git source (path override recorded wrong source in lockfile)
+                cargo update 2>/dev/null || true
+            fi
+
+            VET_EXIT=0
+            cargo vet --locked 2>&1 || VET_EXIT=$?
+
+            if [[ $_VET_CONFIG_MOVED -eq 1 ]]; then
+                mv "$REPO_ROOT/.cargo/config.toml.vet-bak" "$REPO_ROOT/.cargo/config.toml"
+                # Discard lockfile changes from git source resolution
+                git -C "$REPO_ROOT" checkout -- Cargo.lock 2>/dev/null || true
+            fi
+
+            if [[ $VET_EXIT -ne 0 ]]; then
+                echo ""
+                echo "FAILED: Supply chain verification failed."
+                echo "  Run 'cargo vet' to see details, 'cargo vet suggest' for fix suggestions."
+                exit 1
+            fi
+            echo "  Supply chain OK"
+        }
+        time_step "SupplyChain" run_vet
+    fi
+
 # ─── Swift/iOS repo ──────────────────────────────────────────────────
 
 elif [[ -f "$REPO_ROOT/Package.swift" ]] || [[ "$REPO_DIR" == "ios" ]]; then
