@@ -97,7 +97,7 @@
 
 .design-drift-job:
   stage: lint
-  image: alpine:latest
+  image: alpine:3.21
   needs: []
   allow_failure: true
   rules:
@@ -113,7 +113,7 @@
     DESIGN_DRIFT_MATCH_MODE: "file"
     DESIGN_DRIFT_GREP_FILE: ""
   before_script:
-    - apk add --no-cache curl openssh-client bash grep 2>/dev/null || true
+    - apk add --no-cache curl openssh-client bash grep
   script:
     - |
       set -euo pipefail

@@ -58,7 +58,7 @@
 
 .auto-tag:
   stage: auto-tag
-  image: alpine:latest
+  image: alpine:3.21
   tags: [docker]
   needs: []
   rules:

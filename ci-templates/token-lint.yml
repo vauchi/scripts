@@ -18,7 +18,7 @@
 
 .token-lint-job:
   stage: lint
-  image: alpine:latest
+  image: alpine:3.21
   before_script:
     - apk add --no-cache bash ripgrep >/dev/null 2>&1
   script:
