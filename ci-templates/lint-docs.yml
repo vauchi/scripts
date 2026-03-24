@@ -234,13 +234,18 @@ lint-gherkin:
     - |
       if ls *.feature 1> /dev/null 2>&1 || ls **/*.feature 1> /dev/null 2>&1; then
         echo "Validating Gherkin feature files..."
+        ERRORS=0
         for file in $(find . -name "*.feature" -type f); do
           echo "Checking: $file"
-          # Basic syntax check - gherkin parser will fail on syntax errors
           npx gherkin-utils format "$file" > /dev/null 2>&1 || {
-            echo "WARNING: Invalid Gherkin syntax in $file"
+            echo "ERROR: Invalid Gherkin syntax in $file"
+            ERRORS=$((ERRORS + 1))
           }
         done
+        if [ $ERRORS -gt 0 ]; then
+          echo "Found $ERRORS file(s) with Gherkin syntax errors."
+          exit 1
+        fi
         echo "Gherkin validation complete."
       else
         echo "No .feature files found."
@@ -249,5 +254,4 @@ lint-gherkin:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "**/*.feature"
-  allow_failure: true
 
