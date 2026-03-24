@@ -77,20 +77,9 @@ if $DRY_RUN; then
     exit 0
 fi
 
-# Set up SSH if DEPLOY_SSH_PRIVATE_KEY is available and key not already present
-if [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ] && [ ! -f ~/.ssh/id_ed25519 ]; then
-    mkdir -p ~/.ssh
-    base64 -d "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-    chmod 600 ~/.ssh/id_ed25519
-    cat >> ~/.ssh/config <<SSHEOF
-Host ${PUSHGATEWAY_SSH_HOST}
-  HostName ${PUSHGATEWAY_SSH_IP}
-  User ${PUSHGATEWAY_SSH_USER}
-  StrictHostKeyChecking accept-new
-SSHEOF
-    chmod 600 ~/.ssh/config
-    trap 'rm -f ~/.ssh/id_ed25519' EXIT
-fi
+# shellcheck source=setup-ssh-pushgateway.sh
+source "$(dirname "$0")/setup-ssh-pushgateway.sh"
+setup_ssh_pushgateway
 
 if [ -n "${PUSHGATEWAY_URL:-}" ]; then
     echo "$METRICS_TEXT" | curl -s --data-binary @- \
