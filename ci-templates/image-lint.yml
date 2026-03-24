@@ -14,9 +14,9 @@
   needs: []
   script:
     - |
-      # Match image: lines with floating tags (:latest, :stable, or bare :alpine)
+      # Match image: lines with floating tags (:latest, :stable, bare distro names)
       # Exclude comments and lines where the tag is a variable ($CI_*)
-      if grep -En '^\s*(image:|name:)\s+\S+:(latest|stable)\s*$' .gitlab-ci.yml; then
+      if grep -En '^\s*(image:|name:)\s+\S+:(latest|stable|alpine|focal|noble|jammy|bookworm|slim)\s*$' .gitlab-ci.yml; then
         echo ""
         echo "ERROR: Floating Docker image tags detected above."
         echo "Pin images to specific versions (e.g., alpine:3.21 instead of alpine:latest)."

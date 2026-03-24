@@ -37,6 +37,8 @@ for_each_repo() {
 # Parallel variant — backgrounds each callback invocation, waits for all.
 # Caller must handle inter-process communication via temp files, not arrays
 # (backgrounded subshells cannot modify parent shell variables).
+# Note: `wait` without arguments does not propagate individual job failures.
+# If you need per-repo error tracking, write failures to a temp file.
 for_each_repo_parallel() {
     local include_root=true
     if [[ "${1:-}" == "--no-root" ]]; then
