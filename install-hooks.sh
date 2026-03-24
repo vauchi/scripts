@@ -7,7 +7,7 @@
 # Usage: ./scripts/install-hooks.sh
 # Idempotent — safe to re-run on pull or setup.
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"

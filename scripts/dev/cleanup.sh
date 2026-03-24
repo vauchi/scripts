@@ -7,7 +7,7 @@
 # Cleans up all test data, caches, and build artifacts.
 # Use this to reset the development environment to a clean state.
 
-set -e
+set -euo pipefail
 
 # Source common variables
 # shellcheck source=/dev/null
@@ -134,11 +134,11 @@ clean_ios() {
     fi
 }
 
-if [ -z "$1" ]; then
+if [ -z "${1:-}" ]; then
     usage
 fi
 
-case "$1" in
+case "${1:-}" in
     tmp)
         echo "Cleaning tmp directory..."
         clean_tmp

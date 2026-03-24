@@ -8,7 +8,7 @@
 # Note: On macOS, you may need to use different bundle identifiers or
 # override the app data path via environment variables.
 
-set -e
+set -euo pipefail
 
 # Source common variables
 # shellcheck source=/dev/null
@@ -46,12 +46,12 @@ usage() {
 # Ensure directories exist
 ensure_dirs
 
-if [ -z "$1" ]; then
+if [ -z "${1:-}" ]; then
     usage
 fi
 
 # Handle special commands
-case "$1" in
+case "${1:-}" in
     clean)
         echo "Cleaning test data directory: $TEST_DATA_BASE"
         rm -rf "${TEST_DATA_BASE:?}"/*

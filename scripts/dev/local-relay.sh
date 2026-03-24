@@ -7,7 +7,7 @@
 # Runs the Vauchi relay server locally for testing sync between devices.
 # This allows all local instances to communicate without using the production relay.
 
-set -e
+set -euo pipefail
 
 # Source common variables (sets CODE_DIR, PROJECT_ROOT, etc.)
 # shellcheck source=/dev/null

@@ -16,7 +16,7 @@
 #   ./local-relay-tls.sh           # Start relay + TLS proxy
 #   ./local-relay-tls.sh --setup   # Setup only (install mkcert CA)
 
-set -e
+set -euo pipefail
 
 # Source common variables
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"

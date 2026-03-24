@@ -13,7 +13,7 @@
 #   2. Select 'Open' and choose the core/ directory
 #   3. Run configurations will be available in the Run menu
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -73,7 +73,7 @@ done
 # 3. Check for Android NDK (required for vauchi-platform build)
 print_step "Checking for Android NDK..."
 NDK_HOME=""
-if [ -n "$ANDROID_NDK_HOME" ] && [ -d "$ANDROID_NDK_HOME" ]; then
+if [ -n "${ANDROID_NDK_HOME:-}" ] && [ -d "$ANDROID_NDK_HOME" ]; then
     NDK_HOME="$ANDROID_NDK_HOME"
 elif [ -d "$HOME/Android/Sdk/ndk" ]; then
     NDK_HOME=$(find "$HOME/Android/Sdk/ndk" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -V -r | head -n 1)

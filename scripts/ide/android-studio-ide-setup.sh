@@ -19,7 +19,7 @@
 #   2. Sync Gradle
 #   3. Build and run
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -106,7 +106,7 @@ find_ndk() {
 }
 
 NDK_HOME=""
-if [ -n "$ANDROID_NDK_HOME" ] && find_ndk "$ANDROID_NDK_HOME" >/dev/null 2>&1; then
+if [ -n "${ANDROID_NDK_HOME:-}" ] && find_ndk "$ANDROID_NDK_HOME" >/dev/null 2>&1; then
     NDK_HOME="$ANDROID_NDK_HOME"
 elif [ -d "$HOME/Android/Sdk/ndk" ]; then
     while IFS= read -r ndk; do

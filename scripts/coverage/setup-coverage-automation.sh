@@ -6,7 +6,7 @@
 # Vauchi Coverage Automation Script
 # Sets up automated coverage reporting with trend tracking and policy enforcement
 
-set -e
+set -euo pipefail
 
 echo "🚀 Setting up automated coverage reporting..."
 

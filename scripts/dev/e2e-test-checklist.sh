@@ -11,7 +11,7 @@
 #   ./e2e-test-checklist.sh --deploy  # Deploy apps before testing
 #   ./e2e-test-checklist.sh --screenshot # Take screenshot at current step
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"

@@ -18,7 +18,7 @@
 #   ./orchestrate.sh logs         # Collect logs from both devices
 #   ./orchestrate.sh setup        # Initial setup instructions
 
-set -e
+set -euo pipefail
 
 # Source libraries
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

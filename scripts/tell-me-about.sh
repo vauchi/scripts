@@ -5,7 +5,7 @@
 # tell-me-about.sh - Quick codebase exploration using local LLM
 # Uses ollama with a tiny model to generate search terms and summarize findings
 
-set -e
+set -euo pipefail
 
 # Configuration
 MODEL="${TELL_ME_MODEL:-qwen2:0.5b}"

@@ -10,7 +10,7 @@
 #
 # It generates a report showing which features need test coverage.
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # _dev-tools/scripts -> workspace root

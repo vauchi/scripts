@@ -7,7 +7,7 @@
 # Checks all repos in workspace, shows changes, and lets user choose to commit.
 # Usage: ./commit-interactive.sh
 
-set -e
+set -euo pipefail
 
 # Colors
 RED='\033[0;31m'
