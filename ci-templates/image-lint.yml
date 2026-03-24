@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Docker image pinning lint — fails if floating tags detected in CI config.
+# Prevents regression to :latest, :stable, or other unpinned image tags.
+#
+# Usage in per-repo .gitlab-ci.yml:
+#   lint:images:
+#     extends: [.image-lint, .timeout-quick]
+
+.image-lint:
+  stage: lint
+  image: alpine:3.21
+  needs: []
+  script:
+    - |
+      # Match image: lines with floating tags (:latest, :stable, or bare :alpine)
+      # Exclude comments and lines where the tag is a variable ($CI_*)
+      if grep -En '^\s*(image:|name:)\s+\S+:(latest|stable)\s*$' .gitlab-ci.yml; then
+        echo ""
+        echo "ERROR: Floating Docker image tags detected above."
+        echo "Pin images to specific versions (e.g., alpine:3.21 instead of alpine:latest)."
+        exit 1
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - .gitlab-ci.yml
