@@ -387,7 +387,7 @@
   interruptible: false
   resource_group: release-publish
   stage: publish
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  image: registry.gitlab.com/gitlab-org/release-cli:v0.24.0
   tags:
     - docker
   variables:
