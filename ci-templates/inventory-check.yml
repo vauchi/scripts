@@ -56,34 +56,39 @@
           | sed 's|.*/||' \
           | sort -u)
 
-      errors=0
-
-      # Check 1: Every file in INVENTORY must exist on disk
-      while IFS= read -r f; do
+      # Check 1: Files listed in INVENTORY but missing from disk
+      # Capture output in variable to avoid subshell variable mutation
+      # (pipe | while runs in subshell on POSIX sh — variable changes are lost)
+      stale=$(printf '%s\n' "$inventory_files" | while IFS= read -r f; do
         [ -z "$f" ] && continue
         if ! echo "$disk_files" | grep -qxF "$f"; then
           echo "STALE DOC: $INVENTORY_FILE lists '$f' but $COMPONENT_DIR/$f does not exist"
-          errors=$((errors + 1))
         fi
-      done <<< "$inventory_files"
+      done)
 
-      # Check 2: Every file on disk must appear in INVENTORY (skip icons/helpers)
-      while IFS= read -r f; do
+      # Check 2: Files on disk but not in INVENTORY (skip icons/helpers)
+      undoc=$(printf '%s\n' "$disk_files" | while IFS= read -r f; do
         [ -z "$f" ] && continue
         case "$f" in icons.*) continue ;; esac
         if ! echo "$inventory_files" | grep -qxF "$f"; then
           echo "UNDOCUMENTED: $COMPONENT_DIR/$f exists but is not listed in $INVENTORY_FILE"
-          errors=$((errors + 1))
         fi
-      done <<< "$disk_files"
+      done)
+
+      errors=0
+      if [ -n "$stale" ]; then
+        echo "$stale"
+        stale_count=$(echo "$stale" | grep -c .)
+        errors=$((errors + stale_count))
+      fi
+      if [ -n "$undoc" ]; then
+        echo "$undoc"
+        undoc_count=$(echo "$undoc" | grep -c .)
+        errors=$((errors + undoc_count))
+      fi
 
       inv_count=$(echo "$inventory_files" | grep -c . || true)
-      disk_counted=0
-      while IFS= read -r f; do
-        [ -z "$f" ] && continue
-        case "$f" in icons.*) continue ;; esac
-        disk_counted=$((disk_counted + 1))
-      done <<< "$disk_files"
+      disk_counted=$(echo "$disk_files" | grep -v '^icons\.' | grep -c . || true)
 
       if [ "$errors" -eq 0 ]; then
         echo "OK: INVENTORY ($inv_count entries) matches filesystem ($disk_counted files)"

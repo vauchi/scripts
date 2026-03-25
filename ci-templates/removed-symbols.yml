@@ -57,7 +57,6 @@
         exit 0
       fi
 
-      errors=0
       # shellcheck disable=SC2086
       search_dirs=""
       for d in ${SEARCH_DIRS}; do
@@ -69,9 +68,9 @@
         exit 0
       fi
 
-      while IFS= read -r symbol; do
+      # Capture stale references (pipe runs in subshell — can't mutate errors directly)
+      stale_output=$(printf '%s\n' "$symbols" | while IFS= read -r symbol; do
         [ -z "$symbol" ] && continue
-        # Search for the symbol in all specified directories
         matches=$(grep -rlF "$symbol" $search_dirs \
           --include='*.rs' --include='*.cpp' --include='*.h' \
           --include='*.py' --include='*.md' --include='*.yml' \
@@ -81,14 +80,15 @@
 
         if [ -n "$matches" ]; then
           echo "STALE REFERENCE: '$symbol' found in:"
-          while IFS= read -r m; do echo "  $m"; done <<< "$matches"
-          errors=$((errors + 1))
+          printf '%s\n' "$matches" | while IFS= read -r m; do echo "  $m"; done
         fi
-      done <<< "$symbols"
+      done)
 
-      if [ "$errors" -eq 0 ]; then
+      if [ -z "$stale_output" ]; then
         echo "OK: No stale references to removed symbols"
       else
+        echo "$stale_output"
+        errors=$(echo "$stale_output" | grep -c 'STALE REFERENCE:' || true)
         echo ""
         echo "FAILED: $errors removed symbol(s) still referenced"
         echo "Update the listed files or check removed-symbols.txt in vauchi/vauchi."
