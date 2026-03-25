@@ -77,12 +77,18 @@
       if [ -d "target/criterion" ]; then
         echo "Found baseline — comparing..."
         cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} -- --baseline main 2>&1 | tee bench-results.txt
-        # Check for regressions > 20%
-        if grep -E 'regressed.*\+[2-9][0-9]\.' bench-results.txt || grep -E 'regressed.*\+[1-9][0-9][0-9]' bench-results.txt; then
+        # Check for regressions > 20%.
+        # Criterion output format:
+        #   change: [+18.2% +25.4% +32.5%] (p = 0.00 < 0.05)
+        #   Performance has regressed.
+        # Percentages and "regressed" are on different lines. We look at
+        # change: lines adjacent to regression markers for values > 20%.
+        if grep -B1 'Performance has regressed' bench-results.txt 2>/dev/null \
+           | grep -qE 'change:.*\+[2-9][0-9]\.|change:.*\+[1-9][0-9]{2}'; then
           echo "WARNING: Performance regression > 20% detected!"
-          echo "  Review bench-results.txt for details."
+          grep -B2 'Performance has regressed' bench-results.txt || true
         else
-          echo "No significant regressions detected"
+          echo "No significant regressions detected (threshold: >20%)"
         fi
       else
         echo "No baseline found — running benchmarks without comparison"
