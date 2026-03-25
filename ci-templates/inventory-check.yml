@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Inventory Check Template
+# Verifies that INVENTORY.md component table matches actual source files.
+# Catches both stale docs (listed but deleted) and undocumented components.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/inventory-check.yml'
+#
+# Provides:
+#   - .inventory-check-job: Bidirectional check of INVENTORY.md vs filesystem
+#
+# Variables (set by consumer jobs):
+#   INVENTORY_FILE:    Path to INVENTORY.md (default: "design/INVENTORY.md")
+#   COMPONENT_DIR:     Path to component source directory (required)
+#   COMPONENT_EXT:     File extension including dot (default: ".rs")
+
+.inventory-check-job:
+  stage: lint
+  image: alpine:3.21
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "design/INVENTORY.md"
+        - "${COMPONENT_DIR}/**"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    INVENTORY_FILE: "design/INVENTORY.md"
+    COMPONENT_DIR: ""
+    COMPONENT_EXT: ".rs"
+  script:
+    - |
+      set -euo pipefail
+
+      if [ -z "$COMPONENT_DIR" ]; then
+        echo "ERROR: COMPONENT_DIR variable not set"
+        exit 1
+      fi
+
+      # Extract filenames from INVENTORY.md table rows (backtick-wrapped)
+      inventory_files=$(grep -E '^\| *[0-9]' "$INVENTORY_FILE" \
+          | grep -oE "\`[^\`]+${COMPONENT_EXT}\`" \
+          | tr -d '`' \
+          | sort -u)
+
+      # List actual component files (exclude mod/index files)
+      disk_files=$(find "$COMPONENT_DIR" -maxdepth 1 -name "*${COMPONENT_EXT}" \
+          -not -name "mod${COMPONENT_EXT}" \
+          -not -name "mod.rs" \
+          | sed 's|.*/||' \
+          | sort -u)
+
+      errors=0
+
+      # Check 1: Every file in INVENTORY must exist on disk
+      while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        if ! echo "$disk_files" | grep -qxF "$f"; then
+          echo "STALE DOC: $INVENTORY_FILE lists '$f' but $COMPONENT_DIR/$f does not exist"
+          errors=$((errors + 1))
+        fi
+      done <<< "$inventory_files"
+
+      # Check 2: Every file on disk must appear in INVENTORY (skip icons/helpers)
+      while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        case "$f" in icons.*) continue ;; esac
+        if ! echo "$inventory_files" | grep -qxF "$f"; then
+          echo "UNDOCUMENTED: $COMPONENT_DIR/$f exists but is not listed in $INVENTORY_FILE"
+          errors=$((errors + 1))
+        fi
+      done <<< "$disk_files"
+
+      inv_count=$(echo "$inventory_files" | grep -c . || true)
+      disk_counted=0
+      while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        case "$f" in icons.*) continue ;; esac
+        disk_counted=$((disk_counted + 1))
+      done <<< "$disk_files"
+
+      if [ "$errors" -eq 0 ]; then
+        echo "OK: INVENTORY ($inv_count entries) matches filesystem ($disk_counted files)"
+      else
+        echo ""
+        echo "FAILED: $errors mismatches between $INVENTORY_FILE and $COMPONENT_DIR/"
+        exit 1
+      fi

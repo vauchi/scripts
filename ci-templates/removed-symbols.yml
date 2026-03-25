@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Removed Symbols Check Template
+# Detects stale references to features removed from vauchi-core.
+# Catches references in docs, tests, configs, comments, and headers
+# that the Rust compiler can't see.
+#
+# The manifest (removed-symbols.txt) is fetched from the vauchi/vauchi
+# root repo via the GitLab API.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/removed-symbols.yml'
+#
+# Provides:
+#   - .removed-symbols-job: Grep-based stale reference detection
+#
+# Variables (set by consumer jobs):
+#   SEARCH_DIRS:  Space-separated list of directories to scan (default: "src/ tests/")
+
+.removed-symbols-job:
+  stage: lint
+  image: alpine:3.21
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    SEARCH_DIRS: "src/ tests/"
+    # Root repo project ID (vauchi/vauchi)
+    ROOT_PROJECT_ID: "77851901"
+  script:
+    - |
+      set -euo pipefail
+      apk add --no-cache curl grep >/dev/null 2>&1 || true
+
+      # Fetch removed-symbols.txt from root repo
+      MANIFEST=$(curl -sf \
+        --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${ROOT_PROJECT_ID}/repository/files/removed-symbols.txt/raw?ref=main" \
+        2>/dev/null || echo "")
+
+      if [ -z "$MANIFEST" ]; then
+        echo "No removed-symbols.txt in root repo — skipping check"
+        exit 0
+      fi
+
+      # Strip comments and blank lines
+      symbols=$(echo "$MANIFEST" | grep -v '^\s*#' | grep -v '^\s*$' | sed 's/\s*#.*//' | tr -d '"' || true)
+
+      if [ -z "$symbols" ]; then
+        echo "Manifest is empty — nothing to check"
+        exit 0
+      fi
+
+      errors=0
+      # shellcheck disable=SC2086
+      search_dirs=""
+      for d in ${SEARCH_DIRS}; do
+        [ -d "$d" ] && search_dirs="$search_dirs $d"
+      done
+
+      if [ -z "$search_dirs" ]; then
+        echo "No search directories found — skipping"
+        exit 0
+      fi
+
+      while IFS= read -r symbol; do
+        [ -z "$symbol" ] && continue
+        # Search for the symbol in all specified directories
+        matches=$(grep -rlF "$symbol" $search_dirs \
+          --include='*.rs' --include='*.cpp' --include='*.h' \
+          --include='*.py' --include='*.md' --include='*.yml' \
+          --include='*.yaml' --include='*.toml' --include='*.json' \
+          --include='*.sh' --include='*.txt' \
+          2>/dev/null || true)
+
+        if [ -n "$matches" ]; then
+          echo "STALE REFERENCE: '$symbol' found in:"
+          while IFS= read -r m; do echo "  $m"; done <<< "$matches"
+          errors=$((errors + 1))
+        fi
+      done <<< "$symbols"
+
+      if [ "$errors" -eq 0 ]; then
+        echo "OK: No stale references to removed symbols"
+      else
+        echo ""
+        echo "FAILED: $errors removed symbol(s) still referenced"
+        echo "Update the listed files or check removed-symbols.txt in vauchi/vauchi."
+        exit 1
+      fi
