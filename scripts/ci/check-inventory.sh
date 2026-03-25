@@ -34,7 +34,7 @@ fi
 # Matches backtick-wrapped filenames like `text.rs` or `textcomponent.cpp`.
 # Skips the mod.rs / mod.cpp dispatcher and icons module.
 inventory_files=$(grep -E '^\| *[0-9]' "$INVENTORY" \
-    | grep -oE '`[^`]+'"${FILE_EXT}"'`' \
+    | grep -oE "\`[^\`]+${FILE_EXT}\`" \
     | tr -d '`' \
     | sort -u)
 

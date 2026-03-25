@@ -53,7 +53,7 @@ while IFS= read -r symbol; do
 
     if [ -n "$matches" ]; then
         echo "STALE REFERENCE: '$symbol' found in:"
-        echo "$matches" | sed 's/^/  /'
+        while IFS= read -r m; do echo "  $m"; done <<< "$matches"
         errors=$((errors + 1))
     fi
 done <<< "$symbols"
