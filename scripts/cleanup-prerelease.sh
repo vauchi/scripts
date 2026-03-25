@@ -31,7 +31,7 @@ fi
 
 # macOS vs GNU date
 if date -v-1d >/dev/null 2>&1; then
-  CUTOFF=$(date -u -v-${RETENTION_DAYS}d +%Y-%m-%dT%H:%M:%SZ)
+  CUTOFF=$(date -u -v-"${RETENTION_DAYS}"d +%Y-%m-%dT%H:%M:%SZ)
 else
   CUTOFF=$(date -u -d "${RETENTION_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
 fi
@@ -67,13 +67,13 @@ for repo in $PROJECTS; do
   tag_json=$(api GET "projects/${encoded}/repository/tags?per_page=100" 2>/dev/null || echo "[]")
   tags=$(echo "$tag_json" | python3 -c "
 import json, sys
-cutoff = '${CUTOFF}'
+cutoff = sys.argv[1]
 for t in json.load(sys.stdin):
     name = t['name']
     created = t.get('commit',{}).get('created_at','9999')
     if any(x in name for x in ['-dev','-rc','-alpha','-beta']) and created < cutoff:
         print(name)
-" 2>/dev/null || true)
+" "$CUTOFF" 2>/dev/null || true)
 
   for tag in $tags; do
     if [ "$DRY_RUN" = "1" ]; then
@@ -89,19 +89,19 @@ for t in json.load(sys.stdin):
   pkg_json=$(api GET "projects/${encoded}/packages?per_page=100" 2>/dev/null || echo "[]")
   stale_pkgs=$(echo "$pkg_json" | python3 -c "
 import json, sys
-cutoff = '${CUTOFF}'
+cutoff = sys.argv[1]
 for p in json.load(sys.stdin):
     ver = p.get('version','')
     created = p.get('created_at','9999')
     if any(x in ver for x in ['-dev','-rc','-alpha','-beta']) and created < cutoff:
         print(str(p['id']) + ' ' + p['name'] + ':' + ver)
-" 2>/dev/null || true)
+" "$CUTOFF" 2>/dev/null || true)
 
   # Use here-string to avoid subshell (preserves counter)
   while IFS= read -r line; do
     [ -z "$line" ] && continue
-    pkg_id=$(echo "$line" | cut -d' ' -f1)
-    pkg_name=$(echo "$line" | cut -d' ' -f2-)
+    pkg_id="${line%% *}"
+    pkg_name="${line#* }"
     if [ "$DRY_RUN" = "1" ]; then
       echo "  [DRY RUN] would delete package ${repo}:${pkg_name} (id=${pkg_id})"
     else
