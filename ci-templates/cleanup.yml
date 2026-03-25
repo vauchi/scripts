@@ -18,11 +18,12 @@
 #       file: '/ci-templates/cleanup.yml'
 #
 # Provides:
-#   - cleanup:prerelease: Scheduled job for tag/package cleanup
+#   - .cleanup-prerelease: Hidden job for scheduled tag/package cleanup
 
 .cleanup-prerelease:
   stage: deploy
   image: python:3.12-slim
+  tags: [docker]
   needs: []
   variables:
     RETENTION_DAYS: "14"
