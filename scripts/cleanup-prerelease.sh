@@ -8,6 +8,9 @@
 # Deletes git tags and packages with -dev, -rc, -alpha, -beta suffixes
 # that are older than RETENTION_DAYS (default: 14).
 #
+# Handles up to 100 tags/packages per repo per run (GitLab API page limit).
+# Weekly scheduling ensures this is sufficient for normal development velocity.
+#
 # Requires: GITLAB_TOKEN (api scope) or CI_JOB_TOKEN with cross-project access
 # Usage:
 #   GITLAB_TOKEN=glpat-xxx ./cleanup-prerelease.sh
@@ -84,7 +87,7 @@ for t in json.load(sys.stdin):
 
   # --- Packages ---
   pkg_json=$(api GET "projects/${encoded}/packages?per_page=100" 2>/dev/null || echo "[]")
-  pkgs=$(echo "$pkg_json" | python3 -c "
+  stale_pkgs=$(echo "$pkg_json" | python3 -c "
 import json, sys
 cutoff = '${CUTOFF}'
 for p in json.load(sys.stdin):
@@ -94,7 +97,8 @@ for p in json.load(sys.stdin):
         print(str(p['id']) + ' ' + p['name'] + ':' + ver)
 " 2>/dev/null || true)
 
-  echo "$pkgs" | while IFS= read -r line; do
+  # Use here-string to avoid subshell (preserves counter)
+  while IFS= read -r line; do
     [ -z "$line" ] && continue
     pkg_id=$(echo "$line" | cut -d' ' -f1)
     pkg_name=$(echo "$line" | cut -d' ' -f2-)
@@ -105,7 +109,7 @@ for p in json.load(sys.stdin):
       echo "  deleted package ${repo}:${pkg_name}"
     fi
     deleted_pkgs=$((deleted_pkgs + 1))
-  done
+  done <<< "$stale_pkgs"
 done
 
 echo ""
