@@ -33,7 +33,7 @@
 # Shared cache for benchmark baselines
 .bench-cache:
   cache:
-    key: bench-baseline-main
+    key: bench-baseline-${CI_PROJECT_NAME}-main
     paths:
       - target/criterion/
 
@@ -67,7 +67,7 @@
     BENCH_PACKAGE: ""
     BENCH_TARGETS: ""
   cache:
-    key: bench-baseline-main
+    key: bench-baseline-${CI_PROJECT_NAME}-main
     paths:
       - target/criterion/
     policy: pull
