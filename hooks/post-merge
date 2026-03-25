@@ -6,7 +6,7 @@
 # post-merge hook: auto-reinstall hooks after pulling scripts repo.
 # This ensures hooks stay in sync when scripts/ is updated.
 
-set -e
+set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 REPO_NAME="$(basename "$REPO_ROOT")"

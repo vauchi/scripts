@@ -9,7 +9,7 @@
 # 4. No secrets in staged files
 # 5. Commit scope warning (non-blocking)
 
-set -e
+set -euo pipefail
 
 echo "=== Pre-commit checks ==="
 
@@ -56,20 +56,21 @@ if command -v cargo &> /dev/null; then
         # Check if cargo fmt is available
         if cargo fmt --version &> /dev/null; then
             # Check formatting without making changes
-            # cd to the directory containing Cargo.toml (core/ for core workspace,
-            # wasm/ for web-demo, or stay in repo root for cli/tui/relay/e2e)
+            # Run fmt in the directory containing Cargo.toml (core/ for core workspace,
+            # wasm/ for web-demo, or repo root for cli/tui/relay/e2e).
+            # Subshell prevents cwd leaking to subsequent checks.
+            FMT_DIR="."
             if [ -d core ]; then
-                cd core
+                FMT_DIR="core"
             elif [ -d wasm ] && [ -f wasm/Cargo.toml ]; then
-                cd wasm
+                FMT_DIR="wasm"
             fi
-            if ! cargo fmt --all -- --check 2>/dev/null; then
+            if ! (cd "$FMT_DIR" && cargo fmt --all -- --check 2>/dev/null); then
                 echo ""
                 echo "ERROR: Rust formatting check failed."
                 echo "Run 'cargo fmt --all' to fix."
                 exit 1
             fi
-            cd - > /dev/null 2>&1 || true
             echo "  Formatting OK"
         else
             echo "  (cargo fmt not available, skipping)"
