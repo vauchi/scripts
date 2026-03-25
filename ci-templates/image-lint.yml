@@ -6,11 +6,12 @@
 #
 # Usage in per-repo .gitlab-ci.yml:
 #   lint:images:
-#     extends: [.image-lint, .timeout-quick]
+#     extends: .image-lint
 
 .image-lint:
   stage: lint
   image: alpine:3.21
+  timeout: 10 minutes
   needs: []
   script:
     - |
