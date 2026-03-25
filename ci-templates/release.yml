@@ -127,8 +127,6 @@
       git tag -a "${TAG}" -m "Release ${TAG}"
       git push origin "${TAG}"
       echo "✓ Created and pushed tag ${TAG}"
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # ============================================================
 # Dev Tag Verification (lightweight)

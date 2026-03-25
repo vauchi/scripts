@@ -23,13 +23,13 @@ for_each_repo() {
     fi
     local callback="$1"
 
-    if $include_root && [[ -d ".git" ]]; then
+    if $include_root && [[ -e ".git" ]]; then
         "$callback" "vauchi (root)" "."
     fi
 
     local dir
     for dir in */; do
-        [[ -d "${dir}.git" ]] || continue
+        [[ -e "${dir}.git" ]] || continue
         "$callback" "${dir%/}" "${dir%/}"
     done
 }
@@ -47,13 +47,13 @@ for_each_repo_parallel() {
     fi
     local callback="$1"
 
-    if $include_root && [[ -d ".git" ]]; then
+    if $include_root && [[ -e ".git" ]]; then
         "$callback" "vauchi (root)" "." &
     fi
 
     local dir
     for dir in */; do
-        [[ -d "${dir}.git" ]] || continue
+        [[ -e "${dir}.git" ]] || continue
         "$callback" "${dir%/}" "${dir%/}" &
     done
     wait
