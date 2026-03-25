@@ -175,7 +175,7 @@ timestamp() {
 }
 
 timestamp_iso() {
-    date -Iseconds
+    date -u +"%Y-%m-%dT%H:%M:%S%z" 2>/dev/null || date -Iseconds
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -209,6 +209,8 @@ check_qr_tools() {
 
 # Get local IP address
 get_local_ip() {
+    # macOS: ipconfig, Linux: hostname -I
+    ipconfig getifaddr en0 2>/dev/null || \
     hostname -I 2>/dev/null | awk '{print $1}' || \
     ip route get 1 2>/dev/null | awk '{print $7}' || \
     echo "127.0.0.1"
@@ -217,7 +219,10 @@ get_local_ip() {
 # Check if a port is in use
 port_in_use() {
     local port="$1"
-    if ss -ltn | grep -q ":$port "; then
+    # macOS: lsof, Linux: ss
+    if lsof -iTCP:"$port" -sTCP:LISTEN -P -n >/dev/null 2>&1; then
+        return 0
+    elif ss -ltn 2>/dev/null | grep -q ":$port "; then
         return 0
     else
         return 1

@@ -171,13 +171,6 @@ out_info() {
     _OUT_TYPES+=("info")
 }
 
-out_skip() {
-    _OUT_COUNT=$((_OUT_COUNT + 1))
-    _OUT_LABELS+=("$1")
-    _OUT_MSGS+=("$2")
-    _OUT_TYPES+=("skip")
-}
-
 out_end() {
     local elapsed="${1:-}"
     # Use count as total if total wasn't specified

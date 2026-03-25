@@ -68,6 +68,20 @@ repo_dir() {
     return 1
 }
 
+# List repo directories by toolchain (e.g., repos_by_toolchain rust → "core cli relay ...")
+# Returns space-separated directory names for use in for-loops.
+repos_by_toolchain() {
+    local toolchain="${1:?repos_by_toolchain requires a toolchain argument (rust, node, kotlin, swift, none)}"
+    local dirs=""
+    for entry in "${REPO_REGISTRY[@]}"; do
+        IFS=: read -r n d t <<< "$entry"
+        if [[ "$t" == "$toolchain" && "$d" != "." ]]; then
+            dirs="${dirs:+$dirs }$d"
+        fi
+    done
+    echo "$dirs"
+}
+
 # Get the toolchain for a repo name
 repo_toolchain() {
     local name="${1:?repo_toolchain requires a repo name argument}"
