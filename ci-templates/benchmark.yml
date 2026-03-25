@@ -74,7 +74,11 @@
   script:
     - |
       PACKAGE_FLAG="${BENCH_PACKAGE:+-p ${BENCH_PACKAGE}}"
-      if [ -d "target/criterion" ]; then
+      # Check for actual baseline data, not just the cache directory.
+      # Criterion stores baselines under target/criterion/*/main/ — the
+      # directory can exist from cache without containing a saved baseline.
+      BASELINE_COUNT=$(find target/criterion -path '*/main/estimates.json' 2>/dev/null | head -1 | wc -l || echo 0)
+      if [ "$BASELINE_COUNT" -gt 0 ]; then
         echo "Found baseline — comparing..."
         cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} -- --baseline main 2>&1 | tee bench-results.txt
         # Check for regressions > 20%.
