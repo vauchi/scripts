@@ -122,13 +122,28 @@ lint-markdown:
     - markdownlint
   needs: []
   timeout: 2m
+  variables:
+    GIT_DEPTH: 0
   script:
-    - markdownlint '**/*.md' --ignore node_modules --ignore target
+    - |
+      # Lint only files changed in this MR (avoids 36k pre-existing errors).
+      # Falls back to full scan on non-MR pipelines.
+      if [ -n "$CI_MERGE_REQUEST_TARGET_BRANCH_SHA" ]; then
+        FILES=$(git diff --name-only "$CI_MERGE_REQUEST_TARGET_BRANCH_SHA"...HEAD -- '*.md' | grep -v '^$' || true)
+        if [ -z "$FILES" ]; then
+          echo "No .md files changed — skipping"
+          exit 0
+        fi
+        echo "Linting $(echo "$FILES" | wc -l) changed .md file(s):"
+        echo "$FILES"
+        echo "$FILES" | xargs markdownlint
+      else
+        markdownlint '**/*.md' --ignore node_modules --ignore target
+      fi
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "**/*.md"
-  allow_failure: true
 
 # ============================================================
 # Link Checking (lychee)
