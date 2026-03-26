@@ -128,8 +128,9 @@ lint-markdown:
     - |
       # Lint only files changed in this MR (avoids 36k pre-existing errors).
       # Falls back to full scan on non-MR pipelines.
-      if [ -n "$CI_MERGE_REQUEST_TARGET_BRANCH_SHA" ]; then
-        FILES=$(git diff --name-only "$CI_MERGE_REQUEST_TARGET_BRANCH_SHA"...HEAD -- '*.md' | grep -v '^$' || true)
+      BASE="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-}}"
+      if [ -n "$BASE" ]; then
+        FILES=$(git diff --name-only "$BASE"...HEAD -- '*.md' | grep -v '^$' || true)
         if [ -z "$FILES" ]; then
           echo "No .md files changed — skipping"
           exit 0
