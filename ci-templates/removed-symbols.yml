@@ -25,6 +25,7 @@
 .removed-symbols-job:
   stage: lint
   image: alpine:3.21
+  tags: [docker]
   needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
