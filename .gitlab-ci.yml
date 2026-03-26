@@ -26,7 +26,7 @@ stages:
   - deploy
 
 # Lint shell scripts with shellcheck
-shellcheck:
+lint:shellcheck:
   extends: .mr-or-main
   stage: lint
   tags:

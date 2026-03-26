@@ -12,7 +12,7 @@
 #       file: '/ci-templates/lint-docs.yml'
 #
 # Provides:
-#   - check-doc-naming: Validate YYYY-MM-DD-name.md naming convention
+#   - check:doc-naming: Validate YYYY-MM-DD-name.md naming convention
 #   - lint-markdown: Markdown syntax and style checking
 #   - lint-links: Check for broken links (lychee)
 #   - check-license-text: Catch wrong license references in prose
@@ -26,7 +26,7 @@ stages:
 # ============================================================
 
 # Check that documentation files follow YYYY-MM-DD-name.md convention
-check-doc-naming:
+check:doc-naming:
   stage: lint
   image: alpine:3.21
   tags: [docker]
