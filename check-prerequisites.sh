@@ -120,6 +120,47 @@ case "$PLATFORM" in
         ;;
 esac
 
+# ── Linting tools (used by gate-push hook) ────────────────────────
+echo ""
+echo "── Linting tools (gate-push hook) ──"
+
+case "$PLATFORM" in
+    macos)
+        check_recommended "markdownlint" "markdown linting (gate-push)" \
+            "npm i -g markdownlint-cli"
+        check_recommended "typos" "spellcheck (gate-push)" \
+            "cargo binstall typos-cli  (or cargo install typos-cli)"
+        check_recommended "reuse" "SPDX header compliance (gate-push)" \
+            "brew install reuse  (or pipx install reuse)"
+        ;;
+    linux)
+        check_recommended "markdownlint" "markdown linting (gate-push)" \
+            "npm i -g markdownlint-cli"
+        check_recommended "typos" "spellcheck (gate-push)" \
+            "cargo binstall typos-cli  (or cargo install typos-cli)"
+        check_recommended "reuse" "SPDX header compliance (gate-push)" \
+            "pipx install reuse"
+        ;;
+    windows)
+        check_recommended "markdownlint" "markdown linting (gate-push)" \
+            "npm i -g markdownlint-cli"
+        check_recommended "typos" "spellcheck (gate-push)" \
+            "cargo install typos-cli"
+        check_recommended "reuse" "SPDX header compliance (gate-push)" \
+            "pip install reuse"
+        ;;
+    *)
+        check_recommended "markdownlint" "markdown linting (gate-push)" \
+            "npm i -g markdownlint-cli"
+        check_recommended "typos" "spellcheck (gate-push)" \
+            "cargo install typos-cli"
+        check_recommended "reuse" "SPDX header compliance (gate-push)" \
+            "pipx install reuse"
+        ;;
+esac
+
+echo ""
+
 # Python — needed for mdplan
 if command -v pipx &>/dev/null; then
     echo "  ✓ pipx — $(pipx --version 2>/dev/null || echo installed)"
@@ -147,8 +188,9 @@ if [[ "$MISSING" -gt 0 || "$WARN" -gt 0 ]]; then
     case "$PLATFORM" in
         macos)
             echo "  # Required + recommended (Homebrew):"
-            echo "  brew install rustup node glab jq pipx"
+            echo "  brew install rustup node glab jq pipx reuse"
             echo "  rustup-init -y && source \"\$HOME/.cargo/env\""
+            echo "  cargo binstall typos-cli && npm i -g markdownlint-cli"
             ;;
         linux)
             echo "  # Required (rustup):"
@@ -157,6 +199,7 @@ if [[ "$MISSING" -gt 0 || "$WARN" -gt 0 ]]; then
             echo ""
             echo "  # Recommended (apt — adjust for your distro):"
             echo "  sudo apt install -y nodejs npm jq pipx"
+            echo "  pipx install reuse && cargo binstall typos-cli && npm i -g markdownlint-cli"
             echo "  # glab: https://gitlab.com/gitlab-org/cli#installation"
             ;;
         windows)
