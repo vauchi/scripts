@@ -14,9 +14,9 @@
 # Provides:
 #   - check:doc-naming: Validate YYYY-MM-DD-name.md naming convention
 #   - lint:markdown: Markdown syntax and style checking
-#   - lint-links: Check for broken links (lychee)
-#   - check-license-text: Catch wrong license references in prose
-#   - lint-gherkin: Validate Gherkin feature files (for features repo)
+#   - lint:links: Check for broken links (lychee)
+#   - check:license-text: Catch wrong license references in prose
+#   - lint:gherkin: Validate Gherkin feature files (for features repo)
 
 stages:
   - lint
@@ -164,7 +164,7 @@ lint:markdown:
     - apk add --no-cache curl bash
     - curl -sL https://github.com/lycheeverse/lychee/releases/download/lychee-v0.23.0/lychee-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
 
-lint-links:
+lint:links:
   extends: .lint-links-base
   script:
     - |
@@ -173,13 +173,13 @@ lint-links:
         --exclude-path node_modules \
         --exclude-path target \
         --exclude-path .git \
-        '**/*.md' 2>&1 | sed 's/Excluded/External (checked weekly by lint-links-external)/'
+        '**/*.md' 2>&1 | sed 's/Excluded/External (checked weekly by lint:links-external)/'
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "**/*.md"
 
-lint-links-external:
+lint:links-external:
   extends: .lint-links-base
   script:
     - |
@@ -199,7 +199,7 @@ lint-links-external:
 # Catch wrong license references in prose (e.g., "licensed under MIT"
 # when the project uses GPL-3.0-or-later). REUSE checks SPDX headers
 # but not body text — this fills the gap.
-check-license-text:
+check:license-text:
   stage: lint
   image: alpine:3.21
   tags: [docker]
@@ -242,7 +242,7 @@ check-license-text:
 # Validate Gherkin feature files
 # Uses self-hosted shell runner with pre-installed Node.js.
 # npm package still installed at runtime (not worth a global install for one job).
-lint-gherkin:
+lint:gherkin:
   stage: lint
   tags:
     - self-hosted

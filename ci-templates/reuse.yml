@@ -25,7 +25,7 @@
 # NOTE: This template is self-contained — it does NOT depend on rust-base.yml
 # so that non-Rust repos (android, ios, features, etc.) can include it.
 
-reuse-lint:
+lint:reuse:
   tags:
     - self-hosted
     - reuse

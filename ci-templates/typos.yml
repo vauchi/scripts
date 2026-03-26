@@ -20,7 +20,7 @@
 # Downloads pre-built binary from GitHub so it works on any runner
 # (Docker, shell, macOS, Linux) without requiring cargo.
 
-typos-check:
+lint:typos:
   tags:
     - self-hosted
   stage: lint
