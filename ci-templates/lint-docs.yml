@@ -47,7 +47,7 @@ check:doc-naming:
 
         # Skip well-known filenames that don't need date prefixes
         case "$filename" in
-          README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|VISIBILITY_POLICY.md)
+          README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|VISIBILITY_POLICY.md|INDEX.md)
             continue
             ;;
           assumptions.md|master-plan.plan.md)
@@ -56,31 +56,21 @@ check:doc-naming:
           STRUCTURE.md|ARCHITECTURE.md|SECURITY.md|CHECKLIST.md)
             continue
             ;;
-          investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md)
+          investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md)
+            continue
+            ;;
+          *-audit.md|*-report.md|*-checklist.md|*-analysis.md)
             continue
             ;;
         esac
 
+        # Skip .plan.md task DAG files
+        if echo "$filename" | grep -qE '\.plan\.md$'; then
+          continue
+        fi
+
         # Skip directories where date prefix convention doesn't apply
-        if echo "$dirname" | grep -q "diagrams"; then
-          continue
-        fi
-        if echo "$dirname" | grep -q "ideas"; then
-          continue
-        fi
-        if echo "$dirname" | grep -q "strategy"; then
-          continue
-        fi
-        if echo "$dirname" | grep -q "infra"; then
-          continue
-        fi
-        if echo "$dirname" | grep -q "knowledge"; then
-          continue
-        fi
-        if echo "$dirname" | grep -q "audit-review-frameworks"; then
-          continue
-        fi
-        if echo "$dirname" | grep -q "decisions"; then
+        if echo "$dirname" | grep -qE "(diagrams|ideas|strategy|infra|knowledge|audit-review-frameworks|decisions|guides|reference|testing|admin-guides|components)"; then
           continue
         fi
 
