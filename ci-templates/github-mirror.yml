@@ -54,8 +54,8 @@
         | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
       unsigned="${header}.${payload}"
 
-      # Decode base64 PEM and sign
-      echo "$GITHUB_APP_PRIVATE_KEY" | base64 -d > /tmp/app.pem
+      # Decode base64 PEM and sign (variable is File type — path to base64 content)
+      base64 -d < "$GITHUB_APP_PRIVATE_KEY" > /tmp/app.pem
       signature=$(printf '%s' "$unsigned" \
         | openssl dgst -sha256 -sign /tmp/app.pem -binary \
         | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
