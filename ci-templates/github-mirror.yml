@@ -55,7 +55,13 @@
       unsigned="${header}.${payload}"
 
       # Decode base64 PEM and sign (variable is File type — path to base64 content)
-      base64 -d < "$GITHUB_APP_PRIVATE_KEY" > /tmp/app.pem
+      # Strip whitespace/newlines before decoding (wl-copy may add trailing newline)
+      tr -d '[:space:]' < "$GITHUB_APP_PRIVATE_KEY" | base64 -d > /tmp/app.pem
+      if ! openssl rsa -in /tmp/app.pem -check -noout 2>/dev/null; then
+        echo "ERROR: GITHUB_APP_PRIVATE_KEY did not decode to a valid RSA key"
+        echo "File contents (first 20 chars): $(head -c 20 "$GITHUB_APP_PRIVATE_KEY")..."
+        exit 1
+      fi
       signature=$(printf '%s' "$unsigned" \
         | openssl dgst -sha256 -sign /tmp/app.pem -binary \
         | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
