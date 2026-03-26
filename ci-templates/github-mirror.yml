@@ -83,7 +83,12 @@
       # --- Push to GitHub ---
       git remote add github \
         "https://x-access-token:${TOKEN}@github.com/${GITHUB_MIRROR_ORG}/${GITHUB_MIRROR_REPO}.git"
-      git push github "$CI_DEFAULT_BRANCH" --force
+
+      # Fetch full history — CI clone may be shallow or detached
+      git fetch origin "+refs/heads/${CI_DEFAULT_BRANCH}:refs/heads/${CI_DEFAULT_BRANCH}" --depth=2147483647 2>/dev/null || true
+      git fetch origin --tags 2>/dev/null || true
+
+      git push github "refs/heads/${CI_DEFAULT_BRANCH}:refs/heads/${CI_DEFAULT_BRANCH}" --force
       git push github --tags --force
       echo "Mirrored to github.com/${GITHUB_MIRROR_ORG}/${GITHUB_MIRROR_REPO}"
   allow_failure: true
