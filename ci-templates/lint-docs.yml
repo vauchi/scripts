@@ -13,7 +13,7 @@
 #
 # Provides:
 #   - check:doc-naming: Validate YYYY-MM-DD-name.md naming convention
-#   - lint-markdown: Markdown syntax and style checking
+#   - lint:markdown: Markdown syntax and style checking
 #   - lint-links: Check for broken links (lychee)
 #   - check-license-text: Catch wrong license references in prose
 #   - lint-gherkin: Validate Gherkin feature files (for features repo)
@@ -105,7 +105,7 @@ check:doc-naming:
 # Lint markdown files with markdownlint
 # Uses self-hosted shell runner where markdownlint is pre-installed (< 5s)
 # instead of Docker node:20-alpine + npm install (~30s overhead).
-lint-markdown:
+lint:markdown:
   stage: lint
   tags:
     - self-hosted
