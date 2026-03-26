@@ -119,8 +119,9 @@ fi
 
 # ─── Non-code change detection ─────────────────────────────────────
 # If only docs/config files changed (no source code), skip compile/lint/test
-# checks. REUSE lint still runs for doc repos (_private, docs) since CI
-# enforces it and markdown files need SPDX headers.
+# checks. Doc repos (_private, docs) are exempt — their "code" IS markdown,
+# so they fall through to the full doc check block (markdownlint, REUSE,
+# doc naming, plan companions).
 
 if [[ "$_STAMP_SKIP" != "1" ]]; then
     CHANGED_FILES=$(git diff --name-only origin/main...HEAD 2>/dev/null || echo "")
@@ -130,38 +131,15 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         HAS_CODE=$(echo "$CHANGED_FILES" | grep -E "$CODE_PATTERN" || true)
         HAS_BUILD=$(echo "$CHANGED_FILES" | grep -E "$BUILD_PATTERN" || true)
         if [[ -z "$HAS_CODE" && -z "$HAS_BUILD" ]]; then
-            echo ""
-            echo "  Only non-code files changed — skipping checks"
-            # For doc repos, still run REUSE lint (CI enforces it)
+            # Doc repos (_private, docs) treat .md as code — run full doc checks
             if [[ "$REPO_DIR" == "_private" || "$REPO_DIR" == "docs" ]]; then
-                if command -v reuse &> /dev/null; then
-                    echo ""
-                    echo "[1/1] Checking REUSE compliance..."
-                    if ! reuse lint > /dev/null 2>&1; then
-                        echo ""
-                        echo "FAILED: REUSE compliance check failed:"
-                        reuse lint 2>&1 | tail -30
-                        exit 1
-                    fi
-                    echo "  REUSE lint OK"
-                else
-                    # Fallback: basic SPDX header check on new markdown files
-                    MISSING=0
-                    for file in $(git diff --name-only --diff-filter=A origin/main...HEAD -- '*.md' 2>/dev/null); do
-                        if ! head -2 "$file" | grep -q 'SPDX-'; then
-                            echo "  MISSING SPDX header: $file"
-                            MISSING=$((MISSING + 1))
-                        fi
-                    done
-                    if [[ $MISSING -gt 0 ]]; then
-                        echo ""
-                        echo "FAILED: $MISSING new file(s) missing SPDX headers."
-                        exit 1
-                    fi
-                    echo "  SPDX headers OK (basic check)"
-                fi
+                echo ""
+                echo "  Only markdown/config files changed — running doc checks"
+            else
+                echo ""
+                echo "  Only non-code files changed — skipping checks"
+                _STAMP_SKIP=1
             fi
-            _STAMP_SKIP=1
         fi
     fi
 fi
@@ -567,9 +545,64 @@ elif [[ "$REPO_DIR" == "android" ]]; then
 elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
     cd "$REPO_ROOT"
 
+    run_markdownlint_check() {
+        echo ""
+        echo "[1/4] Linting markdown..."
+        if command -v markdownlint &> /dev/null; then
+            # Lint only .md files changed on this branch vs origin/main
+            MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+            if [[ -n "$MD_BASE" ]]; then
+                MD_FILES=$(git diff --name-only "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' || true)
+            else
+                MD_FILES=$(git ls-files '*.md' 2>/dev/null || true)
+            fi
+
+            if [[ -n "$MD_FILES" ]]; then
+                WS_ROOT="$REPO_ROOT/.."
+
+                # Resolve config: repo-local > _private > workspace root
+                MD_CONFIG=""
+                if [[ -f "$REPO_ROOT/.markdownlint.json" ]]; then
+                    MD_CONFIG="$REPO_ROOT/.markdownlint.json"
+                elif [[ -f "$REPO_ROOT/.markdownlint.jsonc" ]]; then
+                    MD_CONFIG="$REPO_ROOT/.markdownlint.jsonc"
+                elif [[ -f "$WS_ROOT/_private/.markdownlint.json" ]]; then
+                    MD_CONFIG="$WS_ROOT/_private/.markdownlint.json"
+                elif [[ -f "$WS_ROOT/.markdownlint.json" ]]; then
+                    MD_CONFIG="$WS_ROOT/.markdownlint.json"
+                fi
+
+                MD_ARGS=()
+                if [[ -n "$MD_CONFIG" ]]; then
+                    MD_ARGS+=(-c "$MD_CONFIG")
+                fi
+
+                # Use custom line-length rule if available
+                CUSTOM_RULE="$WS_ROOT/_private/scripts/markdownlint-rule-line-length.js"
+                if [[ -f "$CUSTOM_RULE" ]]; then
+                    MD_ARGS+=(-r "$CUSTOM_RULE")
+                fi
+
+                MD_COUNT=$(echo "$MD_FILES" | wc -l | tr -d ' ')
+                echo "  Linting $MD_COUNT changed .md file(s)..."
+                if ! echo "$MD_FILES" | xargs markdownlint "${MD_ARGS[@]}"; then
+                    echo ""
+                    echo "FAILED: markdownlint found issues. Run 'just lint-markdown fix' to auto-fix."
+                    exit 1
+                fi
+                echo "  Markdown lint OK"
+            else
+                echo "  No .md files changed, skipping"
+            fi
+        else
+            echo "  (markdownlint not found, skipping — install with: npm install -g markdownlint-cli)"
+        fi
+    }
+    time_step "Markdown lint" run_markdownlint_check
+
     run_reuse_check() {
         echo ""
-        echo "[1/3] Checking REUSE compliance..."
+        echo "[2/4] Checking REUSE compliance..."
         if command -v reuse &> /dev/null; then
             if ! reuse lint > /dev/null 2>&1; then
                 echo ""
@@ -599,7 +632,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_doc_naming_check() {
         echo ""
-        echo "[2/3] Checking doc naming convention..."
+        echo "[3/4] Checking doc naming convention..."
         ERRORS=0
         EXEMPT_NAMES="README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|INDEX.md"
         EXEMPT_COMPANION="investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md"
@@ -629,7 +662,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_plan_presence_check() {
         echo ""
-        echo "[3/3] Checking plan.md companions..."
+        echo "[4/4] Checking plan.md companions..."
         ERRORS=0
         for impl in $(find docs/problems -not -path "*/done/*" -name "implementation-plan.md" 2>/dev/null); do
             dir=$(dirname "$impl")
