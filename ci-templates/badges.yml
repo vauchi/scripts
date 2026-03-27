@@ -30,6 +30,11 @@
 
 .badges-pages:
   stage: deploy
+  tags:
+    - docker
+  image: alpine:3.21
+  before_script:
+    - apk add --no-cache bash curl >/dev/null 2>&1
   rules:
     # Only deploy badges on main branch (not MRs, not triggered pipelines)
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
