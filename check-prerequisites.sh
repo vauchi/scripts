@@ -131,7 +131,7 @@ case "$PLATFORM" in
         check_recommended "typos" "spellcheck (gate-push)" \
             "cargo binstall typos-cli  (or cargo install typos-cli)"
         check_recommended "reuse" "SPDX header compliance (gate-push)" \
-            "brew install reuse  (or pipx install reuse)"
+            "uv tool install reuse  (or brew install reuse)"
         ;;
     linux)
         check_recommended "markdownlint" "markdown linting (gate-push)" \
@@ -139,7 +139,7 @@ case "$PLATFORM" in
         check_recommended "typos" "spellcheck (gate-push)" \
             "cargo binstall typos-cli  (or cargo install typos-cli)"
         check_recommended "reuse" "SPDX header compliance (gate-push)" \
-            "pipx install reuse"
+            "uv tool install reuse"
         ;;
     windows)
         check_recommended "markdownlint" "markdown linting (gate-push)" \
@@ -147,7 +147,7 @@ case "$PLATFORM" in
         check_recommended "typos" "spellcheck (gate-push)" \
             "cargo install typos-cli"
         check_recommended "reuse" "SPDX header compliance (gate-push)" \
-            "pip install reuse"
+            "uv tool install reuse"
         ;;
     *)
         check_recommended "markdownlint" "markdown linting (gate-push)" \
@@ -155,26 +155,22 @@ case "$PLATFORM" in
         check_recommended "typos" "spellcheck (gate-push)" \
             "cargo install typos-cli"
         check_recommended "reuse" "SPDX header compliance (gate-push)" \
-            "pipx install reuse"
+            "uv tool install reuse"
         ;;
 esac
 
 echo ""
 
-# Python — needed for mdplan
-if command -v pipx &>/dev/null; then
-    echo "  ✓ pipx — $(pipx --version 2>/dev/null || echo installed)"
-elif command -v pip3 &>/dev/null; then
-    echo "  ✓ pip3 — $(pip3 --version 2>/dev/null | head -1)"
-elif command -v pip &>/dev/null; then
-    echo "  ✓ pip — $(pip --version 2>/dev/null | head -1)"
+# uv — fast Python package manager (replaces pip/pipx)
+if command -v uv &>/dev/null; then
+    echo "  ✓ uv — $(uv --version 2>/dev/null | head -1)"
 else
-    echo "  ~ pip/pipx — not found (needed for mdplan CLI)"
+    echo "  ~ uv — not found (Python tool installer, replaces pip/pipx)"
     case "$PLATFORM" in
-        macos)   echo "    Install: brew install pipx" ;;
-        linux)   echo "    Install: sudo apt install pipx  (or your package manager)" ;;
-        windows) echo "    Install: winget install Python.Python.3  (includes pip)" ;;
-        *)       echo "    Install: https://pip.pypa.io/en/stable/installation/" ;;
+        macos)   echo "    Install: brew install uv" ;;
+        linux)   echo "    Install: curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
+        windows) echo "    Install: winget install astral-sh.uv" ;;
+        *)       echo "    Install: curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
     esac
     WARN=$((WARN + 1))
 fi
@@ -188,8 +184,9 @@ if [[ "$MISSING" -gt 0 || "$WARN" -gt 0 ]]; then
     case "$PLATFORM" in
         macos)
             echo "  # Required + recommended (Homebrew):"
-            echo "  brew install rustup node glab jq pipx reuse"
+            echo "  brew install rustup node glab jq uv"
             echo "  rustup-init -y && source \"\$HOME/.cargo/env\""
+            echo "  uv tool install reuse"
             echo "  cargo binstall typos-cli && npm i -g markdownlint-cli"
             ;;
         linux)
@@ -197,15 +194,18 @@ if [[ "$MISSING" -gt 0 || "$WARN" -gt 0 ]]; then
             echo "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
             echo "  source \"\$HOME/.cargo/env\""
             echo ""
-            echo "  # Recommended (apt — adjust for your distro):"
-            echo "  sudo apt install -y nodejs npm jq pipx"
-            echo "  pipx install reuse && cargo binstall typos-cli && npm i -g markdownlint-cli"
+            echo "  # Recommended:"
+            echo "  sudo apt install -y nodejs npm jq"
+            echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
+            echo "  uv tool install reuse"
+            echo "  cargo binstall typos-cli && npm i -g markdownlint-cli"
             echo "  # glab: https://gitlab.com/gitlab-org/cli#installation"
             ;;
         windows)
             echo "  # Required + recommended (winget — run in PowerShell):"
-            echo "  winget install Rustlang.Rustup"
+            echo "  winget install Rustlang.Rustup astral-sh.uv"
             echo "  winget install GitLab.Glab OpenJS.NodeJS.LTS jqlang.jq"
+            echo "  uv tool install reuse"
             echo ""
             echo "  Restart your terminal after installing to update PATH."
             ;;

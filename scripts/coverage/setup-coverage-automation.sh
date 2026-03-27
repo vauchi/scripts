@@ -55,7 +55,7 @@ setup_coverage_tools() {
     fi
     
     # Install Python dependencies for coverage reporting
-    pip3 install --user 'coverage>=7.0' 'pytest-cov>=4.0' 'codecov>=2.5'
+    uv pip install --system 'coverage>=7.0' 'pytest-cov>=4.0' 'codecov>=2.5'
     
     # Install Node.js dependencies for frontend coverage
     if [ -d "code/vauchi-desktop/ui" ]; then

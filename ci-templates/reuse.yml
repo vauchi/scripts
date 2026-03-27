@@ -17,7 +17,7 @@
 #
 # Performance: Uses self-hosted shell runners where reuse is pre-installed
 # (< 5s) instead of Docker (fsfe/reuse:latest = 4-6 min Docker overhead).
-# Falls back to pip install if reuse is not available.
+# Falls back to uv tool install if reuse is not available.
 #
 # Runner requirement: any self-hosted runner tagged with "reuse".
 # Currently: allyson (linux) and nell (macOS).
@@ -33,7 +33,7 @@ lint:reuse:
   needs: []
   timeout: 2m
   before_script:
-    - command -v reuse >/dev/null 2>&1 || pip3 install --quiet --user reuse
+    - command -v reuse >/dev/null 2>&1 || uv tool install --quiet reuse
   script:
     - reuse lint
   rules:
