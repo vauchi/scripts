@@ -597,7 +597,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_markdownlint_check() {
         echo ""
-        echo "[1/4] Linting markdown..."
+        echo "[1/5] Linting markdown..."
         if command -v markdownlint &> /dev/null; then
             # Lint only .md files changed on this branch vs origin/main
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
@@ -652,7 +652,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_reuse_check() {
         echo ""
-        echo "[2/4] Checking REUSE compliance..."
+        echo "[2/5] Checking REUSE compliance..."
         if command -v reuse &> /dev/null; then
             if ! reuse lint > /dev/null 2>&1; then
                 echo ""
@@ -682,7 +682,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_doc_naming_check() {
         echo ""
-        echo "[3/4] Checking doc naming convention..."
+        echo "[3/5] Checking doc naming convention..."
         ERRORS=0
         EXEMPT_NAMES="README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|INDEX.md"
         EXEMPT_COMPANION="investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md"
@@ -712,7 +712,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_plan_presence_check() {
         echo ""
-        echo "[4/4] Checking plan.md companions..."
+        echo "[4/5] Checking plan.md companions..."
         ERRORS=0
         for impl in $(find docs/problems -not -path "*/done/*" -name "implementation-plan.md" 2>/dev/null); do
             dir=$(dirname "$impl")
@@ -729,6 +729,40 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
         echo "  Plan companions OK"
     }
     time_step "Plan check" run_plan_presence_check
+
+    run_local_link_check() {
+        echo ""
+        echo "[5/5] Checking local file links..."
+        if command -v lychee &> /dev/null; then
+            MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+            if [[ -n "$MD_BASE" ]]; then
+                LINK_FILES=$(git diff --name-only "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' || true)
+            else
+                LINK_FILES=""
+            fi
+            if [[ -n "$LINK_FILES" ]]; then
+                LINK_ERRORS=""
+                while IFS= read -r f; do
+                    [[ -f "$f" ]] || continue
+                    result=$(lychee --offline --no-progress --format compact "$f" 2>&1) || LINK_ERRORS="${LINK_ERRORS}${result}"$'\n'
+                done <<< "$LINK_FILES"
+                if [[ -n "$LINK_ERRORS" ]]; then
+                    echo ""
+                    echo "$LINK_ERRORS"
+                    echo ""
+                    echo "FAILED: Broken local links found."
+                    echo "  Fix the file paths, then push again."
+                    exit 1
+                fi
+                echo "  Local links OK"
+            else
+                echo "  No .md files changed, skipping"
+            fi
+        else
+            echo "  (lychee not found, skipping — install with: cargo install lychee)"
+        fi
+    }
+    time_step "Link check" run_local_link_check
 
 # ─── Unknown repo type ───────────────────────────────────────────────
 
