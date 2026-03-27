@@ -161,19 +161,14 @@ esac
 
 echo ""
 
-# uv — fast Python package manager (replaces pip/pipx)
-if command -v uv &>/dev/null; then
-    echo "  ✓ uv — $(uv --version 2>/dev/null | head -1)"
-else
-    echo "  ~ uv — not found (Python tool installer, replaces pip/pipx)"
-    case "$PLATFORM" in
-        macos)   echo "    Install: brew install uv" ;;
-        linux)   echo "    Install: curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
-        windows) echo "    Install: winget install astral-sh.uv" ;;
-        *)       echo "    Install: curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
-    esac
-    WARN=$((WARN + 1))
-fi
+# uv — needed for: just design-check, reuse install, quick-install commands
+case "$PLATFORM" in
+    macos)   UV_HINT="brew install uv" ;;
+    linux)   UV_HINT="curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
+    windows) UV_HINT="winget install astral-sh.uv" ;;
+    *)       UV_HINT="curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
+esac
+check_recommended "uv" "Python runner — needed for just design-check and reuse" "$UV_HINT"
 
 echo ""
 
