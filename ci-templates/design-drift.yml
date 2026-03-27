@@ -143,8 +143,7 @@
       fi
 
       # Extract component names from .md filenames (kebab-case, strip .md)
-      # Exclude planned (Phase 2) components not yet in core
-      PLANNED="show-toast inline-confirm editable-text"
+      PLANNED=""
       EXPECTED_COMPONENTS=""
       EXPECTED_COUNT=0
 
