@@ -29,6 +29,8 @@
 .timeout-long:
   timeout: 1 hour
 
-# Very long jobs (iOS build, Android multi-arch) - 2 hours
+# Very long jobs (iOS build, Android multi-arch) - 45 minutes
+# Reduced from 2 hours: real builds take 15-20 min, 2h masked runner hangs
+# and caused resource_group deadlocks (see post-mortem 2026-03-28).
 .timeout-extended:
-  timeout: 2 hours
+  timeout: 45 minutes
