@@ -131,7 +131,7 @@
       REPO_LABEL="${DESIGN_DRIFT_REPO_LABEL:-${CI_PROJECT_NAME}}"
 
       # ── Fetch canonical component list from _private designs ──
-      PRIVATE_PROJECT="vauchi%2Fprivate"
+      PRIVATE_PROJECT="${VAUCHI_PRIVATE_PROJECT_ID:-77957469}"
       API_URL="${CI_API_V4_URL}/projects/${PRIVATE_PROJECT}/repository/tree?path=designs/components&ref=main&per_page=100"
       HTTP_CODE=$(curl --silent --output /tmp/components.json --write-out "%{http_code}" \
         --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
