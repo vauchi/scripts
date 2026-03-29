@@ -109,9 +109,12 @@ echo ""
 
 if [ "$MISSING" -gt 0 ]; then
     echo "Tests missing @scenario: or @internal annotation:"
-    grep "^MISSING" "$TMPFILE" | while IFS=' ' read -r _ location name; do
+    # Extract first 30 missing entries to a temp var to avoid SIGPIPE
+    # under pipefail (head closing a pipe mid-stream exits 141).
+    SAMPLE=$(grep "^MISSING" "$TMPFILE" | head -30 || true)
+    while IFS=' ' read -r _ location name; do
         echo "  $location — $name()"
-    done | head -30
+    done <<< "$SAMPLE"
     if [ "$MISSING" -gt 30 ]; then
         echo "  ... and $((MISSING - 30)) more"
     fi
