@@ -33,6 +33,7 @@ for DIR in "$@"; do
         continue
     fi
 
+    # shellcheck disable=SC2016
     find "$DIR" -name '*.rs' -print0 | xargs -0 awk '
     BEGIN {
         # Ring buffer for last 5 lines
