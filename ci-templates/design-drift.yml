@@ -114,7 +114,7 @@
     DESIGN_DRIFT_MATCH_MODE: "file"
     DESIGN_DRIFT_GREP_FILE: ""
   before_script:
-    - apk add --no-cache curl openssh-client bash grep
+    - apk add --no-cache curl openssh-client bash grep git
   script:
     - |
       set -euo pipefail
@@ -131,22 +131,19 @@
       REPO_LABEL="${DESIGN_DRIFT_REPO_LABEL:-${CI_PROJECT_NAME}}"
 
       # ── Fetch canonical component list from _private designs ──
-      PRIVATE_PROJECT="${VAUCHI_PRIVATE_PROJECT_ID:-77957469}"
-      API_URL="${CI_API_V4_URL}/projects/${PRIVATE_PROJECT}/repository/tree?path=designs/components&ref=main&per_page=100"
-      HTTP_CODE=$(curl --silent --output /tmp/components.json --write-out "%{http_code}" \
-        --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-        "$API_URL" 2>/dev/null || echo "000")
-      COMPONENTS_JSON=$(cat /tmp/components.json 2>/dev/null || echo "[]")
+      # CI_JOB_TOKEN does not support the Repository Tree API, so we use
+      # a sparse git clone instead (CI_JOB_TOKEN supports git operations).
+      PRIVATE_REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/private.git"
+      COMPONENTS_DIR="/tmp/private-designs"
+      git clone --depth=1 --filter=blob:none --sparse \
+        "$PRIVATE_REPO_URL" "$COMPONENTS_DIR" 2>/dev/null \
+        && git -C "$COMPONENTS_DIR" sparse-checkout set designs/components 2>/dev/null \
+        || true
 
-      if [ "$HTTP_CODE" != "200" ] || [ "$COMPONENTS_JSON" = "[]" ]; then
-        echo "WARNING: Could not fetch component list from vauchi/private — skipping check"
-        echo "  HTTP status: ${HTTP_CODE}"
-        echo "  API URL: ${API_URL}"
-        if [ "$HTTP_CODE" = "404" ] || [ "$HTTP_CODE" = "403" ]; then
-          echo "  FIX: Add this project to vauchi/private → Settings → CI/CD → Job token permissions → Allowlist"
-        elif [ "$HTTP_CODE" = "000" ]; then
-          echo "  FIX: curl failed — check network connectivity from this runner"
-        fi
+      if [ ! -d "${COMPONENTS_DIR}/designs/components" ]; then
+        echo "WARNING: Could not clone component list from vauchi/private — skipping check"
+        echo "  FIX: Verify CI_JOB_TOKEN has access to vauchi/private"
+        echo "       (Settings → CI/CD → Job token permissions → Allowlist)"
         exit 0
       fi
 
@@ -155,7 +152,7 @@
       EXPECTED_COMPONENTS=""
       EXPECTED_COUNT=0
 
-      for name in $(echo "$COMPONENTS_JSON" | sed -n 's/.*"name":"\([^"]*\.md\)".*/\1/gp' | sed 's/\.md$//' | sort); do
+      for name in $(ls "${COMPONENTS_DIR}/designs/components/"*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//' | sort); do
         case "$name" in README|INDEX) continue ;; esac
         SKIP=false
         for p in $PLANNED; do

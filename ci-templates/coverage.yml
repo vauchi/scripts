@@ -68,7 +68,7 @@
     - |
       # Fetch push-coverage.sh from vauchi/scripts (public repo, no auth needed)
       curl --silent --fail \
-        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fpush-coverage.sh/raw?ref=main" \
+        "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fci%2Fpush-coverage.sh/raw?ref=main" \
         -o push-coverage.sh
       chmod +x push-coverage.sh
     - |
