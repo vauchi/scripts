@@ -15,7 +15,7 @@
 #   - .timeout-quick: 10 minutes (lint, format check)
 #   - .timeout-standard: 30 minutes (unit tests, build)
 #   - .timeout-long: 1 hour (coverage, full test suite, cross-compile)
-#   - .timeout-extended: 2 hours (iOS build, Android multi-arch)
+#   - .timeout-extended: 90 minutes (iOS/macOS build, Android multi-arch)
 
 # Quick jobs (lint, format check) - 10 minutes
 .timeout-quick:
@@ -29,10 +29,10 @@
 .timeout-long:
   timeout: 1 hour
 
-# Very long jobs (iOS build, Android multi-arch) - 60 minutes
-# Reduced from 2 hours to avoid masking runner hangs and resource_group
-# deadlocks (see post-mortem 2026-03-28). Raised from 45 to 60 minutes:
-# cold-cache SPM builds (swift-syntax from source) take 40-55 min on
-# shared runners. Warm builds still complete in 15-20 min.
+# Very long jobs (iOS build, Android multi-arch) - 90 minutes
+# Raised from 60 to 90 minutes: cold-cache SPM builds (swift-syntax
+# 602.0.0 from source) can take >60min. DerivedData caching (.derived-data/)
+# makes warm builds ~30s, but first run after cache bust needs headroom.
+# Still well below 2h to catch genuine hangs (post-mortem 2026-03-28).
 .timeout-extended:
-  timeout: 60 minutes
+  timeout: 90 minutes
