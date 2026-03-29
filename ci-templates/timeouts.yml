@@ -29,8 +29,10 @@
 .timeout-long:
   timeout: 1 hour
 
-# Very long jobs (iOS build, Android multi-arch) - 45 minutes
-# Reduced from 2 hours: real builds take 15-20 min, 2h masked runner hangs
-# and caused resource_group deadlocks (see post-mortem 2026-03-28).
+# Very long jobs (iOS build, Android multi-arch) - 60 minutes
+# Reduced from 2 hours to avoid masking runner hangs and resource_group
+# deadlocks (see post-mortem 2026-03-28). Raised from 45 to 60 minutes:
+# cold-cache SPM builds (swift-syntax from source) take 40-55 min on
+# shared runners. Warm builds still complete in 15-20 min.
 .timeout-extended:
-  timeout: 45 minutes
+  timeout: 60 minutes
