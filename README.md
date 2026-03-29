@@ -305,28 +305,35 @@ just dev-clean         # cleanup.sh
 
 ### Always use numeric project IDs in API calls
 
-`CI_JOB_TOKEN` cannot resolve **private** project paths (e.g. `vauchi%2Fprivate`) via the GitLab API — it returns 404 even with the inbound allowlist correctly configured. To avoid this pitfall entirely, **always use numeric project IDs** for all cross-project API access, regardless of visibility.
+`CI_JOB_TOKEN` cannot resolve **private** project paths
+(e.g. `vauchi%2Fprivate`) via the GitLab API — it returns
+404 even with the inbound allowlist correctly configured.
+Always use **numeric project IDs** for all cross-project
+API access, regardless of visibility.
 
 ```yaml
-# Bad — breaks for private projects, fragile for all
-curl "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/..."
+# Bad — breaks for private projects
+curl "${CI_API_V4_URL}/projects/vauchi%2Fscripts/..."
 
-# Good — works for all project visibilities
-curl "${CI_API_V4_URL}/projects/77957857/repository/..."
+# Good — works for all visibilities
+curl "${CI_API_V4_URL}/projects/77957857/..."
 ```
 
-| Project | ID |
-|---------|-----|
-| vauchi/private | 77957469 |
-| vauchi/scripts | 77957857 |
+| Project          | ID       |
+| ---------------- | -------- |
+| vauchi/private   | 77957469 |
+| vauchi/scripts   | 77957857 |
 
 ### Repository Tree API does not support CI_JOB_TOKEN
 
-Even with numeric project IDs, the `/repository/tree` endpoint returns 404 with `CI_JOB_TOKEN`. Use a sparse `git clone` instead:
+Even with numeric project IDs, the `/repository/tree`
+endpoint returns 404 with `CI_JOB_TOKEN`. Use a sparse
+`git clone` instead:
 
 ```bash
 git clone --depth=1 --filter=blob:none --sparse \
-  "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/private.git" /tmp/repo
+  "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com\
+/vauchi/private.git" /tmp/repo
 git -C /tmp/repo sparse-checkout set path/to/dir
 ```
 
