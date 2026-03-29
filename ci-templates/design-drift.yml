@@ -132,13 +132,21 @@
 
       # ── Fetch canonical component list from _private designs ──
       PRIVATE_PROJECT="vauchi%2Fprivate"
-      COMPONENTS_JSON=$(curl --silent --fail \
+      API_URL="${CI_API_V4_URL}/projects/${PRIVATE_PROJECT}/repository/tree?path=designs/components&ref=main&per_page=100"
+      HTTP_CODE=$(curl --silent --output /tmp/components.json --write-out "%{http_code}" \
         --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-        "${CI_API_V4_URL}/projects/${PRIVATE_PROJECT}/repository/tree?path=designs/components&ref=main&per_page=100" \
-        2>/dev/null || echo "[]")
+        "$API_URL" 2>/dev/null || echo "000")
+      COMPONENTS_JSON=$(cat /tmp/components.json 2>/dev/null || echo "[]")
 
-      if [ "$COMPONENTS_JSON" = "[]" ]; then
-        echo "WARNING: Could not fetch component list from _private — skipping check"
+      if [ "$HTTP_CODE" != "200" ] || [ "$COMPONENTS_JSON" = "[]" ]; then
+        echo "WARNING: Could not fetch component list from vauchi/private — skipping check"
+        echo "  HTTP status: ${HTTP_CODE}"
+        echo "  API URL: ${API_URL}"
+        if [ "$HTTP_CODE" = "404" ] || [ "$HTTP_CODE" = "403" ]; then
+          echo "  FIX: Add this project to vauchi/private → Settings → CI/CD → Job token permissions → Allowlist"
+        elif [ "$HTTP_CODE" = "000" ]; then
+          echo "  FIX: curl failed — check network connectivity from this runner"
+        fi
         exit 0
       fi
 
