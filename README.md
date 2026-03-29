@@ -1,19 +1,20 @@
 <!-- SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me> -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 
+# Vauchi Dev Tools
+
 [![Pipeline](https://vauchi.gitlab.io/scripts/badges/pipeline.svg)](https://gitlab.com/vauchi/scripts/-/pipelines)
 [![REUSE](https://api.reuse.software/badge/gitlab.com/vauchi/scripts)](https://api.reuse.software/info/gitlab.com/vauchi/scripts)
 
-# Vauchi Dev Tools
-
-Cross-project development tools, scripts, and utilities for the Vauchi ecosystem.
+Cross-project development tools, scripts, and utilities
+for the Vauchi ecosystem.
 
 ## Requirements
 
 ### System Dependencies
 
 | Tool | Required | Purpose |
-|------|----------|---------|
+| --- | --- | --- |
 | Bash | Yes | All shell scripts |
 | Git | Yes | Version control operations |
 | Cargo/Rust | For Rust tests | Building and testing core |
@@ -23,8 +24,8 @@ Cross-project development tools, scripts, and utilities for the Vauchi ecosystem
 ### Optional Dependencies
 
 | Tool | Purpose | Install |
-|------|---------|---------|
-| Ollama | Local LLM for `tell-me-about.sh` | https://ollama.ai |
+| --- | --- | --- |
+| Ollama | Local LLM | <https://ollama.ai> |
 | qwen2:0.5b | Default LLM model | `ollama pull qwen2:0.5b` |
 | cargo-llvm-cov | Coverage reports | `cargo install cargo-llvm-cov` |
 | Xcode | iOS testing (macOS) | App Store |
@@ -45,15 +46,15 @@ Or manually:
 
 ## Structure
 
-```
+```text
 scripts/
 ├── scripts/                  # Main development scripts
-│   ├── dev/                  # Multi-instance testing helpers
+│   ├── dev/                  # Multi-instance testing
 │   ├── e2e/                  # End-to-end test orchestration
 │   ├── coverage/             # Coverage reporting tools
 │   └── ide/                  # IDE setup scripts
-├── hooks/                    # Git hooks (pre-commit, pre-push)
-├── archive/                  # Deprecated scripts (reference only)
+├── hooks/                    # Git hooks
+├── archive/                  # Deprecated scripts
 ├── clean.sh                  # Workspace cleanup
 └── install-hooks.sh          # Git hook installer
 ```
@@ -62,11 +63,11 @@ scripts/
 
 ### Workspace Management
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `setup-workspace.sh` | Clone all repositories | `./scripts/setup-workspace.sh` |
-| `sync-all.sh` | Pull/fetch all repos | `./scripts/sync-all.sh` |
-| `commit-interactive.sh` | Interactive multi-repo commit | `./scripts/commit-interactive.sh` |
+| Script | Purpose |
+| --- | --- |
+| `setup-workspace.sh` | Clone all repositories |
+| `sync-all.sh` | Pull/fetch all repos |
+| `commit-interactive.sh` | Interactive multi-repo commit |
 
 #### setup-workspace.sh
 
@@ -83,8 +84,8 @@ Clones all Vauchi repositories into a workspace:
 ./scripts/setup-workspace.sh -a
 
 # Environment variables
-GITLAB_BASE=git@gitlab.com:vauchi  # GitLab base URL (default)
-WORKSPACE=./vauchi-workspace       # Target directory (default)
+GITLAB_BASE=git@gitlab.com:vauchi  # default
+WORKSPACE=./vauchi-workspace       # default
 ```
 
 #### commit-interactive.sh
@@ -106,11 +107,11 @@ Interactive commit across multiple repositories:
 
 ### Testing
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `run-tests.sh` | Unified test runner | `./scripts/run-tests.sh [platform]` |
-| `tdd-setup.sh` | Configure TDD environment | `./scripts/tdd-setup.sh --strict` |
-| `feature-audit.sh` | Feature-to-test gap analysis | `./scripts/feature-audit.sh` |
+| Script | Purpose |
+| --- | --- |
+| `run-tests.sh` | Unified test runner |
+| `tdd-setup.sh` | Configure TDD environment |
+| `feature-audit.sh` | Feature-to-test gap analysis |
 
 #### run-tests.sh
 
@@ -138,7 +139,7 @@ WORKSPACE=.  # Workspace root
 Configure strict Test-Driven Development environment:
 
 ```bash
-# Enable strict TDD mode (fail commits without tests)
+# Enable strict TDD mode
 ./scripts/tdd-setup.sh --strict
 
 # Enable 90% coverage verification
@@ -153,38 +154,40 @@ Configure strict Test-Driven Development environment:
 
 ### Coverage
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `coverage-verify.sh` | Enforce 90% coverage | `./scripts/coverage-verify.sh` |
+| Script | Purpose |
+| --- | --- |
+| `coverage-verify.sh` | Enforce 90% coverage |
 
 #### coverage-verify.sh
 
-Enforce minimum test coverage (requires `cargo-llvm-cov` and `bc`):
+Enforce minimum test coverage
+(requires `cargo-llvm-cov` and `bc`):
 
 ```bash
 # Basic coverage check
 ./scripts/coverage-verify.sh
 
 # Options
-./scripts/coverage-verify.sh --min-percent 90    # Custom threshold
-./scripts/coverage-verify.sh --html              # Generate HTML report
-./scripts/coverage-verify.sh --json              # Generate JSON report
-./scripts/coverage-verify.sh --check-only        # Skip report generation
-./scripts/coverage-verify.sh --crate vauchi-core # Check specific crate
-./scripts/coverage-verify.sh --fail-on-warn      # Treat warnings as failures
+./scripts/coverage-verify.sh --min-percent 90
+./scripts/coverage-verify.sh --html
+./scripts/coverage-verify.sh --json
+./scripts/coverage-verify.sh --check-only
+./scripts/coverage-verify.sh --crate vauchi-core
+./scripts/coverage-verify.sh --fail-on-warn
 
 # Reports output to: core/target/llvm-cov/html/
 ```
 
 ### Exploration
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `tell-me-about.sh` | LLM-assisted codebase search | `./scripts/tell-me-about.sh "topic"` |
+| Script | Purpose |
+| --- | --- |
+| `tell-me-about.sh` | LLM-assisted codebase search |
 
 #### tell-me-about.sh
 
-Quick codebase exploration using local LLM (requires Ollama):
+Quick codebase exploration using local LLM
+(requires Ollama):
 
 ```bash
 # Search for a topic
@@ -193,13 +196,14 @@ Quick codebase exploration using local LLM (requires Ollama):
 ./scripts/tell-me-about.sh "crypto implementation"
 
 # Environment variables
-TELL_ME_MODEL=qwen2:0.5b  # Ollama model (default)
-PROJECT_ROOT=.            # Project root (auto-detected)
+TELL_ME_MODEL=qwen2:0.5b  # default model
+PROJECT_ROOT=.             # auto-detected
 ```
 
 ### Multi-Instance Testing (scripts/dev/)
 
-Test sync/exchange between multiple simulated "devices":
+Test sync/exchange between multiple simulated
+"devices":
 
 ```bash
 # Terminal 1: Start local relay
@@ -218,9 +222,9 @@ Test sync/exchange between multiple simulated "devices":
 ```
 
 | Script | Purpose |
-|--------|---------|
+| --- | --- |
 | `_common.sh` | Shared variables and utilities |
-| `local-relay.sh` | Start local relay (memory storage) |
+| `local-relay.sh` | Start local relay (memory) |
 | `local-relay-tls.sh` | Start local relay with TLS |
 | `multi-cli.sh` | Run CLI with isolated data |
 | `multi-tui.sh` | Run TUI with isolated data |
@@ -231,16 +235,16 @@ Test sync/exchange between multiple simulated "devices":
 **Environment variables:**
 
 ```bash
-VAUCHI_RELAY_PORT=8080       # Relay port (default)
-VAUCHI_RELAY_HOST=127.0.0.1  # Relay host (default)
-VAUCHI_TEST_DATA=./tmp/test-data  # Test data directory
+VAUCHI_RELAY_PORT=8080       # default
+VAUCHI_RELAY_HOST=127.0.0.1  # default
+VAUCHI_TEST_DATA=./tmp/test-data
 ```
 
 ### Version Management
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `bump-version.sh` | Sync version across all platforms | `./scripts/bump-version.sh 0.2.0` |
+| Script | Purpose |
+| --- | --- |
+| `bump-version.sh` | Sync version across platforms |
 
 #### bump-version.sh
 
@@ -252,16 +256,16 @@ Synchronize version across Rust, Android, and iOS:
 
 # Updates:
 # - All Cargo.toml files
-# - Android build.gradle.kts (versionName + auto-increment versionCode)
-# - iOS Info.plist (CFBundleShortVersionString + CFBundleVersion)
+# - Android build.gradle.kts
+# - iOS Info.plist
 ```
 
 ### Verification
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `verify-roadmap.sh` | Verify roadmap claims against code | `./scripts/verify-roadmap.sh` |
-| `check_inline_tests.sh` | Validate inline test markers | `./scripts/check_inline_tests.sh` |
+| Script | Purpose |
+| --- | --- |
+| `verify-roadmap.sh` | Verify roadmap vs code |
+| `check_inline_tests.sh` | Validate inline test markers |
 
 ## Git Hooks
 
@@ -313,16 +317,16 @@ API access, regardless of visibility.
 
 ```yaml
 # Bad — breaks for private projects
-curl "${CI_API_V4_URL}/projects/vauchi%2Fscripts/..."
+curl ".../projects/vauchi%2Fscripts/..."
 
 # Good — works for all visibilities
-curl "${CI_API_V4_URL}/projects/77957857/..."
+curl ".../projects/77957857/..."
 ```
 
-| Project          | ID       |
-| ---------------- | -------- |
-| vauchi/private   | 77957469 |
-| vauchi/scripts   | 77957857 |
+| Project | ID |
+| --- | --- |
+| vauchi/private | 77957469 |
+| vauchi/scripts | 77957857 |
 
 ### Repository Tree API does not support CI_JOB_TOKEN
 
@@ -332,8 +336,8 @@ endpoint returns 404 with `CI_JOB_TOKEN`. Use a sparse
 
 ```bash
 git clone --depth=1 --filter=blob:none --sparse \
-  "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com\
-/vauchi/private.git" /tmp/repo
+  "https://gitlab-ci-token:${CI_JOB_TOKEN}@\
+gitlab.com/vauchi/private.git" /tmp/repo
 git -C /tmp/repo sparse-checkout set path/to/dir
 ```
 
@@ -348,11 +352,15 @@ Deprecated scripts kept for reference in `archive/`:
 ## Related Repositories
 
 | Repository | Description |
-|------------|-------------|
-| [vauchi/core](https://gitlab.com/vauchi/core) | Core Rust library |
-| [vauchi/features](https://gitlab.com/vauchi/features) | Gherkin feature specs |
-| [vauchi/docs](https://gitlab.com/vauchi/docs) | Documentation |
+| --- | --- |
+| [vauchi/core] | Core Rust library |
+| [vauchi/features] | Gherkin feature specs |
+| [vauchi/docs] | Documentation |
+
+[vauchi/core]: https://gitlab.com/vauchi/core
+[vauchi/features]: https://gitlab.com/vauchi/features
+[vauchi/docs]: https://gitlab.com/vauchi/docs
 
 ## License
 
-MIT
+GPL-3.0-or-later
