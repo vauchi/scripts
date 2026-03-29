@@ -143,3 +143,43 @@ quality:metrics-dashboard:
       - metrics-dashboard.json
     expire_in: 90 days
   timeout: 10 minutes
+
+# ============================================================
+# Scenario Annotation Coverage (PI-27)
+# ============================================================
+# Warns when #[test] functions lack // @scenario: or // @internal
+# annotations. Advisory — warns but does not block the pipeline.
+# Tracks traceability between tests and Gherkin feature scenarios.
+
+quality:scenario-annotations:
+  extends: .linux-runner-nocache
+  stage: lint
+  needs: []
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/*.rs"
+          - ".gitlab-ci.yml"
+  script:
+    - |
+      curl -fsSL "https://gitlab.com/vauchi/scripts/-/raw/${CI_DEFAULT_BRANCH}/scripts/check-scenario-annotations.sh" \
+        -o /tmp/check-scenario-annotations.sh
+      chmod +x /tmp/check-scenario-annotations.sh
+
+      DIRS=""
+      for dir in tests src; do
+        [ -d "$dir" ] && DIRS="$DIRS $dir"
+      done
+      for dir in */tests */src; do
+        [ -d "$dir" ] && DIRS="$DIRS $dir"
+      done
+
+      if [ -n "$DIRS" ]; then
+        /tmp/check-scenario-annotations.sh $DIRS
+      else
+        echo "No test directories found — skipping"
+      fi
+  timeout: 5 minutes
