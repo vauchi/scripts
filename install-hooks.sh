@@ -20,25 +20,18 @@ fi
 
 chmod +x "$HOOKS_DIR"/*
 
-# All repos that get hooks
-REPOS=(
-    "$REPO_ROOT"
-    "$REPO_ROOT/core"
-    "$REPO_ROOT/cli"
-    "$REPO_ROOT/tui"
-    "$REPO_ROOT/relay"
-    "$REPO_ROOT/desktop"
-    "$REPO_ROOT/e2e"
-    "$REPO_ROOT/ios"
-    "$REPO_ROOT/android"
-    "$REPO_ROOT/docs"
-    "$REPO_ROOT/_private"
-    "$REPO_ROOT/linux-gtk"
-    "$REPO_ROOT/linux-qt"
-    "$REPO_ROOT/macos"
-    "$REPO_ROOT/windows"
-    "$REPO_ROOT/web-demo"
-)
+# All repos that get hooks (auto-discover all .git dirs, skip archived)
+REPOS=()
+for dir in "$REPO_ROOT" "$REPO_ROOT"/*/; do
+    dir="${dir%/}"
+    [[ -d "$dir/.git" ]] || continue
+    name="$(basename "$dir")"
+    # Skip archived repos
+    case "$name" in
+        vauchi-platform-kotlin|desktop) continue ;;
+    esac
+    REPOS+=("$dir")
+done
 
 echo "Setting core.hooksPath → $HOOKS_DIR"
 
