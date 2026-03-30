@@ -36,7 +36,7 @@
         VRT_UPLOAD_URL="${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fvrt-upload.sh/raw?ref=main"
         curl --silent --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
           "$VRT_UPLOAD_URL" -o vrt-upload.sh && chmod +x vrt-upload.sh
-        VRT_API_URL="${VRT_API_URL:-https://vrt.vauchi.app}" \
+        VRT_API_URL="${VRT_API_URL:-https://vrt-api.vauchi.app}" \
         VRT_PROJECT="${VRT_PROJECT:-vauchi}" \
         VRT_BRANCH="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-${CI_COMMIT_REF_NAME}}" \
         VRT_CI_BUILD_ID="${CI_PIPELINE_ID}" \
