@@ -106,7 +106,7 @@ for png in "$VRT_SCREENSHOT_DIR"/*.png; do
     NAME=$(basename "$png" .png | tr '_' ' ' | tr '-' ' ')
     IMAGE_B64=$(base64 < "$png" | tr -d '\n')
 
-    RESPONSE=$(curl -sf -X POST \
+    if ! curl -sf -X POST \
         "${VRT_API_URL}/test-runs" \
         -H "Content-Type: application/json" \
         -H "apiKey: ${VRT_API_KEY}" \
@@ -119,11 +119,11 @@ for png in "$VRT_SCREENSHOT_DIR"/*.png; do
             \"imageBase64\": \"${IMAGE_B64}\",
             \"os\": \"${VRT_PLATFORM}\",
             \"diffTollerancePercent\": ${VRT_DIFF_TOLERANCE}
-        }" 2>&1) || {
+        }" > /dev/null 2>&1; then
         echo "[vrt-upload]   WARN: Failed to upload $(basename "$png")"
         FAILED=$((FAILED + 1))
         continue
-    }
+    fi
 
     UPLOADED=$((UPLOADED + 1))
 done
