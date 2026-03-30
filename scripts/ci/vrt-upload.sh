@@ -21,9 +21,9 @@
 #   VRT_DIFF_TOLERANCE   — diff tolerance percent (default: 0.5)
 #
 # API reference (from sdk-js source):
-#   POST /builds          — create build (headers: apiKey, project)
-#   POST /test-runs       — upload screenshot (base64)
-#   PATCH /builds/:id     — close build
+#   POST /api/builds      — create build (headers: apiKey, project)
+#   POST /api/test-runs   — upload screenshot (base64)
+#   PATCH /api/builds/:id — close build
 
 set -euo pipefail
 
@@ -71,7 +71,7 @@ echo "[vrt-upload] Branch: $VRT_BRANCH | Build: $VRT_CI_BUILD_ID"
 # ── Step 1: Create build ──────────────────────────────────────
 
 BUILD_RESPONSE=$(curl -sf -X POST \
-    "${VRT_API_URL}/builds" \
+    "${VRT_API_URL}/api/builds" \
     -H "Content-Type: application/json" \
     -H "apiKey: ${VRT_API_KEY}" \
     -H "project: ${VRT_PROJECT}" \
@@ -107,7 +107,7 @@ for png in "$VRT_SCREENSHOT_DIR"/*.png; do
     IMAGE_B64=$(base64 < "$png" | tr -d '\n')
 
     if ! curl -sf -X POST \
-        "${VRT_API_URL}/test-runs" \
+        "${VRT_API_URL}/api/test-runs" \
         -H "Content-Type: application/json" \
         -H "apiKey: ${VRT_API_KEY}" \
         -H "project: ${VRT_PROJECT}" \
