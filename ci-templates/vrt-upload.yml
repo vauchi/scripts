@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# VRT Upload Template
+# Uploads screenshots to Visual Regression Tracker after snapshot tests.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/vrt-upload.yml'
+#
+# Provides:
+#   - .vrt-upload-script: Reusable script block for after_script
+#
+# Variables (set by consumer jobs):
+#   VRT_PLATFORM:        Platform label (ios, macos, android, web-demo)
+#   VRT_SCREENSHOT_DIR:  Directory containing *.png files
+#
+# Variables (set at group level):
+#   VRT_API_KEY:         Project API key (masked)
+#
+# Example:
+#   test:snapshots:
+#     extends: [.macos-job]
+#     script:
+#       - ... run tests ...
+#     after_script:
+#       - !reference [.vrt-upload-script, script]
+
+.vrt-upload-script:
+  script:
+    - |
+      if [ -n "${VRT_API_KEY:-}" ]; then
+        VRT_UPLOAD_URL="${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fvrt-upload.sh/raw?ref=main"
+        curl --silent --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+          "$VRT_UPLOAD_URL" -o vrt-upload.sh && chmod +x vrt-upload.sh
+        VRT_API_URL="${VRT_API_URL:-https://vrt.vauchi.app}" \
+        VRT_PROJECT="${VRT_PROJECT:-vauchi}" \
+        VRT_BRANCH="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-${CI_COMMIT_REF_NAME}}" \
+        VRT_CI_BUILD_ID="${CI_PIPELINE_ID}" \
+        ./vrt-upload.sh || echo "[vrt] Upload failed (advisory)"
+      fi
