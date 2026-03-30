@@ -41,6 +41,33 @@ if [[ "$HEAD_MSG" == wip:* ]]; then
     exit 1
 fi
 
+# ─── Main branch push guard ───────────────────────────────────────
+# Block direct pushes to main. GitLab Owner role bypasses server-side
+# branch protection — this hook enforces MR-only workflow locally.
+# Skip: --no-verify (escape hatch), or --tags (tag-only push).
+
+if [[ "$BRANCH" == "main" ]]; then
+    # Allow tag-only pushes (no branch ref pushed)
+    TAG_ONLY=true
+    while read local_ref local_sha remote_ref remote_sha; do
+        if [[ "$remote_ref" != refs/tags/* ]]; then
+            TAG_ONLY=false
+            break
+        fi
+    done
+    if [[ "$TAG_ONLY" == "false" ]]; then
+        echo ""
+        echo "BLOCKED: Direct push to main. Use a branch + MR:"
+        echo "  1. git checkout -b feature/<topic>"
+        echo "  2. ... make changes ..."
+        echo "  3. git push -u origin feature/<topic>"
+        echo "  4. just gitlab mr-create"
+        echo ""
+        echo "Escape hatch: git push --no-verify (not recommended)"
+        exit 1
+    fi
+fi
+
 # ─── Stale base guard ──────────────────────────────────────────────
 # If pushing a feature branch that is not rebased on origin/main,
 # rebase locally then block this push. Git computes refs-to-push
