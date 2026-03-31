@@ -117,44 +117,11 @@ rules:
       confidence: HIGH
 
   # ============================================================
-  # Security patterns
-  # ============================================================
-
-  - id: vauchi-no-println-in-lib
-    patterns:
-      - pattern: println!(...)
-    message: >
-      Do not use println!() in library code. Use proper logging
-      (tracing/log crate) or return values. println!() bypasses
-      structured logging and may leak information.
-    severity: WARNING
-    languages: [rust]
-    paths:
-      include:
-        - "**/src/**"
-      exclude:
-        - "**/src/main.rs"
-        - "**/src/bin/**"
-        - "**/examples/**"
-    metadata:
-      category: security
-      confidence: MEDIUM
-
-  - id: vauchi-no-dbg-macro
-    patterns:
-      - pattern: dbg!(...)
-    message: >
-      Remove dbg!() macro before committing. It writes to stderr
-      and may expose sensitive data in production builds.
-    severity: ERROR
-    languages: [rust]
-    paths:
-      exclude:
-        - "**/tests/**"
-    metadata:
-      category: security
-      confidence: HIGH
-
+  # Security patterns — defined in vauchi-security.yml (SAST dashboard).
+  # Do not duplicate here. For local use:
+  #   semgrep --config scripts/semgrep-rules/vauchi-security.yml .
+  #
   # Note: unwrap() linting is handled by Clippy (clippy::unwrap_used)
   # which has better context awareness than Semgrep for Rust.
   # A Semgrep rule produces too many false positives (~645 in core alone).
+  # ============================================================

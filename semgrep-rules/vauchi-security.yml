@@ -43,6 +43,19 @@ rules:
 
   # ============================================================
   # Information leak prevention
+  #
+  # NOTE: The println/eprintln rules target library crates only.
+  # Binary-only crates (no lib.rs) legitimately use println!/eprintln!
+  # for user-facing output. Those repos should disable the rule in
+  # their .gitlab/sast-ruleset.toml:
+  #
+  #   [[semgrep.ruleset]]
+  #     disable = true
+  #     [semgrep.ruleset.identifier]
+  #       type = "semgrep_id"
+  #       value = "vauchi-no-println-in-lib"
+  #
+  # Currently disabled in: cli (println), linux-gtk (eprintln)
   # ============================================================
 
   - id: vauchi-no-println-in-lib
@@ -52,6 +65,7 @@ rules:
       Do not use println!() in library code. Use proper logging
       (tracing/log crate) or return values. println!() bypasses
       structured logging and may leak information.
+      Binary-only crates should disable this rule via sast-ruleset.toml.
     severity: WARNING
     languages: [rust]
     paths:
