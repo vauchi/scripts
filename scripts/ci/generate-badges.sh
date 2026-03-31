@@ -12,7 +12,9 @@
 #   generate-badges.sh <output_dir>
 #
 # Environment (set by CI):
-#   CI_API_V4_URL, CI_PROJECT_ID, CI_PIPELINE_ID, CI_JOB_TOKEN
+#   CI_API_V4_URL, CI_PROJECT_ID, CI_DEFAULT_BRANCH, CI_JOB_TOKEN
+#
+# Dependencies: bash, curl, jq
 #
 # The script queries the GitLab API to determine pipeline status and
 # coverage percentage, then writes SVG files that can be served via
@@ -62,17 +64,20 @@ SVGEOF
 }
 
 # --- Determine pipeline status ---
+# Query the most recent completed pipeline on the default branch.
+# This job uses needs:[] so the current pipeline is always "running" —
+# we skip it to show the last meaningful result.
 PIPELINE_STATUS="unknown"
 if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
-  PIPELINE_JSON=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${CI_PIPELINE_ID}" 2>/dev/null || echo '{}')
-  PIPELINE_STATUS=$(echo "$PIPELINE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
+  PIPELINE_STATUS=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines?ref=${CI_DEFAULT_BRANCH}&per_page=5" \
+    | jq -r '[.[] | select(.status == "success" or .status == "failed" or .status == "canceled")][0].status // "unknown"' \
+    2>/dev/null || echo "unknown")
 fi
 
 case "$PIPELINE_STATUS" in
   success)  STATUS_COLOR="#4c1";     STATUS_LABEL="passed" ;;
   failed)   STATUS_COLOR="#e05d44";  STATUS_LABEL="failed" ;;
-  running)  STATUS_COLOR="#dfb317";  STATUS_LABEL="running" ;;
   canceled) STATUS_COLOR="#9f9f9f";  STATUS_LABEL="canceled" ;;
   *)        STATUS_COLOR="#9f9f9f";  STATUS_LABEL="unknown" ;;
 esac
@@ -80,29 +85,22 @@ esac
 echo "Pipeline status: ${STATUS_LABEL}"
 generate_badge "pipeline" "$STATUS_LABEL" "$STATUS_COLOR" "${OUTPUT_DIR}/pipeline.svg"
 
-# --- Determine coverage (optional) ---
-# The badge job runs with needs:[] so the current pipeline has no coverage yet.
-# Query the latest COMPLETED main pipeline's jobs for coverage data.
-# GitLab often has coverage at job level but not pipeline level.
+# --- Determine coverage ---
+# Query the latest successful main pipeline's jobs for coverage data.
 COVERAGE=""
 if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
-  # Find the latest successful main pipeline
   LAST_PID=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines?ref=${CI_DEFAULT_BRANCH}&status=success&per_page=1" 2>/dev/null \
-    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" 2>/dev/null || echo "")
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines?ref=${CI_DEFAULT_BRANCH}&status=success&per_page=1" \
+    | jq -r '.[0].id // empty' 2>/dev/null || echo "")
 
   if [ -n "$LAST_PID" ]; then
-    # Get the highest coverage from any job in that pipeline
-    COVERAGE=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${LAST_PID}/jobs?per_page=100" 2>/dev/null \
-      | python3 -c "
-import sys, json
-jobs = json.load(sys.stdin)
-coverages = [j['coverage'] for j in jobs if j.get('coverage') is not None]
-if coverages:
-    # Use the max coverage (typically the main coverage job, not mobile subset)
-    print(f'{max(coverages):.1f}')
-" 2>/dev/null || echo "")
+    COV_RAW=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${LAST_PID}/jobs?per_page=100" \
+      | jq -r '[.[].coverage | select(. != null)] | if length > 0 then max else empty end' \
+      2>/dev/null || echo "")
+    if [ -n "$COV_RAW" ]; then
+      COVERAGE=$(printf "%.1f" "$COV_RAW")
+    fi
   fi
 fi
 
@@ -123,39 +121,43 @@ if [ -n "$COVERAGE" ]; then
   echo "Coverage: ${COVERAGE}%"
   generate_badge "coverage" "${COVERAGE}%" "$COV_COLOR" "${OUTPUT_DIR}/coverage.svg"
 else
-  echo "No coverage data available"
+  echo "No coverage data — generating fallback badge"
+  generate_badge "coverage" "N/A" "#9f9f9f" "${OUTPUT_DIR}/coverage.svg"
 fi
 
-# --- Determine latest tags (optional) ---
-# Fetch latest stable (vX.Y.Z) and dev (vX.Y.Z-dev.N) tags
+# --- Determine latest tags ---
+# Fetch latest stable (vX.Y.Z) and dev (vX.Y.Z-dev.N) tags.
+# Always generate badge files so URLs never 404.
 if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
   TAGS_JSON=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags?per_page=50&order_by=version" 2>/dev/null || echo '[]')
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags?per_page=50&order_by=version" \
+    2>/dev/null || echo '[]')
 
-  read -r PROD_TAG DEV_TAG <<< "$(echo "$TAGS_JSON" | python3 -c "
-import sys, json, re
-tags = json.load(sys.stdin)
-prod = dev = ''
-for t in tags:
-    name = t.get('name', '')
-    if not prod and re.match(r'^v\d+\.\d+\.\d+$', name):
-        prod = name
-    elif not dev and re.match(r'^v\d+\.\d+\.\d+-dev\.\d+$', name):
-        dev = name
-    if prod and dev:
-        break
-print(f'{prod} {dev}')
-" 2>/dev/null || echo " ")"
+  PROD_TAG=$(echo "$TAGS_JSON" \
+    | jq -r '[.[] | .name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))][0] // empty' \
+    2>/dev/null || echo "")
+  DEV_TAG=$(echo "$TAGS_JSON" \
+    | jq -r '[.[] | .name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+-dev\\.[0-9]+$"))][0] // empty' \
+    2>/dev/null || echo "")
 
   if [ -n "$PROD_TAG" ]; then
     echo "Latest release: ${PROD_TAG}"
     generate_badge "release" "$PROD_TAG" "#0e80c0" "${OUTPUT_DIR}/release.svg"
+  else
+    generate_badge "release" "none" "#9f9f9f" "${OUTPUT_DIR}/release.svg"
   fi
 
   if [ -n "$DEV_TAG" ]; then
     echo "Latest dev: ${DEV_TAG}"
     generate_badge "dev" "$DEV_TAG" "#6e5494" "${OUTPUT_DIR}/dev.svg"
+  else
+    generate_badge "dev" "none" "#9f9f9f" "${OUTPUT_DIR}/dev.svg"
   fi
+else
+  # API unavailable — generate placeholders so badge URLs still resolve
+  generate_badge "coverage" "N/A" "#9f9f9f" "${OUTPUT_DIR}/coverage.svg"
+  generate_badge "release" "N/A" "#9f9f9f" "${OUTPUT_DIR}/release.svg"
+  generate_badge "dev" "N/A" "#9f9f9f" "${OUTPUT_DIR}/dev.svg"
 fi
 
 echo "Badges written to ${OUTPUT_DIR}/"

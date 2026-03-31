@@ -24,9 +24,9 @@
 # badge generation into the existing job instead of using this template.
 # See the script generate-badges.sh for details.
 #
-# Note: The badge job queries the current pipeline's status via the
-# GitLab API using CI_JOB_TOKEN. Coverage data comes from the pipeline
-# API response (requires coverage regex to be configured in CI).
+# Note: The badge job queries the last completed pipeline's status via
+# the GitLab API using CI_JOB_TOKEN. Coverage data comes from the most
+# recent successful pipeline (requires coverage regex in CI).
 
 .badges-pages:
   stage: deploy
@@ -34,7 +34,7 @@
     - docker
   image: alpine:3.21
   before_script:
-    - apk add --no-cache bash curl >/dev/null 2>&1
+    - apk add --no-cache bash curl jq >/dev/null 2>&1
   rules:
     # Only deploy badges on main branch (not MRs, not triggered pipelines)
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
