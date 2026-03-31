@@ -94,6 +94,32 @@ rules:
       category: security
       confidence: HIGH
 
+  # ============================================================
+  # Unsafe code enforcement
+  #
+  # The community rule `rust.lang.security.unsafe-usage.unsafe-usage`
+  # fires on ALL unsafe code including vauchi-cabi (C ABI crate where
+  # unsafe is inherent). We replace it with a targeted rule that only
+  # flags unsafe in vauchi-core, where zero-unsafe is a design invariant.
+  # core repo disables the community rule via sast-ruleset.toml.
+  # ============================================================
+
+  - id: vauchi-no-unsafe-in-core
+    patterns:
+      - pattern: unsafe { ... }
+    message: >
+      vauchi-core must contain zero unsafe code. All unsafe FFI
+      belongs in vauchi-cabi or vauchi-platform. If you need unsafe
+      here, discuss in an ADR first.
+    severity: ERROR
+    languages: [rust]
+    paths:
+      include:
+        - "vauchi-core/src/**"
+    metadata:
+      category: security
+      confidence: HIGH
+
   - id: vauchi-no-eprintln-in-lib
     patterns:
       - pattern: eprintln!(...)
