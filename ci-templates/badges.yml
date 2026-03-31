@@ -17,8 +17,8 @@
 #     extends: .badges-pages
 #
 # The generated badges are accessible at:
-#   https://vauchi.gitlab.io/<repo>/badges/pipeline.svg
-#   https://vauchi.gitlab.io/<repo>/badges/coverage.svg
+#   SVG:  https://vauchi.gitlab.io/<repo>/badges/pipeline.svg
+#   JSON: https://vauchi.gitlab.io/<repo>/badges/pipeline.json (shields.io endpoint)
 #
 # For repos that already have a pages job (docs, website), merge the
 # badge generation into the existing job instead of using this template.
