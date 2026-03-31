@@ -101,22 +101,25 @@ esac
 generate_endpoint "pipeline" "$STATUS_LABEL" "$EP_COLOR" "${OUTPUT_DIR}/pipeline.json"
 
 # --- Determine coverage ---
-# Query the latest successful main pipeline's jobs for coverage data.
+# Search recent successful pipelines for coverage data. Coverage jobs
+# only run when source files change, so the most recent pipeline may
+# not have coverage. Check up to 5 pipelines to find the latest value.
 COVERAGE=""
 if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
-  LAST_PID=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines?ref=${CI_DEFAULT_BRANCH}&status=success&per_page=1" \
-    | jq -r '.[0].id // empty' 2>/dev/null || echo "")
+  RECENT_PIDS=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines?ref=${CI_DEFAULT_BRANCH}&status=success&per_page=5" \
+    | jq -r '.[].id' 2>/dev/null || echo "")
 
-  if [ -n "$LAST_PID" ]; then
+  for PID in $RECENT_PIDS; do
     COV_RAW=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${LAST_PID}/jobs?per_page=100" \
+      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${PID}/jobs?per_page=100" \
       | jq -r '[.[].coverage | select(. != null)] | if length > 0 then max else empty end' \
       2>/dev/null || echo "")
     if [ -n "$COV_RAW" ]; then
       COVERAGE=$(printf "%.1f" "$COV_RAW")
+      break
     fi
-  fi
+  done
 fi
 
 if [ -n "$COVERAGE" ]; then
