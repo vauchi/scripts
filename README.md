@@ -3,7 +3,7 @@
 
 # Vauchi Dev Tools
 
-[![Pipeline](https://vauchi.gitlab.io/scripts/badges/pipeline.svg)](https://gitlab.com/vauchi/scripts/-/pipelines)
+[![Pipeline](https://img.shields.io/endpoint?url=https://vauchi.gitlab.io/scripts/badges/pipeline.json&label=pipeline)](https://gitlab.com/vauchi/scripts/-/pipelines)
 [![REUSE](https://api.reuse.software/badge/gitlab.com/vauchi/scripts)](https://api.reuse.software/info/gitlab.com/vauchi/scripts)
 
 Cross-project development tools, scripts, and utilities
