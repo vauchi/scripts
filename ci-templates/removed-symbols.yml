@@ -37,10 +37,9 @@
   script:
     - |
       set -euo pipefail
-      apk add --no-cache curl grep >/dev/null 2>&1 || true
 
-      # Fetch removed-symbols.txt from root repo
-      MANIFEST=$(curl -sf \
+      # Fetch removed-symbols.txt from root repo (busybox wget — no apk install)
+      MANIFEST=$(wget -qO- \
         --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
         "${CI_API_V4_URL}/projects/${ROOT_PROJECT_ID}/repository/files/removed-symbols.txt/raw?ref=main" \
         2>/dev/null || echo "")
@@ -58,6 +57,7 @@
         exit 0
       fi
 
+      # Validate search directories
       # shellcheck disable=SC2086
       search_dirs=""
       for d in ${SEARCH_DIRS}; do
@@ -69,29 +69,46 @@
         exit 0
       fi
 
-      # Capture stale references (pipe runs in subshell — can't mutate errors directly)
-      stale_output=$(printf '%s\n' "$symbols" | while IFS= read -r symbol; do
-        [ -z "$symbol" ] && continue
-        matches=$(grep -rlF "$symbol" $search_dirs \
-          --include='*.rs' --include='*.cpp' --include='*.h' \
-          --include='*.py' --include='*.md' --include='*.yml' \
-          --include='*.yaml' --include='*.toml' --include='*.json' \
-          --include='*.sh' --include='*.txt' \
-          2>/dev/null || true)
+      # Write symbols to temp file for single-pass grep -f
+      sym_file=$(mktemp)
+      trap 'rm -f "$sym_file"' EXIT
+      printf '%s\n' "$symbols" > "$sym_file"
 
-        if [ -n "$matches" ]; then
-          echo "STALE REFERENCE: '$symbol' found in:"
-          printf '%s\n' "$matches" | while IFS= read -r m; do echo "  $m"; done
-        fi
-      done)
+      # Build find extension filter
+      # (busybox grep lacks --include; use find for file filtering)
+      # shellcheck disable=SC2086
+      stale_files=$(find $search_dirs -type f \( \
+        -name '*.rs' -o -name '*.cpp' -o -name '*.h' \
+        -o -name '*.py' -o -name '*.md' -o -name '*.yml' \
+        -o -name '*.yaml' -o -name '*.toml' -o -name '*.json' \
+        -o -name '*.sh' -o -name '*.txt' \) \
+        -exec grep -lFf "$sym_file" {} + 2>/dev/null || true)
 
-      if [ -z "$stale_output" ]; then
+      if [ -z "$stale_files" ]; then
         echo "OK: No stale references to removed symbols"
-      else
-        echo "$stale_output"
-        errors=$(echo "$stale_output" | grep -c 'STALE REFERENCE:' || true)
-        echo ""
-        echo "FAILED: $errors removed symbol(s) still referenced"
-        echo "Update the listed files or check removed-symbols.txt in vauchi/vauchi."
-        exit 1
+        exit 0
       fi
+
+      # Detailed per-symbol report (only on failure — rare path)
+      errors=0
+      while IFS= read -r symbol; do
+        [ -z "$symbol" ] && continue
+        # shellcheck disable=SC2086
+        sym_matches=$(find $search_dirs -type f \( \
+          -name '*.rs' -o -name '*.cpp' -o -name '*.h' \
+          -o -name '*.py' -o -name '*.md' -o -name '*.yml' \
+          -o -name '*.yaml' -o -name '*.toml' -o -name '*.json' \
+          -o -name '*.sh' -o -name '*.txt' \) \
+          -exec grep -lF "$symbol" {} + 2>/dev/null || true)
+
+        if [ -n "$sym_matches" ]; then
+          echo "STALE REFERENCE: '$symbol' found in:"
+          printf '%s\n' "$sym_matches" | while IFS= read -r m; do printf '  %s\n' "$m"; done
+          errors=$((errors + 1))
+        fi
+      done < "$sym_file"
+
+      echo ""
+      echo "FAILED: $errors removed symbol(s) still referenced"
+      echo "Update the listed files or check removed-symbols.txt in vauchi/vauchi."
+      exit 1
