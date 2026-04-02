@@ -308,6 +308,7 @@ if [ "$ios_count" -gt 0 ]; then
         name="$(basename "$f" .png)"
         # Convert testCamelCase to readable: strip 'test' prefix, add spaces before caps
         label=$(echo "${name%.1}" | sed 's/^test//' | sed 's/\([a-z]\)\([A-Z]\)/\1 \2/g')
+        label=$(printf '%s' "$label" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
         echo "<div class=\"card\"><h3>$label</h3><img src=\"images/ios/$(basename "$f")\" alt=\"$label\" loading=\"lazy\" onclick=\"openLightbox(this)\"></div>" >> "$OUTPUT_FILE"
     done
 else
@@ -328,6 +329,7 @@ if [ "$macos_count" -gt 0 ]; then
         [ -f "$f" ] || continue
         name="$(basename "$f" .png)"
         label=$(echo "${name%.1}" | sed 's/^test//' | sed 's/\([a-z]\)\([A-Z]\)/\1 \2/g')
+        label=$(printf '%s' "$label" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
         echo "<div class=\"card\"><h3>$label</h3><img src=\"images/macos/$(basename "$f")\" alt=\"$label\" loading=\"lazy\" onclick=\"openLightbox(this)\"></div>" >> "$OUTPUT_FILE"
     done
 else
@@ -349,6 +351,7 @@ if [ "$android_count" -gt 0 ]; then
         name="$(basename "$f" .png)"
         # Strip suffix like _73648466_0 and "Screenshot", add spaces
         label=$(echo "$name" | sed 's/_[0-9]*_[0-9]*$//' | sed 's/Screenshot$//' | sed 's/\([a-z]\)\([A-Z]\)/\1 \2/g')
+        label=$(printf '%s' "$label" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
         echo "<div class=\"card\"><h3>$label</h3><img src=\"images/android/$(basename "$f")\" alt=\"$label\" loading=\"lazy\" onclick=\"openLightbox(this)\"></div>" >> "$OUTPUT_FILE"
     done
 else
@@ -369,6 +372,7 @@ if [ "$web_demo_count" -gt 0 ]; then
         [ -f "$f" ] || continue
         name="$(basename "$f" .png)"
         label="${name//-/ }"
+        label=$(printf '%s' "$label" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
         echo "<div class=\"card\"><h3>$label</h3><img src=\"images/web-demo/$(basename "$f")\" alt=\"$label\" loading=\"lazy\" onclick=\"openLightbox(this)\"></div>" >> "$OUTPUT_FILE"
     done
 else
