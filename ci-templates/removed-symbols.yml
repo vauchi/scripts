@@ -111,7 +111,12 @@
         fi
       done < "$sym_file"
 
-      echo ""
-      echo "FAILED: $errors removed symbol(s) still referenced"
-      echo "Update the listed files or check removed-symbols.txt in vauchi/vauchi."
-      exit 1
+      if [ "$errors" -eq 0 ]; then
+        echo "OK: No stale references to removed symbols"
+        exit 0
+      else
+        echo ""
+        echo "FAILED: $errors removed symbol(s) still referenced"
+        echo "Update the listed files or check removed-symbols.txt in vauchi/vauchi."
+        exit 1
+      fi
