@@ -44,8 +44,11 @@
         "${CI_API_V4_URL}/projects/${ROOT_PROJECT_ID}/repository/files/removed-symbols.txt/raw?ref=main" \
         2>/dev/null || echo "")
 
-      if [ -z "$MANIFEST" ]; then
-        echo "No removed-symbols.txt in root repo — skipping check"
+      # wget (unlike curl -sf) exits 0 on HTTP 4xx/5xx and returns the
+      # error body.  Detect JSON/HTML error responses so a misconfigured
+      # CI_JOB_TOKEN doesn't silently produce a passing check.
+      if [ -z "$MANIFEST" ] || printf '%s' "$MANIFEST" | grep -qE '^[{<]'; then
+        echo "No removed-symbols.txt in root repo (empty or API error) — skipping check"
         exit 0
       fi
 
