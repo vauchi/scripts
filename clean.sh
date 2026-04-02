@@ -45,12 +45,6 @@ remove_if_exists "$WORKSPACE_ROOT/ios/Vauchi.xcodeproj/project.xcworkspace/xcuse
 find "$WORKSPACE_ROOT/ios" -name "*.xcuserstate" -delete 2>/dev/null || true
 find "$WORKSPACE_ROOT/ios" -name ".DS_Store" -delete 2>/dev/null || true
 
-# Desktop (Tauri) artifacts
-log_info "Cleaning desktop artifacts..."
-remove_if_exists "$WORKSPACE_ROOT/code/vauchi-desktop/target"
-remove_if_exists "$WORKSPACE_ROOT/code/vauchi-desktop/node_modules"
-remove_if_exists "$WORKSPACE_ROOT/code/vauchi-desktop/dist"
-
 # Website artifacts
 log_info "Cleaning website artifacts..."
 remove_if_exists "$WORKSPACE_ROOT/website/node_modules"

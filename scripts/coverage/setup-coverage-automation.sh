@@ -25,7 +25,6 @@ COVERAGE_TARGETS=(
     "vauchi-relay:75" 
     "vauchi-tui:70"
     "vauchi-platform:65"
-    "vauchi-desktop:60"
 )
 
 # Function to print colored output
@@ -57,11 +56,6 @@ setup_coverage_tools() {
     # Install Python dependencies for coverage reporting
     uv pip install --system 'coverage>=7.0' 'pytest-cov>=4.0' 'codecov>=2.5'
     
-    # Install Node.js dependencies for frontend coverage
-    if [ -d "code/vauchi-desktop/ui" ]; then
-        cd code/vauchi-desktop/ui || return 1
-        npm install --save-dev @vitest/coverage-v8 nyc istanbul
-    fi
 }
 
 # Generate Rust coverage reports
@@ -91,24 +85,6 @@ generate_rust_coverage() {
     done
 }
 
-# Generate frontend coverage reports
-generate_frontend_coverage() {
-    if [ -d "code/vauchi-desktop/ui" ]; then
-        print_info "Generating frontend coverage reports..."
-
-        cd code/vauchi-desktop/ui || return 1
-        
-        # Run tests with coverage
-        npm run test:coverage
-        
-        # Generate HTML report
-        npx nyc report --reporter=html --report-dir=coverage-reports/desktop
-        
-        # Generate JSON for trend tracking
-        npx nyc report --reporter=json --report-dir=coverage-reports/desktop
-    fi
-}
-
 # Parse coverage percentages from reports
 parse_coverage_percentages() {
     local coverage_data=()
@@ -128,19 +104,6 @@ with open('coverage-reports/$crate/coverage.json') as f:
         fi
     done
 
-    # Parse frontend coverage
-    if [ -f "coverage-reports/desktop/coverage-summary.json" ]; then
-        local percentage
-        percentage=$(python3 -c "
-import json
-with open('coverage-reports/desktop/coverage-summary.json') as f:
-    data = json.load(f)
-    percent = data.get('total', {}).get('lines', {}).get('pct', 0)
-    print(f'{percent:.1f}')
-" 2>/dev/null)
-        coverage_data+=("vauchi-desktop:$percentage")
-    fi
-    
     echo "${coverage_data[@]}"
 }
 
@@ -321,8 +284,6 @@ main() {
     
     # Generate coverage reports
     generate_rust_coverage
-    generate_frontend_coverage
-    
     # Check coverage against targets
     if ! check_coverage_targets; then
         print_error "Coverage targets not met. Failing..."

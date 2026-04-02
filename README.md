@@ -227,7 +227,6 @@ Test sync/exchange between multiple simulated
 | `local-relay-tls.sh` | Start local relay with TLS |
 | `multi-cli.sh` | Run CLI with isolated data |
 | `multi-tui.sh` | Run TUI with isolated data |
-| `multi-desktop.sh` | Run desktop with isolated data |
 | `cleanup.sh` | Clean test data and caches |
 | `e2e-test-checklist.sh` | E2E testing checklist |
 

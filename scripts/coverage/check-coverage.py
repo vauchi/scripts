@@ -9,7 +9,6 @@ import json
 import sys
 import os
 import glob
-from pathlib import Path
 
 
 def load_coverage_data(pattern):
@@ -60,20 +59,8 @@ def check_minimum_coverage(minimum_percent):
             }
         )
 
-    # Frontend coverage
-    frontend_pattern = "coverage-reports/desktop/coverage-summary.json"
-    frontend_coverage, file_count = load_coverage_data(frontend_pattern)
-    frontend_results = [
-        {
-            "component": "vauchi-desktop",
-            "coverage": frontend_coverage,
-            "file_count": file_count,
-            "meets_minimum": frontend_coverage >= minimum_percent,
-        }
-    ]
-
     # Combine results
-    all_results = rust_results + frontend_results
+    all_results = rust_results
 
     # Generate report
     print(f"Coverage Check Results (Minimum: {minimum_percent}%):")

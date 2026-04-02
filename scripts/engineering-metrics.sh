@@ -43,7 +43,7 @@ DATE=$(date +%Y-%m-%d)
 
 # Rust repos with test code
 CORE_REPOS=("core/vauchi-core" "core/vauchi-protocol" "core/vauchi-platform")
-CLIENT_REPOS=("relay" "cli" "tui" "desktop/src-tauri")
+CLIENT_REPOS=("relay" "cli" "tui")
 ALL_RUST_REPOS=("${CORE_REPOS[@]}" "${CLIENT_REPOS[@]}")
 
 # GitLab project IDs (slug → path for API)
@@ -52,7 +52,6 @@ declare -A GITLAB_PROJECTS=(
     [relay]="vauchi/relay"
     [cli]="vauchi/cli"
     [tui]="vauchi/tui"
-    [desktop]="vauchi/desktop"
     [ios]="vauchi/ios"
     [e2e]="vauchi/e2e"
 )
@@ -235,7 +234,7 @@ collect_zero_assertions() {
 # --- Metric 6: Escaped defect rate (count fix: commits in last 30 days) ---
 collect_escaped_defects() {
     local total=0
-    for project in core relay cli tui desktop e2e; do
+    for project in core relay cli tui e2e; do
         local dir="$VAUCHI_ROOT/$project"
         [ -d "$dir/.git" ] || continue
         local count

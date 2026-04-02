@@ -22,10 +22,6 @@ stamp_file() {
     case "$repo" in
         core|cli|tui|relay|e2e)
             echo "$_STAMP_WS_ROOT/$repo/target/.checks-passed" ;;
-        desktop-rust)
-            echo "$_STAMP_WS_ROOT/desktop/src-tauri/target/.checks-passed" ;;
-        desktop-ui)
-            echo "$_STAMP_WS_ROOT/desktop/ui/node_modules/.checks-passed" ;;
         android)
             echo "$_STAMP_WS_ROOT/android/.gradle/.checks-passed" ;;
         ios)
@@ -43,12 +39,6 @@ stamp_write() {
     local dir
     dir="$_STAMP_WS_ROOT/$repo"
 
-    # Map repo name to git directory
-    case "$repo" in
-        desktop-rust) dir="$_STAMP_WS_ROOT/desktop" ;;
-        desktop-ui)   dir="$_STAMP_WS_ROOT/desktop" ;;
-    esac
-
     local sf
     sf=$(stamp_file "$repo") || return 0
     [[ -z "$sf" ]] && return 0
@@ -65,12 +55,6 @@ stamp_valid() {
     local repo="${1:?stamp_valid requires a repo name}"
     local dir
     dir="$_STAMP_WS_ROOT/$repo"
-
-    # Map repo name to git directory
-    case "$repo" in
-        desktop-rust) dir="$_STAMP_WS_ROOT/desktop" ;;
-        desktop-ui)   dir="$_STAMP_WS_ROOT/desktop" ;;
-    esac
 
     local sf
     sf=$(stamp_file "$repo") || return 1
@@ -90,8 +74,6 @@ stamp_repo_from_dir() {
     case "$dir_name" in
         core|cli|tui|relay|e2e|android|ios)
             echo "$dir_name" ;;
-        desktop)
-            echo "desktop-rust" ;;
         *)
             echo ""
             return 1 ;;
