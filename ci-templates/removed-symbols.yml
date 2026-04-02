@@ -53,7 +53,7 @@
       fi
 
       # Strip comments and blank lines
-      symbols=$(echo "$MANIFEST" | grep -v '^\s*#' | grep -v '^\s*$' | sed 's/\s*#.*//' | tr -d '"' || true)
+      symbols=$(echo "$MANIFEST" | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$' | sed 's/[[:space:]]*#.*//' | tr -d '"' || true)
 
       if [ -z "$symbols" ]; then
         echo "Manifest is empty — nothing to check"

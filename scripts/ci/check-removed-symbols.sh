@@ -32,7 +32,7 @@ if [ ! -f "$MANIFEST" ]; then
 fi
 
 # Strip comments and blank lines from manifest
-symbols=$(grep -v '^\s*#' "$MANIFEST" | grep -v '^\s*$' | sed 's/\s*#.*//' | tr -d '"' || true)
+symbols=$(grep -v '^[[:space:]]*#' "$MANIFEST" | grep -v '^[[:space:]]*$' | sed 's/[[:space:]]*#.*//' | tr -d '"' || true)
 
 if [ -z "$symbols" ]; then
     echo "Manifest is empty — nothing to check"
