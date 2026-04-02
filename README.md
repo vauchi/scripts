@@ -54,7 +54,6 @@ scripts/
 │   ├── coverage/             # Coverage reporting tools
 │   └── ide/                  # IDE setup scripts
 ├── hooks/                    # Git hooks
-├── archive/                  # Deprecated scripts
 ├── clean.sh                  # Workspace cleanup
 └── install-hooks.sh          # Git hook installer
 ```
@@ -340,14 +339,6 @@ git clone --depth=1 --filter=blob:none --sparse \
 gitlab.com/vauchi/private.git" /tmp/repo
 git -C /tmp/repo sparse-checkout set path/to/dir
 ```
-
-## Archived Scripts
-
-Deprecated scripts kept for reference in `archive/`:
-
-- `android-emulators.sh` - Android emulator management
-- `ios-simulators.sh` - iOS simulator management
-- `tdd-template.sh` - Test template generator
 
 ## Related Repositories
 
