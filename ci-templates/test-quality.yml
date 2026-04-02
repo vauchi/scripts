@@ -183,3 +183,30 @@ quality:scenario-annotations:
         echo "No test directories found — skipping"
       fi
   timeout: 5 minutes
+
+# ============================================================
+# New Test Annotation Gate (PI-27b)
+# ============================================================
+# Hard gate: every NEW #[test] / #[tokio::test] function added
+# in an MR must have a @scenario: or @internal annotation.
+# Existing unannotated tests are grandfathered — only new tests
+# are checked.  Prevents annotation backslide after Phase 1.
+
+quality:new-test-annotations:
+  extends: .linux-runner-nocache
+  stage: lint
+  needs: []
+  allow_failure: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/*.rs"
+  script:
+    - |
+      curl -fsSL "https://gitlab.com/vauchi/scripts/-/raw/${CI_DEFAULT_BRANCH}/scripts/check-new-test-annotations.sh" \
+        -o /tmp/check-new-test-annotations.sh
+      chmod +x /tmp/check-new-test-annotations.sh
+      /tmp/check-new-test-annotations.sh "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+  timeout: 5 minutes
