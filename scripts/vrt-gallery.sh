@@ -9,10 +9,11 @@
 # a self-contained HTML page showing every baseline side-by-side.
 #
 # Platforms:
-#   - iOS:     swift-snapshot-testing PNGs
-#   - Android: Compose Preview Screenshot Testing PNGs
-#   - Desktop: Playwright snapshots (if generated)
-#   - TUI:     insta text snapshots (rendered as <pre> blocks)
+#   - iOS:      swift-snapshot-testing PNG snapshots
+#   - macOS:    swift-snapshot-testing PNG snapshots
+#   - Android:  Compose Preview Screenshot Testing PNG snapshots
+#   - Web Demo: Playwright snapshots
+#   - TUI:      insta text snapshots (rendered as <pre> blocks)
 #
 # Usage:
 #   ./scripts/vrt-gallery.sh            # Generate and open gallery
@@ -27,8 +28,9 @@ OUTPUT_FILE="$OUTPUT_DIR/index.html"
 
 # Platform baseline directories
 IOS_SNAPS="$PROJECT_ROOT/ios/VauchiSnapshotTests/__Snapshots__/VisualRegressionTests"
-ANDROID_SNAPS="$PROJECT_ROOT/android/app/src/screenshotTestDebug/reference/com/vauchi/ScreenshotTestsKt"
-DESKTOP_SNAPS="$PROJECT_ROOT/desktop/ui/e2e/tests/visual.spec.ts-snapshots"
+MACOS_SNAPS="$PROJECT_ROOT/macos/VauchiSnapshotTests/__Snapshots__/VisualRegressionTests"
+ANDROID_SNAPS="$PROJECT_ROOT/android/app/src/screenshotTestDebug/reference/app/vauchi/ScreenshotTestsKt"
+WEB_DEMO_SNAPS="$PROJECT_ROOT/web-demo/tests/playwright/vrt.spec.ts-snapshots"
 TUI_SNAPS="$PROJECT_ROOT/tui/tests/snapshots"
 
 NO_OPEN=false
@@ -37,7 +39,7 @@ if [[ "${1:-}" == "--no-open" ]]; then
 fi
 
 # ── Prepare output ────────────────────────────────────────────────
-mkdir -p "$OUTPUT_DIR/images/ios" "$OUTPUT_DIR/images/android" "$OUTPUT_DIR/images/desktop"
+mkdir -p "$OUTPUT_DIR/images/ios" "$OUTPUT_DIR/images/macos" "$OUTPUT_DIR/images/android" "$OUTPUT_DIR/images/web-demo"
 
 # ── Collect iOS baselines ─────────────────────────────────────────
 ios_count=0
@@ -46,6 +48,16 @@ if [ -d "$IOS_SNAPS" ]; then
         [ -f "$f" ] || continue
         cp "$f" "$OUTPUT_DIR/images/ios/"
         ios_count=$((ios_count + 1))
+    done
+fi
+
+# ── Collect macOS baselines ──────────────────────────────────────
+macos_count=0
+if [ -d "$MACOS_SNAPS" ]; then
+    for f in "$MACOS_SNAPS"/*.png; do
+        [ -f "$f" ] || continue
+        cp "$f" "$OUTPUT_DIR/images/macos/"
+        macos_count=$((macos_count + 1))
     done
 fi
 
@@ -59,13 +71,13 @@ if [ -d "$ANDROID_SNAPS" ]; then
     done
 fi
 
-# ── Collect Desktop baselines ─────────────────────────────────────
-desktop_count=0
-if [ -d "$DESKTOP_SNAPS" ]; then
-    for f in "$DESKTOP_SNAPS"/*.png; do
+# ── Collect web-demo baselines ───────────────────────────────────
+web_demo_count=0
+if [ -d "$WEB_DEMO_SNAPS" ]; then
+    for f in "$WEB_DEMO_SNAPS"/*.png; do
         [ -f "$f" ] || continue
-        cp "$f" "$OUTPUT_DIR/images/desktop/"
-        desktop_count=$((desktop_count + 1))
+        cp "$f" "$OUTPUT_DIR/images/web-demo/"
+        web_demo_count=$((web_demo_count + 1))
     done
 fi
 
@@ -87,7 +99,7 @@ if [ -d "$TUI_SNAPS" ]; then
     done
 fi
 
-total=$((ios_count + android_count + desktop_count + tui_count))
+total=$((ios_count + macos_count + android_count + web_demo_count + tui_count))
 timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
 # ── Generate HTML ─────────────────────────────────────────────────
@@ -107,8 +119,9 @@ cat > "$OUTPUT_FILE" << 'HTML_HEAD'
     --heading: #f0f6fc;
     --accent: #58a6ff;
     --ios: #007aff;
+    --macos: #a2845e;
     --android: #3ddc84;
-    --desktop: #f97316;
+    --web-demo: #f97316;
     --tui: #a78bfa;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -133,8 +146,9 @@ cat > "$OUTPUT_FILE" << 'HTML_HEAD'
   .stats { display: flex; gap: 1rem; font-size: 0.85rem; }
   .stat { padding: 0.25rem 0.75rem; border-radius: 999px; border: 1px solid var(--border); }
   .stat-ios { border-color: var(--ios); color: var(--ios); }
+  .stat-macos { border-color: var(--macos); color: var(--macos); }
   .stat-android { border-color: var(--android); color: var(--android); }
-  .stat-desktop { border-color: var(--desktop); color: var(--desktop); }
+  .stat-web-demo { border-color: var(--web-demo); color: var(--web-demo); }
   .stat-tui { border-color: var(--tui); color: var(--tui); }
 
   nav {
@@ -177,8 +191,9 @@ cat > "$OUTPUT_FILE" << 'HTML_HEAD'
     font-weight: 600;
   }
   .badge-ios { background: var(--ios); color: #fff; }
+  .badge-macos { background: var(--macos); color: #fff; }
   .badge-android { background: var(--android); color: #000; }
-  .badge-desktop { background: var(--desktop); color: #000; }
+  .badge-web-demo { background: var(--web-demo); color: #000; }
   .badge-tui { background: var(--tui); color: #000; }
 
   .grid {
@@ -264,15 +279,17 @@ cat >> "$OUTPUT_FILE" << HTML_HEADER
   <h1>Vauchi VRT Gallery</h1>
   <div class="stats">
     <span class="stat stat-ios">iOS: $ios_count</span>
+    <span class="stat stat-macos">macOS: $macos_count</span>
     <span class="stat stat-android">Android: $android_count</span>
-    <span class="stat stat-desktop">Desktop: $desktop_count</span>
+    <span class="stat stat-web-demo">Web Demo: $web_demo_count</span>
     <span class="stat stat-tui">TUI: $tui_count</span>
   </div>
 </header>
 <nav>
   <a href="#ios">iOS</a>
+  <a href="#macos">macOS</a>
   <a href="#android">Android</a>
-  <a href="#desktop">Desktop</a>
+  <a href="#web-demo">Web Demo</a>
   <a href="#tui">TUI</a>
 </nav>
 <main>
@@ -299,6 +316,26 @@ fi
 
 echo '</div></section>' >> "$OUTPUT_FILE"
 
+# ── macOS section ────────────────────────────────────────────────
+cat >> "$OUTPUT_FILE" << 'SECTION'
+<section id="macos">
+<h2><span class="badge badge-macos">macOS</span> swift-snapshot-testing</h2>
+<div class="grid">
+SECTION
+
+if [ "$macos_count" -gt 0 ]; then
+    for f in "$OUTPUT_DIR"/images/macos/*.png; do
+        [ -f "$f" ] || continue
+        name="$(basename "$f" .png)"
+        label=$(echo "${name%.1}" | sed 's/^test//' | sed 's/\([a-z]\)\([A-Z]\)/\1 \2/g')
+        echo "<div class=\"card\"><h3>$label</h3><img src=\"images/macos/$(basename "$f")\" alt=\"$label\" loading=\"lazy\" onclick=\"openLightbox(this)\"></div>" >> "$OUTPUT_FILE"
+    done
+else
+    echo '<p class="empty">No macOS baselines found. Run snapshot tests in the macos/ repo first.</p>' >> "$OUTPUT_FILE"
+fi
+
+echo '</div></section>' >> "$OUTPUT_FILE"
+
 # ── Android section ───────────────────────────────────────────────
 cat >> "$OUTPUT_FILE" << 'SECTION'
 <section id="android">
@@ -320,22 +357,22 @@ fi
 
 echo '</div></section>' >> "$OUTPUT_FILE"
 
-# ── Desktop section ───────────────────────────────────────────────
+# ── Web Demo section ─────────────────────────────────────────────
 cat >> "$OUTPUT_FILE" << 'SECTION'
-<section id="desktop">
-<h2><span class="badge badge-desktop">Desktop</span> Playwright</h2>
+<section id="web-demo">
+<h2><span class="badge badge-web-demo">Web Demo</span> Playwright</h2>
 <div class="grid">
 SECTION
 
-if [ "$desktop_count" -gt 0 ]; then
-    for f in "$OUTPUT_DIR"/images/desktop/*.png; do
+if [ "$web_demo_count" -gt 0 ]; then
+    for f in "$OUTPUT_DIR"/images/web-demo/*.png; do
         [ -f "$f" ] || continue
         name="$(basename "$f" .png)"
         label="${name//-/ }"
-        echo "<div class=\"card\"><h3>$label</h3><img src=\"images/desktop/$(basename "$f")\" alt=\"$label\" loading=\"lazy\" onclick=\"openLightbox(this)\"></div>" >> "$OUTPUT_FILE"
+        echo "<div class=\"card\"><h3>$label</h3><img src=\"images/web-demo/$(basename "$f")\" alt=\"$label\" loading=\"lazy\" onclick=\"openLightbox(this)\"></div>" >> "$OUTPUT_FILE"
     done
 else
-    echo '<p class="empty">No Desktop baselines found. Run npx playwright test --update-snapshots in desktop/ui/ first.</p>' >> "$OUTPUT_FILE"
+    echo '<p class="empty">No Web Demo baselines found. Run npx playwright test --update-snapshots in web-demo/ first.</p>' >> "$OUTPUT_FILE"
 fi
 
 echo '</div></section>' >> "$OUTPUT_FILE"
@@ -359,7 +396,7 @@ echo '</div></section>' >> "$OUTPUT_FILE"
 cat >> "$OUTPUT_FILE" << HTML_FOOTER
 </main>
 <footer>
-  Generated $timestamp &mdash; $total baselines across 4 platforms
+  Generated $timestamp &mdash; $total baselines across 5 platforms
 </footer>
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
   <img id="lightbox-img" src="" alt="">
@@ -381,7 +418,7 @@ document.addEventListener('keydown', function(e) {
 HTML_FOOTER
 
 echo "VRT Gallery generated: $OUTPUT_FILE"
-echo "  iOS: $ios_count | Android: $android_count | Desktop: $desktop_count | TUI: $tui_count | Total: $total"
+echo "  iOS: $ios_count | macOS: $macos_count | Android: $android_count | Web Demo: $web_demo_count | TUI: $tui_count | Total: $total"
 
 if [ "$NO_OPEN" = false ]; then
     if command -v open &> /dev/null; then
