@@ -96,6 +96,16 @@ repo_toolchain() {
     return 1
 }
 
+# Extra cargo features needed when running tests for a repo.
+# Returns empty string if no extra features are needed.
+repo_test_features() {
+    local name="${1:?repo_test_features requires a repo name argument}"
+    case "$name" in
+        core) echo "--features vauchi-core/testing" ;;
+        *)    echo "" ;;
+    esac
+}
+
 # Detect repo from current working directory
 _detect_repo_from_pwd() {
     local cwd="$PWD"
