@@ -14,10 +14,21 @@ BIN_DIR="${E2E_BIN_DIR:-${WORKSPACE_ROOT}/target/e2e-bin}"
 mkdir -p "$BIN_DIR"
 
 # Compute a SHA for a repo directory.
-# Prefers git rev-parse HEAD; falls back to hashing src/*.rs files.
+# Uses git HEAD + dirty-state suffix to bust cache on uncommitted changes.
+# Falls back to hashing src/*.rs files when not in a git repo.
 repo_sha() {
     local repo_dir="$1"
-    if git -C "$repo_dir" rev-parse HEAD 2>/dev/null; then
+    local head_sha
+    if head_sha=$(git -C "$repo_dir" rev-parse HEAD 2>/dev/null); then
+        # Append "-dirty" suffix when working tree has uncommitted changes
+        if ! git -C "$repo_dir" diff-index --quiet HEAD -- 2>/dev/null; then
+            # Include diff hash so different dirty states bust the cache
+            local diff_hash
+            diff_hash=$(git -C "$repo_dir" diff HEAD -- | shasum -a 256 | cut -d' ' -f1)
+            echo "${head_sha}-dirty-${diff_hash:0:12}"
+        else
+            echo "$head_sha"
+        fi
         return
     fi
     # Fallback: hash all .rs files under src/
