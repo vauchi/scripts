@@ -11,3 +11,4 @@
 *.pem
 credentials.json
 service-account*.json
+.idea/
