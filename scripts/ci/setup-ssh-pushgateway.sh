@@ -4,58 +4,131 @@
 
 # setup-ssh-pushgateway.sh — Configure SSH for Pushgateway access in CI.
 #
-# Source this file and call setup_ssh_pushgateway from push-*.sh scripts.
+# Source this file, call setup_ssh_pushgateway, then use pushgateway_push.
 #
-# Required env vars (when DEPLOY_SSH_PRIVATE_KEY is set):
-#   DEPLOY_SSH_PRIVATE_KEY  — path to file containing base64-encoded key
-#                            (GitLab file-type CI variable)
-#   PUSHGATEWAY_SSH_HOST    — hostname for SSH config
-#   PUSHGATEWAY_SSH_IP      — IP address for SSH config
-#   PUSHGATEWAY_SSH_USER    — SSH user
+# Key precedence:
+#   1. PUSHGATEWAY_URL      — direct HTTP push (no SSH needed)
+#   2. DEPLOY_SSH_PRIVATE_KEY — full VPS access (protected, main only)
+#   3. PUSHGATEWAY_SSH_KEY   — restricted pushgateway-only key (unprotected,
+#                              all branches). Server-side forced command
+#                              validates the path and proxies to curl.
 #
-# Skips if key file already exists or DEPLOY_SSH_PRIVATE_KEY is unset/empty.
+# Both key variables are file-type CI variables (path to base64-encoded key).
 # Registers cleanup trap to remove key on exit.
 
-setup_ssh_pushgateway() {
-    if [ -z "${DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
-        echo "setup-ssh: DEPLOY_SSH_PRIVATE_KEY not set, skipping SSH setup" >&2
-        return 0
-    fi
+# Which SSH mode was loaded: "full", "restricted", or ""
+PUSHGATEWAY_SSH_MODE=""
 
-    if [ -f ~/.ssh/id_ed25519 ]; then
-        return 0
-    fi
+PUSHGATEWAY_SSH_HOST="${PUSHGATEWAY_SSH_HOST:-bold-hopper-vps}"
+PUSHGATEWAY_SSH_IP="${PUSHGATEWAY_SSH_IP:-87.106.25.46}"
+PUSHGATEWAY_SSH_USER="${PUSHGATEWAY_SSH_USER:-vauchi}"
 
+# Decode a base64-encoded key file to ~/.ssh/id_ed25519.
+# Tries both GNU and macOS base64 flags.
+_decode_key_file() {
+    local key_path="$1"
     mkdir -p ~/.ssh
 
-    # Portable base64 decode: macOS needs -i flag, GNU takes positional arg.
-    # Clean up between attempts so a failed first try doesn't leave a partial file.
-    if ! base64 -d -i "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 2>/dev/null; then
+    if ! base64 -d -i "$key_path" > ~/.ssh/id_ed25519 2>/dev/null; then
         rm -f ~/.ssh/id_ed25519
     fi
     if [ ! -s ~/.ssh/id_ed25519 ] \
-       && ! base64 -d "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519 2>/dev/null; then
-        echo "ERROR: Failed to decode DEPLOY_SSH_PRIVATE_KEY (base64 -d failed)" >&2
-        echo "Check that the CI variable contains a valid base64-encoded file." >&2
+       && ! base64 -d "$key_path" > ~/.ssh/id_ed25519 2>/dev/null; then
         rm -f ~/.ssh/id_ed25519
         return 1
     fi
 
-    # Verify key is non-empty (base64 -d of empty string succeeds silently)
     if [ ! -s ~/.ssh/id_ed25519 ]; then
-        echo "ERROR: DEPLOY_SSH_PRIVATE_KEY decoded to empty file" >&2
         rm -f ~/.ssh/id_ed25519
         return 1
     fi
 
     chmod 600 ~/.ssh/id_ed25519
 
-    cat >> ~/.ssh/config <<SSHEOF
+    if [ ! -f ~/.ssh/config ] || ! grep -q "$PUSHGATEWAY_SSH_HOST" ~/.ssh/config 2>/dev/null; then
+        cat >> ~/.ssh/config <<SSHEOF
 Host ${PUSHGATEWAY_SSH_HOST}
   HostName ${PUSHGATEWAY_SSH_IP}
   User ${PUSHGATEWAY_SSH_USER}
   StrictHostKeyChecking accept-new
 SSHEOF
-    chmod 600 ~/.ssh/config
+        chmod 600 ~/.ssh/config
+    fi
+
     trap 'rm -f ~/.ssh/id_ed25519' EXIT
+    return 0
+}
+
+setup_ssh_pushgateway() {
+    if [ -f ~/.ssh/id_ed25519 ]; then
+        # Already set up (e.g. by deploy script)
+        PUSHGATEWAY_SSH_MODE="full"
+        return 0
+    fi
+
+    # Try full-access key first (protected — only available on main)
+    if [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
+        if _decode_key_file "$DEPLOY_SSH_PRIVATE_KEY"; then
+            PUSHGATEWAY_SSH_MODE="full"
+            return 0
+        fi
+        echo "setup-ssh: DEPLOY_SSH_PRIVATE_KEY decode failed" >&2
+    fi
+
+    # Try restricted pushgateway key (unprotected — available on all branches)
+    if [ -n "${PUSHGATEWAY_SSH_KEY:-}" ]; then
+        if _decode_key_file "$PUSHGATEWAY_SSH_KEY"; then
+            PUSHGATEWAY_SSH_MODE="restricted"
+            return 0
+        fi
+        echo "setup-ssh: PUSHGATEWAY_SSH_KEY decode failed" >&2
+    fi
+
+    echo "setup-ssh: no SSH key available, push will be skipped" >&2
+    return 0
+}
+
+# Push metrics to Pushgateway.
+#
+# Usage: pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_foo/repo/bar"
+#
+# Returns 0 on success, 1 on failure (caller decides if fatal).
+pushgateway_push() {
+    local metrics_text="$1"
+    local url_path="$2"
+
+    # Direct URL (highest priority)
+    if [ -n "${PUSHGATEWAY_URL:-}" ]; then
+        if echo "$metrics_text" | curl -s --fail --connect-timeout 3 --max-time 5 \
+                --data-binary @- "${PUSHGATEWAY_URL}${url_path}" 2>/dev/null; then
+            return 0
+        fi
+    fi
+
+    # SSH push
+    case "$PUSHGATEWAY_SSH_MODE" in
+        full)
+            # Full-access key: send the curl command to execute on the VPS
+            # shellcheck disable=SC2029  # intentional client-side expansion
+            if echo "$metrics_text" | ssh -o ConnectTimeout=5 \
+                    "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
+                    "curl -s --fail --max-time 5 --data-binary @- http://localhost:9091${url_path}" 2>/dev/null; then
+                return 0
+            fi
+            ;;
+        restricted)
+            # Restricted key: server-side forced command (push-proxy.sh)
+            # validates the path and proxies stdin to curl.
+            # The SSH "command" is just the URL path — push-proxy.sh reads it
+            # from SSH_ORIGINAL_COMMAND.
+            # shellcheck disable=SC2029
+            if echo "$metrics_text" | ssh -o ConnectTimeout=5 \
+                    "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
+                    "${url_path}" 2>/dev/null; then
+                return 0
+            fi
+            ;;
+    esac
+
+    return 1
 }

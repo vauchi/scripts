@@ -90,13 +90,8 @@ fi
 source "$(dirname "$0")/setup-ssh-pushgateway.sh"
 setup_ssh_pushgateway
 
-if [ -n "${PUSHGATEWAY_URL:-}" ]; then
-    echo "$METRICS_TEXT" | curl -s --data-binary @- \
-        "${PUSHGATEWAY_URL}/metrics/job/vauchi_coverage/repo/${REPO_NAME}"
+if pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_coverage/repo/${REPO_NAME}"; then
+    echo "push-coverage: metrics pushed for ${REPO_NAME}" >&2
 else
-    # shellcheck disable=SC2029  # intentional client-side expansion of REPO_NAME
-    echo "$METRICS_TEXT" | ssh "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
-        "curl -s --data-binary @- http://localhost:9091/metrics/job/vauchi_coverage/repo/${REPO_NAME}"
+    echo "push-coverage: push failed for ${REPO_NAME} (non-fatal)" >&2
 fi
-
-echo "push-coverage: metrics pushed for ${REPO_NAME}" >&2
