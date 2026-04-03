@@ -21,7 +21,7 @@
 #   VRT_DIFF_TOLERANCE   — diff tolerance percent (default: 0.5)
 #
 # API reference (from sdk-js source):
-#   POST /builds          — create build (headers: apiKey, project)
+#   POST /builds          — create build (header: apiKey, body: project+branch+ciBuildId)
 #   POST /test-runs       — upload screenshot (base64)
 #   PATCH /builds/:id     — close build
 
@@ -68,27 +68,43 @@ fi
 echo "[vrt-upload] Uploading $PNG_COUNT screenshots from $VRT_PLATFORM"
 echo "[vrt-upload] Branch: $VRT_BRANCH | Build: $VRT_CI_BUILD_ID"
 
+# ── Step 0: Health check ─────────────────────────────────────
+
+if ! curl -s --max-time 10 "${VRT_API_URL}/health" > /dev/null 2>&1; then
+    echo "[vrt-upload] WARNING: VRT not reachable at ${VRT_API_URL}/health — skipping upload"
+    exit 0
+fi
+
 # ── Step 1: Create build ──────────────────────────────────────
 
-BUILD_RESPONSE=$(curl -sf -X POST \
+# Use -w to capture HTTP status separately; avoid -f which discards
+# the response body (making API errors impossible to diagnose).
+BUILD_RESPONSE=$(curl -s -X POST \
     "${VRT_API_URL}/builds" \
     -H "Content-Type: application/json" \
     -H "apiKey: ${VRT_API_KEY}" \
-    -H "project: ${VRT_PROJECT}" \
     -d "{
         \"branchName\": \"${VRT_BRANCH}\",
         \"project\": \"${VRT_PROJECT}\",
         \"ciBuildId\": \"${VRT_CI_BUILD_ID}-${VRT_PLATFORM}\"
-    }" 2>&1) || {
-    echo "[vrt-upload] WARNING: Failed to create build — ${BUILD_RESPONSE}"
-    exit 0
-}
+    }" \
+    -w '\n%{http_code}' 2>&1)
 
-BUILD_ID=$(echo "$BUILD_RESPONSE" | jq -r '.id // empty')
-PROJECT_ID=$(echo "$BUILD_RESPONSE" | jq -r '.projectId // empty')
+# Split response body and HTTP code
+HTTP_CODE=$(echo "$BUILD_RESPONSE" | tail -1)
+BUILD_BODY=$(echo "$BUILD_RESPONSE" | sed '$d')
+
+if [ "$HTTP_CODE" -lt 200 ] 2>/dev/null || [ "$HTTP_CODE" -ge 300 ] 2>/dev/null; then
+    echo "[vrt-upload] WARNING: Build creation failed (HTTP $HTTP_CODE)"
+    echo "[vrt-upload]   Response: ${BUILD_BODY}"
+    exit 0
+fi
+
+BUILD_ID=$(echo "$BUILD_BODY" | jq -r '.id // empty')
+PROJECT_ID=$(echo "$BUILD_BODY" | jq -r '.projectId // empty')
 
 if [ -z "$BUILD_ID" ]; then
-    echo "[vrt-upload] WARNING: No build ID in response — ${BUILD_RESPONSE}"
+    echo "[vrt-upload] WARNING: No build ID in response — ${BUILD_BODY}"
     exit 0
 fi
 
@@ -106,11 +122,10 @@ for png in "$VRT_SCREENSHOT_DIR"/*.png; do
     NAME=$(basename "$png" .png | tr '_' ' ' | tr '-' ' ')
     IMAGE_B64=$(base64 < "$png" | tr -d '\n')
 
-    if ! curl -sf -X POST \
+    UPLOAD_RESPONSE=$(curl -s -X POST \
         "${VRT_API_URL}/test-runs" \
         -H "Content-Type: application/json" \
         -H "apiKey: ${VRT_API_KEY}" \
-        -H "project: ${VRT_PROJECT}" \
         -d "{
             \"buildId\": \"${BUILD_ID}\",
             \"projectId\": \"${PROJECT_ID}\",
@@ -119,8 +134,17 @@ for png in "$VRT_SCREENSHOT_DIR"/*.png; do
             \"imageBase64\": \"${IMAGE_B64}\",
             \"os\": \"${VRT_PLATFORM}\",
             \"diffTollerancePercent\": ${VRT_DIFF_TOLERANCE}
-        }" > /dev/null 2>&1; then
-        echo "[vrt-upload]   WARN: Failed to upload $(basename "$png")"
+        }" \
+        -w '\n%{http_code}' 2>&1)
+
+    UPLOAD_CODE=$(echo "$UPLOAD_RESPONSE" | tail -1)
+    if [ "$UPLOAD_CODE" -lt 200 ] 2>/dev/null || [ "$UPLOAD_CODE" -ge 300 ] 2>/dev/null; then
+        UPLOAD_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
+        echo "[vrt-upload]   WARN: Failed to upload $(basename "$png") (HTTP $UPLOAD_CODE)"
+        # Show first failure detail, suppress rest to avoid log spam
+        if [ "$FAILED" -eq 0 ]; then
+            echo "[vrt-upload]   Detail: ${UPLOAD_BODY}"
+        fi
         FAILED=$((FAILED + 1))
         continue
     fi
@@ -130,11 +154,10 @@ done
 
 # ── Step 3: Close build ───────────────────────────────────────
 
-curl -sf -X PATCH \
+curl -s -X PATCH \
     "${VRT_API_URL}/builds/${BUILD_ID}" \
     -H "Content-Type: application/json" \
     -H "apiKey: ${VRT_API_KEY}" \
-    -H "project: ${VRT_PROJECT}" \
     -d '{}' >/dev/null 2>&1 || echo "[vrt-upload] WARNING: Failed to close build"
 
 # ── Summary ───────────────────────────────────────────────────
