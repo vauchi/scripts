@@ -113,6 +113,46 @@ if [[ -n "$BRANCH" && "$BRANCH" != "main" ]]; then
     fi
 fi
 
+# ─── Git dependency branch ref guard ──────────────────────────────────
+# Checks Cargo.toml for non-main branch refs in git dependencies.
+# Dead branch refs (upstream merged+deleted) BLOCK the push.
+# Live non-main refs get a WARNING (active cross-repo development).
+
+if [[ -f "$REPO_ROOT/Cargo.toml" ]]; then
+    BAD_REFS=$(grep -E 'git\s*=.*branch\s*=' "$REPO_ROOT/Cargo.toml" \
+        | grep -v 'branch = "main"' || true)
+    if [[ -n "$BAD_REFS" ]]; then
+        _BRANCH_BLOCK=0
+        _BRANCH_WARN=0
+        while IFS= read -r line; do
+            _dep_url=$(echo "$line" | sed -n 's/.*git = "\([^"]*\)".*/\1/p')
+            _dep_branch=$(echo "$line" | sed -n 's/.*branch = "\([^"]*\)".*/\1/p')
+            [[ -z "$_dep_url" || -z "$_dep_branch" ]] && continue
+            # Check if branch exists on remote (5s timeout)
+            if timeout 5 git ls-remote "$_dep_url" "refs/heads/$_dep_branch" 2>/dev/null | grep -q .; then
+                _BRANCH_WARN=1
+                echo "  WARNING: Cargo.toml points to non-main branch '$_dep_branch'"
+                echo "    ($_dep_url)"
+            else
+                _BRANCH_BLOCK=1
+                echo "  BLOCKED: Branch '$_dep_branch' no longer exists on remote"
+                echo "    ($_dep_url)"
+            fi
+        done <<< "$BAD_REFS"
+        if [[ $_BRANCH_BLOCK -eq 1 ]]; then
+            echo ""
+            echo "  Dead branch ref(s) in Cargo.toml. Fix:"
+            echo "    sed -i 's/branch = \"[^\"]*\"/branch = \"main\"/g' Cargo.toml"
+            echo "    cargo update && git add Cargo.toml Cargo.lock"
+            exit 1
+        fi
+        if [[ $_BRANCH_WARN -eq 1 ]]; then
+            echo "  (Non-main refs are OK during development — must be 'main' before merging)"
+            echo ""
+        fi
+    fi
+fi
+
 # ─── Plan-Task trailer advisory ──────────────────────────────────────
 if [[ -n "$BRANCH" && "$BRANCH" == feature/* ]]; then
     COMMITS_WITHOUT_TRAILER=$(git -C "$REPO_ROOT" log origin/main..HEAD \
