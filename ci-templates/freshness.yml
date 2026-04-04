@@ -60,3 +60,47 @@
       fi
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Git Dependency Branch Ref Guard
+# Blocks MRs targeting main when Cargo.toml contains non-main branch refs.
+# This prevents dead branch refs from reaching main after an upstream
+# feature branch is merged and deleted.
+#
+# Provides:
+#   - .check-git-branch-refs: Blocking job that rejects non-main branch refs
+#
+# Example:
+#   check:branch-refs:
+#     extends: .check-git-branch-refs
+
+.check-git-branch-refs:
+  extends: .linux-runner-nocache
+  stage: lint
+  needs: []
+  script:
+    - |
+      # Extract non-main branch refs from Cargo.toml git dependencies
+      BAD_REFS=$(grep -E 'branch\s*=\s*"' Cargo.toml 2>/dev/null \
+        | grep -v 'branch = "main"' || true)
+      if [ -z "$BAD_REFS" ]; then
+        echo "All git dependency branch refs point to main"
+        exit 0
+      fi
+      echo ""
+      echo "###################################################"
+      echo "#                                                 #"
+      echo "#   BLOCKED: Non-main branch refs in Cargo.toml  #"
+      echo "#                                                 #"
+      echo "###################################################"
+      echo ""
+      echo "$BAD_REFS"
+      echo ""
+      echo "Fix: restore all branch refs to main before merging:"
+      echo ""
+      echo "  sed -i 's/branch = \"[^\"]*\"/branch = \"main\"/g' Cargo.toml"
+      echo "  cargo update"
+      echo "  git add Cargo.toml Cargo.lock && git commit -m 'fix: restore git dep branch to main'"
+      echo ""
+      exit 1
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
