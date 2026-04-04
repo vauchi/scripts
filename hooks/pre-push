@@ -629,6 +629,38 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
         time_step "SupplyChain" run_vet
     fi
 
+    # ─── New test annotation gate ─────────────────────────────────────
+    # Mirrors CI quality:new-test-annotations — catches unannotated
+    # tests locally before wasting a CI round-trip.
+    # Uses the same script as CI for consistency.
+
+    if [[ -n "$BRANCH" && "$BRANCH" != "main" ]]; then
+        WORKSPACE_ROOT="$(dirname "$REPO_ROOT")"
+        ANN_SCRIPT="$WORKSPACE_ROOT/scripts/scripts/check-new-test-annotations.sh"
+        if [[ -x "$ANN_SCRIPT" ]]; then
+            run_annotations() {
+                ORIGIN_MAIN=$(git -C "$REPO_ROOT" rev-parse origin/main 2>/dev/null || true)
+                if [[ -z "$ORIGIN_MAIN" ]]; then
+                    echo "  (skipping annotation check — origin/main not available)"
+                    return 0
+                fi
+                MERGE_BASE=$(git -C "$REPO_ROOT" merge-base HEAD "$ORIGIN_MAIN" 2>/dev/null || true)
+                if [[ -z "$MERGE_BASE" ]]; then
+                    return 0
+                fi
+                echo ""
+                echo "[5] Checking new test annotations..."
+                if ! "$ANN_SCRIPT" "$MERGE_BASE" HEAD; then
+                    echo ""
+                    echo "BLOCKED: New tests without @scenario or @internal annotations."
+                    echo "  The CI gate (quality:new-test-annotations) would also block this MR."
+                    exit 1
+                fi
+            }
+            time_step "Annotations" run_annotations
+        fi
+    fi
+
 # ─── Swift/iOS repo ──────────────────────────────────────────────────
 
 elif [[ -f "$REPO_ROOT/Package.swift" ]] || [[ "$REPO_DIR" == "ios" ]]; then
