@@ -128,8 +128,11 @@ if [[ -f "$REPO_ROOT/Cargo.toml" ]]; then
             _dep_url=$(echo "$line" | sed -n 's/.*git = "\([^"]*\)".*/\1/p')
             _dep_branch=$(echo "$line" | sed -n 's/.*branch = "\([^"]*\)".*/\1/p')
             [[ -z "$_dep_url" || -z "$_dep_branch" ]] && continue
-            # Check if branch exists on remote (5s timeout)
-            if timeout 5 git ls-remote "$_dep_url" "refs/heads/$_dep_branch" 2>/dev/null | grep -q .; then
+            # Check if branch exists on remote (5s timeout, portable)
+            _ls_out=$(git ls-remote "$_dep_url" "refs/heads/$_dep_branch" 2>/dev/null &
+                _pid=$!; (sleep 5 && kill "$_pid" 2>/dev/null) &
+                wait "$_pid" 2>/dev/null) || true
+            if echo "$_ls_out" | grep -q .; then
                 _BRANCH_WARN=1
                 echo "  WARNING: Cargo.toml points to non-main branch '$_dep_branch'"
                 echo "    ($_dep_url)"
@@ -142,7 +145,8 @@ if [[ -f "$REPO_ROOT/Cargo.toml" ]]; then
         if [[ $_BRANCH_BLOCK -eq 1 ]]; then
             echo ""
             echo "  Dead branch ref(s) in Cargo.toml. Fix:"
-            echo "    sed -i 's/branch = \"[^\"]*\"/branch = \"main\"/g' Cargo.toml"
+            echo "    just fix-branch-refs   # or manually:"
+            echo "    sed -i.bak 's/branch = \"[^\"]*\"/branch = \"main\"/g' Cargo.toml && rm Cargo.toml.bak"
             echo "    cargo update && git add Cargo.toml Cargo.lock"
             exit 1
         fi
