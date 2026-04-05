@@ -120,12 +120,45 @@ case "$PLATFORM" in
         ;;
 esac
 
+# ── Structured data tools (used by session-init, dev recipes) ─────
+echo ""
+echo "── Structured data tools ──"
+
+case "$PLATFORM" in
+    macos)
+        check_recommended "taplo" "TOML parsing (Cargo.toml version/branch extraction)" \
+            "brew install taplo"
+        check_recommended "yq" "YAML parsing (project.yml binding version extraction)" \
+            "brew install yq"
+        ;;
+    linux)
+        check_recommended "taplo" "TOML parsing (Cargo.toml version/branch extraction)" \
+            "cargo binstall taplo-cli  (or cargo install taplo-cli)"
+        check_recommended "yq" "YAML parsing (project.yml binding version extraction)" \
+            "https://github.com/mikefarah/yq#install"
+        ;;
+    windows)
+        check_recommended "taplo" "TOML parsing (Cargo.toml version/branch extraction)" \
+            "cargo install taplo-cli"
+        check_recommended "yq" "YAML parsing (project.yml binding version extraction)" \
+            "winget install MikeFarah.yq"
+        ;;
+    *)
+        check_recommended "taplo" "TOML parsing (Cargo.toml version/branch extraction)" \
+            "cargo install taplo-cli"
+        check_recommended "yq" "YAML parsing (project.yml binding version extraction)" \
+            "https://github.com/mikefarah/yq#install"
+        ;;
+esac
+
 # ── Linting tools (used by gate-push hook) ────────────────────────
 echo ""
 echo "── Linting tools (gate-push hook) ──"
 
 case "$PLATFORM" in
     macos)
+        check_recommended "shellcheck" "shell script portability linting (pre-commit)" \
+            "brew install shellcheck"
         check_recommended "markdownlint" "markdown linting (gate-push)" \
             "npm i -g markdownlint-cli"
         check_recommended "typos" "spellcheck (gate-push)" \
@@ -134,6 +167,8 @@ case "$PLATFORM" in
             "uv tool install reuse  (or brew install reuse)"
         ;;
     linux)
+        check_recommended "shellcheck" "shell script portability linting (pre-commit)" \
+            "sudo apt install shellcheck"
         check_recommended "markdownlint" "markdown linting (gate-push)" \
             "npm i -g markdownlint-cli"
         check_recommended "typos" "spellcheck (gate-push)" \
@@ -142,6 +177,8 @@ case "$PLATFORM" in
             "uv tool install reuse"
         ;;
     windows)
+        check_recommended "shellcheck" "shell script portability linting (pre-commit)" \
+            "scoop install shellcheck"
         check_recommended "markdownlint" "markdown linting (gate-push)" \
             "npm i -g markdownlint-cli"
         check_recommended "typos" "spellcheck (gate-push)" \
@@ -150,6 +187,8 @@ case "$PLATFORM" in
             "uv tool install reuse"
         ;;
     *)
+        check_recommended "shellcheck" "shell script portability linting (pre-commit)" \
+            "https://github.com/koalaman/shellcheck#installing"
         check_recommended "markdownlint" "markdown linting (gate-push)" \
             "npm i -g markdownlint-cli"
         check_recommended "typos" "spellcheck (gate-push)" \
@@ -179,7 +218,7 @@ if [[ "$MISSING" -gt 0 || "$WARN" -gt 0 ]]; then
     case "$PLATFORM" in
         macos)
             echo "  # Required + recommended (Homebrew):"
-            echo "  brew install rustup node glab jq uv"
+            echo "  brew install rustup node glab jq uv taplo yq shellcheck"
             echo "  rustup-init -y && source \"\$HOME/.cargo/env\""
             echo "  uv tool install reuse"
             echo "  cargo binstall typos-cli && npm i -g markdownlint-cli"
@@ -190,17 +229,19 @@ if [[ "$MISSING" -gt 0 || "$WARN" -gt 0 ]]; then
             echo "  source \"\$HOME/.cargo/env\""
             echo ""
             echo "  # Recommended:"
-            echo "  sudo apt install -y nodejs npm jq"
+            echo "  sudo apt install -y nodejs npm jq shellcheck"
             echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
             echo "  uv tool install reuse"
-            echo "  cargo binstall typos-cli && npm i -g markdownlint-cli"
+            echo "  cargo binstall typos-cli taplo-cli && npm i -g markdownlint-cli"
             echo "  # glab: https://gitlab.com/gitlab-org/cli#installation"
+            echo "  # yq: https://github.com/mikefarah/yq#install"
             ;;
         windows)
             echo "  # Required + recommended (winget — run in PowerShell):"
-            echo "  winget install Rustlang.Rustup astral-sh.uv"
+            echo "  winget install Rustlang.Rustup astral-sh.uv MikeFarah.yq"
             echo "  winget install GitLab.Glab OpenJS.NodeJS.LTS jqlang.jq"
             echo "  uv tool install reuse"
+            echo "  cargo install taplo-cli"
             echo ""
             echo "  Restart your terminal after installing to update PATH."
             ;;

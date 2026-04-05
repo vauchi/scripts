@@ -7,7 +7,8 @@
 # 2. Rust formatting (cargo fmt)
 # 3. Inline test markers (INLINE_TEST_REQUIRED)
 # 4. No secrets in staged files
-# 5. Commit scope warning (non-blocking)
+# 5. Shell portability (shellcheck + custom GNU/BSD linter)
+# 6. Commit scope warning (non-blocking)
 
 set -euo pipefail
 
@@ -175,7 +176,45 @@ fi
 echo "  Secrets check OK"
 
 # ============================================================
-# 4. Commit scope warning (non-blocking)
+# 5. Shell portability checks (staged .sh and .just files)
+# ============================================================
+STAGED_SHELL=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(sh|bash|just)$' || true)
+
+if [[ -n "$STAGED_SHELL" ]]; then
+    echo "[5/6] Checking shell portability..."
+
+    # shellcheck (industry standard — catches echo -e, [[ ]] in sh, etc.)
+    if command -v shellcheck &> /dev/null; then
+        SC_FILES=$(echo "$STAGED_SHELL" | grep -E '\.(sh|bash)$' || true)
+        SC_ERRORS=""
+        for f in $SC_FILES; do
+            [[ -f "$f" ]] || continue
+            result=$(shellcheck -S warning "$f" 2>&1) || SC_ERRORS="${SC_ERRORS}${result}\n"
+        done
+        if [[ -n "$SC_ERRORS" ]]; then
+            echo ""
+            printf "%b" "$SC_ERRORS"
+            echo ""
+            echo "ERROR: shellcheck found issues in staged shell scripts."
+            echo "Fix them or add inline directives: # shellcheck disable=SCXXXX"
+            exit 1
+        fi
+    fi
+
+    # Custom portable-shell linter (catches GNU-vs-BSD patterns shellcheck misses)
+    HOOK_DIR="$(git rev-parse --show-toplevel)/scripts/hooks"
+    if [[ -x "$HOOK_DIR/check-portable-shell.sh" ]]; then
+        # shellcheck disable=SC2086
+        if ! "$HOOK_DIR/check-portable-shell.sh" $STAGED_SHELL; then
+            exit 1
+        fi
+    fi
+else
+    echo "[5/6] No shell files staged, skipping"
+fi
+
+# ============================================================
+# 6. Commit scope warning (non-blocking)
 # ============================================================
 # Warn when staged files span too many concern areas.
 # Catches non-atomic commits (E10 pattern) without blocking.
