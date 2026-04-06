@@ -744,7 +744,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_markdownlint_check() {
         echo ""
-        echo "[1/5] Linting markdown..."
+        echo "[1/6] Linting markdown..."
         if command -v markdownlint &> /dev/null; then
             # Lint only .md files changed on this branch vs origin/main
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
@@ -799,7 +799,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_reuse_check() {
         echo ""
-        echo "[2/5] Checking REUSE compliance..."
+        echo "[2/6] Checking REUSE compliance..."
         if command -v reuse &> /dev/null; then
             if ! reuse lint > /dev/null 2>&1; then
                 echo ""
@@ -829,7 +829,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_doc_naming_check() {
         echo ""
-        echo "[3/5] Checking doc naming convention..."
+        echo "[3/6] Checking doc naming convention..."
         ERRORS=0
         EXEMPT_NAMES="README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|INDEX.md"
         EXEMPT_COMPANION="investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md"
@@ -859,7 +859,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_plan_presence_check() {
         echo ""
-        echo "[4/5] Checking plan.md companions..."
+        echo "[4/6] Checking plan.md companions..."
         ERRORS=0
         for impl in $(find docs/problems -not -path "*/done/*" -name "implementation-plan.md" 2>/dev/null); do
             dir=$(dirname "$impl")
@@ -879,7 +879,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_local_link_check() {
         echo ""
-        echo "[5/5] Checking local file links..."
+        echo "[5/6] Checking local file links..."
         if command -v lychee &> /dev/null; then
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
             if [[ -n "$MD_BASE" ]]; then
@@ -910,6 +910,40 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
         fi
     }
     time_step "Link check" run_local_link_check
+
+    run_stale_ref_check() {
+        echo ""
+        echo "[6/6] Checking stale references (ADR-027)..."
+        # Warning only — does not block push
+        stale_refs=$(grep -rn 'desktop/' --include='*.md' \
+            docs/problems/ docs/planning/todo/ 2>/dev/null \
+            | grep -v 'done/' \
+            | grep -v 'archived' \
+            | grep -v '~~.*desktop.*~~' \
+            | grep -v 'ADR-027' \
+            | grep -v 'changelog' \
+            | grep -v 'evidence' || true)
+
+        stale_tauri=$(grep -rn 'Tauri\|SolidJS' --include='*.md' \
+            docs/problems/ docs/planning/todo/ 2>/dev/null \
+            | grep -v 'done/' \
+            | grep -v 'archived' \
+            | grep -v '~~.*~~' \
+            | grep -v 'ADR-027' \
+            | grep -v 'changelog' \
+            | grep -v 'evidence' || true)
+
+        combined="${stale_refs}${stale_tauri}"
+        if [[ -n "$combined" ]]; then
+            echo "  WARNING: Stale references to archived desktop/Tauri/SolidJS:"
+            echo "$combined" | head -10
+            echo "  Per ADR-027: desktop = linux-gtk + linux-qt + macos + windows"
+            echo "  Update or strike through these references."
+        else
+            echo "  ADR-027 stale refs OK"
+        fi
+    }
+    time_step "Stale refs" run_stale_ref_check
 
 # ─── Unknown repo type ───────────────────────────────────────────────
 
