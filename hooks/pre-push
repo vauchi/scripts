@@ -954,6 +954,74 @@ fi
 
 fi  # end _STAMP_SKIP guard
 
+# ─── File size gate ───────────────────────────────────────────────────
+# Runs OUTSIDE the stamp skip guard because `just check` does not run
+# file-size checks. Only checks files changed on this branch (fast).
+
+if [[ -f "$REPO_ROOT/Cargo.toml" || -f "${REPO_ROOT}/src-tauri/Cargo.toml" ]]; then
+    if [[ -n "$BRANCH" && "$BRANCH" != "main" ]]; then
+        WORKSPACE_ROOT="$(dirname "$REPO_ROOT")"
+        SIZE_SCRIPT="$WORKSPACE_ROOT/scripts/scripts/check-file-size.sh"
+        if [[ -x "$SIZE_SCRIPT" ]]; then
+            # Collect .rs files changed on this branch
+            CHANGED_RS=$(git -C "$REPO_ROOT" diff --name-only origin/main...HEAD -- '*.rs' 2>/dev/null \
+                | grep -v '^target/' || true)
+            if [[ -n "$CHANGED_RS" ]]; then
+                echo ""
+                echo "Checking file sizes..."
+                SIZE_FAIL=0
+                while IFS= read -r rs_file; do
+                    full_path="$REPO_ROOT/$rs_file"
+                    [[ -f "$full_path" ]] || continue
+                    lines=$(wc -l < "$full_path" | tr -d ' ')
+
+                    # Determine thresholds based on test vs source
+                    case "$rs_file" in
+                        */tests/*|*_test.rs|*_tests.rs)
+                            error_threshold=1200
+                            kind="test" ;;
+                        *)
+                            error_threshold=1000
+                            kind="src" ;;
+                    esac
+
+                    # Check suppression (// allow(large_file) on line 1)
+                    if head -1 "$full_path" 2>/dev/null | grep -q '//.*allow(large_file)'; then
+                        continue
+                    fi
+
+                    # Check baseline
+                    BASELINE_FILE="$REPO_ROOT/.file-size-baseline"
+                    baseline=""
+                    if [[ -f "$BASELINE_FILE" ]]; then
+                        baseline=$(grep -E "^${rs_file} " "$BASELINE_FILE" 2>/dev/null \
+                            | awk '{print $2}' || true)
+                    fi
+
+                    if [[ -n "$baseline" ]]; then
+                        # Grandfathered: only fail if it grew beyond baseline
+                        if [[ "$lines" -gt "$baseline" ]]; then
+                            echo "  FAIL $rs_file ($lines lines, baseline $baseline — grew by $((lines - baseline)))"
+                            SIZE_FAIL=1
+                        fi
+                    elif [[ "$lines" -gt "$error_threshold" ]]; then
+                        echo "  FAIL $rs_file ($lines lines, $kind error threshold $error_threshold)"
+                        SIZE_FAIL=1
+                    fi
+                done <<< "$CHANGED_RS"
+                if [[ "$SIZE_FAIL" -eq 1 ]]; then
+                    echo ""
+                    echo "BLOCKED: File size limit exceeded."
+                    echo "  Split the file, add to .file-size-baseline, or add '// allow(large_file)' on line 1."
+                    echo "  Run 'just lint-file-size $REPO_DIR' for the full report."
+                    exit 1
+                fi
+                echo "  File sizes OK"
+            fi
+        fi
+    fi
+fi
+
 # ─── New test annotation gate ─────────────────────────────────────────
 # Runs OUTSIDE the stamp skip guard because `just check` does not run
 # annotation checks. Must always run for Rust repos on feature branches.
