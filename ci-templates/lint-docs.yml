@@ -50,7 +50,7 @@ check:doc-naming:
           README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|VISIBILITY_POLICY.md|INDEX.md)
             continue
             ;;
-          assumptions.md|master-plan.plan.md)
+          assumptions.md|master-plan.plan.md|work-board.md)
             continue
             ;;
           STRUCTURE.md|ARCHITECTURE.md|SECURITY.md|CHECKLIST.md)
