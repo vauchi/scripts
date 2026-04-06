@@ -58,7 +58,7 @@
 
 .auto-tag:
   stage: auto-tag
-  image: alpine:3.21
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
   tags: [docker]
   needs: []
   rules:

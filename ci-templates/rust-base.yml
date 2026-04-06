@@ -448,7 +448,7 @@ workflow:
 # Pin image version to match rust-toolchain.toml in each repo.
 # Update both together when bumping the Rust version.
 .rust-job:
-  image: rust:1.93.1
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/rust:1.93.1
   cache:
     key:
       files:
@@ -549,9 +549,9 @@ workflow:
 # Prunes unused Docker images and containers
 .cleanup-docker:
   stage: .post
-  image: docker:27
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:27
   services:
-    - docker:27-dind
+    - ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:27-dind
   tags:
     - docker
   variables:

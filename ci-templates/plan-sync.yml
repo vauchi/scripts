@@ -22,7 +22,7 @@
 
 .plan-sync:
   stage: .post
-  image: node:20-slim
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/node:20-slim
   tags: [docker]
   variables:
     GIT_STRATEGY: clone
