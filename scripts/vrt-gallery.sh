@@ -9,11 +9,13 @@
 # a self-contained HTML page showing every baseline side-by-side.
 #
 # Platforms:
-#   - iOS:      swift-snapshot-testing PNG snapshots
-#   - macOS:    swift-snapshot-testing PNG snapshots
-#   - Android:  Compose Preview Screenshot Testing PNG snapshots
-#   - Web Demo: Playwright snapshots
-#   - TUI:      insta text snapshots (rendered as <pre> blocks)
+#   - iOS:       swift-snapshot-testing PNG snapshots
+#   - macOS:     swift-snapshot-testing PNG snapshots
+#   - Android:   Compose Preview Screenshot Testing PNG snapshots
+#   - Web Demo:  Playwright snapshots
+#   - Linux GTK: AT-SPI screenshot baselines
+#   - Linux Qt:  AT-SPI screenshot baselines
+#   - TUI:       insta text snapshots (rendered as <pre> blocks)
 #
 # Usage:
 #   ./scripts/vrt-gallery.sh            # Generate and open gallery
@@ -31,6 +33,8 @@ IOS_SNAPS="$PROJECT_ROOT/ios/VauchiSnapshotTests/__Snapshots__/VisualRegressionT
 MACOS_SNAPS="$PROJECT_ROOT/macos/VauchiSnapshotTests/__Snapshots__/VisualRegressionTests"
 ANDROID_SNAPS="$PROJECT_ROOT/android/app/src/screenshotTestDebug/reference/app/vauchi/ScreenshotTestsKt"
 WEB_DEMO_SNAPS="$PROJECT_ROOT/web-demo/tests/playwright/vrt.spec.ts-snapshots"
+LINUX_GTK_SNAPS="$PROJECT_ROOT/linux-gtk/tests/atspi/snapshots/baseline"
+LINUX_QT_SNAPS="$PROJECT_ROOT/linux-qt/tests/atspi/snapshots/baseline"
 TUI_SNAPS="$PROJECT_ROOT/tui/tests/snapshots"
 
 NO_OPEN=false
@@ -39,7 +43,7 @@ if [[ "${1:-}" == "--no-open" ]]; then
 fi
 
 # ── Prepare output ────────────────────────────────────────────────
-mkdir -p "$OUTPUT_DIR/images/ios" "$OUTPUT_DIR/images/macos" "$OUTPUT_DIR/images/android" "$OUTPUT_DIR/images/web-demo"
+mkdir -p "$OUTPUT_DIR/images/ios" "$OUTPUT_DIR/images/macos" "$OUTPUT_DIR/images/android" "$OUTPUT_DIR/images/web-demo" "$OUTPUT_DIR/images/linux-gtk" "$OUTPUT_DIR/images/linux-qt"
 
 # ── Collect iOS baselines ─────────────────────────────────────────
 ios_count=0
@@ -81,6 +85,26 @@ if [ -d "$WEB_DEMO_SNAPS" ]; then
     done
 fi
 
+# ── Collect Linux GTK baselines ───────────────────────────────────
+linux_gtk_count=0
+if [ -d "$LINUX_GTK_SNAPS" ]; then
+    for f in "$LINUX_GTK_SNAPS"/*.png; do
+        [ -f "$f" ] || continue
+        cp "$f" "$OUTPUT_DIR/images/linux-gtk/"
+        linux_gtk_count=$((linux_gtk_count + 1))
+    done
+fi
+
+# ── Collect Linux Qt baselines ───────────────────────────────────
+linux_qt_count=0
+if [ -d "$LINUX_QT_SNAPS" ]; then
+    for f in "$LINUX_QT_SNAPS"/*.png; do
+        [ -f "$f" ] || continue
+        cp "$f" "$OUTPUT_DIR/images/linux-qt/"
+        linux_qt_count=$((linux_qt_count + 1))
+    done
+fi
+
 # ── Collect TUI text snapshots ────────────────────────────────────
 tui_count=0
 tui_entries=""
@@ -99,7 +123,7 @@ if [ -d "$TUI_SNAPS" ]; then
     done
 fi
 
-total=$((ios_count + macos_count + android_count + web_demo_count + tui_count))
+total=$((ios_count + macos_count + android_count + web_demo_count + linux_gtk_count + linux_qt_count + tui_count))
 timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
 # ── Generate HTML ─────────────────────────────────────────────────
@@ -122,6 +146,8 @@ cat > "$OUTPUT_FILE" << 'HTML_HEAD'
     --macos: #a2845e;
     --android: #3ddc84;
     --web-demo: #f97316;
+    --linux-gtk: #4e9a06;
+    --linux-qt: #729fcf;
     --tui: #a78bfa;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -149,6 +175,8 @@ cat > "$OUTPUT_FILE" << 'HTML_HEAD'
   .stat-macos { border-color: var(--macos); color: var(--macos); }
   .stat-android { border-color: var(--android); color: var(--android); }
   .stat-web-demo { border-color: var(--web-demo); color: var(--web-demo); }
+  .stat-linux-gtk { border-color: var(--linux-gtk); color: var(--linux-gtk); }
+  .stat-linux-qt { border-color: var(--linux-qt); color: var(--linux-qt); }
   .stat-tui { border-color: var(--tui); color: var(--tui); }
 
   nav {
@@ -194,6 +222,8 @@ cat > "$OUTPUT_FILE" << 'HTML_HEAD'
   .badge-macos { background: var(--macos); color: #fff; }
   .badge-android { background: var(--android); color: #000; }
   .badge-web-demo { background: var(--web-demo); color: #000; }
+  .badge-linux-gtk { background: var(--linux-gtk); color: #fff; }
+  .badge-linux-qt { background: var(--linux-qt); color: #fff; }
   .badge-tui { background: var(--tui); color: #000; }
 
   .grid {
@@ -282,6 +312,8 @@ cat >> "$OUTPUT_FILE" << HTML_HEADER
     <span class="stat stat-macos">macOS: $macos_count</span>
     <span class="stat stat-android">Android: $android_count</span>
     <span class="stat stat-web-demo">Web Demo: $web_demo_count</span>
+    <span class="stat stat-linux-gtk">Linux GTK: $linux_gtk_count</span>
+    <span class="stat stat-linux-qt">Linux Qt: $linux_qt_count</span>
     <span class="stat stat-tui">TUI: $tui_count</span>
   </div>
 </header>
@@ -290,6 +322,8 @@ cat >> "$OUTPUT_FILE" << HTML_HEADER
   <a href="#macos">macOS</a>
   <a href="#android">Android</a>
   <a href="#web-demo">Web Demo</a>
+  <a href="#linux-gtk">Linux GTK</a>
+  <a href="#linux-qt">Linux Qt</a>
   <a href="#tui">TUI</a>
 </nav>
 <main>
@@ -381,6 +415,48 @@ fi
 
 echo '</div></section>' >> "$OUTPUT_FILE"
 
+# ── Linux GTK section ────────────────────────────────────────────
+cat >> "$OUTPUT_FILE" << 'SECTION'
+<section id="linux-gtk">
+<h2><span class="badge badge-linux-gtk">Linux GTK</span> AT-SPI Screenshots</h2>
+<div class="grid">
+SECTION
+
+if [ "$linux_gtk_count" -gt 0 ]; then
+    for f in "$OUTPUT_DIR"/images/linux-gtk/*.png; do
+        [ -f "$f" ] || continue
+        name="$(basename "$f" .png)"
+        label="${name//_/ }"
+        label=$(printf '%s' "$label" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+        echo "<div class=\"card\"><h3>$label</h3><img src=\"images/linux-gtk/$(basename "$f")\" alt=\"$label\" loading=\"lazy\" onclick=\"openLightbox(this)\"></div>" >> "$OUTPUT_FILE"
+    done
+else
+    echo '<p class="empty">No Linux GTK baselines found. Run snapshot tests in the linux-gtk/ repo first.</p>' >> "$OUTPUT_FILE"
+fi
+
+echo '</div></section>' >> "$OUTPUT_FILE"
+
+# ── Linux Qt section ─────────────────────────────────────────────
+cat >> "$OUTPUT_FILE" << 'SECTION'
+<section id="linux-qt">
+<h2><span class="badge badge-linux-qt">Linux Qt</span> AT-SPI Screenshots</h2>
+<div class="grid">
+SECTION
+
+if [ "$linux_qt_count" -gt 0 ]; then
+    for f in "$OUTPUT_DIR"/images/linux-qt/*.png; do
+        [ -f "$f" ] || continue
+        name="$(basename "$f" .png)"
+        label="${name//_/ }"
+        label=$(printf '%s' "$label" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+        echo "<div class=\"card\"><h3>$label</h3><img src=\"images/linux-qt/$(basename "$f")\" alt=\"$label\" loading=\"lazy\" onclick=\"openLightbox(this)\"></div>" >> "$OUTPUT_FILE"
+    done
+else
+    echo '<p class="empty">No Linux Qt baselines found. Run snapshot tests in the linux-qt/ repo first.</p>' >> "$OUTPUT_FILE"
+fi
+
+echo '</div></section>' >> "$OUTPUT_FILE"
+
 # ── TUI section ───────────────────────────────────────────────────
 cat >> "$OUTPUT_FILE" << 'SECTION'
 <section id="tui">
@@ -400,7 +476,7 @@ echo '</div></section>' >> "$OUTPUT_FILE"
 cat >> "$OUTPUT_FILE" << HTML_FOOTER
 </main>
 <footer>
-  Generated $timestamp &mdash; $total baselines across 5 platforms
+  Generated $timestamp &mdash; $total baselines across 7 platforms
 </footer>
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
   <img id="lightbox-img" src="" alt="">
@@ -422,7 +498,7 @@ document.addEventListener('keydown', function(e) {
 HTML_FOOTER
 
 echo "VRT Gallery generated: $OUTPUT_FILE"
-echo "  iOS: $ios_count | macOS: $macos_count | Android: $android_count | Web Demo: $web_demo_count | TUI: $tui_count | Total: $total"
+echo "  iOS: $ios_count | macOS: $macos_count | Android: $android_count | Web Demo: $web_demo_count | Linux GTK: $linux_gtk_count | Linux Qt: $linux_qt_count | TUI: $tui_count | Total: $total"
 
 if [ "$NO_OPEN" = false ]; then
     if command -v open &> /dev/null; then
