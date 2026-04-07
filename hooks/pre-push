@@ -599,6 +599,13 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
     # overrides — path-resolved lockfiles can't be verified with --locked
     # because cargo-vet internally uses --locked for cargo metadata.
 
+    if [[ -d "$REPO_ROOT/supply-chain" ]] && ! command -v cargo-vet &>/dev/null; then
+        echo ""
+        echo "  [WARN] cargo-vet not installed — skipping supply chain check."
+        echo "         Install: cargo binstall cargo-vet"
+        echo "         CI will still enforce it on MR."
+    fi
+
     if [[ -d "$REPO_ROOT/supply-chain" ]] && command -v cargo-vet &>/dev/null; then
         run_vet() {
             echo ""
