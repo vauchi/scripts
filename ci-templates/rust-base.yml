@@ -225,7 +225,7 @@ workflow:
       # so renamed modules (e.g. foo.rs → foo/mod.rs) leave the old file
       # on disk, breaking rustfmt ("file for module found at both").
       # Exclude build artifacts to preserve sccache/cargo incremental state.
-      git clean -ffd -e target/ -e .cargo/ -e .cache/
+      git clean -ffd -e target/ -e .cargo/ -e .cache/ -e .smoke-bin/
 
       # Remove .cargo/config.toml if it contains [patch] path overrides.
       # Local-dev configs (e.g. ../core/vauchi-core) resolve to stale
