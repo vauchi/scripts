@@ -71,28 +71,32 @@
       # Push metrics to Grafana regardless of pass/fail, then exit with mutation status
       "$PUSH_SCRIPT" "$MUTANTS_OUT" "${CI_PROJECT_NAME}" || true
 
-      # Generate JUnit XML from outcomes.json for GitLab test tab
-      OUTCOMES="$MUTANTS_OUT/mutants.out/outcomes.json"
+      # Generate JUnit XML from cargo-mutants text output for GitLab test tab.
+      # Uses plain text files (missed.txt, caught.txt, unviable.txt) instead of
+      # jq+outcomes.json since jq may not be installed on all runners.
+      MUTANTS_DIR="$MUTANTS_OUT/mutants.out"
       JUNIT="$MUTANTS_OUT/mutation-junit.xml"
-      if [ -f "$OUTCOMES" ] && command -v jq >/dev/null 2>&1; then
-        TOTAL=$(jq '[.outcomes[] | select(.scenario.Mutant?)] | length' "$OUTCOMES" 2>/dev/null || echo 0)
-        MISSED=$(jq '[.outcomes[] | select(.scenario.Mutant? and (.summary == "MissedMutant"))] | length' "$OUTCOMES" 2>/dev/null || echo 0)
-        cat > "$JUNIT" <<JUNIT_HEAD
+      MISSED=$(wc -l < "$MUTANTS_DIR/missed.txt" 2>/dev/null | tr -d ' ' || echo 0)
+      CAUGHT=$(wc -l < "$MUTANTS_DIR/caught.txt" 2>/dev/null | tr -d ' ' || echo 0)
+      UNVIABLE=$(wc -l < "$MUTANTS_DIR/unviable.txt" 2>/dev/null | tr -d ' ' || echo 0)
+      TOTAL=$((MISSED + CAUGHT + UNVIABLE))
+      cat > "$JUNIT" <<JUNIT_HEAD
       <?xml version="1.0" encoding="UTF-8"?>
       <testsuites name="mutation:nightly" tests="$TOTAL" failures="$MISSED">
         <testsuite name="cargo-mutants" tests="$TOTAL" failures="$MISSED">
       JUNIT_HEAD
-        jq -r '.outcomes[] | select(.scenario.Mutant?) | "\(.summary)\t\(.scenario.Mutant.function.function_name // "unknown")\t\(.scenario.Mutant.file // "unknown")"' "$OUTCOMES" 2>/dev/null | while IFS=$'\t' read -r summary func file; do
-          safe_name=$(echo "${func} (${file})" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
-          if [ "$summary" = "MissedMutant" ]; then
-            echo "    <testcase name=\"${safe_name}\" classname=\"mutants\"><failure message=\"Mutant survived\"/></testcase>" >> "$JUNIT"
-          else
-            echo "    <testcase name=\"${safe_name}\" classname=\"mutants\"/>" >> "$JUNIT"
-          fi
-        done
-        echo "  </testsuite>" >> "$JUNIT"
-        echo "</testsuites>" >> "$JUNIT"
-      fi
+      for f in "$MUTANTS_DIR/caught.txt" "$MUTANTS_DIR/unviable.txt"; do
+        while IFS= read -r line; do
+          safe=$(echo "$line" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+          echo "    <testcase name=\"${safe}\" classname=\"mutants\"/>" >> "$JUNIT"
+        done < "$f" 2>/dev/null || true
+      done
+      while IFS= read -r line; do
+        safe=$(echo "$line" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+        echo "    <testcase name=\"${safe}\" classname=\"mutants\"><failure message=\"Mutant survived\"/></testcase>" >> "$JUNIT"
+      done < "$MUTANTS_DIR/missed.txt" 2>/dev/null || true
+      echo "  </testsuite>" >> "$JUNIT"
+      echo "</testsuites>" >> "$JUNIT"
 
       exit $MUTATION_EXIT
   artifacts:
