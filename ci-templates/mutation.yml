@@ -70,8 +70,35 @@
       MUTATION_EXIT=$?
       # Push metrics to Grafana regardless of pass/fail, then exit with mutation status
       "$PUSH_SCRIPT" "$MUTANTS_OUT" "${CI_PROJECT_NAME}" || true
+
+      # Generate JUnit XML from outcomes.json for GitLab test tab
+      OUTCOMES="$MUTANTS_OUT/mutants.out/outcomes.json"
+      JUNIT="$MUTANTS_OUT/mutation-junit.xml"
+      if [ -f "$OUTCOMES" ] && command -v jq >/dev/null 2>&1; then
+        TOTAL=$(jq '[.outcomes[] | select(.scenario.Mutant?)] | length' "$OUTCOMES" 2>/dev/null || echo 0)
+        MISSED=$(jq '[.outcomes[] | select(.scenario.Mutant? and (.summary == "MissedMutant"))] | length' "$OUTCOMES" 2>/dev/null || echo 0)
+        cat > "$JUNIT" <<JUNIT_HEAD
+      <?xml version="1.0" encoding="UTF-8"?>
+      <testsuites name="mutation:nightly" tests="$TOTAL" failures="$MISSED">
+        <testsuite name="cargo-mutants" tests="$TOTAL" failures="$MISSED">
+      JUNIT_HEAD
+        jq -r '.outcomes[] | select(.scenario.Mutant?) | "\(.summary)\t\(.scenario.Mutant.function.function_name // "unknown")\t\(.scenario.Mutant.file // "unknown")"' "$OUTCOMES" 2>/dev/null | while IFS=$'\t' read -r summary func file; do
+          safe_name=$(echo "${func} (${file})" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+          if [ "$summary" = "MissedMutant" ]; then
+            echo "    <testcase name=\"${safe_name}\" classname=\"mutants\"><failure message=\"Mutant survived\"/></testcase>" >> "$JUNIT"
+          else
+            echo "    <testcase name=\"${safe_name}\" classname=\"mutants\"/>" >> "$JUNIT"
+          fi
+        done
+        echo "  </testsuite>" >> "$JUNIT"
+        echo "</testsuites>" >> "$JUNIT"
+      fi
+
       exit $MUTATION_EXIT
   artifacts:
+    when: always
     paths:
       - ${MUTATION_WORKDIR}/target/mutants/
+    reports:
+      junit: ${MUTATION_WORKDIR}/target/mutants/mutation-junit.xml
     expire_in: 1 week
