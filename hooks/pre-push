@@ -751,7 +751,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_markdownlint_check() {
         echo ""
-        echo "[1/6] Linting markdown..."
+        echo "[1/7] Linting markdown..."
         if command -v markdownlint &> /dev/null; then
             # Lint only .md files changed on this branch vs origin/main
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
@@ -806,7 +806,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_reuse_check() {
         echo ""
-        echo "[2/6] Checking REUSE compliance..."
+        echo "[2/7] Checking REUSE compliance..."
         if command -v reuse &> /dev/null; then
             if ! reuse lint > /dev/null 2>&1; then
                 echo ""
@@ -836,7 +836,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_doc_naming_check() {
         echo ""
-        echo "[3/6] Checking doc naming convention..."
+        echo "[3/7] Checking doc naming convention..."
         ERRORS=0
         EXEMPT_NAMES="README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|INDEX.md"
         EXEMPT_COMPANION="investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md"
@@ -866,15 +866,48 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_plan_presence_check() {
         echo ""
-        echo "[4/6] Checking plan.md companions..."
+        echo "[4/7] Checking plan.md companions..."
         ERRORS=0
+        # 1. Problem records in planning/implementing status with implementation-plan.md
+        # should have plan.md (task DAG). Skip intake/investigating (too early),
+        # done/ (historical), and records where implementation-plan.md has tasks.
         for impl in $(find docs/problems -not -path "*/done/*" -name "implementation-plan.md" 2>/dev/null); do
             dir=$(dirname "$impl")
-            if [[ ! -f "$dir/plan.md" ]]; then
-                echo "  MISSING: $dir/plan.md (has implementation-plan.md)"
+            [ -f "$dir/plan.md" ] && continue
+            # Accept implementation-plan.md as the plan if it contains task checkboxes
+            if grep -q '^\- \[' "$impl" 2>/dev/null; then continue; fi
+            # Skip intake/investigating — too early for a plan requirement
+            if [ -f "$dir/README.md" ]; then
+                status=$(grep -oE 'Status.*`(intake|investigating)`' "$dir/README.md" 2>/dev/null)
+                if [ -n "$status" ]; then continue; fi
+            fi
+            echo "  MISSING: $dir/plan.md (has implementation-plan.md with no task checkboxes)"
+            ERRORS=$((ERRORS + 1))
+        done
+
+        # 2. Planning todo docs must have companion .plan.md (task DAG)
+        # Skip: .plan.md files (ARE task DAGs), -plan.md files (ARE narrative plans)
+        # Search: sibling, then planning/todo/, designs/, planning/ by slug match
+        for doc in docs/planning/todo/20*.md; do
+            [ -f "$doc" ] || continue
+            case "$doc" in *.plan.md) continue ;; *-plan.md) continue ;; esac
+            # Check for opt-out marker (standalone plans without task DAGs)
+            grep -q '<!-- no-plan-companion -->' "$doc" 2>/dev/null && continue
+            plan="${doc%.md}.plan.md"
+            [ -f "$plan" ] && continue
+            # Extract slug (strip YYYY-MM-DD- prefix)
+            base=$(basename "$doc" .md)
+            slug="${base#[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-}"
+            found=0
+            for p in docs/planning/todo/*"${slug}"*.plan.md docs/designs/*"${slug}"*.plan.md docs/planning/*"${slug}"*.plan.md; do
+                if [ -f "$p" ]; then found=1; break; fi
+            done
+            if [ "$found" -eq 0 ]; then
+                echo "  MISSING: $plan"
                 ERRORS=$((ERRORS + 1))
             fi
         done
+
         if [[ $ERRORS -gt 0 ]]; then
             echo ""
             echo "FAILED: $ERRORS missing companion plan(s)."
@@ -886,7 +919,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_local_link_check() {
         echo ""
-        echo "[5/6] Checking local file links..."
+        echo "[5/7] Checking local file links..."
         if command -v lychee &> /dev/null; then
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
             if [[ -n "$MD_BASE" ]]; then
@@ -920,7 +953,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_stale_ref_check() {
         echo ""
-        echo "[6/6] Checking stale references (ADR-027)..."
+        echo "[6/7] Checking stale references (ADR-027)..."
         # Warning only — does not block push
         stale_refs=$(grep -rn 'desktop/' --include='*.md' \
             docs/problems/ docs/planning/todo/ 2>/dev/null \
@@ -951,6 +984,22 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
         fi
     }
     time_step "Stale refs" run_stale_ref_check
+
+    run_problem_records_check() {
+        if [[ "$REPO_DIR" == "_private" ]]; then
+            echo ""
+            echo "[7/7] Validating problem records..."
+            if [[ -f "scripts/check-problem-records.py" ]]; then
+                if ! python3 scripts/check-problem-records.py; then
+                    echo ""
+                    echo "FAILED: Problem records validation failed."
+                    exit 1
+                fi
+                echo "  Problem records OK"
+            fi
+        fi
+    }
+    time_step "Problem records" run_problem_records_check
 
 # ─── Unknown repo type ───────────────────────────────────────────────
 
