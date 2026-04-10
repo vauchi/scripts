@@ -258,6 +258,10 @@ workflow:
     # timestamp use the commit date instead of wall clock. Required for
     # bit-identical rebuilds from the same source.
     - export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+    # Reproducible builds: remap absolute paths so binaries don't embed
+    # runner-specific directory names. Combined with strip=true in the
+    # release profile, this eliminates path-based non-determinism.
+    - export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--remap-path-prefix=$CI_PROJECT_DIR=/build --remap-path-prefix=$HOME/.cargo/registry/src=/registry"
     # Ensure a Rust toolchain is configured (self-hosted runners may not have a default)
     - rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
     # Clear extracted crate sources (shell runners persist registry across jobs;
