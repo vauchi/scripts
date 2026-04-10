@@ -253,6 +253,11 @@ workflow:
         exit 1
       fi
 
+    # Reproducible builds: pin timestamps to commit time (G3).
+    # SOURCE_DATE_EPOCH makes Rust's __DATE__/__TIME__ and any build-time
+    # timestamp use the commit date instead of wall clock. Required for
+    # bit-identical rebuilds from the same source.
+    - export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
     # Ensure a Rust toolchain is configured (self-hosted runners may not have a default)
     - rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
     # Clear extracted crate sources (shell runners persist registry across jobs;
