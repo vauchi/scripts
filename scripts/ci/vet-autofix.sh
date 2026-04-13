@@ -40,12 +40,12 @@ if $REGEN_LOCKFILE; then
 fi
 
 # Step 2: Try cargo vet
-VET_FLAGS=""
+VET_FLAGS=()
 if ! $REGEN_LOCKFILE; then
-    VET_FLAGS="--locked"
+    VET_FLAGS=(--locked)
 fi
 
-if cargo vet $VET_FLAGS 2>&1; then
+if cargo vet "${VET_FLAGS[@]}" 2>&1; then
     echo "cargo vet passed"
     exit 0
 fi
@@ -58,12 +58,12 @@ fi
 
 echo "cargo vet failed on ${CI_DEFAULT_BRANCH} — attempting auto-fix..."
 
-# Step 4: Regenerate exemptions
-cargo vet regenerate exemptions 2>&1
-cargo vet fmt 2>&1
+# Step 4: Regenerate exemptions (use same flags as the vet check)
+cargo vet "${VET_FLAGS[@]}" regenerate exemptions 2>&1
+cargo vet "${VET_FLAGS[@]}" fmt 2>&1
 
 # Step 5: Verify the fix works
-if ! cargo vet $VET_FLAGS 2>&1; then
+if ! cargo vet "${VET_FLAGS[@]}" 2>&1; then
     echo "Auto-fix failed — cargo vet still failing after regeneration"
     exit 1
 fi

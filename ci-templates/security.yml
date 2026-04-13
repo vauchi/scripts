@@ -173,9 +173,11 @@ secret_detection:
 
 # cargo-vet with auto-fix on main (push fix commit for transitive dep bumps)
 # Repos override script to pass --regenerate-lockfile if they use path overrides.
-# Requires GIT_PUSH_TOKEN CI variable with write access for push-back.
+# Requires PROJECT_ACCESS_TOKEN CI variable (group-level, same as release.yml and plan-sync.yml).
 .security-vet-autofix-job:
   extends: .security-vet-job
+  interruptible: false  # Must complete push — interruption after commit loses the fix
+  resource_group: vet-autofix-push
   script:
     - |
       curl --silent --fail \
