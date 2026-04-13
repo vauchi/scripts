@@ -170,3 +170,16 @@ secret_detection:
   script:
     # Use committed Cargo.lock — never regenerate, as newer versions may lack exemptions
     - cargo vet --locked
+
+# cargo-vet with auto-fix on main (push fix commit for transitive dep bumps)
+# Repos override script to pass --regenerate-lockfile if they use path overrides.
+# Requires GIT_PUSH_TOKEN CI variable with write access for push-back.
+.security-vet-autofix-job:
+  extends: .security-vet-job
+  script:
+    - |
+      curl --silent --fail \
+        "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fci%2Fvet-autofix.sh/raw?ref=main" \
+        -o vet-autofix.sh
+      chmod +x vet-autofix.sh
+    - ./vet-autofix.sh
