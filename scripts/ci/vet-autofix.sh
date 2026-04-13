@@ -45,7 +45,7 @@ if ! $REGEN_LOCKFILE; then
     VET_FLAGS=(--locked)
 fi
 
-if cargo vet "${VET_FLAGS[@]}" 2>&1; then
+if cargo vet ${VET_FLAGS[@]+"${VET_FLAGS[@]}"} 2>&1; then
     echo "cargo vet passed"
     exit 0
 fi
