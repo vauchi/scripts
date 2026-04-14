@@ -42,7 +42,9 @@ file-size:check:
   script:
     - |
       # Fetch script via GitLab API (faster than git clone)
-      curl -fsSL "https://gitlab.com/vauchi/scripts/-/raw/${CI_DEFAULT_BRANCH}/scripts/check-file-size.sh" -o /tmp/check-file-size.sh
+      curl -fsSL --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fcheck-file-size.sh/raw?ref=main" \
+        -o /tmp/check-file-size.sh
       chmod +x /tmp/check-file-size.sh
 
       # Scan from repo root (script finds *.rs recursively, reads .file-size-baseline)
@@ -70,7 +72,9 @@ file-size:advisory:
   script:
     - |
       # Fetch script via GitLab API (faster than git clone)
-      curl -fsSL "https://gitlab.com/vauchi/scripts/-/raw/${CI_DEFAULT_BRANCH}/scripts/check-file-size.sh" -o /tmp/check-file-size.sh
+      curl -fsSL --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fcheck-file-size.sh/raw?ref=main" \
+        -o /tmp/check-file-size.sh
       chmod +x /tmp/check-file-size.sh
 
       # Scan from repo root in advisory mode (warnings only, never fails)
