@@ -213,16 +213,18 @@ else
 
     echo "--- Auto-fixing on ${CI_DEFAULT_BRANCH} ---"
 
-    # Regenerate exemptions
-    if ! cargo vet ${VET_FLAGS[@]+"${VET_FLAGS[@]}"} regenerate exemptions 2>&1; then
+    # Regenerate exemptions — never pass --locked here.
+    # --locked is only valid for the `cargo vet` check command, not for
+    # subcommands like `regenerate` or `fmt` (cargo-vet rejects it).
+    if ! cargo vet regenerate exemptions 2>&1; then
         echo "FATAL: 'cargo vet regenerate exemptions' failed"
         echo "  This usually means a crate needs an audit, not just an exemption."
         echo "  Check cargo vet output above for details."
         exit 1
     fi
-    cargo vet ${VET_FLAGS[@]+"${VET_FLAGS[@]}"} fmt 2>&1
+    cargo vet fmt 2>&1
 
-    # Verify the fix
+    # Verify the fix (this check DOES use --locked when appropriate)
     if ! cargo vet ${VET_FLAGS[@]+"${VET_FLAGS[@]}"} 2>&1; then
         echo "FATAL: cargo vet still failing after regeneration"
         echo "  Exemption regeneration was not sufficient. Manual intervention required."
