@@ -29,6 +29,8 @@
 # ============================================================
 
 # Trigger downstream on merge to main (with change detection)
+# Note: bridge jobs (trigger:) do not support timeout: — downstream jobs
+# must set their own timeouts via .timeout-standard/.timeout-extended.
 .trigger-on-merge:
   stage: trigger
   variables:

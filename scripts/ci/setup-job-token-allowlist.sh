@@ -12,12 +12,17 @@
 #   - glab CLI authenticated (glab auth status)
 #
 # What this does:
-#   1. Adds vauchi-platform-kotlin and vauchi-platform-swift to core's
-#      job token allowlist (so core CI can trigger distribution repos)
+#   1. Adds vauchi-platform-swift to core's job token allowlist
+#      (so core CI can trigger distribution repos)
 #   2. Adds core to distribution repos' allowlists (so they can
 #      download packages from core)
-#   3. Adds distribution repos to consumer app allowlists (so
-#      distribution CI can trigger app pipelines)
+#   3. Adds core/distribution repos to consumer app allowlists (so
+#      CI can trigger app pipelines)
+#   4. Adds Rust consumer repos (cli, tui, relay, e2e, linux-gtk,
+#      ohttp-relay) to core's allowlist (so vet-autofix.sh --sync-from
+#      can read core's supply-chain/config.toml via CI_JOB_TOKEN)
+#
+# Note: vauchi-platform-kotlin is archived — Maven AAR published from core.
 #
 # After running:
 #   - Replace $ANDROID_APP_TRIGGER_TOKEN / $IOS_APP_TRIGGER_TOKEN
@@ -73,7 +78,7 @@ add_to_allowlist() {
         --method POST \
         --raw-field "target_project_id=${allowed_id}" 2>&1) || true
 
-    if echo "$response" | grep -q '"id"'; then
+    if echo "$response" | grep -q 'project_id'; then
         echo "    ✓ Added"
     elif echo "$response" | grep -qi "already"; then
         echo "    ✓ Already in allowlist"
@@ -99,46 +104,58 @@ echo ""
 # ── Show current state ──────────────────────────────────────────
 echo "── Current allowlists ──"
 show_allowlist "${GROUP}/core"
-show_allowlist "${GROUP}/vauchi-platform-kotlin"
 show_allowlist "${GROUP}/vauchi-platform-swift"
 show_allowlist "${GROUP}/android"
 show_allowlist "${GROUP}/ios"
+show_allowlist "${GROUP}/macos"
 echo ""
 
 # ── Step 1: Core can be accessed by distribution repos ──────────
+# vauchi-platform-kotlin is archived — Maven AAR published from core directly.
 echo "── Step 1: Core ← Distribution repos (package access) ──"
-add_to_allowlist "${GROUP}/core" "${GROUP}/vauchi-platform-kotlin"
 add_to_allowlist "${GROUP}/core" "${GROUP}/vauchi-platform-swift"
 echo ""
 
 # ── Step 2: Distribution repos can be triggered by core ─────────
 echo "── Step 2: Distribution repos ← Core (trigger access) ──"
-add_to_allowlist "${GROUP}/vauchi-platform-kotlin" "${GROUP}/core"
 add_to_allowlist "${GROUP}/vauchi-platform-swift" "${GROUP}/core"
 echo ""
 
-# ── Step 3: App repos can be triggered by distribution repos ────
-echo "── Step 3: App repos ← Distribution repos (trigger access) ──"
-add_to_allowlist "${GROUP}/android" "${GROUP}/vauchi-platform-kotlin"
+# ── Step 3: App repos can be triggered by distribution/core ──────
+echo "── Step 3: App repos ← Core/Distribution (trigger access) ──"
+add_to_allowlist "${GROUP}/android" "${GROUP}/core"
 add_to_allowlist "${GROUP}/ios" "${GROUP}/vauchi-platform-swift"
+add_to_allowlist "${GROUP}/macos" "${GROUP}/vauchi-platform-swift"
+echo ""
+
+# ── Step 4: Core can be read by Rust consumer repos (vet-sync) ───
+# vet-autofix.sh --sync-from fetches core's supply-chain/config.toml
+# via CI_JOB_TOKEN. Consumer repos need core in their allowlist so
+# their CI_JOB_TOKEN can read core's files.
+echo "── Step 4: Core ← Rust consumers (vet exemption sync) ──"
+add_to_allowlist "${GROUP}/core" "${GROUP}/cli"
+add_to_allowlist "${GROUP}/core" "${GROUP}/tui"
+add_to_allowlist "${GROUP}/core" "${GROUP}/relay"
+add_to_allowlist "${GROUP}/core" "${GROUP}/e2e"
+add_to_allowlist "${GROUP}/core" "${GROUP}/linux-gtk"
+add_to_allowlist "${GROUP}/core" "${GROUP}/ohttp-relay"
 echo ""
 
 # ── Show final state ────────────────────────────────────────────
 if [[ "$DRY_RUN" == "false" ]]; then
     echo "── Updated allowlists ──"
     show_allowlist "${GROUP}/core"
-    show_allowlist "${GROUP}/vauchi-platform-kotlin"
     show_allowlist "${GROUP}/vauchi-platform-swift"
     show_allowlist "${GROUP}/android"
     show_allowlist "${GROUP}/ios"
+    show_allowlist "${GROUP}/macos"
     echo ""
 fi
 
 echo "=== Done ==="
 echo ""
 echo "Next steps:"
-echo "  1. Test: manually trigger a distribution repo pipeline and"
-echo "     verify it can download packages from core"
-echo "  2. Update notify:android-app / notify:ios-app jobs to use"
-echo "     CI_JOB_TOKEN instead of dedicated trigger tokens"
-echo "  3. Remove old trigger tokens from project CI/CD settings"
+echo "  1. Verify: push a change to core main and confirm downstream"
+echo "     triggered pipelines can read core's supply-chain/config.toml"
+echo "  2. Check that stale per-project trigger tokens are removed"
+echo "     from CI/CD settings (all triggers now use CI_JOB_TOKEN)"
