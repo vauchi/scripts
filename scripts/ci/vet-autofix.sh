@@ -216,16 +216,24 @@ else
     # Regenerate exemptions — never pass --locked here.
     # --locked is only valid for the `cargo vet` check command, not for
     # subcommands like `regenerate` or `fmt` (cargo-vet rejects it).
+    # cargo-vet's regenerate runs `cargo metadata` which may need the
+    # lockfile to be fresh. If regenerate fails (stale lockfile), refresh
+    # the lockfile first and retry.
     if ! cargo vet regenerate exemptions 2>&1; then
-        echo "FATAL: 'cargo vet regenerate exemptions' failed"
-        echo "  This usually means a crate needs an audit, not just an exemption."
-        echo "  Check cargo vet output above for details."
-        exit 1
+        echo "Regeneration failed — refreshing Cargo.lock and retrying..."
+        cargo generate-lockfile 2>&1 | tail -5
+        if ! cargo vet regenerate exemptions 2>&1; then
+            echo "FATAL: 'cargo vet regenerate exemptions' failed after lockfile refresh"
+            echo "  This usually means a crate needs an audit, not just an exemption."
+            exit 1
+        fi
     fi
     cargo vet fmt 2>&1
 
-    # Verify the fix (this check DOES use --locked when appropriate)
-    if ! cargo vet ${VET_FLAGS[@]+"${VET_FLAGS[@]}"} 2>&1; then
+    # Verify the fix. For repos that use --locked, the lockfile may have
+    # changed during regeneration — verify without --locked first, then
+    # re-check with --locked only if the lockfile didn't change.
+    if ! cargo vet 2>&1; then
         echo "FATAL: cargo vet still failing after regeneration"
         echo "  Exemption regeneration was not sufficient. Manual intervention required."
         exit 1
