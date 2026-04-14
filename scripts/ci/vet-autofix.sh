@@ -11,7 +11,8 @@
 # are propagated.
 #
 # When cargo-vet fails on the default branch (not MRs), regenerate
-# remaining exemptions (repo-specific deps) and push a fix commit.
+# remaining exemptions (repo-specific deps), push a fix branch, and
+# create an MR with merge-when-pipeline-succeeds enabled.
 #
 # Usage (in .gitlab-ci.yml script section):
 #   - curl -sf "$CI_API_V4_URL/projects/77957857/repository/files/scripts%2Fci%2Fvet-autofix.sh/raw?ref=main" -o vet-autofix.sh
@@ -242,7 +243,7 @@ else
 fi
 
 # ============================================================
-# Step 4: Commit and push changes (default branch only)
+# Step 4: Commit and create MR (default branch only)
 # ============================================================
 
 if git diff --quiet supply-chain/ Cargo.lock 2>/dev/null; then
@@ -270,17 +271,15 @@ git config user.name "vauchi-gitlab-runner"
 git config user.email "noreply@vauchi.app"
 git remote set-url origin "https://vauchi-gitlab-runner:${PROJECT_ACCESS_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
 
-# Commit first, then fetch + rebase to avoid non-fast-forward failures.
-# Rebase requires a clean working tree, so the commit must happen before
-# the rebase (not after). If rebase conflicts (unlikely for supply-chain-only
-# changes), abort and fail — manual intervention required.
-# Stage supply-chain/ and Cargo.lock (lockfile may have been refreshed
-# by cargo generate-lockfile during the regeneration fallback).
-git add supply-chain/ Cargo.lock
-git commit -m "tidy: auto-sync cargo-vet exemptions
+BRANCH="tidy/vet-autofix-$(date -u +%Y%m%d-%H%M%S)"
+COMMIT_MSG="tidy: auto-sync cargo-vet exemptions
 
 Triggered by dependency update on ${CI_DEFAULT_BRANCH}.
 Source: ${SYNC_FROM:+project ${SYNC_FROM} (core) + }local regeneration"
+
+git checkout -b "$BRANCH"
+git add supply-chain/ Cargo.lock
+git commit -m "$COMMIT_MSG"
 
 git fetch origin "${CI_DEFAULT_BRANCH}" 2>/dev/null || true
 if ! git rebase "origin/${CI_DEFAULT_BRANCH}" 2>/dev/null; then
@@ -289,6 +288,43 @@ if ! git rebase "origin/${CI_DEFAULT_BRANCH}" 2>/dev/null; then
     exit 1
 fi
 
-git push origin "HEAD:${CI_DEFAULT_BRANCH}"
+git push origin "$BRANCH"
 
-echo "Exemption updates committed and pushed to ${CI_DEFAULT_BRANCH}"
+echo "Pushed branch ${BRANCH}"
+
+# Create MR via GitLab API and enable merge-when-pipeline-succeeds
+MR_BODY="Automated cargo-vet exemption sync triggered by CI on \`${CI_DEFAULT_BRANCH}\`."
+MR_BODY="${MR_BODY}\n\nSource: ${SYNC_FROM:+project ${SYNC_FROM} (core) + }local regeneration."
+MR_BODY="${MR_BODY}\n\nThis MR was created automatically and set to merge when pipeline succeeds."
+
+MR_RESPONSE=$(curl --silent --fail --request POST \
+    --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests" \
+    --data-urlencode "source_branch=${BRANCH}" \
+    --data-urlencode "target_branch=${CI_DEFAULT_BRANCH}" \
+    --data-urlencode "title=tidy: auto-sync cargo-vet exemptions" \
+    --data-urlencode "description=${MR_BODY}" \
+    --data-urlencode "remove_source_branch=true" \
+    2>&1) || {
+    echo "WARNING: Could not create MR — push succeeded, create MR manually"
+    echo "  Branch: ${BRANCH}"
+    exit 0
+}
+
+MR_IID=$(echo "$MR_RESPONSE" | grep -o '"iid":[0-9]*' | head -1 | cut -d: -f2)
+MR_URL=$(echo "$MR_RESPONSE" | grep -o '"web_url":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+echo "Created MR !${MR_IID}: ${MR_URL}"
+
+# Enable merge-when-pipeline-succeeds (auto-merge)
+if [[ -n "$MR_IID" ]]; then
+    curl --silent --fail --request PUT \
+        --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${MR_IID}/merge" \
+        --data "merge_when_pipeline_succeeds=true" \
+        >/dev/null 2>&1 || {
+        echo "NOTE: Could not enable auto-merge — merge MR manually"
+    }
+fi
+
+echo "Exemption updates pushed to ${BRANCH} — MR will auto-merge when pipeline passes"
