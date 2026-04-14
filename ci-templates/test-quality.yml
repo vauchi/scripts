@@ -43,7 +43,7 @@ quality:zero-assertions:
   script:
     - |
       # Fetch single script via GitLab API (faster than git clone)
-      curl -fsSL --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+      curl -fsSL \
         "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fcheck-zero-assertions.sh/raw?ref=main" \
         -o /tmp/check-zero-assertions.sh
       chmod +x /tmp/check-zero-assertions.sh
@@ -90,7 +90,7 @@ quality:test-ratio:
   script:
     - |
       # Fetch single script via GitLab API (faster than git clone)
-      curl -fsSL --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+      curl -fsSL \
         "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Ftest-code-ratio.sh/raw?ref=main" \
         -o /tmp/test-code-ratio.sh
       chmod +x /tmp/test-code-ratio.sh
@@ -169,7 +169,7 @@ quality:scenario-annotations:
           - ".gitlab-ci.yml"
   script:
     - |
-      curl -fsSL --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+      curl -fsSL \
         "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fcheck-scenario-annotations.sh/raw?ref=main" \
         -o /tmp/check-scenario-annotations.sh
       chmod +x /tmp/check-scenario-annotations.sh
@@ -210,7 +210,7 @@ quality:new-test-annotations:
           - "**/*.rs"
   script:
     - |
-      curl -fsSL --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+      curl -fsSL \
         "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fcheck-new-test-annotations.sh/raw?ref=main" \
         -o /tmp/check-new-test-annotations.sh
       chmod +x /tmp/check-new-test-annotations.sh
