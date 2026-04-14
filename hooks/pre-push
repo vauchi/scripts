@@ -955,23 +955,44 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
         echo ""
         echo "[6/7] Checking stale references (ADR-027)..."
         # Warning only — does not block push
+        #
+        # Exclusions:
+        #   done/archived  — resolved records
+        #   deferred/      — parked work, low-signal noise
+        #   ~~             — strikethrough (including multiline opening)
+        #   ADR-027        — explicit archival annotations
+        #   changelog/evidence — historical records
+        #   web-demo       — SolidJS in web-demo is live, not archived desktop
+        #   grep -rn       — code blocks containing the checker's own patterns
+        #   stale_refs=    — shell variable assignments in code blocks
+        #   - [x]          — checked-off plan items
         stale_refs=$(grep -rn 'desktop/' --include='*.md' \
             docs/problems/ docs/planning/todo/ 2>/dev/null \
             | grep -v 'done/' \
             | grep -v 'archived' \
-            | grep -v '~~.*desktop.*~~' \
+            | grep -v 'deferred/' \
+            | grep -v '~~' \
             | grep -v 'ADR-027' \
             | grep -v 'changelog' \
-            | grep -v 'evidence' || true)
+            | grep -v 'evidence' \
+            | grep -v 'grep -rn' \
+            | grep -v 'stale_refs=' \
+            | grep -v '`desktop/`' || true)
 
         stale_tauri=$(grep -rn 'Tauri\|SolidJS' --include='*.md' \
             docs/problems/ docs/planning/todo/ 2>/dev/null \
             | grep -v 'done/' \
             | grep -v 'archived' \
-            | grep -v '~~.*~~' \
+            | grep -v 'deferred/' \
+            | grep -v '~~' \
             | grep -v 'ADR-027' \
             | grep -v 'changelog' \
-            | grep -v 'evidence' || true)
+            | grep -v 'evidence' \
+            | grep -v 'web-demo' \
+            | grep -v 'grep -rn' \
+            | grep -v 'stale_tauri=' \
+            | grep -v '\- \[x\]' \
+            | grep -v '# git -C desktop' || true)
 
         combined="${stale_refs}${stale_tauri}"
         if [[ -n "$combined" ]]; then
