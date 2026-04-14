@@ -42,7 +42,7 @@ file-size:check:
   script:
     - |
       # Fetch script via GitLab API (faster than git clone)
-      curl -fsSL \
+      curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
         "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fcheck-file-size.sh/raw?ref=main" \
         -o /tmp/check-file-size.sh
       chmod +x /tmp/check-file-size.sh
@@ -72,7 +72,7 @@ file-size:advisory:
   script:
     - |
       # Fetch script via GitLab API (faster than git clone)
-      curl -fsSL \
+      curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
         "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fcheck-file-size.sh/raw?ref=main" \
         -o /tmp/check-file-size.sh
       chmod +x /tmp/check-file-size.sh
