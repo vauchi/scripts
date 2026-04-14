@@ -40,6 +40,8 @@ quality:zero-assertions:
         paths:
           - "**/*.rs"
           - ".gitlab-ci.yml"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
   script:
     - |
       fetch_vauchi_script scripts/check-zero-assertions.sh /tmp/check-zero-assertions.sh
@@ -82,6 +84,8 @@ quality:test-ratio:
         paths:
           - "**/*.rs"
           - ".gitlab-ci.yml"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
   allow_failure: true
   script:
     - |
@@ -159,6 +163,8 @@ quality:scenario-annotations:
         paths:
           - "**/*.rs"
           - ".gitlab-ci.yml"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
   script:
     - |
       fetch_vauchi_script scripts/check-scenario-annotations.sh /tmp/check-scenario-annotations.sh

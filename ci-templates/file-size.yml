@@ -39,6 +39,8 @@ file-size:check:
           - "**/*.rs"
           - ".file-size-baseline"
           - ".gitlab-ci.yml"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
   script:
     - |
       fetch_vauchi_script scripts/check-file-size.sh /tmp/check-file-size.sh
@@ -65,6 +67,8 @@ file-size:advisory:
         paths:
           - "**/*.rs"
           - ".gitlab-ci.yml"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
   script:
     - |
       fetch_vauchi_script scripts/check-file-size.sh /tmp/check-file-size.sh
