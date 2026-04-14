@@ -49,12 +49,8 @@
     - command -v cargo-mutants >/dev/null 2>&1 || cargo binstall cargo-mutants --no-confirm 2>/dev/null || true
     - command -v cargo-nextest >/dev/null 2>&1 || cargo binstall cargo-nextest --no-confirm 2>/dev/null || true
     - |
-      # Fetch mutation-progress.sh and push-mutation.sh from vauchi/scripts (public repo, no auth needed)
       for script in mutation-progress.sh push-mutation.sh; do
-        curl --silent --fail \
-          "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fci%2F${script}/raw?ref=main" \
-          -o "${script}"
-        chmod +x "${script}"
+        fetch_vauchi_script "scripts/ci/${script}" "${script}"
       done
     - |
       PROGRESS_SCRIPT="$(pwd)/mutation-progress.sh"

@@ -179,9 +179,5 @@ secret_detection:
   interruptible: false  # Must complete push — interruption after commit loses the fix
   resource_group: vet-autofix-push
   script:
-    - |
-      curl --silent --fail \
-        "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fci%2Fvet-autofix.sh/raw?ref=main" \
-        -o vet-autofix.sh
-      chmod +x vet-autofix.sh
+    - fetch_vauchi_script scripts/ci/vet-autofix.sh vet-autofix.sh
     - ./vet-autofix.sh

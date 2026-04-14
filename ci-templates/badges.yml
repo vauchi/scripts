@@ -49,14 +49,7 @@
   variables:
     GIT_STRATEGY: none
   script:
-    - |
-      # Fetch generate-badges.sh from vauchi/scripts (public repo, no auth needed)
-      if ! curl --fail --show-error \
-        "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fci%2Fgenerate-badges.sh/raw?ref=main" \
-        -o generate-badges.sh; then
-        echo "ERROR: Failed to fetch generate-badges.sh"
-        exit 1
-      fi
+    - fetch_vauchi_script scripts/ci/generate-badges.sh generate-badges.sh
       chmod +x generate-badges.sh
     - ./generate-badges.sh public/badges
   artifacts:

@@ -42,11 +42,7 @@ quality:zero-assertions:
           - ".gitlab-ci.yml"
   script:
     - |
-      # Fetch single script via GitLab API (faster than git clone)
-      curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
-        "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fcheck-zero-assertions.sh/raw?ref=main" \
-        -o /tmp/check-zero-assertions.sh
-      chmod +x /tmp/check-zero-assertions.sh
+      fetch_vauchi_script scripts/check-zero-assertions.sh /tmp/check-zero-assertions.sh
 
       # Scan all Rust source directories that contain tests
       DIRS=""
@@ -89,11 +85,7 @@ quality:test-ratio:
   allow_failure: true
   script:
     - |
-      # Fetch single script via GitLab API (faster than git clone)
-      curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
-        "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Ftest-code-ratio.sh/raw?ref=main" \
-        -o /tmp/test-code-ratio.sh
-      chmod +x /tmp/test-code-ratio.sh
+      fetch_vauchi_script scripts/test-code-ratio.sh /tmp/test-code-ratio.sh
 
       # Measure ratio for each crate directory that has src/
       for dir in . */; do
@@ -169,10 +161,7 @@ quality:scenario-annotations:
           - ".gitlab-ci.yml"
   script:
     - |
-      curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
-        "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fcheck-scenario-annotations.sh/raw?ref=main" \
-        -o /tmp/check-scenario-annotations.sh
-      chmod +x /tmp/check-scenario-annotations.sh
+      fetch_vauchi_script scripts/check-scenario-annotations.sh /tmp/check-scenario-annotations.sh
 
       DIRS=""
       for dir in tests src; do
@@ -210,9 +199,6 @@ quality:new-test-annotations:
           - "**/*.rs"
   script:
     - |
-      curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
-        "${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fcheck-new-test-annotations.sh/raw?ref=main" \
-        -o /tmp/check-new-test-annotations.sh
-      chmod +x /tmp/check-new-test-annotations.sh
+      fetch_vauchi_script scripts/check-new-test-annotations.sh /tmp/check-new-test-annotations.sh
       /tmp/check-new-test-annotations.sh "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
   timeout: 5 minutes

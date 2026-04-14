@@ -252,8 +252,7 @@
       METRICS_TEXT="${METRICS_TEXT}vauchi_eng_design_drift_score{repo=\"${REPO_LABEL}\"} ${SCORE}\n"
 
       # Push via shared helper (tries: direct URL → full SSH → restricted SSH)
-      PG_HELPER_URL="${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fci%2Fsetup-ssh-pushgateway.sh/raw?ref=main"
-      if curl --silent --fail "$PG_HELPER_URL" -o /tmp/setup-ssh-pushgateway.sh 2>/dev/null; then
+      if fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh /tmp/setup-ssh-pushgateway.sh 2>/dev/null; then
         source /tmp/setup-ssh-pushgateway.sh
         setup_ssh_pushgateway
         METRICS_FLAT=$(printf '%b' "$METRICS_TEXT")

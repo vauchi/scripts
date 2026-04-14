@@ -118,9 +118,7 @@ lint:markdown:
     # Fetch the shared custom rule (backtick-path-exempt line length)
     - |
       RULE_FILE="/tmp/markdownlint-rule-line-length.js"
-      curl -sL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
-        "${CI_API_V4_URL}/projects/77957857/repository/files/ci-templates%2Fmarkdownlint-rule-line-length.js/raw?ref=main" \
-        -o "$RULE_FILE" 2>/dev/null || true
+      fetch_vauchi_script ci-templates/markdownlint-rule-line-length.js "$RULE_FILE" 2>/dev/null || true
   script:
     - |
       # Build markdownlint args: use custom rule if available

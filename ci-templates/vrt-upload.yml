@@ -33,11 +33,7 @@
   script:
     - |
       if [ -n "${VRT_API_KEY:-}" ]; then
-        # vauchi/scripts is public — no auth needed (JOB-TOKEN triggers
-        # inbound scope validation which fails cross-project)
-        VRT_UPLOAD_URL="${CI_API_V4_URL}/projects/77957857/repository/files/scripts%2Fci%2Fvrt-upload.sh/raw?ref=main"
-        curl --silent --fail \
-          "$VRT_UPLOAD_URL" -o vrt-upload.sh && chmod +x vrt-upload.sh
+        fetch_vauchi_script scripts/ci/vrt-upload.sh vrt-upload.sh
         VRT_API_URL="${VRT_API_URL:-https://vrt.vauchi.app}" \
         VRT_PROJECT="${VRT_PROJECT:-vauchi}" \
         VRT_BRANCH="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-${CI_COMMIT_REF_NAME}}" \

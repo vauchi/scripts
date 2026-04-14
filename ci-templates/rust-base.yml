@@ -271,6 +271,22 @@ workflow:
     # Ensure sccache is available and start the daemon
     - command -v sccache >/dev/null 2>&1 || cargo binstall sccache --no-confirm 2>/dev/null || true
     - sccache --start-server 2>/dev/null || true
+    # Helper: fetch a file from the vauchi/scripts repo (project 77957857).
+    # Single point of change for URL pattern and auth. Uses HTTP Basic Auth
+    # (same mechanism as git clone in before_script above). All templates
+    # should call this instead of inlining curl patterns.
+    #   fetch_vauchi_script <repo-relative-path> <destination>
+    # Example: fetch_vauchi_script scripts/ci/vet-autofix.sh /tmp/vet-autofix.sh
+    - |
+      fetch_vauchi_script() {
+        local src_path="$1" dest="$2"
+        local encoded_path
+        encoded_path=$(printf '%s' "$src_path" | sed 's|/|%2F|g')
+        curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
+          "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=main" \
+          -o "$dest"
+        chmod +x "$dest"
+      }
   after_script:
     # Clean up build artifacts to save disk space (keep cache intact)
     - rm -rf target/debug/deps/*.d target/debug/incremental 2>/dev/null || true
