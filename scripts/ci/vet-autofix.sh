@@ -245,14 +245,14 @@ fi
 # Step 4: Commit and push changes (default branch only)
 # ============================================================
 
-if git diff --quiet supply-chain/ 2>/dev/null; then
-    echo "No exemption file changes to commit"
+if git diff --quiet supply-chain/ Cargo.lock 2>/dev/null; then
+    echo "No exemption or lockfile changes to commit"
     exit 0
 fi
 
 echo ""
-echo "--- Exemption changes ---"
-git diff --stat supply-chain/
+echo "--- Changes ---"
+git diff --stat supply-chain/ Cargo.lock
 
 if [[ "${CI_COMMIT_BRANCH:-}" != "${CI_DEFAULT_BRANCH:-main}" ]]; then
     echo "Not on default branch — skipping push (synced exemptions will be lost after this job)"
@@ -274,7 +274,9 @@ git remote set-url origin "https://vauchi-gitlab-runner:${PROJECT_ACCESS_TOKEN}@
 # Rebase requires a clean working tree, so the commit must happen before
 # the rebase (not after). If rebase conflicts (unlikely for supply-chain-only
 # changes), abort and fail — manual intervention required.
-git add supply-chain/
+# Stage supply-chain/ and Cargo.lock (lockfile may have been refreshed
+# by cargo generate-lockfile during the regeneration fallback).
+git add supply-chain/ Cargo.lock
 git commit -m "tidy: auto-sync cargo-vet exemptions
 
 Triggered by dependency update on ${CI_DEFAULT_BRANCH}.
