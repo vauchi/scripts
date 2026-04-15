@@ -32,6 +32,7 @@ lint:shellcheck:
   tags:
     - self-hosted
     - shellcheck
+  resource_group: nell-lint
   script:
     - |
       echo "Linting shell scripts..."
@@ -59,6 +60,7 @@ lint:ci-templates:
   tags:
     - self-hosted
     - yamllint
+  resource_group: nell-lint
   script:
     - |
       echo "Validating CI template YAML..."
