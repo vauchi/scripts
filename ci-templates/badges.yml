@@ -35,6 +35,16 @@
   image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
   before_script:
     - apk add --no-cache bash curl jq >/dev/null 2>&1
+    - |
+      fetch_vauchi_script() {
+        local src_path="$1" dest="$2"
+        local encoded_path
+        encoded_path=$(printf '%s' "$src_path" | sed 's|/|%2F|g')
+        curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
+          "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=main" \
+          -o "$dest"
+        chmod +x "$dest"
+      }
   rules:
     # Only deploy badges on main branch (not MRs, not triggered pipelines)
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -50,7 +60,6 @@
     GIT_STRATEGY: none
   script:
     - fetch_vauchi_script scripts/ci/generate-badges.sh generate-badges.sh
-      chmod +x generate-badges.sh
     - ./generate-badges.sh public/badges
   artifacts:
     paths:
