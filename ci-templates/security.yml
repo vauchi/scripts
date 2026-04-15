@@ -166,6 +166,7 @@ secret_detection:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   before_script:
     - !reference [.self-hosted, before_script]
+    - mkdir -p "${CARGO_HOME:-$HOME/.cargo}/bin"
     - command -v cargo-vet >/dev/null 2>&1 || cargo binstall cargo-vet --no-confirm 2>/dev/null || true
   script:
     # Use committed Cargo.lock — never regenerate, as newer versions may lack exemptions
