@@ -268,7 +268,7 @@ if [[ -z "${PROJECT_ACCESS_TOKEN:-}" ]]; then
 fi
 
 git config user.name "vauchi-gitlab-runner"
-git config user.email "noreply@vauchi.app"
+git config user.email "35099472-project-access-token@users.noreply.gitlab.com"
 git remote set-url origin "https://vauchi-gitlab-runner:${PROJECT_ACCESS_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
 
 BRANCH="tidy/vet-autofix-$(date -u +%Y%m%d-%H%M%S)"
