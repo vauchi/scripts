@@ -67,10 +67,28 @@ if command -v cargo &> /dev/null; then
                 FMT_DIR="wasm"
             fi
             if ! (cd "$FMT_DIR" && cargo fmt --all -- --check 2>/dev/null); then
-                echo ""
-                echo "ERROR: Rust formatting check failed."
-                echo "Run 'cargo fmt --all' to fix."
-                exit 1
+                # On Windows, cargo fmt --all may fail with "filename too long"
+                # (os error 206). Fall back to per-package checks for staged files.
+                PACKAGES=$(echo "$STAGED_RS" | sed -n 's|^\(vauchi-[^/]*\)/.*|\1|p' | sort -u)
+                if [[ -n "$PACKAGES" ]]; then
+                    FMT_FAIL=0
+                    for pkg in $PACKAGES; do
+                        if ! (cd "$FMT_DIR" && cargo fmt -p "$pkg" -- --check 2>/dev/null); then
+                            FMT_FAIL=1
+                        fi
+                    done
+                    if [[ $FMT_FAIL -ne 0 ]]; then
+                        echo ""
+                        echo "ERROR: Rust formatting check failed."
+                        echo "Run 'cargo fmt --all' to fix."
+                        exit 1
+                    fi
+                else
+                    echo ""
+                    echo "ERROR: Rust formatting check failed."
+                    echo "Run 'cargo fmt --all' to fix."
+                    exit 1
+                fi
             fi
             echo "  Formatting OK"
         else
