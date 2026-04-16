@@ -264,10 +264,13 @@ workflow:
     - export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--remap-path-prefix=$CI_PROJECT_DIR=/build --remap-path-prefix=$HOME/.cargo/registry/src=/registry"
     # Ensure a Rust toolchain is configured (self-hosted runners may not have a default)
     - rustup show active-toolchain >/dev/null 2>&1 || rustup default stable
-    # Clear extracted crate sources (shell runners persist registry across jobs;
-    # interrupted extractions leave partial source dirs that fail to compile).
-    # Cargo re-extracts from cached .crate tarballs — fast, no re-download.
-    - rm -rf "$HOME/.cargo/registry/src" .cargo/registry/src 2>/dev/null || true
+    # Clear project-local extracted crate sources (shell runners persist registry
+    # across jobs; interrupted extractions leave partial source dirs that fail to
+    # compile). Cargo re-extracts from cached .crate tarballs — fast, no download.
+    # NOTE: Only clear the project-local .cargo/registry/src, NOT $HOME/.cargo/registry/src.
+    # On shared shell runners (nell, allyson), $HOME is shared across concurrent jobs —
+    # deleting the global registry races with sccache in parallel jobs.
+    - rm -rf .cargo/registry/src 2>/dev/null || true
     # Ensure sccache is available and start the daemon
     - command -v sccache >/dev/null 2>&1 || cargo binstall sccache --no-confirm 2>/dev/null || true
     - sccache --start-server 2>/dev/null || true
