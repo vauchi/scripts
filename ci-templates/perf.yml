@@ -15,6 +15,8 @@
 #   - .lint-duplicates-job: Detect duplicate dependencies (MR lint stage)
 #   - .lint-machete-job: Detect unused dependencies (MR lint stage)
 #   - .binary-size-tracking-job: Track release binary size via Pushgateway (main/tags)
+#   - .mobile-size-tracking-job: Track APK/AAB/IPA size via Pushgateway (main/tags)
+#   - .app-size-gate-job: Fail MR if app artifact exceeds size limit
 #
 # Consumer jobs must extend a runner template (.linux-runner, .rust-runner, etc.)
 #
@@ -230,4 +232,122 @@
       else
         echo "⚠ No PUSHGATEWAY_URL or DEPLOY_SSH_PRIVATE_KEY — metrics not pushed"
         echo "  Binary sizes logged above for manual review"
+      fi
+
+# ============================================================
+# Mobile App Size Tracking (main merges + release tags)
+# ============================================================
+# Measures APK/AAB/IPA sizes from a configurable directory and
+# pushes metrics to Pushgateway for Grafana dashboards.
+# Follows the same SSH/HTTP push pattern as .binary-size-tracking-job.
+#
+# Variables:
+#   MOBILE_SIZE_ARTIFACT_DIR: Directory containing mobile artifacts (required)
+#   MOBILE_SIZE_PLATFORM:     "android" or "ios" (required)
+#   MOBILE_SIZE_FORMAT:       "apk", "aab", or "ipa" (required)
+
+.mobile-size-tracking-job:
+  stage: test
+  needs: []
+  rules:
+    # Skip MR pipelines (tracking runs on main/tags only)
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    # Allow API-triggered pipelines when METRICS_REFRESH is set (manual dashboard refresh)
+    - if: ($CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger") && $METRICS_REFRESH == null
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "api" && $METRICS_REFRESH == null
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  variables:
+    MOBILE_SIZE_ARTIFACT_DIR: ""
+    MOBILE_SIZE_PLATFORM: ""
+    MOBILE_SIZE_FORMAT: ""
+  script:
+    - |
+      echo "=== Mobile App Size Tracking ==="
+
+      if [ -z "${MOBILE_SIZE_ARTIFACT_DIR}" ]; then
+        echo "ERROR: MOBILE_SIZE_ARTIFACT_DIR is not set"
+        exit 1
+      fi
+      if [ -z "${MOBILE_SIZE_PLATFORM}" ]; then
+        echo "ERROR: MOBILE_SIZE_PLATFORM is not set"
+        exit 1
+      fi
+      if [ -z "${MOBILE_SIZE_FORMAT}" ]; then
+        echo "ERROR: MOBILE_SIZE_FORMAT is not set"
+        exit 1
+      fi
+
+      if [ ! -d "${MOBILE_SIZE_ARTIFACT_DIR}" ]; then
+        echo "ERROR: Directory ${MOBILE_SIZE_ARTIFACT_DIR} does not exist"
+        exit 1
+      fi
+
+      METRICS_TEXT=""
+      FOUND=false
+
+      echo ""
+      echo "Mobile artifact sizes (${MOBILE_SIZE_PLATFORM}/${MOBILE_SIZE_FORMAT}):"
+      echo "─────────────────────"
+
+      for artifact in "${MOBILE_SIZE_ARTIFACT_DIR}"/*.${MOBILE_SIZE_FORMAT}; do
+        if [ ! -f "$artifact" ]; then continue; fi
+
+        ARTIFACT_NAME=$(basename "$artifact")
+        SIZE_BYTES=$(stat -c%s "$artifact" 2>/dev/null || stat -f%z "$artifact" 2>/dev/null)
+        SIZE_MB=$(echo "scale=2; ${SIZE_BYTES} / 1048576" | bc)
+
+        echo "  ${ARTIFACT_NAME}: ${SIZE_MB} MB (${SIZE_BYTES} bytes)"
+        METRICS_TEXT+="vauchi_eng_app_size_bytes{platform=\"${MOBILE_SIZE_PLATFORM}\",format=\"${MOBILE_SIZE_FORMAT}\",artifact=\"${ARTIFACT_NAME}\"} ${SIZE_BYTES}"$'\n'
+        FOUND=true
+      done
+
+      if ! $FOUND; then
+        echo "  (no .${MOBILE_SIZE_FORMAT} artifacts found in ${MOBILE_SIZE_ARTIFACT_DIR})"
+        exit 0
+      fi
+
+      echo ""
+
+      # Push to Pushgateway via SSH (same pattern as .binary-size-tracking-job)
+      if [ -z "$METRICS_TEXT" ]; then
+        echo "No metrics to push"
+        exit 0
+      fi
+
+      # Set up SSH if DEPLOY_SSH_PRIVATE_KEY is available and key not already present
+      if [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ] && [ ! -f ~/.ssh/id_ed25519 ]; then
+        mkdir -p ~/.ssh
+        base64 -d "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        cat >> ~/.ssh/config <<'SSHEOF'
+      Host bold-hopper-vps
+        HostName 87.106.25.46
+        User vauchi
+        StrictHostKeyChecking accept-new
+      SSHEOF
+        chmod 600 ~/.ssh/config
+        trap 'rm -f ~/.ssh/id_ed25519' EXIT
+      fi
+
+      PUSH_JOB="vauchi_app_size"
+      PUSH_INSTANCE="${MOBILE_SIZE_PLATFORM}/${MOBILE_SIZE_FORMAT}"
+
+      if [ -n "${PUSHGATEWAY_URL:-}" ]; then
+        echo "$METRICS_TEXT" | curl -s --fail --max-time 10 --data-binary @- \
+          "${PUSHGATEWAY_URL}/metrics/job/${PUSH_JOB}/instance/${PUSH_INSTANCE}" \
+          && echo "✓ App size metrics pushed for ${PUSH_INSTANCE}" \
+          || echo "⚠ Pushgateway push failed (non-fatal) — metrics logged above"
+      elif [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
+        echo "$METRICS_TEXT" | ssh -o ConnectTimeout=10 vauchi@bold-hopper-vps \
+          "curl -s --fail --max-time 10 --data-binary @- http://localhost:9091/metrics/job/${PUSH_JOB}/instance/${PUSH_INSTANCE}" \
+          && echo "✓ App size metrics pushed for ${PUSH_INSTANCE}" \
+          || echo "⚠ Pushgateway push failed (non-fatal) — metrics logged above"
+      else
+        echo "⚠ No PUSHGATEWAY_URL or DEPLOY_SSH_PRIVATE_KEY — metrics not pushed"
+        echo "  App sizes logged above for manual review"
       fi
