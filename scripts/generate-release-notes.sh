@@ -39,7 +39,7 @@ for type_label in \
   if [ -n "$COMMITS" ]; then
     echo "## ${LABEL}"
     echo ""
-    echo "$COMMITS" | sed "s/^- ${TYPE}: /- /"
+    echo "${COMMITS//- ${TYPE}: /- }"
     echo ""
   fi
 done
