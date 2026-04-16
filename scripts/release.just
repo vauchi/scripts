@@ -14,7 +14,7 @@ release-status:
     echo "Core Cargo.toml version: ${VERSION}"
     echo ""
     echo "Latest tags (core):"
-    echo "  Stable: $(git -C core tag -l 'v[0-9]*.[0-9]*.[0-9]' --sort=-v:refname | head -1 || echo '(none)')"
+    echo "  Stable: $(git -C core tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || echo '(none)')"
     echo "  RC:     $(git -C core tag -l 'v*-rc.*' --sort=-v:refname | head -1 || echo '(none)')"
     echo "  Dev:    $(git -C core tag -l 'v*-dev.*' --sort=-v:refname | head -1 || echo '(none)')"
 
