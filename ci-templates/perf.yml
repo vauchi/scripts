@@ -351,3 +351,108 @@
         echo "⚠ No PUSHGATEWAY_URL or DEPLOY_SSH_PRIVATE_KEY — metrics not pushed"
         echo "  App sizes logged above for manual review"
       fi
+
+# ============================================================
+# App Size Gate (MR pipelines)
+# ============================================================
+# Fails the pipeline if any mobile artifact exceeds a hard size limit.
+# Warns (without failing) if an artifact exceeds a soft warning threshold.
+# Consumers define their own rules: — this template has no rules: block.
+#
+# Variables:
+#   APP_SIZE_GATE_DIR:       Directory containing artifacts to check (required)
+#   APP_SIZE_GATE_FORMAT:    File extension to match — "apk", "aab", or "ipa" (required)
+#   APP_SIZE_GATE_MAX_BYTES: Hard limit — pipeline fails if exceeded (required)
+#   APP_SIZE_GATE_WARN_BYTES: Soft limit — warning if exceeded (optional, default: 0 = disabled)
+#
+# Example:
+#   gate:app-size:
+#     extends: [.app-size-gate-job, .linux-runner-readonly]
+#     variables:
+#       APP_SIZE_GATE_DIR: "build/outputs/apk/release"
+#       APP_SIZE_GATE_FORMAT: "apk"
+#       APP_SIZE_GATE_MAX_BYTES: "41943040"   # 40 MB
+#       APP_SIZE_GATE_WARN_BYTES: "36700160"  # 35 MB
+#     rules:
+#       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+.app-size-gate-job:
+  stage: test
+  needs: []
+  variables:
+    APP_SIZE_GATE_DIR: ""
+    APP_SIZE_GATE_FORMAT: ""
+    APP_SIZE_GATE_MAX_BYTES: ""
+    APP_SIZE_GATE_WARN_BYTES: "0"
+  script:
+    - |
+      echo "=== App Size Gate ==="
+
+      if [ -z "${APP_SIZE_GATE_DIR}" ]; then
+        echo "ERROR: APP_SIZE_GATE_DIR is not set"
+        exit 1
+      fi
+      if [ -z "${APP_SIZE_GATE_FORMAT}" ]; then
+        echo "ERROR: APP_SIZE_GATE_FORMAT is not set"
+        exit 1
+      fi
+      if [ -z "${APP_SIZE_GATE_MAX_BYTES}" ]; then
+        echo "ERROR: APP_SIZE_GATE_MAX_BYTES is not set"
+        exit 1
+      fi
+
+      if [ ! -d "${APP_SIZE_GATE_DIR}" ]; then
+        echo "ERROR: Directory ${APP_SIZE_GATE_DIR} does not exist"
+        exit 1
+      fi
+
+      MAX_MB=$(echo "scale=2; ${APP_SIZE_GATE_MAX_BYTES} / 1048576" | bc)
+      WARN_MB=$(echo "scale=2; ${APP_SIZE_GATE_WARN_BYTES} / 1048576" | bc)
+
+      echo "Hard limit:    ${MAX_MB} MB (${APP_SIZE_GATE_MAX_BYTES} bytes)"
+      if [ "${APP_SIZE_GATE_WARN_BYTES}" != "0" ]; then
+        echo "Warning limit: ${WARN_MB} MB (${APP_SIZE_GATE_WARN_BYTES} bytes)"
+      fi
+      echo ""
+
+      FOUND=false
+      FAILED=false
+      WARNED=false
+
+      for artifact in "${APP_SIZE_GATE_DIR}"/*.${APP_SIZE_GATE_FORMAT}; do
+        if [ ! -f "$artifact" ]; then continue; fi
+
+        ARTIFACT_NAME=$(basename "$artifact")
+        SIZE_BYTES=$(stat -c%s "$artifact" 2>/dev/null || stat -f%z "$artifact" 2>/dev/null)
+        SIZE_MB=$(echo "scale=2; ${SIZE_BYTES} / 1048576" | bc)
+        FOUND=true
+
+        if [ "${SIZE_BYTES}" -gt "${APP_SIZE_GATE_MAX_BYTES}" ]; then
+          echo "✗ FAIL  ${ARTIFACT_NAME}: ${SIZE_MB} MB (${SIZE_BYTES} bytes) — exceeds ${MAX_MB} MB limit"
+          FAILED=true
+        elif [ "${APP_SIZE_GATE_WARN_BYTES}" != "0" ] && [ "${SIZE_BYTES}" -gt "${APP_SIZE_GATE_WARN_BYTES}" ]; then
+          echo "⚠ WARN  ${ARTIFACT_NAME}: ${SIZE_MB} MB (${SIZE_BYTES} bytes) — exceeds ${WARN_MB} MB warning"
+          WARNED=true
+        else
+          echo "✓ OK    ${ARTIFACT_NAME}: ${SIZE_MB} MB (${SIZE_BYTES} bytes)"
+        fi
+      done
+
+      if ! $FOUND; then
+        echo "(no .${APP_SIZE_GATE_FORMAT} artifacts found in ${APP_SIZE_GATE_DIR})"
+        exit 0
+      fi
+
+      echo ""
+
+      if $FAILED; then
+        echo "FAILED: One or more artifacts exceed the size limit of ${MAX_MB} MB"
+        exit 1
+      fi
+
+      if $WARNED; then
+        echo "WARNING: One or more artifacts exceed the warning threshold of ${WARN_MB} MB"
+        echo "  Consider optimizing before the hard limit is reached"
+      fi
+
+      echo "All artifacts within size limits"
