@@ -858,7 +858,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
         ERRORS=0
         EXEMPT_NAMES="README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|INDEX.md"
         EXEMPT_COMPANION="investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md"
-        EXEMPT_DIRS="diagrams|guides|reference|knowledge|testing|audit-review-frameworks|legal"
+        EXEMPT_DIRS="diagrams|guides|reference|knowledge|testing|audit-review-frameworks|legal|decisions"
         for file in $(git diff --name-only --diff-filter=A origin/main...HEAD -- 'docs/**/*.md' 2>/dev/null); do
             filename=$(basename "$file")
             dirname=$(dirname "$file")
