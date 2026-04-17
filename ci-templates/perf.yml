@@ -299,7 +299,7 @@
 
         ARTIFACT_NAME=$(basename "$artifact")
         SIZE_BYTES=$(stat -c%s "$artifact" 2>/dev/null || stat -f%z "$artifact" 2>/dev/null)
-        SIZE_MB=$(echo "scale=2; ${SIZE_BYTES} / 1048576" | bc)
+        SIZE_MB=$(awk "BEGIN {printf \"%.2f\", ${SIZE_BYTES} / 1048576}")
 
         echo "  ${ARTIFACT_NAME}: ${SIZE_MB} MB (${SIZE_BYTES} bytes)"
         METRICS_TEXT+="vauchi_eng_app_size_bytes{platform=\"${MOBILE_SIZE_PLATFORM}\",format=\"${MOBILE_SIZE_FORMAT}\",artifact=\"${ARTIFACT_NAME}\"} ${SIZE_BYTES}"$'\n'
@@ -406,8 +406,8 @@
         exit 1
       fi
 
-      MAX_MB=$(echo "scale=2; ${APP_SIZE_GATE_MAX_BYTES} / 1048576" | bc)
-      WARN_MB=$(echo "scale=2; ${APP_SIZE_GATE_WARN_BYTES} / 1048576" | bc)
+      MAX_MB=$(awk "BEGIN {printf \"%.2f\", ${APP_SIZE_GATE_MAX_BYTES} / 1048576}")
+      WARN_MB=$(awk "BEGIN {printf \"%.2f\", ${APP_SIZE_GATE_WARN_BYTES} / 1048576}")
 
       echo "Hard limit:    ${MAX_MB} MB (${APP_SIZE_GATE_MAX_BYTES} bytes)"
       if [ "${APP_SIZE_GATE_WARN_BYTES}" != "0" ]; then
@@ -424,7 +424,7 @@
 
         ARTIFACT_NAME=$(basename "$artifact")
         SIZE_BYTES=$(stat -c%s "$artifact" 2>/dev/null || stat -f%z "$artifact" 2>/dev/null)
-        SIZE_MB=$(echo "scale=2; ${SIZE_BYTES} / 1048576" | bc)
+        SIZE_MB=$(awk "BEGIN {printf \"%.2f\", ${SIZE_BYTES} / 1048576}")
         FOUND=true
 
         if [ "${SIZE_BYTES}" -gt "${APP_SIZE_GATE_MAX_BYTES}" ]; then
