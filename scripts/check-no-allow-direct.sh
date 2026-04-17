@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# check-no-allow-direct.sh — Forbid new `allow_direct: true` (and
+# `allow_direct = true`) introductions outside an approved allow-list.
+#
+# Usage: check-no-allow-direct.sh <repo_root> [<repo_root> ...]
+# Example: check-no-allow-direct.sh core cli tui
+#
+# Background: `HttpTransportConfig::allow_direct` controls whether the HTTP
+# transport falls back to direct (non-OHTTP) HTTP when no OHTTP gateway key
+# is wired. Setting it to `true` exposes the caller's source IP to the relay
+# and defeats ADR-037's IP-privacy property.
+#
+# The 2026-04-17 audit (finding A1) found 8 production call sites overriding
+# the default. After remediation the remaining legitimate uses are:
+#
+#   1. Test helpers — `HttpTransportConfig::for_testing(...)` and any
+#      occurrence inside `#[cfg(test)]`, `#[cfg(feature = "testing")]`,
+#      `#[cfg(debug_assertions)]`, `#[test]`, or a `mod tests { ... }` block.
+#   2. The bootstrap path in `core/vauchi-core/src/api/vauchi/sync_http.rs`
+#      (`create_bootstrap_transport_direct`) — OHTTP cannot fetch its own
+#      gateway key. Covered by the threat-model "Bootstrap Exceptions".
+#   3. Lines tagged with the inline sentinel `ALLOW-DIRECT-REACHABILITY-PROBE`
+#      (currently the TUI setup-wizard reachability probe).
+#
+# Any OTHER occurrence is a privacy regression and this script exits non-zero.
+
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <repo_root> [<repo_root> ...]"
+    echo "Example: $0 core cli tui"
+    exit 2
+fi
+
+VIOLATIONS=0
+REPORTED=""
+
+for ROOT in "$@"; do
+    if [ ! -d "$ROOT" ]; then
+        echo "Warning: $ROOT is not a directory, skipping" >&2
+        continue
+    fi
+
+    # Match `allow_direct` followed by `:` or `=`, whitespace, then `true`.
+    # Ripgrep's --type rust filters to *.rs. We intentionally accept matches
+    # anywhere on the line and filter comments in post-processing below.
+    HITS=$(rg --no-messages --with-filename --line-number --no-heading \
+        --type rust 'allow_direct[[:space:]]*[:=][[:space:]]*true' \
+        "$ROOT" 2>/dev/null || true)
+
+    while IFS= read -r HIT; do
+        [ -z "$HIT" ] && continue
+        FILE=$(echo "$HIT" | awk -F: '{print $1}')
+        LINE=$(echo "$HIT" | awk -F: '{print $2}')
+
+        # Extract the file content of the matching line without the
+        # "file:line:" prefix that rg prepends.
+        CONTENT=$(sed -n "${LINE}p" "$FILE")
+
+        # (1) Skip pure-comment lines (optional leading ws, then //).
+        if echo "$CONTENT" | grep -Eq '^[[:space:]]*//'; then
+            continue
+        fi
+
+        # (2) Skip if a `//` line-comment marker appears before the match
+        # on the same line (trailing comment containing the pattern).
+        AD_POS=$(echo "$CONTENT" | awk '{ print index($0, "allow_direct") }')
+        SL_POS=$(echo "$CONTENT" | awk '{ print index($0, "//") }')
+        if [ "$SL_POS" -gt 0 ] && [ "$SL_POS" -lt "$AD_POS" ]; then
+            continue
+        fi
+
+        # (3) Inline sentinel override (used by lines that are the documented
+        # production exception — see the TUI reachability probe).
+        if echo "$CONTENT" | grep -q 'ALLOW-DIRECT-REACHABILITY-PROBE'; then
+            continue
+        fi
+
+        # (4) File-specific production exceptions.
+        case "$FILE" in
+            */vauchi-core/src/api/vauchi/sync_http.rs)
+                START=$((LINE > 40 ? LINE - 40 : 1))
+                CONTEXT=$(sed -n "${START},${LINE}p" "$FILE")
+                if echo "$CONTEXT" | grep -q 'fn create_bootstrap_transport_direct'; then
+                    continue
+                fi
+                ;;
+        esac
+
+        # (5) Test/debug-context heuristic: look 60 lines back for a
+        # cfg attribute or a `mod tests { ... }` opening that would
+        # scope this match to non-production code. Any of the sentinels
+        # below in the preceding context is sufficient — false negatives
+        # are safer than false positives here since the production call
+        # sites have been explicitly enumerated.
+        START=$((LINE > 60 ? LINE - 60 : 1))
+        CONTEXT=$(sed -n "${START},${LINE}p" "$FILE")
+        if echo "$CONTEXT" | grep -qE \
+            -e 'debug_assertions' \
+            -e '#\[test\]' \
+            -e '#\[cfg\(test\)\]' \
+            -e '#\[cfg\(any\(test' \
+            -e 'feature[[:space:]]*=[[:space:]]*"testing"' \
+            -e '^[[:space:]]*mod[[:space:]]+tests[[:space:]]*\{' \
+            -e 'pub fn for_testing'; then
+            continue
+        fi
+
+        # Unapproved hit.
+        REPORTED="$REPORTED
+  $FILE:$LINE  $CONTENT"
+        VIOLATIONS=$((VIOLATIONS + 1))
+    done <<< "$HITS"
+done
+
+if [ "$VIOLATIONS" -gt 0 ]; then
+    cat >&2 <<EOF
+check-no-allow-direct: found $VIOLATIONS disallowed allow_direct:true site(s):
+$REPORTED
+
+Every unapproved allow_direct: true is a privacy regression (ADR-037):
+it lets HttpTransport fall back to direct HTTP and expose the caller's
+source IP to the relay.
+
+To silence a NEW legitimate use:
+  1. Gate the call inside #[cfg(test)], #[cfg(feature = "testing")],
+     or #[cfg(debug_assertions)] — OR
+  2. Construct via HttpTransportConfig::for_testing(...) — OR
+  3. Tag the line with the inline sentinel ALLOW-DIRECT-REACHABILITY-PROBE
+     and add the rationale to the threat model — OR
+  4. Add a file-specific entry to this script's allow-list (only after
+     updating the threat-model addendum and obtaining review).
+
+See problem record
+_private/docs/problems/2026-04-17-ohttp-allow-direct-fallback/
+for the full rationale.
+EOF
+    exit 1
+fi
+
+echo "check-no-allow-direct: OK ($# repo(s) scanned, no disallowed sites)"
