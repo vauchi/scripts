@@ -26,6 +26,7 @@ lint:typos:
   stage: lint
   needs: []
   timeout: 2m
+  resource_group: typos-install
   variables:
     TYPOS_VERSION: "1.33.1"
   script:

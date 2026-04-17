@@ -91,6 +91,7 @@ metrics:daily:
     - self-hosted
     - shellcheck
     - linux
+  resource_group: metrics-daily
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"

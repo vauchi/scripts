@@ -112,6 +112,7 @@ lint:markdown:
     - markdownlint
   needs: []
   timeout: 2m
+  resource_group: markdown-lint
   variables:
     GIT_DEPTH: 0
   before_script:
@@ -248,6 +249,7 @@ lint:gherkin:
     - node
   needs: []
   timeout: 2m
+  resource_group: gherkin-lint
   before_script:
     - npm install --prefer-offline --no-audit --no-fund @cucumber/gherkin-utils
   script:
