@@ -198,8 +198,8 @@ resolve_gitlab_project() {
     local name
     name=$(_dir_to_gitlab_name "${1:-}")
     case "$name" in
-        drift-detector)   echo "megloff1/$name" ;;
-        *)                echo "vauchi/$name" ;;
+        drift-detector|markdown-plan)   echo "megloff1/$name" ;;
+        *)                              echo "vauchi/$name" ;;
     esac
 }
 
