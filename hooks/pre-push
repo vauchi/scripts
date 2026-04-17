@@ -157,6 +157,71 @@ if [[ -f "$REPO_ROOT/Cargo.toml" ]]; then
     fi
 fi
 
+# ─── Cargo.lock git-source guard ──────────────────────────────────────
+# Local dev uses .cargo/config.toml path overrides that resolve git
+# dependencies to an in-workspace path. Running `cargo update` (or any
+# cargo command that re-resolves the lockfile) while those overrides
+# are in effect strips the `source = "git+..."` line from the matching
+# [[package]] entries in Cargo.lock. The lockfile still parses, local
+# builds still succeed (path overrides cover it), but CI clones the
+# branch fresh, sees no source, and silently falls back to an older
+# cached SHA — producing spurious failures against stale upstream code.
+#
+# For every `<name> = { git = "https://..." }` entry in Cargo.toml,
+# require Cargo.lock's matching [[package]] block to carry a
+# `source = "git+<same-url>..."` line. If any are missing, block with
+# the fix recipe.
+
+if [[ -f "$REPO_ROOT/Cargo.toml" && -f "$REPO_ROOT/Cargo.lock" ]]; then
+    _GIT_DEPS=$(awk '
+        /^\[/ { in_dep = /^\[(dependencies|dev-dependencies|build-dependencies|workspace\.dependencies)\]/ }
+        in_dep && /^[a-zA-Z0-9_-]+ *=.*[^a-zA-Z_]git *=/ {
+            name = $1
+            match($0, /git *= *"([^"]+)"/, u)
+            if (u[1] != "") print name "\t" u[1]
+        }
+    ' "$REPO_ROOT/Cargo.toml" 2>/dev/null | sort -u || true)
+
+    if [[ -n "$_GIT_DEPS" ]]; then
+        _LOCK_MISSING=""
+        while IFS=$'\t' read -r _name _url; do
+            [[ -z "$_name" ]] && continue
+            _pkg_block=$(awk -v n="$_name" '
+                $0 == "[[package]]" { block = ""; in_block = 1 }
+                in_block { block = block "\n" $0 }
+                in_block && $0 ~ "^name = \"" n "\"$" { found = 1 }
+                in_block && NF == 0 {
+                    if (found) { print block; exit }
+                    in_block = 0; found = 0
+                }
+            ' "$REPO_ROOT/Cargo.lock" 2>/dev/null)
+            if [[ -n "$_pkg_block" ]] && ! echo "$_pkg_block" | grep -q "^source = \"git+"; then
+                _LOCK_MISSING="${_LOCK_MISSING}  ${_name} (Cargo.toml: ${_url})\n"
+            fi
+        done <<< "$_GIT_DEPS"
+
+        if [[ -n "$_LOCK_MISSING" ]]; then
+            echo ""
+            echo "BLOCKED: Cargo.lock is missing git source lines for dependencies:"
+            printf '%b' "$_LOCK_MISSING"
+            echo ""
+            echo "This happens when cargo re-resolves the lockfile while"
+            echo "local path overrides in .cargo/config.toml are active."
+            echo "CI does not have those overrides — the push would fail."
+            echo ""
+            echo "  Fix:"
+            echo "    mv .cargo/config.toml .cargo/config.toml.bak"
+            echo "    git checkout origin/main -- Cargo.lock"
+            echo "    cargo update -p <dep-name>  # repeat per affected dep"
+            echo "    mv .cargo/config.toml.bak .cargo/config.toml"
+            echo "    git add Cargo.lock && git commit --amend --no-edit"
+            echo ""
+            echo "  Or use the recipe:    just fix-lockfile-sources"
+            exit 1
+        fi
+    fi
+fi
+
 # ─── Plan-Task trailer advisory ──────────────────────────────────────
 if [[ -n "$BRANCH" && "$BRANCH" == feature/* ]]; then
     COMMITS_WITHOUT_TRAILER=$(git -C "$REPO_ROOT" log origin/main..HEAD \
