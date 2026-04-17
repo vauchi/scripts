@@ -192,6 +192,17 @@ _dir_to_gitlab_name() {
     esac
 }
 
+# Resolve a repo name to a full GitLab project path (namespace/project).
+# Most repos are under the vauchi group; exceptions listed below.
+resolve_gitlab_project() {
+    local name
+    name=$(_dir_to_gitlab_name "${1:-}")
+    case "$name" in
+        drift-detector)   echo "megloff1/$name" ;;
+        *)                echo "vauchi/$name" ;;
+    esac
+}
+
 # Resolve repo arg to a single GitLab project name.
 # Unlike resolve_repo (which returns multiple), this returns exactly one.
 resolve_gitlab_repo() {
