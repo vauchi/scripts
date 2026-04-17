@@ -66,6 +66,7 @@
         cargo binstall cargo-nextest --no-confirm 2>/dev/null || true
       fi
     - fetch_vauchi_script scripts/ci/push-coverage.sh push-coverage.sh
+    - fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh setup-ssh-pushgateway.sh
     - |
       PROJECT_ROOT="$(pwd -P)"
       cd "${COVERAGE_WORKDIR}"
