@@ -33,6 +33,7 @@
 # must set their own timeouts via .timeout-standard/.timeout-extended.
 .trigger-on-merge:
   stage: trigger
+  allow_failure: true
   variables:
     DOWNSTREAM_PROJECT: ""
   trigger:
@@ -44,6 +45,7 @@
 # Trigger downstream on version tags
 .trigger-on-tag:
   stage: trigger
+  allow_failure: true
   variables:
     DOWNSTREAM_PROJECT: ""
   trigger:
@@ -79,6 +81,7 @@
 #         - DOWNSTREAM: [vauchi/repo1, vauchi/repo2]
 .trigger-parallel:
   stage: trigger
+  allow_failure: true
   trigger:
     project: $DOWNSTREAM
     strategy: depend
@@ -122,6 +125,7 @@
 #         - DOWNSTREAM: [vauchi/cli, vauchi/tui, vauchi/desktop]
 .trigger-parallel-prerelease:
   stage: trigger
+  allow_failure: true
   variables:
     UPSTREAM_CORE_VERSION: $CI_COMMIT_TAG
   trigger:
