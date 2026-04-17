@@ -32,6 +32,7 @@ lint:reuse:
   stage: lint
   needs: []
   timeout: 2m
+  resource_group: reuse-lint
   before_script:
     - command -v reuse >/dev/null 2>&1 || uv tool install --quiet reuse
   script:
