@@ -373,7 +373,13 @@ workflow:
 # Configures git to use CI_JOB_TOKEN for HTTPS clones of vauchi/* repos
 .git-credentials:
   before_script:
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/".insteadOf "https://gitlab.com/"
+    - |
+      # Retry git config to handle .gitconfig lock races on shared shell runners
+      for _attempt in 1 2 3; do
+        git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/".insteadOf "https://gitlab.com/" && break
+        echo "WARN: git config --global failed (attempt $_attempt), retrying in 2s..."
+        sleep 2
+      done
 
 # Platform-agnostic Rust runner (load-balanced across allyson + nell)
 # Tags: rust, self-hosted
