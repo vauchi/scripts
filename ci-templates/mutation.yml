@@ -37,6 +37,9 @@
   stage: mutation
   needs: []
   allow_failure: true
+  # Serialize nightly mutation across projects on shared runners to
+  # reduce concurrent slot contention (these jobs run 5-20 minutes).
+  resource_group: mutation-nightly
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   variables:

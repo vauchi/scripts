@@ -33,7 +33,35 @@ lint:reuse:
   needs: []
   timeout: 2m
   resource_group: reuse-lint
+  variables:
+    GIT_STRATEGY: none
   before_script:
+    # Inline checkout — avoids Runner's get_sources .tmp race on
+    # concurrent shell runners. Self-contained (no rust-base.yml dep).
+    - |
+      REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+      if [ -d ".git" ]; then
+        git remote set-url origin "$REPO_URL" 2>/dev/null || true
+        rm -f .git/shallow.lock 2>/dev/null || true
+      fi
+      fetch_ref() {
+        if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
+          git fetch origin "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}" --depth 20
+          git checkout -f "origin/${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
+        else
+          git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20
+          git checkout -f "${CI_COMMIT_SHA}"
+        fi
+      }
+      if [ ! -d ".git" ]; then
+        git init
+        git remote add origin "$REPO_URL"
+      fi
+      if ! fetch_ref 2>/dev/null; then
+        rm -rf .git && git init && git remote add origin "$REPO_URL"
+        fetch_ref
+      fi
+      git clean -ffd -e node_modules/ -e .cache/
     - command -v reuse >/dev/null 2>&1 || uv tool install --quiet reuse
   script:
     - reuse lint

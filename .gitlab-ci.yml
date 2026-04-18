@@ -33,6 +33,16 @@ lint:shellcheck:
     - self-hosted
     - shellcheck
   resource_group: nell-lint
+  variables:
+    GIT_STRATEGY: none
+  before_script:
+    - |
+      REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+      [ -d ".git" ] && git remote set-url origin "$REPO_URL" 2>/dev/null || true
+      [ -d ".git" ] || { git init && git remote add origin "$REPO_URL"; }
+      git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20 && git checkout -f "${CI_COMMIT_SHA}" \
+        || { rm -rf .git && git init && git remote add origin "$REPO_URL" && git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20 && git checkout -f "${CI_COMMIT_SHA}"; }
+      git clean -ffd
   script:
     - |
       echo "Linting shell scripts..."
@@ -61,6 +71,16 @@ lint:ci-templates:
     - self-hosted
     - yamllint
   resource_group: nell-lint
+  variables:
+    GIT_STRATEGY: none
+  before_script:
+    - |
+      REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+      [ -d ".git" ] && git remote set-url origin "$REPO_URL" 2>/dev/null || true
+      [ -d ".git" ] || { git init && git remote add origin "$REPO_URL"; }
+      git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20 && git checkout -f "${CI_COMMIT_SHA}" \
+        || { rm -rf .git && git init && git remote add origin "$REPO_URL" && git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20 && git checkout -f "${CI_COMMIT_SHA}"; }
+      git clean -ffd
   script:
     - |
       echo "Validating CI template YAML..."
