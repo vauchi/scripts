@@ -25,7 +25,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # ── Device Detection ──────────────────────────────────────────────
-DEVICES=($(adb devices | grep -E '^\S+\s+device$' | awk '{print $1}'))
+mapfile -t DEVICES < <(adb devices | grep -E '^\S+\s+device$' | awk '{print $1}')
 if [[ ${#DEVICES[@]} -lt 2 ]]; then
     echo -e "${RED}ERROR: Need 2 Android devices. Found ${#DEVICES[@]}.${NC}"
     adb devices -l
@@ -243,7 +243,7 @@ for pass in 1 2; do
     csv="$RESULTS_DIR/pass${pass}/results.csv"
     if [[ -f "$csv" ]]; then
         echo -e "${BLUE}Top 5 configs (Pass $pass — by throughput B/s):${NC}"
-        tail -n +2 "$csv" | sort -t, -k9 -rn | head -5 | while IFS=, read -r cfg sz fp bm sm ttfd dps uqps bps lat; do
+        tail -n +2 "$csv" | sort -t, -k9 -rn | head -5 | while IFS=, read -r _cfg sz fp _bm _sm ttfd dps _uqps bps lat; do
             echo "  ${sz}B @ ${fp}fps: ${bps} B/s (${dps} dec/s, TTFD=${ttfd}ms, lat=${lat}ms)"
         done
         echo ""
