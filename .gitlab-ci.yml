@@ -38,10 +38,20 @@ lint:shellcheck:
   before_script:
     - |
       REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
-      [ -d ".git" ] && git remote set-url origin "$REPO_URL" 2>/dev/null || true
-      [ -d ".git" ] || { git init && git remote add origin "$REPO_URL"; }
-      git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20 && git checkout -f "${CI_COMMIT_SHA}" \
-        || { rm -rf .git && git init && git remote add origin "$REPO_URL" && git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20 && git checkout -f "${CI_COMMIT_SHA}"; }
+      if [ -d ".git" ]; then
+        git remote set-url origin "$REPO_URL" 2>/dev/null || true
+      else
+        git init
+        git remote add origin "$REPO_URL"
+      fi
+      if ! git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20 || ! git checkout -f "${CI_COMMIT_SHA}"; then
+        rm -rf .git
+        git init
+        git remote set-url origin "$REPO_URL" 2>/dev/null \
+          || git remote add origin "$REPO_URL"
+        git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20
+        git checkout -f "${CI_COMMIT_SHA}"
+      fi
       git clean -ffd
   script:
     - |
@@ -76,10 +86,20 @@ lint:ci-templates:
   before_script:
     - |
       REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
-      [ -d ".git" ] && git remote set-url origin "$REPO_URL" 2>/dev/null || true
-      [ -d ".git" ] || { git init && git remote add origin "$REPO_URL"; }
-      git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20 && git checkout -f "${CI_COMMIT_SHA}" \
-        || { rm -rf .git && git init && git remote add origin "$REPO_URL" && git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20 && git checkout -f "${CI_COMMIT_SHA}"; }
+      if [ -d ".git" ]; then
+        git remote set-url origin "$REPO_URL" 2>/dev/null || true
+      else
+        git init
+        git remote add origin "$REPO_URL"
+      fi
+      if ! git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20 || ! git checkout -f "${CI_COMMIT_SHA}"; then
+        rm -rf .git
+        git init
+        git remote set-url origin "$REPO_URL" 2>/dev/null \
+          || git remote add origin "$REPO_URL"
+        git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20
+        git checkout -f "${CI_COMMIT_SHA}"
+      fi
       git clean -ffd
   script:
     - |

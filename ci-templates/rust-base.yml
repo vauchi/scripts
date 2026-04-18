@@ -197,7 +197,8 @@ workflow:
         echo "Fetch failed — resetting .git for clean clone"
         rm -rf .git
         git init
-        git remote add origin "$REPO_URL"
+        git remote set-url origin "$REPO_URL" 2>/dev/null \
+          || git remote add origin "$REPO_URL"
         fetch_ref
       fi
 
@@ -268,7 +269,8 @@ workflow:
         echo "Fetch failed — resetting .git for clean clone"
         rm -rf .git
         git init
-        git remote add origin "$REPO_URL"
+        git remote set-url origin "$REPO_URL" 2>/dev/null \
+          || git remote add origin "$REPO_URL"
         fetch_ref
       fi
 

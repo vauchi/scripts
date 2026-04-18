@@ -58,7 +58,10 @@ lint:reuse:
         git remote add origin "$REPO_URL"
       fi
       if ! fetch_ref 2>/dev/null; then
-        rm -rf .git && git init && git remote add origin "$REPO_URL"
+        rm -rf .git
+        git init
+        git remote set-url origin "$REPO_URL" 2>/dev/null \
+          || git remote add origin "$REPO_URL"
         fetch_ref
       fi
       git clean -ffd -e node_modules/ -e .cache/
