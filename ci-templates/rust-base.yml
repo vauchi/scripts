@@ -249,16 +249,33 @@ workflow:
         # Instead, try the fetch. Only nuke if fetch itself fails.
       fi
 
-      # Guarded git fetch: `timeout` bounds each fetch to 120s so a hung
-      # gitaly/TLS handshake surfaces quickly instead of consuming the full
-      # job timeout (seen in core prebuild:apple #2462577746 where the fetch
-      # hung silently for 45 min). Three retries with 5s backoff handle the
-      # transient failures common on the shared nell runner.
+      # Guarded git fetch: bound each fetch to 120s so a hung gitaly/TLS
+      # handshake surfaces quickly instead of consuming the full job timeout
+      # (seen in core prebuild:apple #2462577746 where the fetch hung silently
+      # for 45 min). Three retries with 5s backoff handle transient failures
+      # common on the shared nell runner.
+      #
+      # macOS has no GNU `timeout` by default — prefer `gtimeout` (coreutils)
+      # and fall back to a background+kill shim. The shim is pure bash and
+      # works everywhere.
+      if command -v timeout >/dev/null 2>&1; then
+        _git_fetch_bounded() { timeout 120 git fetch "$@"; }
+      elif command -v gtimeout >/dev/null 2>&1; then
+        _git_fetch_bounded() { gtimeout 120 git fetch "$@"; }
+      else
+        _git_fetch_bounded() {
+          ( git fetch "$@" ) & local pid=$!
+          ( sleep 120 && kill -TERM "$pid" 2>/dev/null ) & local killer=$!
+          wait "$pid" 2>/dev/null; local rc=$?
+          kill "$killer" 2>/dev/null; wait "$killer" 2>/dev/null || true
+          return "$rc"
+        }
+      fi
       fetch_with_retry() {
         local ref="$1"
         local attempt
         for attempt in 1 2 3; do
-          if timeout 120 git fetch origin "$ref" --depth 20; then
+          if _git_fetch_bounded origin "$ref" --depth 20; then
             return 0
           fi
           echo "git fetch attempt ${attempt}/3 failed — retrying in 5s"
