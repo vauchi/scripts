@@ -249,12 +249,30 @@ workflow:
         # Instead, try the fetch. Only nuke if fetch itself fails.
       fi
 
+      # Guarded git fetch: `timeout` bounds each fetch to 120s so a hung
+      # gitaly/TLS handshake surfaces quickly instead of consuming the full
+      # job timeout (seen in core prebuild:apple #2462577746 where the fetch
+      # hung silently for 45 min). Three retries with 5s backoff handle the
+      # transient failures common on the shared nell runner.
+      fetch_with_retry() {
+        local ref="$1"
+        local attempt
+        for attempt in 1 2 3; do
+          if timeout 120 git fetch origin "$ref" --depth 20; then
+            return 0
+          fi
+          echo "git fetch attempt ${attempt}/3 failed — retrying in 5s"
+          sleep 5
+        done
+        return 1
+      }
+
       fetch_ref() {
         if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
-          git fetch origin "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}" --depth 20
+          fetch_with_retry "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
           git checkout -f "origin/${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
         else
-          git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20
+          fetch_with_retry "${CI_COMMIT_REF_NAME}"
           git checkout -f "${CI_COMMIT_SHA}"
         fi
       }

@@ -31,7 +31,9 @@ lint:reuse:
     - reuse
   stage: lint
   needs: []
-  timeout: 2m
+  # 4m allows the bounded fetch-with-retry (3 × 60s) to complete within the
+  # job budget while still failing fast on a genuinely broken runner.
+  timeout: 4m
   resource_group: reuse-lint
   variables:
     GIT_STRATEGY: none
@@ -44,12 +46,27 @@ lint:reuse:
         git remote set-url origin "$REPO_URL" 2>/dev/null || true
         rm -f .git/shallow.lock 2>/dev/null || true
       fi
+      # Bounded fetch with retry — prevents silent hangs that consume the
+      # full 2m job timeout (seen in ios lint:reuse #2462683169 where the
+      # fetch hung indefinitely on a flaky nell shell runner).
+      fetch_with_retry() {
+        local ref="$1"
+        local attempt
+        for attempt in 1 2 3; do
+          if timeout 60 git fetch origin "$ref" --depth 20; then
+            return 0
+          fi
+          echo "git fetch attempt ${attempt}/3 failed — retrying in 5s"
+          sleep 5
+        done
+        return 1
+      }
       fetch_ref() {
         if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
-          git fetch origin "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}" --depth 20
+          fetch_with_retry "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
           git checkout -f "origin/${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
         else
-          git fetch origin "${CI_COMMIT_REF_NAME}" --depth 20
+          fetch_with_retry "${CI_COMMIT_REF_NAME}"
           git checkout -f "${CI_COMMIT_SHA}"
         fi
       }
