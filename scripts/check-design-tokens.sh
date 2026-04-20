@@ -56,6 +56,34 @@ for DIR in "$@"; do
         -print0 | xargs -0 grep -nE '[0-9]+\.dp' 2>/dev/null \
         | grep -vE '(0|1|2|4|8|16|24|32|44)\.dp' \
         | sed 's/^/DP /' >> "$TMPFILE" || true
+
+    # Rust (linux-gtk): raw Cairo set_source_rgb calls with numeric args.
+    # Callers should destructure from a named constant (e.g., QR_MODULE_LIGHT)
+    # so the intent is documented in one place. theme.rs is the token source.
+    find "$DIR" -name '*.rs' \
+        -not -name 'theme.rs' \
+        -not -name '*_test.rs' \
+        -not -path '*/tests/*' \
+        -print0 | xargs -0 grep -nE 'set_source_rgb\(\s*[0-9]' 2>/dev/null \
+        | sed 's/^/RUST_RGB /' >> "$TMPFILE" || true
+
+    # C++ (linux-qt): hex-color literals inside setStyleSheet calls.
+    # thememanager.* is the palette source of truth and is excluded.
+    find "$DIR" \( -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' -o -name '*.h' -o -name '*.hpp' \) \
+        -not -name 'thememanager.*' \
+        -not -path '*/tests/*' \
+        -not -path '*/build/*' \
+        -print0 | xargs -0 grep -nE 'setStyleSheet\([^)]*#[0-9a-fA-F]{3,8}' 2>/dev/null \
+        | sed 's/^/CPP_HEX /' >> "$TMPFILE" || true
+
+    # C++ (linux-qt): named CSS colors inside setStyleSheet calls.
+    # Catches regressions like `setStyleSheet("color: red;")`.
+    find "$DIR" \( -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' -o -name '*.h' -o -name '*.hpp' \) \
+        -not -name 'thememanager.*' \
+        -not -path '*/tests/*' \
+        -not -path '*/build/*' \
+        -print0 | xargs -0 grep -nE 'setStyleSheet\([^)]*color:[[:space:]]*(red|green|blue|yellow|gray|grey|white|black|orange|purple|cyan|magenta)' 2>/dev/null \
+        | sed 's/^/CPP_NAMED /' >> "$TMPFILE" || true
 done
 
 TOTAL=$(wc -l < "$TMPFILE" | tr -d ' ')
@@ -71,7 +99,9 @@ if [ "$TOTAL" -gt 0 ]; then
         echo "  ... and $((TOTAL - 30)) more"
     fi
     echo ""
-    echo "WARN: Use Tokens.Spacing.md, Tokens.BorderRadius.sm, etc."
+    echo "WARN: Swift/Kotlin → Tokens.Spacing.md, Tokens.BorderRadius.sm, etc."
+    echo "      Rust (linux-gtk) → named module-level consts or theme colors (see core_ui/theme.rs)"
+    echo "      C++ (linux-qt) → ThemeManager::styleForRole(ThemeRole::*) (see coreui/thememanager.h)"
     echo "Source of truth: themes/tokens.json"
 fi
 
