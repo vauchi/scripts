@@ -495,7 +495,7 @@ fi
 # Mirrors CI's lint:claude-md rules so failures surface locally, not
 # after a round-trip.
 
-CM_SCRIPT="$REPO_ROOT/scripts/check-claude-md.sh"
+CM_SCRIPT="$REPO_ROOT/scripts/scripts/check-claude-md.sh"
 if [[ -f "$REPO_ROOT/CLAUDE.md" && -x "$CM_SCRIPT" ]]; then
     CM_BASE=$(git -C "$REPO_ROOT" merge-base origin/main HEAD 2>/dev/null || echo "")
     if [[ -n "$CM_BASE" ]]; then
