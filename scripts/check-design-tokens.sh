@@ -137,17 +137,19 @@ for DIR in "$@"; do
         -print0 | xargs -0 grep -nE 'setStyleSheet\([^)]*color:[[:space:]]*(red|green|blue|yellow|gray|grey|white|black|orange|purple|cyan|magenta)' 2>/dev/null \
         | sed 's/^/CPP_NAMED /' >> "$TMPFILE" || true
 
-    # C# (windows): named `Colors.Red` / `Colors.Blue` etc. outside the
-    # token source of truth. WinUI exposes Microsoft.UI.Colors.* and
-    # Windows.UI.Colors.* — both forms are flagged; use Tokens.cs or a
-    # theme-derived accessor instead.
+    # C# (windows): any `Colors.X` accessor (WinUI's named-color table,
+    # e.g. Colors.Red, Colors.SteelBlue, Microsoft.UI.Colors.Red) outside
+    # the token source of truth. Use Tokens.cs or a theme-derived accessor
+    # (ThemeColors.cs) instead. `Colors.Transparent` is exempt — it's a
+    # legitimate structural choice, not a visual color.
     find "$DIR" -name '*.cs' \
         -not -name 'Tokens.cs' \
         -not -name 'Theme*.cs' \
         -not -path '*/obj/*' \
         -not -path '*/bin/*' \
         -not -path '*/Generated/*' \
-        -print0 | xargs -0 grep -nE '\bColors\.(Red|Green|Blue|Yellow|Orange|Gray|Grey|White|Black|Purple|Cyan|Magenta|DodgerBlue)\b' 2>/dev/null \
+        -print0 | xargs -0 grep -nE '\bColors\.[A-Z][a-zA-Z]+\b' 2>/dev/null \
+        | grep -vE '\bColors\.Transparent\b' \
         | sed 's/^/CS_NAMED /' >> "$TMPFILE" || true
 
     # C# (windows): `Color.FromArgb(...)` with all-numeric args (hardcoded).
