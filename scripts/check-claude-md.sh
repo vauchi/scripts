@@ -32,6 +32,7 @@ SANITY_THRESHOLD=5
 errors=0
 
 # 1. Check .claude/ paths referenced in CLAUDE.md exist.
+# shellcheck disable=SC2016  # backtick markers are literal, not command substitution
 for ref in $(grep -oE '`[^`]*\.md`' "$CLAUDE_MD" | tr -d '`' | grep -E '\.claude/' || true); do
     if [ ! -f "$ref" ]; then
         echo "BROKEN REF: $ref (referenced in CLAUDE.md but missing)"
@@ -56,6 +57,7 @@ done
 # 3. Check _private paths referenced in CLAUDE.md exist — only when
 # the _private submodule is present (not in the CI alpine checkout).
 if [ -d "_private" ]; then
+    # shellcheck disable=SC2016  # backtick markers are literal, not command substitution
     for ref in $(grep -oE '`_private/[^`]*`' "$CLAUDE_MD" | tr -d '`' || true); do
         if [ ! -f "$ref" ] && [ ! -d "$ref" ]; then
             echo "BROKEN REF: $ref (referenced in CLAUDE.md but missing)"
