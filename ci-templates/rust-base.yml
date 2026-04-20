@@ -602,6 +602,11 @@ workflow:
     - cargo clippy --all-targets -- -D warnings
 
 # Clone locales repository (for TUI/desktop i18n)
+#
+# DEPRECATED LOCATION: also defined in content-fetch.yml — the canonical
+# home. New consumers should include content-fetch.yml directly. Kept
+# here for backward-compat with existing consumers that only include
+# rust-base.yml; will be removed once all consumers migrate.
 .clone-locales:
   before_script:
     - |
@@ -613,6 +618,9 @@ workflow:
       fi
 
 # Clone themes repository (for desktop UI theming)
+#
+# DEPRECATED LOCATION: see .clone-locales note above. Canonical home is
+# scripts/ci-templates/content-fetch.yml.
 .clone-themes:
   before_script:
     - |

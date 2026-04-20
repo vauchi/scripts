@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Content-Fetch Template
+# Shared anchors for cloning content-only sibling repos (themes, locales)
+# into predictable paths alongside the consumer checkout.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/content-fetch.yml'
+#
+# Provides:
+#   - .clone-locales: clone-if-absent, pull-if-present into ../locales
+#   - .clone-themes:  same, plus runs `scripts/generate.py` into ../themes
+#
+# Why a dedicated file: these anchors are useful to any consumer of
+# themes/locales — not just Rust projects. Keeping them out of
+# rust-base.yml makes them discoverable for non-Rust consumers
+# (kotlin, swift, python) without pulling in Rust-specific runner
+# config.
+#
+# Path assumption: the anchors clone into `../themes` and `../locales`
+# — siblings of the consumer's $CI_PROJECT_DIR. Consumers that need
+# the content at a different layout (e.g. inside the project dir
+# because a transitive cargo build resolves `../themes` from a nested
+# checkout) must roll their own inline clone — see
+# android/.gitlab-ci.yml `test:snapshots:record` / `test:screenshots`.
+
+# Clone locales repository (for TUI/desktop i18n)
+.clone-locales:
+  before_script:
+    - |
+      if [ ! -d ../locales ]; then
+        (git clone --depth=1 https://gitlab.com/vauchi/locales.git ../locales || \
+         (sleep 2 && git clone --depth=1 https://gitlab.com/vauchi/locales.git ../locales))
+      else
+        git -C ../locales pull --ff-only 2>/dev/null || true
+      fi
+
+# Clone themes repository (for desktop UI theming)
+.clone-themes:
+  before_script:
+    - |
+      if [ ! -d ../themes ]; then
+        (git clone --depth=1 https://gitlab.com/vauchi/themes.git ../themes || \
+         (sleep 2 && git clone --depth=1 https://gitlab.com/vauchi/themes.git ../themes))
+      else
+        git -C ../themes pull --ff-only 2>/dev/null || true
+      fi
+      # Generate resolved themes.json (v2 hierarchical → flat format for core parser)
+      python3 ../themes/scripts/generate.py 2>/dev/null || echo "WARN: theme generator not available"
