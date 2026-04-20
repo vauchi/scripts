@@ -1036,8 +1036,30 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_stale_ref_check() {
         echo ""
-        echo "[6/7] Checking stale references (ADR-027)..."
-        # Warning only — does not block push
+        echo "[6/7] Checking stale references (ADR-027 + RC-3)..."
+
+        # If the authoritative checker exists, delegate to it in MR-diff mode.
+        # Same script CI runs — keeps pre-push and CI in sync, and catches
+        # RC-3 (vauchi-core/src/ui/ → vauchi-app/src/ui/ rename) which the
+        # inline grep below does not cover.
+        local checker="$REPO_DIR/scripts/check-adr-references.sh"
+        if [[ -x "$checker" ]]; then
+            local base
+            base=$(git -C "$REPO_DIR" merge-base origin/main HEAD 2>/dev/null || echo "")
+            if [[ -n "$base" ]] && (cd "$REPO_DIR" && bash "$checker" --diff "$base" 2>&1); then
+                echo "  ADR refs OK (delegated to $checker)"
+                return 0
+            elif [[ -n "$base" ]]; then
+                # Script printed its own error context; block push.
+                echo "" >&2
+                echo "Push blocked: stale ADR references introduced in this branch." >&2
+                echo "  Fix the paths above (see $checker) before pushing." >&2
+                exit 2
+            fi
+            # No merge-base: fall through to inline heuristic.
+        fi
+
+        # Fallback inline heuristic (warning only — does not block push)
         #
         # Exclusions:
         #   done/archived  — resolved records
