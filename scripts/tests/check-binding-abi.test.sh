@@ -27,6 +27,7 @@ DEFAULT_SO="$WORKSPACE_ROOT/core/target/aarch64-linux-android/release/libvauchi_
 REAL_SO="${1:-$DEFAULT_SO}"
 
 if [[ ! -f "$REAL_SO" ]]; then
+    # shellcheck disable=SC2016  # backticks are literal text in the SKIP message, not command substitution
     printf 'SKIP: no Android .so at %s (build with `just _dt-build-mobile-libs-android core`)\n' "$REAL_SO" >&2
     exit 77  # Automake-style "test skipped"
 fi

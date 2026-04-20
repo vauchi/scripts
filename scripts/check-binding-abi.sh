@@ -161,12 +161,12 @@ fi
     if [[ -n "$in_bindings_only" ]]; then
         printf '\n  Symbols referenced by bindings but NOT exported by artifact\n'
         printf '  (would UnsatisfiedLinkError / dyld error at runtime):\n'
-        printf '    - %s\n' $in_bindings_only
+        printf '%s\n' "$in_bindings_only" | sed 's/^/    - /'
     fi
     if [[ -n "$in_artifact_only" ]]; then
         printf '\n  Symbols exported by artifact but NOT referenced by bindings\n'
         printf '  (likely generator drift — bindings regenerated against an older build):\n'
-        printf '    - %s\n' $in_artifact_only
+        printf '%s\n' "$in_artifact_only" | sed 's/^/    - /'
     fi
 } >&2
 
