@@ -570,6 +570,26 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
             ;;
     esac
 
+    # Skip fmt + clippy + tests when the push touches no Rust source.
+    # Prevents pre-existing workspace compile issues from blocking
+    # docs/CI/YAML/Python-only pushes that never exercise the Rust
+    # build graph. Rust-touching pushes still get fully gated.
+    UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)
+    if [[ -n "$UPSTREAM" ]]; then
+        DIFF_RANGE="$UPSTREAM..HEAD"
+    else
+        DIFF_RANGE="origin/main..HEAD"
+    fi
+    CHANGED_FILES=$(git diff --name-only "$DIFF_RANGE" 2>/dev/null || true)
+    _SKIP_FMT="${_SKIP_FMT:-0}"
+    if [[ -n "$CHANGED_FILES" ]] && ! echo "$CHANGED_FILES" \
+            | grep -qE '\.(rs|toml)$|(^|/)rust-toolchain\b|(^|/)\.cargo/'; then
+        echo ""
+        echo "  No Rust changes in $DIFF_RANGE — skipping fmt + clippy + tests."
+        _SKIP_FMT=1
+        _SKIP_CLIPPY_TEST=1
+    fi
+
     if [[ "$_GATE_DEDUP" != "1" ]]; then
         run_fmt() {
             echo ""
@@ -599,7 +619,12 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
             fi
             echo "  Format OK"
         }
-        time_step "Format" run_fmt
+        if [[ "${_SKIP_FMT:-}" == "1" ]]; then
+            echo ""
+            echo "[1/3] Skipping format check (no Rust changes in diff range)"
+        else
+            time_step "Format" run_fmt
+        fi
 
         if [[ "${_SKIP_CLIPPY_TEST:-}" == "1" ]]; then
             echo ""
