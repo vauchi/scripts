@@ -601,37 +601,8 @@ workflow:
   script:
     - cargo clippy --all-targets -- -D warnings
 
-# Clone locales repository (for TUI/desktop i18n)
-#
-# DEPRECATED LOCATION: also defined in content-fetch.yml — the canonical
-# home. New consumers should include content-fetch.yml directly. Kept
-# here for backward-compat with existing consumers that only include
-# rust-base.yml; will be removed once all consumers migrate.
-.clone-locales:
-  before_script:
-    - |
-      if [ ! -d ../locales ]; then
-        (git clone --depth=1 https://gitlab.com/vauchi/locales.git ../locales || \
-         (sleep 2 && git clone --depth=1 https://gitlab.com/vauchi/locales.git ../locales))
-      else
-        git -C ../locales pull --ff-only 2>/dev/null || true
-      fi
-
-# Clone themes repository (for desktop UI theming)
-#
-# DEPRECATED LOCATION: see .clone-locales note above. Canonical home is
-# scripts/ci-templates/content-fetch.yml.
-.clone-themes:
-  before_script:
-    - |
-      if [ ! -d ../themes ]; then
-        (git clone --depth=1 https://gitlab.com/vauchi/themes.git ../themes || \
-         (sleep 2 && git clone --depth=1 https://gitlab.com/vauchi/themes.git ../themes))
-      else
-        git -C ../themes pull --ff-only 2>/dev/null || true
-      fi
-      # Generate resolved themes.json (v2 hierarchical → flat format for core parser)
-      python3 ../themes/scripts/generate.py 2>/dev/null || echo "WARN: theme generator not available"
+# .clone-locales and .clone-themes moved to content-fetch.yml.
+# Consumers include that template directly.
 
 # ============================================================
 # Cleanup Job Templates
