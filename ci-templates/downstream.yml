@@ -177,3 +177,16 @@
     reports:
       junit: target/nextest/ci/junit.xml
     expire_in: 1 week
+
+# Shared verify-upstream base for Rust repos using cargo-nextest — bundles
+# stage, needs, and the junit artifacts so consumers only declare:
+#   - which runner (e.g. .rust-runner, .linux-runner)
+#   - which trigger rule (.verify-on-upstream vs -prerelease)
+#   - a single-line script
+# Added 2026-04-22 as part of Phase 3 T3.6 of the CI pipeline health
+# audit to remove the copy/paste burden in cli/tui/e2e downstream
+# verification jobs.
+.verify-upstream-nextest-base:
+  extends: .verify-nextest-artifacts
+  stage: verify
+  needs: []

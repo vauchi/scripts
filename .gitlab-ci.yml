@@ -146,6 +146,38 @@ secret_detection:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
+# Cancel stuck jobs in ios-spm-v* / macos-spm-v* resource groups.
+# Detects jobs held by the GitLab "cancelled job doesn't release
+# resource_group" bug (observed 2026-04-11, -19 x2, -21) and cancels
+# anything running longer than STUCK_THRESHOLD_SECS (2h default).
+# The resource_group version bump (v5 → v6) still requires a human
+# review — this job only handles the cancel half of the workaround.
+# See scripts/ci/resource-group-reset.sh + runner-runbook.md.
+# Added as Phase 3 T3.4 of 2026-04-22-ci-pipeline-health-audit.
+resource-group:reset:
+  stage: metrics
+  image: alpine:3.21
+  tags: [docker]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $RUN_RESOURCE_GROUP_RESET == "true"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+  variables:
+    # Dry-run by default on web-triggered manual runs; the nightly
+    # schedule sets RG_RESET_EXECUTE=true to actually cancel.
+    RG_RESET_EXECUTE: ""
+  before_script:
+    - apk add --no-cache bash curl python3
+  script:
+    - chmod +x scripts/ci/resource-group-reset.sh
+    - |
+      if [ "$RG_RESET_EXECUTE" = "true" ]; then
+        scripts/ci/resource-group-reset.sh --execute
+      else
+        scripts/ci/resource-group-reset.sh
+      fi
+  allow_failure: true  # advisory: never block other scheduled work
+
 # Push engineering metrics to Prometheus pushgateway (daily schedule).
 # allow_failure: true because pushgateway availability is best-effort
 # observability — a missed daily push is recoverable on the next run
