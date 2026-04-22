@@ -28,36 +28,90 @@
   allow_failure: true
   script:
     - |
+      set -eu
       LOCKED_SHA=$(grep -A1 'source = "git+.*vauchi/core' Cargo.lock | sed -n 's/.*#\([a-f0-9]\{40\}\).*/\1/p' | head -1 || true)
       if [ -z "$LOCKED_SHA" ]; then
         echo "Cargo.lock uses path override — no git SHA to check"
         echo "This is normal for local dev (.cargo/config.toml path patch)"
         exit 0
       fi
-      LATEST_SHA=$(git ls-remote "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/core.git" refs/heads/main | cut -f1)
+      CORE_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/core.git"
+      LATEST_SHA=$(git ls-remote "$CORE_URL" refs/heads/main | cut -f1)
       if [ -z "$LATEST_SHA" ]; then
         echo "Could not fetch latest core SHA"
         exit 0
       fi
       LOCKED_SHORT="${LOCKED_SHA:0:8}"
       LATEST_SHORT="${LATEST_SHA:0:8}"
-      if [ "$LOCKED_SHA" != "$LATEST_SHA" ]; then
+
+      # Happy path: exact match.
+      if [ "$LOCKED_SHA" = "$LATEST_SHA" ]; then
+        echo "Cargo.lock is up to date with core main ($LATEST_SHORT)"
+        exit 0
+      fi
+
+      # The locked SHA differs from current main. Distinguish two cases:
+      #   (A) LOCKED_SHA is reachable from main — MR is just behind the
+      #       moving target. Every cli/tui MR hits this state naturally
+      #       once core main advances; a red X here is noise (25% false
+      #       failure rate observed 2026-04-22).
+      #   (B) LOCKED_SHA is not reachable from main — likely points at
+      #       a deleted branch or orphaned commit. Real problem.
+      TMP=$(mktemp -d)
+      trap 'rm -rf "$TMP"' EXIT
+      git -C "$TMP" init --quiet
+      git -C "$TMP" remote add origin "$CORE_URL"
+
+      # Defensive: if we can't fetch main at all (network/auth issue),
+      # stay silent — the check is advisory anyway and we'd rather
+      # skip than emit a false alarm.
+      if ! git -C "$TMP" fetch --quiet --depth 500 origin main 2>/dev/null; then
+        echo "Could not fetch core main — skipping ancestry check"
+        exit 0
+      fi
+
+      # Case (A): locked SHA is directly in main's recent history.
+      if git -C "$TMP" merge-base --is-ancestor "$LOCKED_SHA" origin/main 2>/dev/null; then
         echo ""
-        echo "###############################################"
-        echo "#                                             #"
-        echo "#   CORE DEPENDENCY IS OUT OF DATE            #"
-        echo "#                                             #"
-        echo "#   Cargo.lock: $LOCKED_SHORT                       #"
-        echo "#   core main:  $LATEST_SHORT                       #"
-        echo "#                                             #"
-        echo "#   Run: cargo update -p vauchi-core          #"
-        echo "#                                             #"
-        echo "###############################################"
+        echo "Cargo.lock pins core $LOCKED_SHORT, which is an ancestor of"
+        echo "current main ($LATEST_SHORT). MR is cleanly behind — rebase-"
+        echo "friendly drift, no action required. Run 'cargo update -p"
+        echo "vauchi-core' if you want the latest."
+        echo ""
+        exit 0
+      fi
+
+      # Locked SHA isn't in our 500-commit window of main. Fetch it
+      # explicitly — if it comes back, MR might be pinned to a much
+      # older main commit (outside depth-500); if not, it's orphaned.
+      if ! git -C "$TMP" fetch --quiet --depth 1 origin "$LOCKED_SHA" 2>/dev/null; then
+        # Case (B): locked SHA is not reachable from the remote at all.
+        echo ""
+        echo "###################################################"
+        echo "#                                                 #"
+        echo "#   CORE DEPENDENCY POINTS AT AN ORPHANED COMMIT  #"
+        echo "#                                                 #"
+        echo "#   Cargo.lock: $LOCKED_SHORT                           #"
+        echo "#   core main:  $LATEST_SHORT                           #"
+        echo "#                                                 #"
+        echo "#   The locked SHA is NOT reachable from core     #"
+        echo "#   remote. Likely a stale pin to a deleted       #"
+        echo "#   branch.                                       #"
+        echo "#                                                 #"
+        echo "#   Run: cargo update -p vauchi-core              #"
+        echo "#                                                 #"
+        echo "###################################################"
         echo ""
         exit 1
-      else
-        echo "Cargo.lock is up to date with core main ($LATEST_SHORT)"
       fi
+
+      # SHA exists on remote but fell outside the 500-commit main window.
+      # MR is very old; warn but don't fail.
+      echo ""
+      echo "Cargo.lock pins core $LOCKED_SHORT — more than 500 main"
+      echo "commits behind $LATEST_SHORT. Consider rebasing before merge."
+      echo ""
+      exit 0
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
