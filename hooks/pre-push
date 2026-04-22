@@ -362,13 +362,40 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
         echo ""
         echo "[0] Validating .gitlab-ci.yml..."
         if command -v glab &> /dev/null; then
-            if ! glab ci lint "$REPO_ROOT/.gitlab-ci.yml" > /dev/null 2>&1; then
+            # `glab ci lint` POSTs only the top-level file to the server —
+            # it cannot resolve `local:` includes (the file path is relative
+            # to the repo root on the server, not the client FS). If the
+            # top file uses local: includes, skip server-lint and verify
+            # instead that every referenced local file exists on disk.
+            # The real MR pipeline will do the full lint once pushed.
+            if grep -qE '^\s*-\s*local:' "$REPO_ROOT/.gitlab-ci.yml"; then
+                echo "  (server lint skipped — local: includes present)"
+                local_missing=0
+                while read -r inc; do
+                    inc_path=$(printf '%s' "$inc" \
+                        | sed -E 's/^[[:space:]]*-[[:space:]]*local:[[:space:]]*//; s/^["'\'']//; s/["'\'']$//')
+                    [ -z "$inc_path" ] && continue
+                    # local: paths are relative to the repo root (with optional leading slash)
+                    resolved="${REPO_ROOT}/${inc_path#/}"
+                    if [ ! -f "$resolved" ]; then
+                        echo "  MISSING local include: $inc_path (resolved to $resolved)"
+                        local_missing=1
+                    fi
+                done < <(grep -E '^\s*-\s*local:' "$REPO_ROOT/.gitlab-ci.yml")
+                if [ "$local_missing" = 1 ]; then
+                    echo ""
+                    echo "FAILED: one or more local: includes point to missing files."
+                    exit 1
+                fi
+                echo "  All local: includes resolve on disk"
+            elif ! glab ci lint "$REPO_ROOT/.gitlab-ci.yml" > /dev/null 2>&1; then
                 echo ""
                 echo "FAILED: CI config is invalid:"
                 glab ci lint "$REPO_ROOT/.gitlab-ci.yml" 2>&1
                 exit 1
+            else
+                echo "  CI lint OK"
             fi
-            echo "  CI lint OK"
         fi
 
         # Check for jobs without runner tags.
