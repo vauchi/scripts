@@ -82,6 +82,12 @@ lint:shellcheck:
       echo "All shell scripts pass shellcheck."
 
 # Validate CI templates (YAML syntax)
+# yamllint -d relaxed is advisory by design — purely cosmetic style
+# warnings on shared CI templates. The script body uses `|| true` per
+# file so a single bad file doesn't terminate the loop, and the job
+# itself is allow_failure: true so style nits stay out of the merge
+# gate. Audited 2026-04-22 T2.5 — both safeguards retained because
+# CI-template style is intentionally low-stakes.
 lint:ci-templates:
   extends: .mr-or-main
   stage: lint
@@ -140,7 +146,10 @@ secret_detection:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-# Push engineering metrics to Prometheus pushgateway (daily schedule)
+# Push engineering metrics to Prometheus pushgateway (daily schedule).
+# allow_failure: true because pushgateway availability is best-effort
+# observability — a missed daily push is recoverable on the next run
+# and must never gate scheduled work. Audited 2026-04-22 T2.5.
 metrics:daily:
   stage: metrics
   tags:
