@@ -47,6 +47,13 @@ declare -A GITLAB_PROJECTS=(
     [ios]="vauchi/ios"
     [android]="vauchi/android"
     [e2e]="vauchi/e2e"
+    [macos]="vauchi/macos"
+    [windows]="vauchi/windows"
+    [linux-gtk]="vauchi/linux-gtk"
+    [linux-qt]="vauchi/linux-qt"
+    [ohttp-relay]="vauchi/ohttp-relay"
+    [web-demo]="vauchi/web-demo"
+    [scripts]="vauchi/scripts"
 )
 
 # Repos with Rust test code
@@ -182,6 +189,129 @@ print(f'{total} {ok}')
             local ratio
             ratio=$(awk "BEGIN { printf \"%.4f\", $ok_count / $all_count }")
             append_metric "vauchi_eng_pipeline_success_ratio" "repo=\"${repo}\"" "$ratio"
+        fi
+    done
+}
+
+# Pipeline health — median, P95, pass rate (main + MR), top flaky jobs
+# Complements collect_pipeline_metrics() which emits avg + 30-day ratio.
+# Uses last 20 pipelines per ref (main / MR) for responsiveness to recent regressions.
+# New gauge names are prefixed vauchi_eng_ci_ to distinguish from
+# the existing vauchi_eng_pipeline_* series.
+collect_ci_health_metrics() {
+    for repo in "${!GITLAB_PROJECTS[@]}"; do
+        local pid
+        pid=$(urlencode "${GITLAB_PROJECTS[$repo]}")
+
+        # ── Main branch: last 20 pipelines, success-only for duration ──
+        # GitLab's list endpoint returns `duration: null` on recent pipelines;
+        # fall back to (updated_at − created_at) like collect_pipeline_metrics.
+        local main_json main_out
+        main_json=$(gitlab_get "/projects/${pid}/pipelines?per_page=20&ref=main")
+        if [ "$main_json" != "null" ]; then
+            main_out=$(echo "$main_json" | python3 -c "
+import sys, json, statistics
+from datetime import datetime
+def dur(p):
+    d = p.get('duration')
+    if d: return float(d)
+    c, u = p.get('created_at'), p.get('updated_at')
+    if c and u:
+        t0 = datetime.fromisoformat(c.replace('Z', '+00:00'))
+        t1 = datetime.fromisoformat(u.replace('Z', '+00:00'))
+        return max(0, (t1 - t0).total_seconds())
+    return 0
+data = json.load(sys.stdin)
+durs = [dur(p) for p in data if p.get('status') == 'success']
+durs = [d for d in durs if d > 0]
+total = len(data)
+ok = sum(1 for p in data if p.get('status') == 'success')
+if durs:
+    med = statistics.median(durs)
+    s = sorted(durs)
+    # P95 index for small-N: ceil(0.95 * N) - 1
+    idx = max(0, int(-(-95 * len(s) // 100)) - 1)
+    p95 = s[idx]
+else:
+    med = p95 = 0
+ratio = (ok / total) if total else 0
+print(f'{med:.0f} {p95:.0f} {ratio:.4f} {total}')
+" 2>/dev/null || echo "0 0 0 0")
+            local med_s p95_s ratio_s n_s
+            read -r med_s p95_s ratio_s n_s <<< "$main_out"
+            if [ "$n_s" -gt 0 ] 2>/dev/null; then
+                append_metric "vauchi_eng_ci_main_median_seconds" "repo=\"${repo}\"" "$med_s"
+                append_metric "vauchi_eng_ci_main_p95_seconds"    "repo=\"${repo}\"" "$p95_s"
+                append_metric "vauchi_eng_ci_main_pass_ratio"     "repo=\"${repo}\"" "$ratio_s"
+            fi
+        fi
+
+        # ── MR pipelines: last 20, pass rate + top flaky jobs ──
+        local mr_json mr_out
+        mr_json=$(gitlab_get "/projects/${pid}/pipelines?per_page=20&source=merge_request_event")
+        if [ "$mr_json" != "null" ]; then
+            mr_out=$(echo "$mr_json" | python3 -c "
+import sys, json, statistics
+from datetime import datetime
+def dur(p):
+    d = p.get('duration')
+    if d: return float(d)
+    c, u = p.get('created_at'), p.get('updated_at')
+    if c and u:
+        t0 = datetime.fromisoformat(c.replace('Z', '+00:00'))
+        t1 = datetime.fromisoformat(u.replace('Z', '+00:00'))
+        return max(0, (t1 - t0).total_seconds())
+    return 0
+data = json.load(sys.stdin)
+durs = [dur(p) for p in data if p.get('status') == 'success']
+durs = [d for d in durs if d > 0]
+total = len(data)
+ok = sum(1 for p in data if p.get('status') == 'success')
+med = statistics.median(durs) if durs else 0
+ratio = (ok / total) if total else 0
+print(f'{med:.0f} {ratio:.4f} {total}')
+" 2>/dev/null || echo "0 0 0")
+            local med_m ratio_m n_m
+            read -r med_m ratio_m n_m <<< "$mr_out"
+            if [ "$n_m" -gt 0 ] 2>/dev/null; then
+                append_metric "vauchi_eng_ci_mr_median_seconds" "repo=\"${repo}\"" "$med_m"
+                append_metric "vauchi_eng_ci_mr_pass_ratio"     "repo=\"${repo}\"" "$ratio_m"
+            fi
+
+            # Top-N flakiest job names over last 20 MR pipelines.
+            # One fetch per pipeline; bounded to 20 × ~1 req = small API cost.
+            local flaky_out
+            flaky_out=$(echo "$mr_json" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+ids = [p.get('id') for p in d if p.get('id')]
+print(' '.join(str(x) for x in ids))
+" 2>/dev/null || echo "")
+            if [ -n "$flaky_out" ]; then
+                local _acc=""
+                for pipeline_id in $flaky_out; do
+                    local jobs_json
+                    jobs_json=$(gitlab_get "/projects/${pid}/pipelines/${pipeline_id}/jobs?per_page=100")
+                    if [ "$jobs_json" != "null" ]; then
+                        _acc+=$(echo "$jobs_json" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for j in d:
+    if j.get('status') == 'failed' and not j.get('allow_failure'):
+        print(j.get('name'))
+" 2>/dev/null || true)
+                        _acc+=$'\n'
+                    fi
+                done
+                # Count failures per job and emit top 5.
+                # Process substitution keeps append_metric in the current shell
+                # (pipe `| while` would lose METRICS_TEXT updates in a subshell).
+                while read -r count job; do
+                    [ -z "$job" ] && continue
+                    append_metric "vauchi_eng_ci_mr_job_failures_20" \
+                        "repo=\"${repo}\",job=\"${job}\"" "$count"
+                done < <(echo "$_acc" | grep -v '^$' | sort | uniq -c | sort -rn | head -5)
+            fi
         fi
     done
 }
@@ -435,6 +565,9 @@ fi
 # Run collectors
 echo "  Collecting pipeline metrics..." >&2
 collect_pipeline_metrics
+
+echo "  Collecting CI health metrics (median/P95/MR pass/job flakes)..." >&2
+collect_ci_health_metrics
 
 echo "  Collecting e2e metrics..." >&2
 collect_e2e_metrics
