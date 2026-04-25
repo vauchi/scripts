@@ -29,6 +29,9 @@ _find_workspace_root() {
 WORKSPACE_ROOT="$(_find_workspace_root)" || {
     echo "ERROR: could not find vauchi workspace root from PWD=$PWD" >&2
     echo "Run 'just' / source this script from inside the workspace tree." >&2
+    # shellcheck disable=SC2317  # the exit branch is reachable when this
+    # script is executed (rather than sourced) — `return` fails outside a
+    # function/sourced script and the `|| exit 1` then fires.
     return 1 2>/dev/null || exit 1
 }
 
