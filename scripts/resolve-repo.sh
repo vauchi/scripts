@@ -8,8 +8,29 @@
 
 set -euo pipefail
 
-# Workspace root (parent of scripts/)
-WORKSPACE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Workspace root. Determined by walking up from $PWD looking for the
+# CLAUDE.md + scripts/scripts/resolve-repo.sh marker pair. This is
+# portable across bash and zsh — the previous `${BASH_SOURCE[0]}`
+# approach silently produced "/" under zsh (where the parameter is
+# unset), which then propagated to gitlab_repo_dir and made
+# `just gitlab mr-create vauchi-platform-swift` fail in any session
+# where the user had `source`d this file from their interactive zsh.
+_find_workspace_root() {
+    local d="$PWD"
+    while [[ "$d" != "/" && -n "$d" ]]; do
+        if [[ -f "$d/CLAUDE.md" && -f "$d/scripts/scripts/resolve-repo.sh" ]]; then
+            echo "$d"
+            return 0
+        fi
+        d="$(dirname "$d")"
+    done
+    return 1
+}
+WORKSPACE_ROOT="$(_find_workspace_root)" || {
+    echo "ERROR: could not find vauchi workspace root from PWD=$PWD" >&2
+    echo "Run 'just' / source this script from inside the workspace tree." >&2
+    return 1 2>/dev/null || exit 1
+}
 
 # ── Registry ────────────────────────────────────────────────────────
 # Format: name:dir:toolchain
