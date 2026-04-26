@@ -106,37 +106,19 @@ MODULEMAP
         fi
     done
 
-    # 3. Switch Package.swift to local binaryTarget
-    #    Replace the URL-based binaryTarget with a local path reference.
-    #    We use Python for reliable multi-line replacement (sed is fragile here).
-    if grep -q 'url:.*gitlab.*xcframework' "$spm_dir/Package.swift"; then
-        echo -e "${YELLOW}Switching Package.swift to local binaryTarget...${NC}"
-        python3 -c "
-import re, sys
-path = sys.argv[1]
-with open(path) as f:
-    content = f.read()
-# Match the .binaryTarget block with URL
-pattern = r'(        )\.binaryTarget\(\s*\n\s*name: \"VauchiPlatformFFI\",\s*\n\s*url:.*\n\s*checksum:.*\n\s*\),'
-replacement = r'''\1// REMOTE (original, restored by wire-bindings-remote.sh):
-\1// .binaryTarget(
-\1//     name: \"VauchiPlatformFFI\",
-\1//     url: \"...\",
-\1//     checksum: checksum
-\1// ),
-\1// LOCAL (set by wire-bindings-local.sh):
-\1.binaryTarget(
-\1    name: \"VauchiPlatformFFI\",
-\1    path: \"VauchiPlatformFFI.xcframework\"
-\1),'''
-result = re.sub(pattern, replacement, content)
-with open(path, 'w') as f:
-    f.write(result)
-" "$spm_dir/Package.swift"
-        echo -e "  ${GREEN}Package.swift → local path${NC}"
-    else
-        echo -e "  ${YELLOW}Package.swift already using local path${NC}"
+    # 3. Verify Package.swift carries the env-var-aware binaryTarget.
+    #    Since 2026-04-26 (problem 2026-04-26-vauchi-platform-swift-resolve-hang),
+    #    no Package.swift mutation is needed: the manifest reads
+    #    VAUCHI_PLATFORM_USE_LOCAL_XCFRAMEWORK at SPM resolve time and emits
+    #    a `path:` binaryTarget when the env var is set. This avoids the
+    #    SwiftPM URLSession download path entirely without touching the file.
+    if ! grep -q 'VAUCHI_PLATFORM_USE_LOCAL_XCFRAMEWORK' "$spm_dir/Package.swift"; then
+        echo -e "${RED}Error: $spm_dir/Package.swift is missing the env-var-aware binaryTarget.${NC}"
+        echo "Pull the latest vauchi-platform-swift main (must contain Fix C — see"
+        echo "_private/docs/problems/2026-04-26-vauchi-platform-swift-resolve-hang/)."
+        exit 1
     fi
+    echo -e "  ${GREEN}Package.swift uses env-var-aware binaryTarget (no patch needed)${NC}"
 
     # 4. Create Xcode workspace that includes the local SPM package
     local ws_dir="$ios_dir/Vauchi.xcworkspace"
@@ -161,7 +143,11 @@ WORKSPACE
     echo -e "${GREEN}iOS wired to local bindings.${NC}"
     echo ""
     echo "Build with:"
+    echo -e "  ${YELLOW}export VAUCHI_PLATFORM_USE_LOCAL_XCFRAMEWORK=1${NC}"
     echo "  xcodebuild -workspace Vauchi.xcworkspace -scheme Vauchi ..."
+    echo ""
+    echo "For Xcode IDE builds: add VAUCHI_PLATFORM_USE_LOCAL_XCFRAMEWORK=1 to"
+    echo "the scheme's Run > Arguments > Environment Variables."
 }
 
 # ── Android ──────────────────────────────────────────────────────────

@@ -6,7 +6,9 @@
 # Revert local UniFFI bindings wiring — restore remote/published dependencies.
 #
 # Undoes changes made by wire-bindings-local.sh:
-#   iOS:     removes workspace, restores Package.swift to URL target
+#   iOS:     removes workspace, restores Swift bindings from git
+#            (Package.swift no longer mutated since 2026-04-26 — env-var
+#            VAUCHI_PLATFORM_USE_LOCAL_XCFRAMEWORK alone toggles modes)
 #   Android: reverts build.gradle.kts to Maven dependency
 #
 # Usage: ./scripts/wire-bindings-remote.sh [--ios] [--android]
@@ -60,16 +62,8 @@ unwire_ios() {
         echo -e "  ${GREEN}Removed Vauchi.xcworkspace${NC}"
     fi
 
-    # 2. Restore Package.swift to remote binaryTarget
-    if [[ -d "$spm_dir" ]] && grep -q 'path: "VauchiPlatformFFI.xcframework"' "$spm_dir/Package.swift" 2>/dev/null; then
-        echo -e "${YELLOW}Restoring Package.swift to remote binaryTarget...${NC}"
-        cd "$spm_dir" && git checkout -- Package.swift
-        echo -e "  ${GREEN}Package.swift restored from git${NC}"
-    else
-        echo -e "  ${YELLOW}Package.swift already using remote target${NC}"
-    fi
-
-    # 3. Restore Swift bindings from git
+    # 2. Restore Swift bindings from git (Package.swift is no longer mutated
+    #    by wire-bindings-local.sh — env var alone toggles binaryTarget mode).
     if [[ -d "$spm_dir" ]]; then
         cd "$spm_dir" && git checkout -- Sources/VauchiPlatform/vauchi_platform.swift 2>/dev/null || true
         echo -e "  ${GREEN}Swift bindings restored from git${NC}"
@@ -78,6 +72,7 @@ unwire_ios() {
     echo -e "${GREEN}iOS restored to remote bindings.${NC}"
     echo ""
     echo "Build with:"
+    echo -e "  ${YELLOW}unset VAUCHI_PLATFORM_USE_LOCAL_XCFRAMEWORK${NC}  # if previously set"
     echo "  xcodebuild -project Vauchi.xcodeproj -scheme Vauchi ..."
 }
 
