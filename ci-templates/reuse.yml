@@ -50,14 +50,19 @@ lint:reuse:
       # full job timeout (seen in ios lint:reuse #2462683169). macOS lacks
       # GNU `timeout`, so prefer gtimeout (coreutils) and fall back to a
       # pure-bash background+kill shim.
+      # Timeout reduced 60s → 20s (2026-04-26 speedup): on healthy
+      # network the fetch completes in <5s; the 60s budget made the
+      # job dominate lint stage critical path even on green runs. With
+      # 20s × 3 retries (60s worst-case) plus 5s sleep between, we still
+      # cover transient blips while letting the median run finish in <8s.
       if command -v timeout >/dev/null 2>&1; then
-        _git_fetch_bounded() { timeout 60 git fetch "$@"; }
+        _git_fetch_bounded() { timeout 20 git fetch "$@"; }
       elif command -v gtimeout >/dev/null 2>&1; then
-        _git_fetch_bounded() { gtimeout 60 git fetch "$@"; }
+        _git_fetch_bounded() { gtimeout 20 git fetch "$@"; }
       else
         _git_fetch_bounded() {
           ( git fetch "$@" ) & local pid=$!
-          ( sleep 60 && kill -TERM "$pid" 2>/dev/null ) & local killer=$!
+          ( sleep 20 && kill -TERM "$pid" 2>/dev/null ) & local killer=$!
           wait "$pid" 2>/dev/null; local rc=$?
           kill "$killer" 2>/dev/null; wait "$killer" 2>/dev/null || true
           return "$rc"
