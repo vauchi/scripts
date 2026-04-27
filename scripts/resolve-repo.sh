@@ -125,7 +125,11 @@ repo_toolchain() {
 repo_test_features() {
     local name="${1:?repo_test_features requires a repo name argument}"
     case "$name" in
-        core) echo "--features vauchi-core/testing" ;;
+        # `test-kdf` weakens Argon2id parameters (8 MB / 1 iteration vs.
+        # 64 MB / 3 iterations) for ~5x faster KDF-bound tests. Already
+        # used by core CI (see core/.gitlab-ci.yml). Enabling it locally
+        # too keeps `just test core` and CI consistent.
+        core) echo "--features vauchi-core/testing,vauchi-core/test-kdf" ;;
         *)    echo "" ;;
     esac
 }
