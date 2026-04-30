@@ -98,6 +98,18 @@ else
     fail=$((fail + 1))
 fi
 
+# GitLab cross-repo commit refs (<word>@<sha>) autolink and must
+# survive both escape and validation — the escaper preserves them
+# (email-lead heuristic), the validator must match so the recipe
+# does not abort on a useful autolink.
+if echo 'See core@ebf7dbe1 for context.' | "$SCRIPT" --check 2>/dev/null; then
+    printf '  PASS --check accepts <repo>@<sha> commit ref\n'
+    pass=$((pass + 1))
+else
+    printf '  FAIL --check false-positive on commit ref\n' >&2
+    fail=$((fail + 1))
+fi
+
 # ── Idempotence: escape twice == escape once ──────────────────
 src='Mix of @bare and `@escaped` and `@inside multi`.'
 once=$(printf '%s' "$src" | "$SCRIPT")

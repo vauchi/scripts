@@ -71,10 +71,22 @@ def escape_mentions(text: str) -> str:
 
 def find_unescaped_mentions(text: str) -> list[str]:
     """Return any bare `@word` that survives escaping. Used as a
-    defence-in-depth validator after `escape_mentions`."""
+    defence-in-depth validator after `escape_mentions`.
+
+    Skips:
+      - Inline code spans (already escaped).
+      - Email addresses (`user@host.tld`).
+      - GitLab cross-repo commit refs (`<word>@<7-40 hex>`) — these
+        autolink to the commit on rendering, so wrapping them would
+        break a useful link. The escaper already preserves them
+        verbatim via its email-lead heuristic, so the validator must
+        match (otherwise the recipe would falsely abort)."""
     stripped = re.sub(r"`[^`]*`", "", text)
     stripped = re.sub(
         r"[A-Za-z0-9_.+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "", stripped
+    )
+    stripped = re.sub(
+        r"[A-Za-z][A-Za-z0-9_-]*@[0-9a-f]{7,40}\b", "", stripped
     )
     return MENTION_RE.findall(stripped)
 
