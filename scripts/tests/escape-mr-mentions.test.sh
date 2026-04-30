@@ -3,6 +3,15 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+# shellcheck disable=SC2016
+# Reason: every test fixture in this file uses single-quoted strings
+# containing literal backticks (markdown code-span syntax). Shellcheck
+# warns that "expressions don't expand in single quotes" on every
+# fixture line — but the literal `@word` syntax is the entire point of
+# the test. The escaper's contract is that a code-span boundary is
+# preserved verbatim, so the input MUST remain literal. Same precedent
+# as scripts/tests/check-binding-abi.test.sh:30.
+
 # escape-mr-mentions.test.sh — Regression suite for the markdown-aware
 # `@mention` escaper used by `just gitlab mr-create`.
 #
