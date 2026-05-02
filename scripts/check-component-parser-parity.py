@@ -107,9 +107,24 @@ def main() -> int:
         default=Path(__file__).resolve().parents[2],
         help="Workspace root containing core/, linux-gtk/, etc.",
     )
+    parser.add_argument(
+        "--enum-file",
+        type=Path,
+        help="Path to core's component.rs (overrides --workspace lookup).",
+    )
+    parser.add_argument(
+        "--frontend",
+        choices=sorted(HAND_ROLLED_PARSERS.keys()),
+        help="Check only one frontend (CI per-repo mode).",
+    )
+    parser.add_argument(
+        "--parser-file",
+        type=Path,
+        help="Path to the parser file (use with --frontend; overrides workspace lookup).",
+    )
     args = parser.parse_args()
 
-    enum_path = args.workspace / ENUM_FILE
+    enum_path = args.enum_file or (args.workspace / ENUM_FILE)
     if not enum_path.exists():
         print(f"error: missing canonical enum file: {enum_path}", file=sys.stderr)
         return 2
@@ -118,17 +133,24 @@ def main() -> int:
     print(f"Canonical {ENUM_NAME} variants ({len(variants)}): {', '.join(variants)}")
     print()
 
+    targets = (
+        {args.frontend: HAND_ROLLED_PARSERS[args.frontend]}
+        if args.frontend
+        else HAND_ROLLED_PARSERS
+    )
+
     drift = False
-    for frontend, (rel_path, marker) in HAND_ROLLED_PARSERS.items():
-        parser_path = args.workspace / rel_path
+    for frontend, (rel_path, marker) in targets.items():
+        parser_path = args.parser_file if args.parser_file else (args.workspace / rel_path)
         missing = check_parser(parser_path, marker, variants)
+        display_path = str(parser_path) if args.parser_file else rel_path
         if missing:
             drift = True
-            print(f"DRIFT  {frontend}: missing {len(missing)} variant(s) in {rel_path}")
+            print(f"DRIFT  {frontend}: missing {len(missing)} variant(s) in {display_path}")
             for v in missing:
                 print(f"         - {v}")
         else:
-            print(f"OK     {frontend}: all {len(variants)} variants present in {rel_path}")
+            print(f"OK     {frontend}: all {len(variants)} variants present in {display_path}")
 
     print()
     if drift:

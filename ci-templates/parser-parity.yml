@@ -1,0 +1,85 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Parser-Parity Template
+# Verifies that the consuming frontend's hand-rolled ScreenModel
+# parser handles every Component variant declared in core's canonical
+# `Component` enum. Catches silent drift — a new core variant that
+# would render as a placeholder / silently default.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/parser-parity.yml'
+#
+# Provides:
+#   - .parser-parity-job: Validates one frontend's parser file
+#
+# Variables (set by consumer jobs that extend `.parser-parity-job`):
+#   FRONTEND_NAME:  Frontend identifier — must match a key in the
+#                   script's HAND_ROLLED_PARSERS map: linux-gtk,
+#                   linux-qt, windows, android.
+#   PARSER_FILE:    Path to the consumer's parser file (repo-relative).
+#   CORE_REF:       Git ref of vauchi/core to check against (default:
+#                   main). Pin to a specific tag/commit for reproducible
+#                   runs.
+
+.parser-parity-job:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "${PARSER_FILE}"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    FRONTEND_NAME: ""
+    PARSER_FILE: ""
+    CORE_REF: "main"
+  before_script:
+    - apk add --no-cache git python3
+  script:
+    - |
+      set -euo pipefail
+
+      if [ -z "$FRONTEND_NAME" ] || [ -z "$PARSER_FILE" ]; then
+        echo "ERROR: FRONTEND_NAME and PARSER_FILE must be set"
+        exit 2
+      fi
+
+      if [ ! -f "$PARSER_FILE" ]; then
+        echo "ERROR: PARSER_FILE not found: $PARSER_FILE"
+        exit 2
+      fi
+
+      # Fetch only the canonical enum file from core via shallow clone +
+      # sparse-checkout — avoids a full clone of the core repo just to
+      # read one source file.
+      mkdir -p .core-parity
+      git -C .core-parity init -q
+      git -C .core-parity remote add origin https://gitlab.com/vauchi/core.git
+      git -C .core-parity sparse-checkout init --no-cone
+      git -C .core-parity sparse-checkout set vauchi-app/src/ui/component.rs
+      git -C .core-parity fetch -q --depth 1 origin "$CORE_REF"
+      git -C .core-parity checkout -q FETCH_HEAD
+
+      ENUM_FILE=".core-parity/vauchi-app/src/ui/component.rs"
+      if [ ! -f "$ENUM_FILE" ]; then
+        echo "ERROR: failed to fetch core's component.rs at ref $CORE_REF"
+        exit 2
+      fi
+
+      # Fetch the parity script. CI_PROJECT_PATH-aware: use the same
+      # dependency proxy / mirror the runner already trusts. Falls back
+      # to raw HTTPS for non-GitLab environments.
+      SCRIPT_URL="https://gitlab.com/vauchi/scripts/-/raw/main/scripts/check-component-parser-parity.py"
+      wget -q -O check-parser-parity.py "$SCRIPT_URL"
+
+      python3 check-parser-parity.py \
+        --enum-file "$ENUM_FILE" \
+        --frontend "$FRONTEND_NAME" \
+        --parser-file "$PARSER_FILE"
