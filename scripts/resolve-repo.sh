@@ -211,11 +211,17 @@ resolve_repo() {
 
 # Map directory name to GitLab project name.
 # Most are identity (core → core), with exceptions listed below.
+#
+# Workspace-root clones are commonly named `vauchi`, `vauchi-1`,
+# `vauchi-foo`, etc. (one per parallel clone). All map to the same
+# GitLab project `vauchi/vauchi`. Without this mapping, multi-clone
+# users get spurious queries against `vauchi/vauchi-N` (404) from
+# `_add_sibling_mr` in the `mr-create` auto-link pass.
 _dir_to_gitlab_name() {
     local name="$1"
     case "$name" in
         _private)                echo "private" ;;
-        root|.)                  echo "vauchi" ;;
+        root|.|vauchi|vauchi-*)  echo "vauchi" ;;
         *)                       echo "$name" ;;
     esac
 }
