@@ -45,6 +45,83 @@ else
 fi
 
 # ============================================================
+# 1.5. Block setup-path-overrides leakage in staged Cargo.toml/Cargo.lock
+# ============================================================
+# `just setup-path-overrides` writes a fenced `[patch.<gitlab>]` block
+# into consumer repos' Cargo.toml so local cargo resolves vauchi-* via
+# path overrides instead of git URLs. Both Cargo.toml AND Cargo.lock
+# are tracked — neither piece of state must land in a commit.
+# See problem record `2026-05-03-cargo-path-override-broken`.
+
+PATCH_FENCE_MARKER="# >>> setup-path-overrides BEGIN"
+
+# Cargo.toml carrying the fenced patch block.
+STAGED_CARGO_TOML=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -E '(^|/)Cargo\.toml$' || true)
+TOML_FOUND=""
+for f in $STAGED_CARGO_TOML; do
+    [[ -f "$f" ]] || continue
+    if git diff --cached -- "$f" | grep -qF "$PATCH_FENCE_MARKER"; then
+        TOML_FOUND="${TOML_FOUND}${f}\n"
+    fi
+done
+
+# Cargo.lock with vauchi-* pointing at a local sibling path — produced
+# by `cargo update -p vauchi-*` after the patch is applied. Detection
+# pattern: a `name = "vauchi-(core|app|protocol|relay)"` block whose
+# `source` line is missing or starts with the path scheme.
+STAGED_CARGO_LOCK=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -E '(^|/)Cargo\.lock$' || true)
+LOCK_FOUND=""
+for f in $STAGED_CARGO_LOCK; do
+    [[ -f "$f" ]] || continue
+    # Walk every vauchi-* package block in the staged version. If the
+    # block has no `source = "git+..."` line within 4 lines of `name =`,
+    # it's been rewritten to a path source and must not commit.
+    HAS_PATH_SOURCE=$(git show ":$f" 2>/dev/null \
+        | awk '
+            /^\[\[package\]\]/ { in_pkg = 1; name = ""; src = ""; next }
+            in_pkg && /^name = "vauchi-(core|app|protocol|relay)"/ {
+                name = $0
+            }
+            in_pkg && /^source = / { src = $0 }
+            in_pkg && /^$/ {
+                if (name != "" && src == "") { print name; }
+                in_pkg = 0
+            }
+            END {
+                if (in_pkg && name != "" && src == "") print name;
+            }
+        ' || true)
+    if [[ -n "$HAS_PATH_SOURCE" ]]; then
+        LOCK_FOUND="${LOCK_FOUND}${f} (path-sourced: $(echo "$HAS_PATH_SOURCE" | tr '\n' ' '))\n"
+    fi
+done
+
+if [[ -n "$TOML_FOUND" || -n "$LOCK_FOUND" ]]; then
+    echo ""
+    echo "ERROR: setup-path-overrides leakage detected in staged files."
+    if [[ -n "$TOML_FOUND" ]]; then
+        echo ""
+        echo "  Cargo.toml carries the override fence:"
+        printf "%b" "$TOML_FOUND" | sed 's/^/    /'
+    fi
+    if [[ -n "$LOCK_FOUND" ]]; then
+        echo ""
+        echo "  Cargo.lock has vauchi-* on a local path source:"
+        printf "%b" "$LOCK_FOUND" | sed 's/^/    /'
+    fi
+    echo ""
+    echo "Fix:"
+    echo "  just clean-path-overrides     # strip Cargo.toml fence"
+    echo "  cargo update --offline        # restore Cargo.lock to git revs"
+    echo "  git add <files> && retry the commit"
+    echo ""
+    echo "These are local-dev artifacts — committing them breaks CI."
+    exit 1
+fi
+
+# ============================================================
 # 2. Check Rust formatting
 # ============================================================
 echo "[2/4] Checking Rust formatting..."
