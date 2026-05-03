@@ -74,7 +74,7 @@ EXIT=0
 
 if [ -n "$NEW_VIOLATIONS" ]; then
     echo "FAIL: new domain-named view files in $VIEWS_DIR (Humble UI rule, ADR-021/043):"
-    echo "$NEW_VIOLATIONS" | sed 's/^/  /'
+    echo "$NEW_VIOLATIONS" | awk '{print "  " $0}'
     echo
     echo "Render the corresponding core ScreenModel via CoreScreenView instead."
     echo "If the view is platform-required (camera host, lock screen, etc.),"
@@ -84,7 +84,7 @@ fi
 
 if [ -n "$STALE_ENTRIES" ]; then
     echo "WARN: allow-list entries no longer present in $VIEWS_DIR:"
-    echo "$STALE_ENTRIES" | sed 's/^/  /'
+    echo "$STALE_ENTRIES" | awk '{print "  " $0}'
     echo "Remove them from $ALLOWLIST_FILE (ratchet-down)."
     EXIT=1
 fi
