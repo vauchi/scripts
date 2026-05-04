@@ -70,27 +70,70 @@ done
 # by `cargo update -p vauchi-*` after the patch is applied. Detection
 # pattern: a `name = "vauchi-(core|app|protocol|relay)"` block whose
 # `source` line is missing or starts with the path scheme.
+#
+# A workspace's OWN crate (e.g. `vauchi-relay` in relay/Cargo.lock,
+# `vauchi-core`/`vauchi-app`/`vauchi-protocol`/`vauchi-cabi` in
+# core/Cargo.lock) also has no `source = ` line — by definition,
+# workspace members are local. Those entries are NOT path overrides
+# and must be skipped, otherwise this check fires false positives on
+# every commit that touches Cargo.lock in any vauchi-* repo.
 STAGED_CARGO_LOCK=$(git diff --cached --name-only --diff-filter=ACM \
     | grep -E '(^|/)Cargo\.lock$' || true)
 LOCK_FOUND=""
 for f in $STAGED_CARGO_LOCK; do
     [[ -f "$f" ]] || continue
+    # Resolve the sibling Cargo.toml so we can ask cargo metadata what
+    # this workspace's own packages are. Skip those names below — they
+    # are legitimately source-less.
+    LOCK_DIR=$(dirname "$f")
+    [[ "$LOCK_DIR" == "." ]] && LOCK_DIR="$(pwd)"
+    OWN_PACKAGES=""
+    if command -v cargo &>/dev/null && [[ -f "$LOCK_DIR/Cargo.toml" ]]; then
+        OWN_PACKAGES=$(cargo metadata \
+            --no-deps \
+            --format-version=1 \
+            --manifest-path "$LOCK_DIR/Cargo.toml" 2>/dev/null \
+            | grep -oE '"name":"vauchi-[a-z]+"' \
+            | sed 's/"name":"//; s/"$//' \
+            | sort -u | tr '\n' '|' | sed 's/|$//' || true)
+    fi
+    # Build the awk filter. If OWN_PACKAGES is empty (cargo missing
+    # or unparsable), fall back to checking all vauchi-* names — same
+    # behaviour as before this fix.
+    NAME_RE='^name = "vauchi-(core|app|protocol|relay)"'
+    SKIP_RE=''
+    if [[ -n "$OWN_PACKAGES" ]]; then
+        SKIP_RE="$OWN_PACKAGES"
+    fi
     # Walk every vauchi-* package block in the staged version. If the
     # block has no `source = "git+..."` line within 4 lines of `name =`,
-    # it's been rewritten to a path source and must not commit.
+    # AND the name is not the workspace's own crate, it's been
+    # rewritten to a path source and must not commit.
     HAS_PATH_SOURCE=$(git show ":$f" 2>/dev/null \
-        | awk '
-            /^\[\[package\]\]/ { in_pkg = 1; name = ""; src = ""; next }
-            in_pkg && /^name = "vauchi-(core|app|protocol|relay)"/ {
+        | awk -v skip_re="$SKIP_RE" -v name_re="$NAME_RE" '
+            BEGIN { use_skip = (skip_re != "") }
+            /^\[\[package\]\]/ { in_pkg = 1; name = ""; pkg_name = ""; src = ""; next }
+            in_pkg && $0 ~ name_re {
                 name = $0
+                # Extract bare package name for skip-list comparison.
+                match($0, /vauchi-[a-z]+/)
+                pkg_name = substr($0, RSTART, RLENGTH)
             }
             in_pkg && /^source = / { src = $0 }
             in_pkg && /^$/ {
-                if (name != "" && src == "") { print name; }
+                if (name != "" && src == "") {
+                    if (!use_skip || pkg_name !~ ("^(" skip_re ")$")) {
+                        print name
+                    }
+                }
                 in_pkg = 0
             }
             END {
-                if (in_pkg && name != "" && src == "") print name;
+                if (in_pkg && name != "" && src == "") {
+                    if (!use_skip || pkg_name !~ ("^(" skip_re ")$")) {
+                        print name
+                    }
+                }
             }
         ' || true)
     if [[ -n "$HAS_PATH_SOURCE" ]]; then
