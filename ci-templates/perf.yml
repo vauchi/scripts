@@ -198,39 +198,23 @@
 
       echo ""
 
-      # Push to Pushgateway via SSH (same pattern as push-coverage.sh)
+      # Push via shared helper (tries: direct URL → full SSH → restricted SSH)
       if [ -z "$METRICS_TEXT" ]; then
         echo "No metrics to push"
         exit 0
       fi
 
-      # Set up SSH if DEPLOY_SSH_PRIVATE_KEY is available and key not already present
-      if [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ] && [ ! -f ~/.ssh/id_ed25519 ]; then
-        mkdir -p ~/.ssh
-        base64 -d "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-        chmod 600 ~/.ssh/id_ed25519
-        cat >> ~/.ssh/config <<'SSHEOF'
-      Host bold-hopper-vps
-        HostName 87.106.25.46
-        User vauchi
-        StrictHostKeyChecking accept-new
-      SSHEOF
-        chmod 600 ~/.ssh/config
-        trap 'rm -f ~/.ssh/id_ed25519' EXIT
-      fi
-
-      if [ -n "${PUSHGATEWAY_URL:-}" ]; then
-        echo "$METRICS_TEXT" | curl -s --fail --max-time 10 --data-binary @- \
-          "${PUSHGATEWAY_URL}/metrics/job/vauchi_binary_size/repo/${REPO_LABEL}" \
-          && echo "✓ Binary size metrics pushed for ${REPO_LABEL}" \
-          || echo "⚠ Pushgateway push failed (non-fatal) — metrics logged above"
-      elif [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
-        echo "$METRICS_TEXT" | ssh -o ConnectTimeout=10 vauchi@bold-hopper-vps \
-          "curl -s --fail --max-time 10 --data-binary @- http://localhost:9091/metrics/job/vauchi_binary_size/repo/${REPO_LABEL}" \
-          && echo "✓ Binary size metrics pushed for ${REPO_LABEL}" \
-          || echo "⚠ Pushgateway push failed (non-fatal) — metrics logged above"
+      if fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh /tmp/setup-ssh-pushgateway.sh 2>/dev/null; then
+        # shellcheck source=/dev/null
+        source /tmp/setup-ssh-pushgateway.sh
+        setup_ssh_pushgateway
+        if pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_binary_size/repo/${REPO_LABEL}"; then
+          echo "✓ Binary size metrics pushed for ${REPO_LABEL} (${PUSHGATEWAY_SSH_MODE:-direct})"
+        else
+          echo "⚠ Pushgateway push failed (non-fatal) — metrics logged above"
+        fi
       else
-        echo "⚠ No PUSHGATEWAY_URL or DEPLOY_SSH_PRIVATE_KEY — metrics not pushed"
+        echo "⚠ Could not download pushgateway helper — metrics not pushed"
         echo "  Binary sizes logged above for manual review"
       fi
 
@@ -313,42 +297,30 @@
 
       echo ""
 
-      # Push to Pushgateway via SSH (same pattern as .binary-size-tracking-job)
+      # Push via shared helper (tries: direct URL → full SSH → restricted SSH)
       if [ -z "$METRICS_TEXT" ]; then
         echo "No metrics to push"
         exit 0
       fi
 
-      # Set up SSH if DEPLOY_SSH_PRIVATE_KEY is available and key not already present
-      if [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ] && [ ! -f ~/.ssh/id_ed25519 ]; then
-        mkdir -p ~/.ssh
-        base64 -d "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-        chmod 600 ~/.ssh/id_ed25519
-        cat >> ~/.ssh/config <<'SSHEOF'
-      Host bold-hopper-vps
-        HostName 87.106.25.46
-        User vauchi
-        StrictHostKeyChecking accept-new
-      SSHEOF
-        chmod 600 ~/.ssh/config
-        trap 'rm -f ~/.ssh/id_ed25519' EXIT
-      fi
-
       PUSH_JOB="vauchi_app_size"
-      PUSH_INSTANCE="${MOBILE_SIZE_PLATFORM}/${MOBILE_SIZE_FORMAT}"
+      # Pushgateway forced-command allowlist requires single-segment label
+      # values per `/key/value/key/value/...`; "android/apk" would split.
+      # Encode platform+format as one segment so the restricted-key path
+      # accepts it (matches push-proxy.sh regex `[a-z0-9_.-]+`).
+      PUSH_INSTANCE="${MOBILE_SIZE_PLATFORM}_${MOBILE_SIZE_FORMAT}"
 
-      if [ -n "${PUSHGATEWAY_URL:-}" ]; then
-        echo "$METRICS_TEXT" | curl -s --fail --max-time 10 --data-binary @- \
-          "${PUSHGATEWAY_URL}/metrics/job/${PUSH_JOB}/instance/${PUSH_INSTANCE}" \
-          && echo "✓ App size metrics pushed for ${PUSH_INSTANCE}" \
-          || echo "⚠ Pushgateway push failed (non-fatal) — metrics logged above"
-      elif [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
-        echo "$METRICS_TEXT" | ssh -o ConnectTimeout=10 vauchi@bold-hopper-vps \
-          "curl -s --fail --max-time 10 --data-binary @- http://localhost:9091/metrics/job/${PUSH_JOB}/instance/${PUSH_INSTANCE}" \
-          && echo "✓ App size metrics pushed for ${PUSH_INSTANCE}" \
-          || echo "⚠ Pushgateway push failed (non-fatal) — metrics logged above"
+      if fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh /tmp/setup-ssh-pushgateway.sh 2>/dev/null; then
+        # shellcheck source=/dev/null
+        source /tmp/setup-ssh-pushgateway.sh
+        setup_ssh_pushgateway
+        if pushgateway_push "$METRICS_TEXT" "/metrics/job/${PUSH_JOB}/instance/${PUSH_INSTANCE}"; then
+          echo "✓ App size metrics pushed for ${PUSH_INSTANCE} (${PUSHGATEWAY_SSH_MODE:-direct})"
+        else
+          echo "⚠ Pushgateway push failed (non-fatal) — metrics logged above"
+        fi
       else
-        echo "⚠ No PUSHGATEWAY_URL or DEPLOY_SSH_PRIVATE_KEY — metrics not pushed"
+        echo "⚠ Could not download pushgateway helper — metrics not pushed"
         echo "  App sizes logged above for manual review"
       fi
 

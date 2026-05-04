@@ -30,9 +30,9 @@ VAUCHI_ROOT="${VAUCHI_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 PRIVATE_DIR="${PRIVATE_DIR:-$VAUCHI_ROOT/_private}"
 GITLAB_API="https://gitlab.com/api/v4"
 
-# Pushgateway SSH target — override via group-level CI variables to change the VPS
-PUSHGATEWAY_SSH_HOST="${PUSHGATEWAY_SSH_HOST:-bold-hopper-vps}"
-PUSHGATEWAY_SSH_USER="${PUSHGATEWAY_SSH_USER:-vauchi}"
+# Pushgateway target / SSH key handling lives in setup-ssh-pushgateway.sh
+# (sourced from push_metrics()). Override the host/IP/user there if the VPS
+# moves — single source of truth across every push site.
 
 CI_MODE=false
 DRY_RUN=false
@@ -108,19 +108,20 @@ append_metric() {
     fi
 }
 
-# Push metrics to pushgateway
+# Push metrics to pushgateway via the shared helper (handles direct URL,
+# full SSH key, and restricted forced-command SSH key uniformly).
 push_metrics() {
     if $DRY_RUN; then
         echo "$METRICS_TEXT"
         return
     fi
 
-    if [ -n "${PUSHGATEWAY_URL:-}" ]; then
-        echo "$METRICS_TEXT" | curl -s --data-binary @- \
-            "${PUSHGATEWAY_URL}/metrics/job/vauchi_engineering"
-    else
-        echo "$METRICS_TEXT" | ssh "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
-            "curl -s --data-binary @- http://localhost:9091/metrics/job/vauchi_engineering"
+    # shellcheck disable=SC1091  # dynamic source path — not resolvable without -x
+    source "$SCRIPT_DIR/setup-ssh-pushgateway.sh"
+    setup_ssh_pushgateway
+
+    if ! pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_engineering"; then
+        echo "metrics-push: push failed (non-fatal)" >&2
     fi
 }
 

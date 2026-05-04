@@ -18,11 +18,9 @@
 
 set -euo pipefail
 
-# ─── Pushgateway SSH target ─────────────────────────────────────
-# Override via group-level CI variables to change the VPS
-PUSHGATEWAY_SSH_HOST="${PUSHGATEWAY_SSH_HOST:-bold-hopper-vps}"
-PUSHGATEWAY_SSH_IP="${PUSHGATEWAY_SSH_IP:-87.106.25.46}"
-PUSHGATEWAY_SSH_USER="${PUSHGATEWAY_SSH_USER:-vauchi}"
+# Pushgateway target / SSH key handling lives in setup-ssh-pushgateway.sh
+# (sourced before the push). Override the host/IP/user there if the VPS
+# moves — single source of truth across every push site.
 
 # ─── Argument Parsing ────────────────────────────────────────────
 
@@ -94,13 +92,8 @@ fi
 source "$(dirname "$0")/setup-ssh-pushgateway.sh"
 setup_ssh_pushgateway
 
-if [ -n "${PUSHGATEWAY_URL:-}" ]; then
-    echo "$METRICS_TEXT" | curl -s --data-binary @- \
-        "${PUSHGATEWAY_URL}/metrics/job/vauchi_mutation/repo/${REPO_NAME}"
+if pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_mutation/repo/${REPO_NAME}"; then
+    echo "push-mutation: metrics pushed for ${REPO_NAME}" >&2
 else
-    # shellcheck disable=SC2029  # intentional client-side expansion of REPO_NAME
-    echo "$METRICS_TEXT" | ssh "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
-        "curl -s --data-binary @- http://localhost:9091/metrics/job/vauchi_mutation/repo/${REPO_NAME}"
+    echo "push-mutation: push failed for ${REPO_NAME} (non-fatal)" >&2
 fi
-
-echo "push-mutation: metrics pushed for ${REPO_NAME}" >&2
