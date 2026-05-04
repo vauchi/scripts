@@ -156,7 +156,7 @@ secret_detection:
 # Added as Phase 3 T3.4 of 2026-04-22-ci-pipeline-health-audit.
 resource-group:reset:
   stage: metrics
-  image: alpine:3.21
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
   tags: [docker]
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $RUN_RESOURCE_GROUP_RESET == "true"
