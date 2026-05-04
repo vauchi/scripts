@@ -285,16 +285,105 @@ cmd_check() {
         exit 1
     fi
     echo "All consumers resolve vauchi-* via path overrides. ✓"
+    echo ""
+    cmd_freshness
+}
+
+# ── freshness ──────────────────────────────────────────────────────────────
+#
+# Path overrides redirect consumer builds to the *local* checkout of
+# `core/` (and sometimes `relay/`). When that checkout is behind
+# `origin/main` AND the lagging commits touch shipped code paths
+# (`vauchi-*/src/`), local `just check` validates against APIs that
+# differ from what CI sees — the silent break that hid Wire Humble
+# Tier 0 from cli/tui until auto-vet sync exposed it on CI.
+#
+# This check is advisory (never exits non-zero on its own). It surfaces
+# three classes:
+#   OK   — at or ahead of origin/main → local matches CI
+#   INFO — behind origin/main but no shipped-code drift → local matches CI
+#   WARN — behind origin/main AND vauchi-*/src/ changed → CI may diverge
+cmd_freshness() {
+    echo "── Path-override source freshness ──"
+    echo ""
+    # Sources are the repos targeted by [patch] blocks. Hardcoded
+    # because the workspace structure is fixed and the alternative
+    # (deriving from CONSUMERS via `realpath --relative-to`) isn't
+    # portable across BSD coreutils.
+    local sources=("core" "relay")
+    local any_drift=0
+    for repo in "${sources[@]}"; do
+        if [[ ! -e "$repo/.git" ]]; then
+            echo "  SKIP: $repo/ (not a git repo or absent)"
+            continue
+        fi
+
+        local branch head_sha behind ahead
+        branch=$(git -C "$repo" symbolic-ref --short HEAD 2>/dev/null || echo "<detached>")
+        head_sha=$(git -C "$repo" rev-parse --short HEAD 2>/dev/null)
+
+        if ! git -C "$repo" rev-parse --verify -q origin/main >/dev/null 2>&1; then
+            echo "  SKIP: $repo/ — no origin/main ref (run: git -C $repo fetch origin main)"
+            continue
+        fi
+
+        behind=$(git -C "$repo" rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+        ahead=$(git -C "$repo" rev-list --count origin/main..HEAD 2>/dev/null || echo 0)
+
+        if [[ "$behind" -eq 0 ]]; then
+            if [[ "$ahead" -gt 0 ]]; then
+                echo "  OK:   $repo/ on '$branch' ($head_sha) — ${ahead} ahead, 0 behind origin/main (intentional WIP)"
+            else
+                echo "  OK:   $repo/ on '$branch' ($head_sha) — at origin/main"
+            fi
+            continue
+        fi
+
+        # Behind. Did the lagging commits touch shipped code?
+        # Match any path under a workspace-member crate's src/ tree
+        # (vauchi-app/src/, vauchi-core/src/, vauchi-protocol/src/,
+        # vauchi-relay/src/). Test fixtures and build scripts
+        # intentionally fall outside. Git pathspecs treat `vauchi-*`
+        # as literal without `:(glob)` magic, and `:(glob)` itself
+        # isn't portable across all shells, so post-filter with grep
+        # extended-regex (POSIX, present on every dialect we support
+        # — see .claude/rules/portable-shell.md).
+        local critical
+        critical=$(git -C "$repo" diff --name-only HEAD..origin/main 2>/dev/null \
+                       | grep -E '^vauchi-[a-z]+/src/' || true)
+
+        if [[ -z "$critical" ]]; then
+            echo "  INFO: $repo/ on '$branch' ($head_sha) — ${behind} behind origin/main, no vauchi-*/src/ drift"
+            continue
+        fi
+
+        any_drift=1
+        local critical_count
+        critical_count=$(echo "$critical" | wc -l | tr -d ' ')
+        echo "  WARN: $repo/ on '$branch' ($head_sha) — ${behind} behind origin/main, ${critical_count} shipped file(s) changed:"
+        echo "$critical" | head -8 | sed 's/^/          /'
+        if [[ "$critical_count" -gt 8 ]]; then
+            echo "          … and $((critical_count - 8)) more"
+        fi
+        echo "        Local 'just check' may pass on stale APIs that CI will reject."
+        echo "        To test against CI's view:   git -C $repo checkout --detach origin/main"
+        echo "        To update locally and stay:  git -C $repo pull --rebase --autostash"
+    done
+    echo ""
+    if [[ "$any_drift" -eq 1 ]]; then
+        echo "Drift detected (advisory only — not blocking)."
+    fi
 }
 
 # ── dispatch ───────────────────────────────────────────────────────────────
 
 case "${1:-}" in
-    apply) cmd_apply ;;
-    clean) cmd_clean ;;
-    check) cmd_check ;;
+    apply)     cmd_apply ;;
+    clean)     cmd_clean ;;
+    check)     cmd_check ;;
+    freshness) cmd_freshness ;;
     *)
-        echo "Usage: $0 {apply|clean|check}" >&2
+        echo "Usage: $0 {apply|clean|check|freshness}" >&2
         exit 2
         ;;
 esac
