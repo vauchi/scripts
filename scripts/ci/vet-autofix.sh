@@ -43,6 +43,34 @@ for arg in "$@"; do
     esac
 done
 
+# Snapshot the pinned vauchi-core git SHA from Cargo.lock before any
+# cargo invocations. If the auto-fix flow bumps it (very common — the
+# whole reason this script runs is upstream churn), Step 4 surfaces
+# the bump + UI-file diff in the MR description so reviewers see the
+# stealth UI churn. See _private/docs/problems/2026-05-03-vet-autosync-
+# stale-snapshots/README.md G2.
+extract_core_sha() {
+    # Match the [[package]] block for vauchi-core, then the next
+    # `source = "git+...#<sha>"` line. Robust against TOML field
+    # ordering since cargo writes them in a stable order.
+    awk '
+        /^\[\[package\]\]/ { in_pkg = 1; name = ""; src = ""; next }
+        in_pkg && /^name = "vauchi-core"/ { name = "vauchi-core"; next }
+        in_pkg && /^source = / { src = $0; next }
+        in_pkg && /^$/ {
+            if (name == "vauchi-core" && match(src, /#[0-9a-f]+"$/)) {
+                sha = substr(src, RSTART + 1, RLENGTH - 2)
+                print sha
+                exit
+            }
+            in_pkg = 0
+        }
+    ' "${1:-Cargo.lock}"
+}
+
+OLD_CORE_SHA=$(extract_core_sha Cargo.lock 2>/dev/null || true)
+echo "Pre-vet vauchi-core SHA: ${OLD_CORE_SHA:-<not pinned>}"
+
 # ============================================================
 # Step 1: Prepare lockfile
 # ============================================================
@@ -296,6 +324,46 @@ echo "Pushed branch ${BRANCH}"
 MR_BODY="Automated cargo-vet exemption sync triggered by CI on \`${CI_DEFAULT_BRANCH}\`."
 MR_BODY="${MR_BODY}\n\nSource: ${SYNC_FROM:+project ${SYNC_FROM} (core) + }local regeneration."
 MR_BODY="${MR_BODY}\n\nThis MR was created automatically and set to merge when pipeline succeeds."
+
+# G2 of `2026-05-03-vet-autosync-stale-snapshots`: if the lockfile
+# also bumped vauchi-core to a rev that touched UI code, append a
+# warning block so reviewers see the stealth UI churn before CI
+# flags missing snapshot regen. Failures here are non-fatal — the
+# core MR is still useful without the warning.
+NEW_CORE_SHA=$(extract_core_sha Cargo.lock 2>/dev/null || true)
+if [[ -n "$OLD_CORE_SHA" && -n "$NEW_CORE_SHA" && "$OLD_CORE_SHA" != "$NEW_CORE_SHA" ]]; then
+    echo "vauchi-core bumped: ${OLD_CORE_SHA:0:8} → ${NEW_CORE_SHA:0:8}"
+    # vauchi/core project id (numeric) is used as the API target.
+    # If unset (test runs, local invocations), skip the warning.
+    CORE_PROJECT_ID="${VAUCHI_CORE_PROJECT_ID:-77874344}"
+    UI_FILES=$(curl --silent --fail \
+        ${PROJECT_ACCESS_TOKEN:+--header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}"} \
+        "${CI_API_V4_URL}/projects/${CORE_PROJECT_ID}/repository/compare?from=${OLD_CORE_SHA}&to=${NEW_CORE_SHA}" \
+        2>/dev/null \
+        | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    for d in data.get('diffs', []):
+        path = d.get('new_path') or d.get('old_path') or ''
+        if path.startswith('vauchi-app/src/ui/') or path.startswith('vauchi-app/src/notification_types'):
+            print('core/' + path)
+except Exception:
+    pass
+" 2>/dev/null || true)
+    if [[ -n "$UI_FILES" ]]; then
+        SCRIPT_DIR="$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")"
+        WARNING_BLOCK=$(printf '%s\n' "$UI_FILES" \
+            | "${SCRIPT_DIR}/vet-autofix-description.sh" "$OLD_CORE_SHA" "$NEW_CORE_SHA" \
+            2>/dev/null || true)
+        if [[ -n "$WARNING_BLOCK" ]]; then
+            MR_BODY="${MR_BODY}${WARNING_BLOCK}"
+            echo "Appended UI-churn warning to MR description"
+        fi
+    else
+        echo "vauchi-core bumped but no vauchi-app/src/ui/ files changed — no warning needed"
+    fi
+fi
 
 MR_RESPONSE=$(curl --silent --fail --request POST \
     --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
