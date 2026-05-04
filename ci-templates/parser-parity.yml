@@ -59,17 +59,31 @@
       # Fetch only the canonical enum file from core via shallow clone +
       # sparse-checkout — avoids a full clone of the core repo just to
       # read one source file.
+      #
+      # Wire Humble Tier 0 (2026-05-04, core 0.41.0) split the single
+      # `component.rs` into `component/{mod,list,preview}.rs` to keep the
+      # file under the size warn threshold. Fetch both paths so this
+      # template works against pre-Tier-0 refs (tagged binding versions
+      # still pinned to 0.39.0 etc.) and post-Tier-0 main alike.
       mkdir -p .core-parity
       git -C .core-parity init -q
       git -C .core-parity remote add origin https://gitlab.com/vauchi/core.git
       git -C .core-parity sparse-checkout init --no-cone
-      git -C .core-parity sparse-checkout set vauchi-app/src/ui/component.rs
+      git -C .core-parity sparse-checkout set \
+        vauchi-app/src/ui/component.rs \
+        vauchi-app/src/ui/component
       git -C .core-parity fetch -q --depth 1 origin "$CORE_REF"
       git -C .core-parity checkout -q FETCH_HEAD
 
-      ENUM_FILE=".core-parity/vauchi-app/src/ui/component.rs"
-      if [ ! -f "$ENUM_FILE" ]; then
-        echo "ERROR: failed to fetch core's component.rs at ref $CORE_REF"
+      # Prefer the post-Tier-0 layout; fall back to the pre-Tier-0
+      # single-file layout for older refs.
+      if [ -f .core-parity/vauchi-app/src/ui/component/mod.rs ]; then
+        ENUM_FILE=".core-parity/vauchi-app/src/ui/component/mod.rs"
+      elif [ -f .core-parity/vauchi-app/src/ui/component.rs ]; then
+        ENUM_FILE=".core-parity/vauchi-app/src/ui/component.rs"
+      else
+        echo "ERROR: failed to fetch core's Component enum at ref $CORE_REF"
+        echo "       (looked for component/mod.rs and component.rs under vauchi-app/src/ui/)"
         exit 2
       fi
 

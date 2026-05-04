@@ -4,9 +4,13 @@
 """Check that every frontend's ScreenModel parser handles every Component
 variant that core's canonical enum declares.
 
-Source of truth: `core/vauchi-app/src/ui/component.rs` — the `Component`
-enum. This script extracts variant names from that file and verifies each
-frontend's hand-rolled parser file mentions every variant.
+Source of truth: `core/vauchi-app/src/ui/component/mod.rs` — the
+`Component` enum (split out of the former single-file `component.rs` by
+Wire Humble Tier 0 in core 0.41.0). This script extracts variant names
+from that file and verifies each frontend's hand-rolled parser file
+mentions every variant. The pre-Tier-0 single-file layout
+(`component.rs`) is still recognised when --enum-file is omitted, so
+older binding refs continue to work.
 
 Why: each frontend (linux-gtk, linux-qt, windows, android) deserializes
 the externally-tagged `{"VariantName": {...}}` JSON shape with its own
@@ -61,7 +65,12 @@ HAND_ROLLED_PARSERS = {
     ),
 }
 
-ENUM_FILE = "core/vauchi-app/src/ui/component.rs"
+# Post-Tier-0 layout is preferred; the pre-Tier-0 single-file layout is
+# checked second when both are absent (default workspace lookup only).
+ENUM_FILE_CANDIDATES = (
+    "core/vauchi-app/src/ui/component/mod.rs",
+    "core/vauchi-app/src/ui/component.rs",
+)
 ENUM_NAME = "Component"
 
 
@@ -124,9 +133,19 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    enum_path = args.enum_file or (args.workspace / ENUM_FILE)
+    if args.enum_file is not None:
+        enum_path = args.enum_file
+    else:
+        enum_path = next(
+            (args.workspace / c for c in ENUM_FILE_CANDIDATES if (args.workspace / c).exists()),
+            args.workspace / ENUM_FILE_CANDIDATES[0],
+        )
     if not enum_path.exists():
-        print(f"error: missing canonical enum file: {enum_path}", file=sys.stderr)
+        candidates = ", ".join(ENUM_FILE_CANDIDATES)
+        print(
+            f"error: missing canonical enum file (looked for: {candidates})",
+            file=sys.stderr,
+        )
         return 2
 
     variants = extract_variants(enum_path, ENUM_NAME)
