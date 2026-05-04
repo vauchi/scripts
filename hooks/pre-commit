@@ -165,6 +165,38 @@ if [[ -n "$TOML_FOUND" || -n "$LOCK_FOUND" ]]; then
 fi
 
 # ============================================================
+# 1.6. ADR-046: forbid `hpke::Aead::Aes(128|256)Gcm` in staged Rust files
+# ============================================================
+# HPKE-internal AEAD is bound to ChaCha20-Poly1305 by ADR-046 to
+# preserve ADR-019's anti-AES intent and avoid a per-envelope
+# fingerprinting vector (gateway operator sees the negotiated
+# cipher ID). Forbidden symbols are flagged in *.rs files staged
+# for commit; allow-list is inline (see check-aead.sh).
+#
+# Workspace-root invocation: scripts/scripts/check-aead.sh lives
+# in the scripts repo; the hook runs from each consumer repo so
+# we resolve the script via WS_ROOT (parent of the repo dir).
+STAGED_RS_FOR_AEAD=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep '\.rs$' || true)
+if [[ -n "$STAGED_RS_FOR_AEAD" ]]; then
+    WS_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)/.."
+    AEAD_SCRIPT="$WS_ROOT/scripts/scripts/check-aead.sh"
+    if [[ -x "$AEAD_SCRIPT" ]]; then
+        # Pass the staged files as individual paths so we don't
+        # rescan the whole repo. check-aead.sh accepts directories
+        # OR files (ripgrep handles both).
+        AEAD_HITS=$(echo "$STAGED_RS_FOR_AEAD" \
+            | xargs -r bash "$AEAD_SCRIPT" 2>&1 | grep -v '^ADR-046 OK' || true)
+        if [[ -n "$AEAD_HITS" ]] \
+            && echo "$AEAD_HITS" | grep -qE '(violation|hpke::Aead::Aes)'; then
+            echo ""
+            echo "$AEAD_HITS"
+            exit 1
+        fi
+    fi
+fi
+
+# ============================================================
 # 2. Check Rust formatting
 # ============================================================
 echo "[2/4] Checking Rust formatting..."
