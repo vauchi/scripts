@@ -644,6 +644,29 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
         _SKIP_CLIPPY_TEST=1
     fi
 
+    # ── Path-override source freshness (advisory) ──────────────────────
+    # Mirror of the session-init + gate-push.sh check: surface stale
+    # local core/ before clippy validates against it. Fires here for
+    # interactive `git push` (no Claude → no gate-push.sh) so the
+    # WARN reaches developers regardless of how they push. Skipped
+    # when gate-push already ran the check (dedup) or when this is a
+    # docs-only push (no Rust files touched).
+    if [[ "$_GATE_DEDUP" != "1" && "$_SKIP_FMT" != "1" ]]; then
+        _WORKSPACE_ROOT=$(cd "$REPO_ROOT/.." 2>/dev/null && pwd)
+        _FRESHNESS_SCRIPT="$_WORKSPACE_ROOT/scripts/scripts/path-overrides.sh"
+        if [[ -n "$_WORKSPACE_ROOT" && -x "$_FRESHNESS_SCRIPT" ]]; then
+            _FRESHNESS_OUT=$(cd "$_WORKSPACE_ROOT" && bash "$_FRESHNESS_SCRIPT" freshness 2>/dev/null || true)
+            if echo "$_FRESHNESS_OUT" | grep -q '^  WARN:'; then
+                echo ""
+                echo "⚠ Path-override source drift detected — local clippy/tests below"
+                echo "  may pass on stale APIs that CI will reject:"
+                echo "$_FRESHNESS_OUT" | sed 's/^/  /'
+                echo "  (advisory — not blocking; checks continue)"
+                echo ""
+            fi
+        fi
+    fi
+
     if [[ "$_GATE_DEDUP" != "1" ]]; then
         run_fmt() {
             echo ""
