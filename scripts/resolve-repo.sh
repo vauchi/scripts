@@ -220,9 +220,14 @@ resolve_repo() {
 _dir_to_gitlab_name() {
     local name="$1"
     case "$name" in
-        _private)                echo "private" ;;
-        root|.|vauchi|vauchi-*)  echo "vauchi" ;;
-        *)                       echo "$name" ;;
+        _private)
+            echo "private" ;;
+        vauchi-platform-swift|vauchi-platform-kotlin)
+            echo "$name" ;;
+        root|.|vauchi|vauchi-*)
+            echo "vauchi" ;;
+        *)
+            echo "$name" ;;
     esac
 }
 
