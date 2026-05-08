@@ -50,7 +50,7 @@ to_snake() {
     printf '%s\n' "$1" \
         | sed -e 's/Engine$//' \
               -e 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' \
-        | tr 'A-Z' 'a-z'
+        | tr '[:upper:]' '[:lower:]'
 }
 
 # Engines: every `impl WorkflowEngine for X` in core/vauchi-app/src/ui.
