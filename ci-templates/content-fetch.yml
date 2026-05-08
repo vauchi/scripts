@@ -30,6 +30,16 @@
 # android/.gitlab-ci.yml `test:snapshots:record` / `test:screenshots`.
 
 # Clone locales repository (for TUI/desktop i18n)
+#
+# Refresh semantics: when `../locales` is preserved across job retries
+# on the same runner (workspace caching, `clean_dir = false`, sibling-
+# job carryover), the bare `pull --ff-only` previously used here
+# silently no-op'd against shallow clones — refs the remote shipped
+# after the cached fetch were never seen, and `2>/dev/null || true`
+# suppressed the failure so the job kept running on a stale tree.
+# Replace with `fetch --depth=1 origin main && reset --hard
+# origin/main`: shallow-stable, error-surfacing, idempotent. The
+# initial-clone path keeps its retry loop unchanged.
 .clone-locales:
   before_script:
     - |
@@ -37,7 +47,8 @@
         (git clone --depth=1 https://gitlab.com/vauchi/locales.git ../locales || \
          (sleep 2 && git clone --depth=1 https://gitlab.com/vauchi/locales.git ../locales))
       else
-        git -C ../locales pull --ff-only 2>/dev/null || true
+        git -C ../locales fetch --depth=1 origin main
+        git -C ../locales reset --hard origin/main
       fi
 
 # Clone themes repository (for desktop UI theming)
@@ -48,7 +59,8 @@
         (git clone --depth=1 https://gitlab.com/vauchi/themes.git ../themes || \
          (sleep 2 && git clone --depth=1 https://gitlab.com/vauchi/themes.git ../themes))
       else
-        git -C ../themes pull --ff-only 2>/dev/null || true
+        git -C ../themes fetch --depth=1 origin main
+        git -C ../themes reset --hard origin/main
       fi
       # Generate resolved themes.json (v2 hierarchical → flat format for core parser)
       python3 ../themes/scripts/generate.py 2>/dev/null || echo "WARN: theme generator not available"
