@@ -46,8 +46,11 @@ check:doc-naming:
         dirname=$(dirname "$file")
 
         # Skip well-known filenames that don't need date prefixes
+        # NOTE: keep this list in sync with `_private/docs/scripts/check-doc-naming.sh`
+        # EXCEPTIONS and `.claude/hooks/gate-push.sh` doc-naming case — same
+        # convention enforced at three stages (CI, CI helper, pre-push).
         case "$filename" in
-          README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|VISIBILITY_POLICY.md|INDEX.md)
+          README.md|CLAUDE.md|CONTEXT.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|VISIBILITY_POLICY.md|INDEX.md)
             continue
             ;;
           assumptions.md|master-plan.plan.md|work-board.md)
