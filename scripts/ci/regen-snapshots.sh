@@ -3,6 +3,11 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+# shellcheck disable=SC2016
+# Reason: single-quoted printf format strings are intentional —
+# every backtick + `${var}` lookalike is *literal text*, not shell
+# expansion. Same precedent as vet-autofix-description.sh.
+
 # regen-snapshots.sh — Detect snapshot tooling in the host repo and
 # run the matching regen invocation. Origin:
 # `_private/docs/problems/2026-05-03-vet-autosync-stale-snapshots`
