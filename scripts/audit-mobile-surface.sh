@@ -162,7 +162,11 @@ if [ -d "$CORE_PLATFORM_SRC" ]; then
         allowlist_tmp=$(mktemp)
         printf '%s\n' "$PAE_ALLOWLIST" >"$allowlist_tmp"
         # -F: fixed strings, -x: whole-line match, -v: invert.
-        pae_non_humble=$(grep -Fxv -f "$allowlist_tmp" "$pae_names_tmp" | wc -l | awk '{print $1}')
+        # `grep -Fxvc`: count of lines in $pae_names_tmp NOT matching
+        # any allow-list entry. Exit code 1 (no matches → surplus is
+        # zero) is also valid output, so `|| true` swallows it under
+        # `set -e`.
+        pae_non_humble=$(grep -Fxvc -f "$allowlist_tmp" "$pae_names_tmp" || true)
         rm -f "$allowlist_tmp"
     fi
     rm -f "$pae_names_tmp"
