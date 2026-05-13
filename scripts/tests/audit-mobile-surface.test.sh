@@ -55,7 +55,8 @@ test_empty_workspace() {
                platform_app_engine_pub_fns_total platform_app_engine_non_humble \
                ios_vauchi_platform_imports ios_mobile_type_refs \
                android_mobile_refs tui_screen_variants \
-               core_system_time_now core_thread_rng core_thread_sleep; do
+               core_system_time_now core_thread_rng core_thread_sleep \
+               core_ambient_now_secs; do
         assert_eq "empty: $key == 0" "0" "$(extract_counter "$out" "$key")"
     done
     rm -rf "$root"
@@ -220,9 +221,12 @@ test_core_nondeterminism() {
 fn a() { let _ = SystemTime::now(); }
 fn b() { let _ = SystemTime::now(); }
 fn c() { let _ = thread_rng().gen::<u32>(); }
+fn e() { let _ = crate::clock::ambient_now_secs(); }
 RS
     cat >"$src/sub/bar.rs" <<'RS'
 fn d() { thread::sleep(std::time::Duration::from_millis(10)); }
+fn f() { let _ = crate::clock::ambient_now_secs(); }
+fn g() { let _ = crate::clock::ambient_now_secs(); }
 RS
     out=$("$SCRIPT" "$root")
     assert_eq "core: system_time_now == 2" \
@@ -231,6 +235,8 @@ RS
         "1" "$(extract_counter "$out" core_thread_rng)"
     assert_eq "core: thread_sleep == 1" \
         "1" "$(extract_counter "$out" core_thread_sleep)"
+    assert_eq "core: ambient_now_secs == 3" \
+        "3" "$(extract_counter "$out" core_ambient_now_secs)"
     rm -rf "$root"
 }
 

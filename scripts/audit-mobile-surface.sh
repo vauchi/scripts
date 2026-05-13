@@ -198,13 +198,21 @@ if [ -f "$TUI_STATE" ]; then
     ' "$TUI_STATE")
 fi
 
-# 9–11. core/vauchi-core/src — ambient nondeterminism.
+# 9–12. core/vauchi-core/src — ambient nondeterminism.
 core_system_time_now=$(count_lines_matching \
     'SystemTime::now\(\)' "$CORE_CORE_SRC")
 core_thread_rng=$(count_lines_matching \
     'thread_rng\(\)' "$CORE_CORE_SRC")
 core_thread_sleep=$(count_lines_matching \
     'thread::sleep' "$CORE_CORE_SRC")
+# `crate::clock::ambient_now_secs` is the explicit transitional helper
+# introduced in Phase 1 / Task 1.1 / Step 3a — every callsite is a
+# TODO marker for the structural pass. Count all callsites of the
+# wrapper itself (not its definition site in `clock.rs`); the helper
+# returns 0 at end-state, at which point both `core_system_time_now`
+# and `core_ambient_now_secs` are 0 simultaneously.
+core_ambient_now_secs=$(count_lines_matching \
+    'ambient_now_secs\(\)' "$CORE_CORE_SRC")
 
 # ── timestamp (BSD + GNU + BusyBox safe) ─────────────────────────────
 captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -231,6 +239,7 @@ printf '    %-36s %d,\n' '"android_mobile_refs":'               "$android_mobile
 printf '    %-36s %d,\n' '"tui_screen_variants":'               "$tui_screen_variants"
 printf '    %-36s %d,\n' '"core_system_time_now":'              "$core_system_time_now"
 printf '    %-36s %d,\n' '"core_thread_rng":'                   "$core_thread_rng"
-printf '    %-36s %d\n'  '"core_thread_sleep":'                 "$core_thread_sleep"
+printf '    %-36s %d,\n' '"core_thread_sleep":'                 "$core_thread_sleep"
+printf '    %-36s %d\n'  '"core_ambient_now_secs":'             "$core_ambient_now_secs"
 printf '  }\n'
 printf '}\n'
