@@ -232,8 +232,16 @@ if [ -d "$CORE_CORE_SRC" ]; then
     # `std::thread::sleep` are intrinsic to the seam, not ambient debt.
     # Phase 1 / Task 1.3 introduced the file 2026-05-15; same precedent
     # as the iOS `Generated/` exclusion.
+    # `|| true` so `set -euo pipefail` doesn't abort on the terminal
+    # state `core_thread_sleep=0`: with zero matches, the first
+    # `grep` exits 1 (BSD + GNU + BusyBox agree), `grep -cv` reads
+    # empty stdin and prints "0" but also exits 1 (no non-matches),
+    # `pipefail` surfaces that, and `set -e` kills the script on
+    # this assignment. The `0` printed is correct; we just need to
+    # swallow the upstream exit code. SC2126-compliant (sibling
+    # iOS/macOS counters use the same `grep -cv` shape).
     core_thread_sleep=$(grep -rsE 'thread::sleep' "$CORE_CORE_SRC" 2>/dev/null \
-        | grep -cv '/sleeper\.rs:')
+        | grep -cv '/sleeper\.rs:' || true)
 fi
 # `crate::clock::ambient_now_secs` is the explicit transitional helper
 # introduced in Phase 1 / Task 1.1 / Step 3a — every callsite is a
