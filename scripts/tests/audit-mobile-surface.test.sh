@@ -297,13 +297,36 @@ impl Clock for SystemClock {
     fn now(&self) -> SystemTime { SystemTime::now() }
 }
 RS
+    # `core_thread_sleep` walks all four core crates (vauchi-core,
+    # vauchi-app, vauchi-cabi, vauchi-platform) — the slice-31
+    # cascade landed sleeper-threading work in each of them, so
+    # the counter has to span the same surface as the plan's
+    # completion criteria. Add one hit per crate-outside-vauchi-core
+    # plus two in vauchi-platform so a regression that drops any
+    # one root from the loop changes the expected count by a
+    # known delta. Total: 1 (vauchi-core) + 1 (app) + 1 (cabi)
+    # + 2 (platform) = 5.
+    local app_src="$root/core/vauchi-app/src"
+    local cabi_src="$root/core/vauchi-cabi/src"
+    local platform_src="$root/core/vauchi-platform/src"
+    mkdir -p "$app_src" "$cabi_src" "$platform_src"
+    cat >"$app_src/connection.rs" <<'RS'
+fn reconnect() { thread::sleep(std::time::Duration::from_millis(50)); }
+RS
+    cat >"$cabi_src/device_link.rs" <<'RS'
+fn poll() { thread::sleep(std::time::Duration::from_secs(1)); }
+RS
+    cat >"$platform_src/poll.rs" <<'RS'
+fn cycle() { thread::sleep(std::time::Duration::from_millis(200)); }
+fn responsive() { thread::sleep(std::time::Duration::from_millis(25)); }
+RS
     out=$("$SCRIPT" "$root")
     assert_eq "core: system_time_now == 2 (clock.rs excluded)" \
         "2" "$(extract_counter "$out" core_system_time_now)"
     assert_eq "core: thread_rng == 1" \
         "1" "$(extract_counter "$out" core_thread_rng)"
-    assert_eq "core: thread_sleep == 1 (sleeper.rs excluded)" \
-        "1" "$(extract_counter "$out" core_thread_sleep)"
+    assert_eq "core: thread_sleep == 5 (sleeper.rs excluded; spans 4 core crates)" \
+        "5" "$(extract_counter "$out" core_thread_sleep)"
     assert_eq "core: ambient_now_secs == 3" \
         "3" "$(extract_counter "$out" core_ambient_now_secs)"
     rm -rf "$root"

@@ -126,6 +126,8 @@ pae_pub_fn_names() {
 # ── repo-relative paths ──────────────────────────────────────────────
 CORE_PLATFORM_SRC="$WORKSPACE_ROOT/core/vauchi-platform/src"
 CORE_CORE_SRC="$WORKSPACE_ROOT/core/vauchi-core/src"
+CORE_APP_SRC="$WORKSPACE_ROOT/core/vauchi-app/src"
+CORE_CABI_SRC="$WORKSPACE_ROOT/core/vauchi-cabi/src"
 IOS_SRC="$WORKSPACE_ROOT/ios/Vauchi"
 MACOS_SRC="$WORKSPACE_ROOT/macos/Vauchi"
 ANDROID_UI="$WORKSPACE_ROOT/android/app/src/main/kotlin/app/vauchi/ui"
@@ -251,10 +253,21 @@ fi
 core_thread_rng=$(count_lines_matching \
     'thread_rng\(\)' "$CORE_CORE_SRC")
 core_thread_sleep=0
-if [ -d "$CORE_CORE_SRC" ]; then
-    core_thread_sleep=$(grep -rsE 'thread::sleep' "$CORE_CORE_SRC" 2>/dev/null \
+# Walks all four core crates (vauchi-core, vauchi-app, vauchi-cabi,
+# vauchi-platform) — the seam-threading work for Task 1.3 spans them
+# all, so counting only vauchi-core under-measured the plan's
+# completion criteria. `sleeper.rs` is the seam definition file (only
+# present under vauchi-core/src) and is excluded the same way the
+# parent `if`-form used to do it; subdirs that do not exist
+# contribute zero, so this loop is empty-workspace safe.
+for thread_sleep_root in \
+    "$CORE_CORE_SRC" "$CORE_APP_SRC" "$CORE_CABI_SRC" "$CORE_PLATFORM_SRC"
+do
+    [ -d "$thread_sleep_root" ] || continue
+    n=$(grep -rsE 'thread::sleep' "$thread_sleep_root" 2>/dev/null \
         | grep -cv '/sleeper\.rs:' || true)
-fi
+    core_thread_sleep=$((core_thread_sleep + n))
+done
 # `crate::clock::ambient_now_secs` is the explicit transitional helper
 # introduced in Phase 1 / Task 1.1 / Step 3a — every callsite is a
 # TODO marker for the structural pass. Count all callsites of the
