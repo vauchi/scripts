@@ -225,8 +225,16 @@ core_system_time_now=$(count_lines_matching \
     'SystemTime::now\(\)' "$CORE_CORE_SRC")
 core_thread_rng=$(count_lines_matching \
     'thread_rng\(\)' "$CORE_CORE_SRC")
-core_thread_sleep=$(count_lines_matching \
-    'thread::sleep' "$CORE_CORE_SRC")
+core_thread_sleep=0
+if [ -d "$CORE_CORE_SRC" ]; then
+    # Exclude `sleeper.rs` — it is the seam's own definition file. Its
+    # `SystemSleeper` impl line and doc-comment references to
+    # `std::thread::sleep` are intrinsic to the seam, not ambient debt.
+    # Phase 1 / Task 1.3 introduced the file 2026-05-15; same precedent
+    # as the iOS `Generated/` exclusion.
+    core_thread_sleep=$(grep -rsE 'thread::sleep' "$CORE_CORE_SRC" 2>/dev/null \
+        | grep -cv '/sleeper\.rs:')
+fi
 # `crate::clock::ambient_now_secs` is the explicit transitional helper
 # introduced in Phase 1 / Task 1.1 / Step 3a — every callsite is a
 # TODO marker for the structural pass. Count all callsites of the

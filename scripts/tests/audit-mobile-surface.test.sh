@@ -274,12 +274,22 @@ fn d() { thread::sleep(std::time::Duration::from_millis(10)); }
 fn f() { let _ = crate::clock::ambient_now_secs(); }
 fn g() { let _ = crate::clock::ambient_now_secs(); }
 RS
+    # sleeper.rs is the seam's own definition file — its
+    # `SystemSleeper` impl + doc comments mention `thread::sleep`
+    # but must NOT contribute to the counter. Adds 3 such lines so
+    # any regression that re-includes the seam file is loud.
+    cat >"$src/sleeper.rs" <<'RS'
+//! Today vauchi-core calls std::thread::sleep from several sites.
+impl Sleeper for SystemSleeper {
+    fn sleep(&self, d: Duration) { std::thread::sleep(d); }
+}
+RS
     out=$("$SCRIPT" "$root")
     assert_eq "core: system_time_now == 2" \
         "2" "$(extract_counter "$out" core_system_time_now)"
     assert_eq "core: thread_rng == 1" \
         "1" "$(extract_counter "$out" core_thread_rng)"
-    assert_eq "core: thread_sleep == 1" \
+    assert_eq "core: thread_sleep == 1 (sleeper.rs excluded)" \
         "1" "$(extract_counter "$out" core_thread_sleep)"
     assert_eq "core: ambient_now_secs == 3" \
         "3" "$(extract_counter "$out" core_ambient_now_secs)"
