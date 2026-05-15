@@ -127,6 +127,7 @@ pae_pub_fn_names() {
 CORE_PLATFORM_SRC="$WORKSPACE_ROOT/core/vauchi-platform/src"
 CORE_CORE_SRC="$WORKSPACE_ROOT/core/vauchi-core/src"
 IOS_SRC="$WORKSPACE_ROOT/ios/Vauchi"
+MACOS_SRC="$WORKSPACE_ROOT/macos/Vauchi"
 ANDROID_UI="$WORKSPACE_ROOT/android/app/src/main/kotlin/app/vauchi/ui"
 TUI_STATE="$WORKSPACE_ROOT/tui/src/app/state.rs"
 
@@ -197,6 +198,18 @@ fi
 android_mobile_refs=$(count_lines_matching \
     '\bMobile[A-Z]' "$ANDROID_UI")
 
+# 7b. macOS — Mobile* type-name references in *hand-written* Swift files
+#     (Phase 6 / Task 6.1 ratchet). Same exclusions as iOS — `Generated/`
+#     UniFFI mirror and `Libs/` local SPM checkout are
+#     binding-distribution artefacts, not the macOS team's debt.
+macos_mobile_refs=0
+if [ -d "$MACOS_SRC" ]; then
+    macos_mobile_refs=$(grep -rsE '\bMobile[A-Z]' "$MACOS_SRC" 2>/dev/null \
+        | grep -v '/Generated/' \
+        | grep -v '/Libs/' \
+        | wc -l)
+fi
+
 # 8. TUI — variants of the legacy `enum Screen`. Each variant line is
 #    Capitalised and the block lives in tui/src/app/state.rs.
 tui_screen_variants=0
@@ -247,6 +260,7 @@ printf '    %-36s %d,\n' '"platform_app_engine_non_humble":'    "$pae_non_humble
 printf '    %-36s %d,\n' '"ios_vauchi_platform_imports":'       "$ios_vauchi_platform_imports"
 printf '    %-36s %d,\n' '"ios_mobile_type_refs":'              "$ios_mobile_type_refs"
 printf '    %-36s %d,\n' '"android_mobile_refs":'               "$android_mobile_refs"
+printf '    %-36s %d,\n' '"macos_mobile_refs":'                 "$macos_mobile_refs"
 printf '    %-36s %d,\n' '"tui_screen_variants":'               "$tui_screen_variants"
 printf '    %-36s %d,\n' '"core_system_time_now":'              "$core_system_time_now"
 printf '    %-36s %d,\n' '"core_thread_rng":'                   "$core_thread_rng"

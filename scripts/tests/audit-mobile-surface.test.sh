@@ -54,7 +54,7 @@ test_empty_workspace() {
     for key in mobile_uniffi_exports mobile_pub_fns lib_rs_mobile_returns \
                platform_app_engine_pub_fns_total platform_app_engine_non_humble \
                ios_vauchi_platform_imports ios_mobile_type_refs \
-               android_mobile_refs tui_screen_variants \
+               android_mobile_refs macos_mobile_refs tui_screen_variants \
                core_system_time_now core_thread_rng core_thread_sleep \
                core_ambient_now_secs; do
         assert_eq "empty: $key == 0" "0" "$(extract_counter "$out" "$key")"
@@ -191,6 +191,32 @@ SW
     rm -rf "$root"
 }
 
+# ── 5b. macOS counter ─────────────────────────────────────────────────
+test_macos_counter() {
+    local root; root=$(mktemp -d)
+    local mac="$root/macos/Vauchi"
+    mkdir -p "$mac/Services" "$mac/Generated" "$mac/Libs/VauchiPlatformLocal/Sources/VauchiPlatform"
+    cat >"$mac/Services/Foo.swift" <<'SW'
+import VauchiPlatform
+let a: MobileContact = TODO()
+let b: MobileError = TODO()
+SW
+    # Generated/ + Libs/ noise — must NOT contribute.
+    cat >"$mac/Generated/vauchi_platform.swift" <<'SW'
+public class MobileMirror1 { }
+public class MobileMirror2 { }
+public class MobileMirror3 { }
+SW
+    cat >"$mac/Libs/VauchiPlatformLocal/Sources/VauchiPlatform/vauchi_platform.swift" <<'SW'
+public class MobileSpm1 { }
+public class MobileSpm2 { }
+SW
+    out=$("$SCRIPT" "$root")
+    assert_eq "macos: mobile_refs == 2 (Generated/ + Libs/ excluded)" \
+        "2" "$(extract_counter "$out" macos_mobile_refs)"
+    rm -rf "$root"
+}
+
 # ── 6. Android counter ────────────────────────────────────────────────
 test_android_counter() {
     local root; root=$(mktemp -d)
@@ -289,6 +315,7 @@ test_mobile_counters
 test_lib_rs_mobile_returns
 test_pae_non_humble
 test_ios_counters
+test_macos_counter
 test_android_counter
 test_tui_screen_variants
 test_core_nondeterminism
