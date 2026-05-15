@@ -147,7 +147,7 @@ RS
 test_ios_counters() {
     local root; root=$(mktemp -d)
     local ios="$root/ios/Vauchi"
-    mkdir -p "$ios/Views"
+    mkdir -p "$ios/Views" "$ios/Generated" "$ios/Libs/VauchiPlatformLocal/Sources/VauchiPlatform"
     cat >"$ios/Views/Foo.swift" <<'SW'
 import SwiftUI
 import VauchiPlatform
@@ -161,12 +161,32 @@ SW
 import VauchiPlatform
 let x = MobileCard()
 SW
+    # Generated/ — binding mirror, must NOT contribute to the counter.
+    cat >"$ios/Generated/vauchi_mobile.swift" <<'SW'
+public class MobileContact { }
+public class MobileIdentity { }
+public class MobileCard { }
+public class MobileError { }
+public class MobileNoise1 { }
+public class MobileNoise2 { }
+SW
+    # Libs/ — local SPM checkout of vauchi-platform-swift, also binding
+    # mirror, also must NOT contribute. Adds many more Mobile* lines so
+    # any regression that re-includes Libs/ is loud.
+    cat >"$ios/Libs/VauchiPlatformLocal/Sources/VauchiPlatform/vauchi_platform.swift" <<'SW'
+public class MobileLib1 { }
+public class MobileLib2 { }
+public class MobileLib3 { }
+public class MobileLib4 { }
+public class MobileLib5 { }
+SW
     out=$("$SCRIPT" "$root")
     assert_eq "ios: vauchi_platform_imports == 2" \
         "2" "$(extract_counter "$out" ios_vauchi_platform_imports)"
     # Foo.swift has 2 Mobile* references (MobileContact, MobileIdentity),
-    # Bar.swift has 1 (MobileCard) → 3 total.
-    assert_eq "ios: mobile_type_refs == 3" \
+    # Bar.swift has 1 (MobileCard) → 3 total. Generated/ (6 lines) and
+    # Libs/ (5 lines) are excluded.
+    assert_eq "ios: mobile_type_refs == 3 (Generated/ + Libs/ excluded)" \
         "3" "$(extract_counter "$out" ios_mobile_type_refs)"
     rm -rf "$root"
 }

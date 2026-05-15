@@ -177,10 +177,21 @@ fi
 ios_vauchi_platform_imports=$(count_lines_matching \
     '^import VauchiPlatform' "$IOS_SRC")
 
-# 6. iOS — Mobile* type-name references in Swift files (every line that
-#    references a `Mobile[A-Z]…` identifier).
-ios_mobile_type_refs=$(count_lines_matching \
-    '\bMobile[A-Z]' "$IOS_SRC")
+# 6. iOS — Mobile* type-name references in *hand-written* Swift files
+#    (every line that references a `Mobile[A-Z]…` identifier). Excludes
+#    `Generated/` (UniFFI-emitted binding mirrors) and `Libs/` (the local
+#    SPM checkout of `vauchi-platform-swift`); both are binding-
+#    distribution artefacts that auto-shrink when Phase 3 retires
+#    `mobile_*.rs` and are not the iOS team's responsibility to retire.
+#    Counting them would mask the hand-written debt the Phase 4a /
+#    Task 4a.3 lint flip is supposed to detect.
+ios_mobile_type_refs=0
+if [ -d "$IOS_SRC" ]; then
+    ios_mobile_type_refs=$(grep -rsE '\bMobile[A-Z]' "$IOS_SRC" 2>/dev/null \
+        | grep -v '/Generated/' \
+        | grep -v '/Libs/' \
+        | wc -l)
+fi
 
 # 7. Android — Mobile* references under the UI tree.
 android_mobile_refs=$(count_lines_matching \
