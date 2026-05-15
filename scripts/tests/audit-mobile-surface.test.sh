@@ -284,8 +284,21 @@ impl Sleeper for SystemSleeper {
     fn sleep(&self, d: Duration) { std::thread::sleep(d); }
 }
 RS
+    # Same precedent for clock.rs: the `Clock` seam's own definition
+    # file holds the one production `SystemTime::now()` call (the
+    # `SystemClock::now` impl) plus doc-comment references. Counting
+    # those would peg `core_system_time_now` at "fixture lines + 1"
+    # forever. Adds 2 such lines so a regression dropping the
+    # `clock.rs` exclusion would push the counter from 2 to 4
+    # (still 2 expected here).
+    cat >"$src/clock.rs" <<'RS'
+//! `SystemTime::now()` will, over Phase 1, route through this seam.
+impl Clock for SystemClock {
+    fn now(&self) -> SystemTime { SystemTime::now() }
+}
+RS
     out=$("$SCRIPT" "$root")
-    assert_eq "core: system_time_now == 2" \
+    assert_eq "core: system_time_now == 2 (clock.rs excluded)" \
         "2" "$(extract_counter "$out" core_system_time_now)"
     assert_eq "core: thread_rng == 1" \
         "1" "$(extract_counter "$out" core_thread_rng)"

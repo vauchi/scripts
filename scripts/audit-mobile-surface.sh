@@ -221,25 +221,37 @@ if [ -f "$TUI_STATE" ]; then
 fi
 
 # 9–12. core/vauchi-core/src — ambient nondeterminism.
-core_system_time_now=$(count_lines_matching \
-    'SystemTime::now\(\)' "$CORE_CORE_SRC")
+#
+# Each counter excludes its own seam-definition file: `clock.rs`
+# for `SystemTime::now()`, `sleeper.rs` for `thread::sleep`. The
+# exclusion is intrinsic to the audit — every seam *must* contain
+# the one production callsite that wraps the OS primitive (that
+# is what makes it a seam), plus doc comments that reference the
+# primitive verbatim (`//! routes through std::thread::sleep`).
+# Counting those would lock the ratchet at "seam line count + 1"
+# forever, blunting CI's ability to catch a regression that adds
+# a *new* ambient call outside the seam (the actual debt). Same
+# precedent as the iOS `Generated/` exclusion. When the next seam
+# lands (Phase 2 may add an executor seam), exclude its file here
+# too — the audit's regression suite will guide the addition.
+#
+# `|| true` so `set -euo pipefail` doesn't abort on the terminal
+# state `counter=0`: with zero matches, the first `grep` exits 1
+# (BSD + GNU + BusyBox agree), `grep -cv` reads empty stdin and
+# prints "0" but also exits 1 (no non-matches), `pipefail`
+# surfaces that, and `set -e` kills the script on the assignment.
+# The `0` printed is correct; we just need to swallow the
+# upstream exit code. SC2126-compliant (sibling iOS/macOS
+# counters use the same `grep -cv` shape).
+core_system_time_now=0
+if [ -d "$CORE_CORE_SRC" ]; then
+    core_system_time_now=$(grep -rsE 'SystemTime::now\(\)' "$CORE_CORE_SRC" 2>/dev/null \
+        | grep -cv '/clock\.rs:' || true)
+fi
 core_thread_rng=$(count_lines_matching \
     'thread_rng\(\)' "$CORE_CORE_SRC")
 core_thread_sleep=0
 if [ -d "$CORE_CORE_SRC" ]; then
-    # Exclude `sleeper.rs` — it is the seam's own definition file. Its
-    # `SystemSleeper` impl line and doc-comment references to
-    # `std::thread::sleep` are intrinsic to the seam, not ambient debt.
-    # Phase 1 / Task 1.3 introduced the file 2026-05-15; same precedent
-    # as the iOS `Generated/` exclusion.
-    # `|| true` so `set -euo pipefail` doesn't abort on the terminal
-    # state `core_thread_sleep=0`: with zero matches, the first
-    # `grep` exits 1 (BSD + GNU + BusyBox agree), `grep -cv` reads
-    # empty stdin and prints "0" but also exits 1 (no non-matches),
-    # `pipefail` surfaces that, and `set -e` kills the script on
-    # this assignment. The `0` printed is correct; we just need to
-    # swallow the upstream exit code. SC2126-compliant (sibling
-    # iOS/macOS counters use the same `grep -cv` shape).
     core_thread_sleep=$(grep -rsE 'thread::sleep' "$CORE_CORE_SRC" 2>/dev/null \
         | grep -cv '/sleeper\.rs:' || true)
 fi
