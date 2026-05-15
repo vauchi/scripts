@@ -190,8 +190,7 @@ ios_mobile_type_refs=0
 if [ -d "$IOS_SRC" ]; then
     ios_mobile_type_refs=$(grep -rsE '\bMobile[A-Z]' "$IOS_SRC" 2>/dev/null \
         | grep -v '/Generated/' \
-        | grep -v '/Libs/' \
-        | wc -l)
+        | grep -cv '/Libs/')
 fi
 
 # 7. Android — Mobile* references under the UI tree.
@@ -206,8 +205,7 @@ macos_mobile_refs=0
 if [ -d "$MACOS_SRC" ]; then
     macos_mobile_refs=$(grep -rsE '\bMobile[A-Z]' "$MACOS_SRC" 2>/dev/null \
         | grep -v '/Generated/' \
-        | grep -v '/Libs/' \
-        | wc -l)
+        | grep -cv '/Libs/')
 fi
 
 # 8. TUI — variants of the legacy `enum Screen`. Each variant line is
