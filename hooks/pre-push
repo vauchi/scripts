@@ -936,7 +936,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_markdownlint_check() {
         echo ""
-        echo "[1/7] Linting markdown..."
+        echo "[1/8] Linting markdown..."
         if command -v markdownlint &> /dev/null; then
             # Lint only .md files changed on this branch vs origin/main
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
@@ -991,7 +991,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_reuse_check() {
         echo ""
-        echo "[2/7] Checking REUSE compliance..."
+        echo "[2/8] Checking REUSE compliance..."
         if command -v reuse &> /dev/null; then
             if ! reuse lint > /dev/null 2>&1; then
                 echo ""
@@ -1021,7 +1021,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_doc_naming_check() {
         echo ""
-        echo "[3/7] Checking doc naming convention..."
+        echo "[3/8] Checking doc naming convention..."
         ERRORS=0
         EXEMPT_NAMES="README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|INDEX.md"
         EXEMPT_COMPANION="investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md"
@@ -1051,7 +1051,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_plan_presence_check() {
         echo ""
-        echo "[4/7] Checking plan.md companions..."
+        echo "[4/8] Checking plan.md companions..."
         ERRORS=0
         # 1. Problem records in planning/implementing status with implementation-plan.md
         # should have plan.md (task DAG). Skip intake/investigating (too early),
@@ -1104,7 +1104,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_local_link_check() {
         echo ""
-        echo "[5/7] Checking local file links..."
+        echo "[5/8] Checking local file links..."
         if command -v lychee &> /dev/null; then
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
             if [[ -n "$MD_BASE" ]]; then
@@ -1138,7 +1138,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_stale_ref_check() {
         echo ""
-        echo "[6/7] Checking stale references (ADR-027 + RC-3)..."
+        echo "[6/8] Checking stale references (ADR-027 + RC-3)..."
 
         # If the authoritative checker exists, delegate to it in MR-diff mode.
         # Same script CI runs — keeps pre-push and CI in sync, and catches
@@ -1216,7 +1216,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
     run_problem_records_check() {
         if [[ "$REPO_DIR" == "_private" ]]; then
             echo ""
-            echo "[7/7] Validating problem records..."
+            echo "[7/8] Validating problem records..."
             if [[ -f "scripts/check-problem-records.py" ]]; then
                 if ! python3 scripts/check-problem-records.py; then
                     echo ""
@@ -1228,6 +1228,57 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
         fi
     }
     time_step "Problem records" run_problem_records_check
+
+    run_adr_index_check() {
+        # ADR index gate (mirrors CI `check:adr-index`) — only fires
+        # in `_private` when an ADR file or the index README changes,
+        # matching the CI rule's `docs/decisions/**/*` change-trigger.
+        # Adding a new ADR without regenerating the index would
+        # otherwise pass pre-push and fail CI a few minutes later;
+        # this lights up the same gate before the push leaves the
+        # working tree.
+        if [[ "$REPO_DIR" != "_private" ]]; then
+            return 0
+        fi
+        local generator="docs/decisions/generate-index.sh"
+        local index_md="docs/decisions/README.md"
+        if [[ ! -x "$generator" ]] || [[ ! -f "$index_md" ]]; then
+            return 0
+        fi
+        # Match the CI change rule: only run when an ADR file or the
+        # index itself is part of this branch's diff vs origin/main.
+        if ! git diff --name-only origin/main...HEAD 2>/dev/null \
+            | grep -qE '^docs/decisions/'; then
+            return 0
+        fi
+        echo ""
+        echo "[8/8] Checking ADR index freshness..."
+        local before_snapshot
+        before_snapshot=$(mktemp)
+        cp "$index_md" "$before_snapshot"
+        # Run generator; on failure, restore + abort. Generator writes
+        # to $index_md in-place, so we save & restore around the diff
+        # to keep the working tree untouched on a clean pass.
+        if ! bash "$generator" docs/decisions >/dev/null 2>&1; then
+            cp "$before_snapshot" "$index_md"
+            rm -f "$before_snapshot"
+            echo "FAILED: $generator exited non-zero. Run it manually to see the error."
+            exit 1
+        fi
+        if ! diff -q "$index_md" "$before_snapshot" >/dev/null 2>&1; then
+            # Stale — restore the working tree so the user's diff
+            # stays clean, then point at the fix.
+            cp "$before_snapshot" "$index_md"
+            rm -f "$before_snapshot"
+            echo "FAILED: ADR index ($index_md) is stale."
+            echo "  Fix: bash $generator docs/decisions && git add $index_md"
+            exit 1
+        fi
+        rm -f "$before_snapshot"
+        echo "  ADR index OK"
+    }
+    time_step "ADR index" run_adr_index_check
+
 
 # ─── Unknown repo type ───────────────────────────────────────────────
 
