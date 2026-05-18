@@ -61,6 +61,15 @@
       cd "${MUTATION_WORKDIR}"
       MUTANTS_OUT="target/mutants"
       mkdir -p "$MUTANTS_OUT"
+      # Placeholder JUnit so artifact upload doesn't fail if the job is
+      # canceled (UI/API) or killed before cargo-mutants finishes — the
+      # real report below overwrites this on normal completion.
+      cat > "$MUTANTS_OUT/mutation-junit.xml" <<'PLACEHOLDER_EOF'
+      <?xml version="1.0" encoding="UTF-8"?>
+      <testsuites name="mutation:nightly" tests="0" failures="0">
+        <testsuite name="cargo-mutants" tests="0" failures="0"/>
+      </testsuites>
+      PLACEHOLDER_EOF
       PACKAGE_FLAG="${MUTATION_PACKAGE:+-p ${MUTATION_PACKAGE}}"
       cargo mutants --test-tool "${MUTATION_TEST_TOOL}" ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
       MUTANTS_PID=$!
