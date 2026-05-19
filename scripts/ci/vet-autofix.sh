@@ -309,6 +309,8 @@ git checkout -b "$BRANCH"
 git add supply-chain/ Cargo.lock
 git commit -m "$COMMIT_MSG"
 
+NEW_CORE_SHA=$(extract_core_sha Cargo.lock 2>/dev/null || true)
+
 # Phase 2 of `2026-05-03-vet-autosync-stale-snapshots`: when the
 # lockfile bump also moved vauchi-core to a different rev,
 # regenerate snapshots so consumer test fixtures stay in sync with
