@@ -85,8 +85,15 @@
       BASELINE_COUNT=$(find target/criterion -path '*/main/estimates.json' 2>/dev/null | head -1 | wc -l || echo 0)
       if [ "$BASELINE_COUNT" -gt 0 ]; then
         echo "Found baseline — comparing..."
-        cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} -- --baseline main > bench-results.txt 2>&1
-        BENCH_RC=$?
+        # GitLab runners default to `set -eo pipefail`, so a bare
+        # `cargo bench ...; BENCH_RC=$?` exits the script the moment
+        # cargo returns non-zero — `BENCH_RC=$?` and the subsequent
+        # `cat` never run. Use `|| BENCH_RC=$?` so the right side
+        # captures cargo's real exit code AND returns 0 itself
+        # (set -e is satisfied). On success the `||` branch is
+        # short-circuited and BENCH_RC stays 0.
+        BENCH_RC=0
+        cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} -- --baseline main > bench-results.txt 2>&1 || BENCH_RC=$?
         cat bench-results.txt
         # Edge case: a new benchmark added since the last nightly --save-baseline
         # run has no baseline; criterion 0.5 panics with
@@ -97,8 +104,8 @@
         if [ "$BENCH_RC" -ne 0 ] && grep -q "Baseline 'main' must exist" bench-results.txt; then
           echo "WARNING: One or more benchmarks lack a baseline (new bench added since last nightly run)."
           echo "Falling back to no-comparison mode — re-running to record current values."
-          cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} > bench-results.txt 2>&1
-          BENCH_RC=$?
+          BENCH_RC=0
+          cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} > bench-results.txt 2>&1 || BENCH_RC=$?
           cat bench-results.txt
         fi
         if [ "$BENCH_RC" -ne 0 ]; then
@@ -121,8 +128,8 @@
         fi
       else
         echo "No baseline found — running benchmarks without comparison"
-        cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} > bench-results.txt 2>&1
-        BENCH_RC=$?
+        BENCH_RC=0
+        cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} > bench-results.txt 2>&1 || BENCH_RC=$?
         cat bench-results.txt
         if [ "$BENCH_RC" -ne 0 ]; then
           exit "$BENCH_RC"
