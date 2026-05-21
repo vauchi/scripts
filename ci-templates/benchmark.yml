@@ -93,6 +93,7 @@
         # (set -e is satisfied). On success the `||` branch is
         # short-circuited and BENCH_RC stays 0.
         BENCH_RC=0
+        FELL_BACK=false
         cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} -- --baseline main > bench-results.txt 2>&1 || BENCH_RC=$?
         cat bench-results.txt
         # Edge case: a new benchmark added since the last nightly --save-baseline
@@ -105,6 +106,7 @@
           echo "WARNING: One or more benchmarks lack a baseline (new bench added since last nightly run)."
           echo "Falling back to no-comparison mode — re-running to record current values."
           BENCH_RC=0
+          FELL_BACK=true
           cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} > bench-results.txt 2>&1 || BENCH_RC=$?
           cat bench-results.txt
         fi
@@ -112,6 +114,18 @@
           echo "ERROR: bench failed (not a missing-baseline panic)"
           exit "$BENCH_RC"
         fi
+        # In fallback mode, criterion ran without --baseline main, but it STILL
+        # emits "Performance has regressed" / "change: [+X%...]" markers from
+        # an in-run auto-comparison against whatever cached previous-run data
+        # sits in target/criterion/ (which is shared across pipelines via the
+        # bench-baseline cache key). That comparison is meaningless — it
+        # compares fresh runs on possibly-different runner VMs against an
+        # arbitrary prior run's cached snapshot. Skip the regression grep in
+        # fallback mode so spurious within-run-cache deltas don't block release.
+        if [ "$FELL_BACK" = "true" ]; then
+          echo "Fallback mode — skipping baseline regression check (in-run cache comparison is not a real baseline)"
+          # Fall through to artifacts; pipeline proceeds.
+        else
         # Check for regressions > 100% (2x slower).
         # Criterion output format:
         #   change: [+18.2% +25.4% +32.5%] (p = 0.00 < 0.05)
@@ -140,6 +154,7 @@
         else
           echo "No significant regressions detected (threshold: >100% — temporary, see comment)"
         fi
+        fi  # close: FELL_BACK guard
       else
         echo "No baseline found — running benchmarks without comparison"
         BENCH_RC=0
