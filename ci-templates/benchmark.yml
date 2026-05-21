@@ -85,7 +85,26 @@
       BASELINE_COUNT=$(find target/criterion -path '*/main/estimates.json' 2>/dev/null | head -1 | wc -l || echo 0)
       if [ "$BASELINE_COUNT" -gt 0 ]; then
         echo "Found baseline — comparing..."
-        cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} -- --baseline main 2>&1 | tee bench-results.txt
+        cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} -- --baseline main > bench-results.txt 2>&1
+        BENCH_RC=$?
+        cat bench-results.txt
+        # Edge case: a new benchmark added since the last nightly --save-baseline
+        # run has no baseline; criterion 0.5 panics with
+        # "Baseline 'main' must exist before comparison is allowed". Treat that as
+        # "no comparable baseline for this run" and degrade to non-comparison mode
+        # rather than blocking the release. The next scheduled --save-baseline run
+        # will capture the new bench so subsequent releases can compare it.
+        if [ "$BENCH_RC" -ne 0 ] && grep -q "Baseline 'main' must exist" bench-results.txt; then
+          echo "WARNING: One or more benchmarks lack a baseline (new bench added since last nightly run)."
+          echo "Falling back to no-comparison mode — re-running to record current values."
+          cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} > bench-results.txt 2>&1
+          BENCH_RC=$?
+          cat bench-results.txt
+        fi
+        if [ "$BENCH_RC" -ne 0 ]; then
+          echo "ERROR: bench failed (not a missing-baseline panic)"
+          exit "$BENCH_RC"
+        fi
         # Check for regressions > 20%.
         # Criterion output format:
         #   change: [+18.2% +25.4% +32.5%] (p = 0.00 < 0.05)
@@ -102,7 +121,12 @@
         fi
       else
         echo "No baseline found — running benchmarks without comparison"
-        cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} 2>&1 | tee bench-results.txt
+        cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} > bench-results.txt 2>&1
+        BENCH_RC=$?
+        cat bench-results.txt
+        if [ "$BENCH_RC" -ne 0 ]; then
+          exit "$BENCH_RC"
+        fi
       fi
   artifacts:
     paths:
