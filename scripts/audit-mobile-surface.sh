@@ -61,7 +61,6 @@ invalidate_screen_json
 has_identity
 periodic_sync_tick
 set_network_online
-is_network_online
 handle_app_backgrounded
 poll_notifications
 set_event_listener
