@@ -57,8 +57,27 @@ VRT_CI_BUILD_ID="${VRT_CI_BUILD_ID:-${CI_PIPELINE_ID:-local-$(date +%s)}}"
 VRT_PLATFORM="${VRT_PLATFORM:-unknown}"
 VRT_DIFF_TOLERANCE="${VRT_DIFF_TOLERANCE:-0.5}"
 
-# Count screenshots
-PNG_COUNT=$(find "$VRT_SCREENSHOT_DIR" -maxdepth 1 -name "*.png" | wc -l | tr -d ' ')
+# Derive a VRT test name from a screenshot path.
+#
+# $1 = absolute or workdir-relative path to a .png file
+# $2 = VRT_SCREENSHOT_DIR (root the path is interpreted against)
+#
+# Maps "<root>/<rel>/<stem>.png" to "<rel> <stem>" with `_`, `/`, `-`
+# all collapsed to a single space. Flat layout (`<root>/my_card.png`)
+# yields "my card" — identical to the pre-2026-05-23 behaviour. Theme
+# subdirs (`<root>/dark/my_card.png`) yield "dark my card" so the same
+# screen captured under two themes uploads as distinct VRT test names.
+vrt_test_name() {
+    local png="$1" root="$2"
+    local rel="${png#"$root"/}"
+    # tr '_/-' '   ' is POSIX-portable; tr -s squashes repeats.
+    printf '%s' "${rel%.png}" | tr '_/-' '   ' | tr -s ' '
+}
+
+# Count screenshots (depth ≤ 2 so optional theme subdirs are walked —
+# see `2026-05-01-dark-mode-snapshot-parity` G7.5 for the linux-qt
+# `baseline/{dark,light}/` layout that drove the bump).
+PNG_COUNT=$(find "$VRT_SCREENSHOT_DIR" -maxdepth 2 -type f -name "*.png" | wc -l | tr -d ' ')
 
 if [ "$PNG_COUNT" -eq 0 ]; then
     echo "[vrt-upload] No PNG files in $VRT_SCREENSHOT_DIR — skipping"
@@ -115,11 +134,10 @@ echo "[vrt-upload] Build created: ${BUILD_ID}"
 UPLOADED=0
 FAILED=0
 
-for png in "$VRT_SCREENSHOT_DIR"/*.png; do
+while IFS= read -r png; do
     [ -f "$png" ] || continue
 
-    # Derive test name from filename
-    NAME=$(basename "$png" .png | tr '_' ' ' | tr '-' ' ')
+    NAME=$(vrt_test_name "$png" "$VRT_SCREENSHOT_DIR")
     IMAGE_B64=$(base64 < "$png" | tr -d '\n')
 
     UPLOAD_RESPONSE=$(curl -s -X POST \
@@ -150,7 +168,7 @@ for png in "$VRT_SCREENSHOT_DIR"/*.png; do
     fi
 
     UPLOADED=$((UPLOADED + 1))
-done
+done < <(find "$VRT_SCREENSHOT_DIR" -maxdepth 2 -type f -name "*.png" | sort)
 
 # ── Step 3: Close build ───────────────────────────────────────
 
