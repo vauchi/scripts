@@ -54,7 +54,6 @@ navigate_to_json
 navigate_back_json
 handle_deep_link_uri
 available_screens_json
-default_screen_json
 current_screen_id
 current_tab_id
 invalidate_all
