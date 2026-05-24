@@ -54,7 +54,8 @@ test_empty_workspace() {
     for key in mobile_uniffi_exports mobile_pub_fns lib_rs_mobile_returns \
                platform_app_engine_pub_fns_total platform_app_engine_non_humble \
                ios_vauchi_platform_imports ios_mobile_type_refs \
-               android_mobile_refs macos_mobile_refs tui_screen_variants \
+               android_mobile_refs macos_mobile_refs capability_reporting_wired \
+               tui_screen_variants \
                core_system_time_now core_thread_rng core_thread_sleep \
                core_ambient_now_secs; do
         assert_eq "empty: $key == 0" "0" "$(extract_counter "$out" "$key")"
@@ -355,6 +356,59 @@ test_bad_workspace() {
     assert_eq "bad workspace: exit 2" "2" "$rc"
 }
 
+# ── 5d. capability_reporting_wired (G5 regression guard) ──────────────
+# One UniFFI frontend per call site. Each frontend that invokes
+# `setDeviceCapabilitiesJson` in hand-written source contributes 1;
+# binding mirrors (Generated/, Libs/) and Gradle output (build/) must
+# NOT contribute. Target 3. Also asserts the floor DROPS when a
+# frontend's call is removed (the regression this guard exists to
+# catch).
+test_capability_reporting_wired() {
+    local root; root=$(mktemp -d)
+    local ios="$root/ios/Vauchi/Services"
+    local mac="$root/macos/Vauchi/Services"
+    local andr="$root/android/app/src/main/kotlin/app/vauchi/util"
+    mkdir -p "$ios" "$mac" "$andr"
+    cat >"$ios/DeviceCapabilitiesPusher.swift" <<'SW'
+func pushDeviceCapabilities(engine: PlatformAppEngine?) {
+    try engine?.setDeviceCapabilitiesJson(capabilitiesJson: json)
+}
+SW
+    cat >"$mac/DeviceCapabilitiesPusher.swift" <<'SW'
+func pushDeviceCapabilities(engine: PlatformAppEngine?) {
+    try engine?.setDeviceCapabilitiesJson(capabilitiesJson: json)
+}
+SW
+    cat >"$andr/DeviceCapabilitiesPusher.kt" <<'KT'
+internal fun pushDeviceCapabilities(context: Context, engine: PlatformAppEngine?) {
+    engine.setDeviceCapabilitiesJson(json)
+}
+KT
+    # Mirrors / build output — declare the symbol but must NOT count.
+    mkdir -p "$root/ios/Vauchi/Generated" \
+             "$root/macos/Vauchi/Libs/VauchiPlatformLocal" \
+             "$root/android/app/src/main/kotlin/app/vauchi/build"
+    cat >"$root/ios/Vauchi/Generated/vauchi_platform.swift" <<'SW'
+open func setDeviceCapabilitiesJson(capabilitiesJson: String) throws { }
+SW
+    cat >"$root/macos/Vauchi/Libs/VauchiPlatformLocal/vauchi_platform.swift" <<'SW'
+open func setDeviceCapabilitiesJson(capabilitiesJson: String) throws { }
+SW
+    cat >"$root/android/app/src/main/kotlin/app/vauchi/build/Generated.kt" <<'KT'
+fun setDeviceCapabilitiesJson(json: String) { }
+KT
+    out=$("$SCRIPT" "$root")
+    assert_eq "capability: all three frontends wired == 3 (mirrors excluded)" \
+        "3" "$(extract_counter "$out" capability_reporting_wired)"
+
+    # Regression: drop the Android call → floor must fall to 2.
+    rm -f "$andr/DeviceCapabilitiesPusher.kt"
+    out=$("$SCRIPT" "$root")
+    assert_eq "capability: floor drops to 2 when Android unwired" \
+        "2" "$(extract_counter "$out" capability_reporting_wired)"
+    rm -rf "$root"
+}
+
 # ── run ──────────────────────────────────────────────────────────────
 test_empty_workspace
 test_mobile_counters
@@ -363,6 +417,7 @@ test_pae_non_humble
 test_ios_counters
 test_macos_counter
 test_android_counter
+test_capability_reporting_wired
 test_tui_screen_variants
 test_core_nondeterminism
 test_json_validity

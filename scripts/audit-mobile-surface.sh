@@ -121,6 +121,26 @@ pae_pub_fn_names() {
     ' {} + 2>/dev/null
 }
 
+# frontend_reports_capabilities <frontend_src_root>
+# Emits 1 if hand-written source under <root> invokes
+# `setDeviceCapabilitiesJson` (the binding call every frontend must
+# make at boot per 2026-05-23-exchange-capabilities-frontend-gap),
+# else 0. Excludes binding mirrors (`Generated/`, `Libs/`) and Gradle
+# build output (`/build/`) so only the hand-written wiring counts.
+# Missing root → 0. The capability-reporting ratchet (G5) sums this
+# across the three UniFFI frontends; it rises 0 → 3 as each wires up
+# and DROPS if a frontend's call is refactored away.
+frontend_reports_capabilities() {
+    local root="$1"
+    [ -d "$root" ] || { printf '0'; return; }
+    local hits
+    hits=$(grep -rsE 'setDeviceCapabilitiesJson' "$root" 2>/dev/null \
+        | grep -v '/Generated/' \
+        | grep -v '/Libs/' \
+        | grep -cv '/build/' || true)
+    if [ "${hits:-0}" -gt 0 ]; then printf '1'; else printf '0'; fi
+}
+
 # ── repo-relative paths ──────────────────────────────────────────────
 CORE_PLATFORM_SRC="$WORKSPACE_ROOT/core/vauchi-platform/src"
 CORE_CORE_SRC="$WORKSPACE_ROOT/core/vauchi-core/src"
@@ -129,6 +149,7 @@ CORE_CABI_SRC="$WORKSPACE_ROOT/core/vauchi-cabi/src"
 IOS_SRC="$WORKSPACE_ROOT/ios/Vauchi"
 MACOS_SRC="$WORKSPACE_ROOT/macos/Vauchi"
 ANDROID_UI="$WORKSPACE_ROOT/android/app/src/main/kotlin/app/vauchi/ui"
+ANDROID_APP_SRC="$WORKSPACE_ROOT/android/app/src/main/kotlin/app/vauchi"
 TUI_STATE="$WORKSPACE_ROOT/tui/src/app/state.rs"
 
 # ── counters ─────────────────────────────────────────────────────────
@@ -190,7 +211,7 @@ ios_mobile_type_refs=0
 if [ -d "$IOS_SRC" ]; then
     ios_mobile_type_refs=$(grep -rsE '\bMobile[A-Z]' "$IOS_SRC" 2>/dev/null \
         | grep -v '/Generated/' \
-        | grep -cv '/Libs/')
+        | grep -cv '/Libs/' || true)
 fi
 
 # 7. Android — Mobile* references under the UI tree.
@@ -205,8 +226,22 @@ macos_mobile_refs=0
 if [ -d "$MACOS_SRC" ]; then
     macos_mobile_refs=$(grep -rsE '\bMobile[A-Z]' "$MACOS_SRC" 2>/dev/null \
         | grep -v '/Generated/' \
-        | grep -cv '/Libs/')
+        | grep -cv '/Libs/' || true)
 fi
+
+# 7c. Capability reporting wired — count of UniFFI frontends (iOS,
+#     macOS, Android) whose hand-written code calls
+#     `setDeviceCapabilitiesJson` at boot. Regression guard (G5) for
+#     `2026-05-23-exchange-capabilities-frontend-gap`: target 3. Unlike
+#     the retirement ratchets above this is a *floor* — it must not
+#     regress below 3 once all three frontends are wired. Reads 0 in a
+#     single-repo CI checkout that lacks the frontend trees (the same
+#     way ios_/macos_/android_ counters do); meaningful at workspace
+#     root.
+cap_ios=$(frontend_reports_capabilities "$IOS_SRC")
+cap_macos=$(frontend_reports_capabilities "$MACOS_SRC")
+cap_android=$(frontend_reports_capabilities "$ANDROID_APP_SRC")
+capability_reporting_wired=$((cap_ios + cap_macos + cap_android))
 
 # 8. TUI — variants of the legacy `enum Screen`. Each variant line is
 #    Capitalised and the block lives in tui/src/app/state.rs.
@@ -298,6 +333,7 @@ printf '    %-36s %d,\n' '"ios_vauchi_platform_imports":'       "$ios_vauchi_pla
 printf '    %-36s %d,\n' '"ios_mobile_type_refs":'              "$ios_mobile_type_refs"
 printf '    %-36s %d,\n' '"android_mobile_refs":'               "$android_mobile_refs"
 printf '    %-36s %d,\n' '"macos_mobile_refs":'                 "$macos_mobile_refs"
+printf '    %-36s %d,\n' '"capability_reporting_wired":'        "$capability_reporting_wired"
 printf '    %-36s %d,\n' '"tui_screen_variants":'               "$tui_screen_variants"
 printf '    %-36s %d,\n' '"core_system_time_now":'              "$core_system_time_now"
 printf '    %-36s %d,\n' '"core_thread_rng":'                   "$core_thread_rng"
