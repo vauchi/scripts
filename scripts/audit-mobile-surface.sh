@@ -42,6 +42,13 @@ WORKSPACE_ROOT="$(cd "$WORKSPACE_ROOT" && pwd)"
 # Source: plan Task 0.2 — this is the target end-state surface. Every
 # pub fn under `impl PlatformAppEngine { … }` whose name is NOT on this
 # list counts as legacy debt and is retired in Phase 3.
+#
+# MUST mirror HUMBLE_ALLOWLIST in
+# core/vauchi-app/tests/it/humble_surface_contract_tests.rs (25 entries)
+# — test and audit must agree on the counted set or the ratchet floor
+# and the contract gate talk past each other. `dispatch_domain_command`
+# and `new` are permanent binding surface (ADR-043 Amendment 3), not
+# render methods; they stay on the list.
 PAE_ALLOWLIST="$(cat <<'EOF'
 boot
 current_screen_json
@@ -66,6 +73,8 @@ poll_notifications
 set_event_listener
 set_device_capabilities_json
 set_render_context_json
+dispatch_domain_command
+new
 EOF
 )"
 
