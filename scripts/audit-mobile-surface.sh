@@ -64,7 +64,6 @@ set_network_online
 handle_app_backgrounded
 poll_notifications
 set_event_listener
-drain_pending_notifications
 set_device_capabilities_json
 set_render_context_json
 EOF
