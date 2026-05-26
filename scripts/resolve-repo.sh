@@ -235,7 +235,10 @@ _dir_to_gitlab_name() {
 # Most repos are under the vauchi group; exceptions listed below.
 resolve_gitlab_project() {
     local name
-    name=$(_dir_to_gitlab_name "${1:-}")
+    # Route through resolve_gitlab_repo so an empty arg gets pwd detection
+    # (at workspace root this yields "vauchi", not the empty name that
+    # _dir_to_gitlab_name "" produced — which made the project "vauchi/").
+    name=$(resolve_gitlab_repo "${1:-}") || return 1
     case "$name" in
         drift-detector|markdown-plan)   echo "megloff1/$name" ;;
         *)                              echo "vauchi/$name" ;;
