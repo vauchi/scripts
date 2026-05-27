@@ -319,6 +319,39 @@ done
 core_ambient_now_secs=$(count_lines_matching \
     'ambient_now_secs\(\)' "$CORE_CORE_SRC")
 
+# Monotonic-time seam (Phase 1 / Task 1.1b). Counts `Instant::now()`
+# across the four core crates, the ratchet for threading monotonic
+# timeout/deadline/retry reads through `self.monotonic.now()`. Three
+# classes of exclusion:
+#   - `monotonic.rs` — the seam's own definition file (holds the one
+#     production `Instant::now()` in `SystemMonotonicClock::now`), same
+#     precedent as the `clock.rs`/`sleeper.rs` exclusions above.
+#   - determinism-exempt diagnostic perf-timers (`qr/scanner.rs`,
+#     `diagnostic/`, `exchange/transport/trace.rs`,
+#     `exchange/audio_cpal.rs`, `api/vauchi/security.rs`) — they measure
+#     elapsed-ms for logs and never feed a state transition, the same
+#     carve-out shape as `OsRng` for crypto RNG.
+#   - comment lines (`: *//`) — doc comments mention `Instant::now()` as
+#     prose (e.g. `exchange/multistage/session.rs`) and must not inflate
+#     the ratchet. The final `grep -vcE` both drops comment lines and
+#     counts; `|| true` swallows the exit-1 on a zero count (see the
+#     `core_system_time_now` note above).
+core_instant_now=0
+for instant_root in \
+    "$CORE_CORE_SRC" "$CORE_APP_SRC" "$CORE_CABI_SRC" "$CORE_PLATFORM_SRC"
+do
+    [ -d "$instant_root" ] || continue
+    n=$(grep -rsE 'Instant::now\(\)' "$instant_root" 2>/dev/null \
+        | grep -v '/monotonic\.rs:' \
+        | grep -v '/qr/scanner\.rs:' \
+        | grep -v '/diagnostic/' \
+        | grep -v '/exchange/transport/trace\.rs:' \
+        | grep -v '/exchange/audio_cpal\.rs:' \
+        | grep -v '/api/vauchi/security\.rs:' \
+        | grep -vcE ':[[:space:]]*//' || true)
+    core_instant_now=$((core_instant_now + n))
+done
+
 # ── timestamp (BSD + GNU + BusyBox safe) ─────────────────────────────
 captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -347,6 +380,7 @@ printf '    %-36s %d,\n' '"tui_screen_variants":'               "$tui_screen_var
 printf '    %-36s %d,\n' '"core_system_time_now":'              "$core_system_time_now"
 printf '    %-36s %d,\n' '"core_thread_rng":'                   "$core_thread_rng"
 printf '    %-36s %d,\n' '"core_thread_sleep":'                 "$core_thread_sleep"
-printf '    %-36s %d\n'  '"core_ambient_now_secs":'             "$core_ambient_now_secs"
+printf '    %-36s %d,\n' '"core_ambient_now_secs":'             "$core_ambient_now_secs"
+printf '    %-36s %d\n'  '"core_instant_now":'                  "$core_instant_now"
 printf '  }\n'
 printf '}\n'

@@ -57,7 +57,7 @@ test_empty_workspace() {
                android_mobile_refs macos_mobile_refs capability_reporting_wired \
                tui_screen_variants \
                core_system_time_now core_thread_rng core_thread_sleep \
-               core_ambient_now_secs; do
+               core_ambient_now_secs core_instant_now; do
         assert_eq "empty: $key == 0" "0" "$(extract_counter "$out" "$key")"
     done
     rm -rf "$root"
@@ -321,6 +321,28 @@ RS
 fn cycle() { thread::sleep(std::time::Duration::from_millis(200)); }
 fn responsive() { thread::sleep(std::time::Duration::from_millis(25)); }
 RS
+    # `core_instant_now` (Phase 1 / Task 1.1b). Mirrors the seam-file +
+    # diagnostic-path + comment-line exclusions. Lay down:
+    #   - one real code site (`instant_demo.rs`) — counts.
+    #   - a doc-comment line mentioning `Instant::now()` — must NOT count
+    #     (comment exclusion), so a regression dropping it pushes 1 -> 2.
+    #   - `monotonic.rs` seam impl — must NOT count (seam-file exclusion).
+    #   - a `diagnostic/` perf-timer — must NOT count (path exclusion).
+    cat >"$src/instant_demo.rs" <<'RS'
+fn timeout() { let now = Instant::now(); let _ = now; }
+//! a doc comment mentioning Instant::now() must not be counted
+RS
+    cat >"$src/monotonic.rs" <<'RS'
+//! `Instant::now()` routes through this monotonic seam.
+impl MonotonicClock for SystemMonotonicClock {
+    fn now(&self) -> Instant { Instant::now() }
+}
+RS
+    mkdir -p "$src/diagnostic"
+    cat >"$src/diagnostic/timer.rs" <<'RS'
+fn measure() { let _ = Instant::now(); }
+RS
+
     out=$("$SCRIPT" "$root")
     assert_eq "core: system_time_now == 2 (clock.rs excluded)" \
         "2" "$(extract_counter "$out" core_system_time_now)"
@@ -330,6 +352,8 @@ RS
         "5" "$(extract_counter "$out" core_thread_sleep)"
     assert_eq "core: ambient_now_secs == 3" \
         "3" "$(extract_counter "$out" core_ambient_now_secs)"
+    assert_eq "core: instant_now == 1 (monotonic.rs + diagnostic/ + comments excluded)" \
+        "1" "$(extract_counter "$out" core_instant_now)"
     rm -rf "$root"
 }
 
