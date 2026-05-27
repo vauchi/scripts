@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-05-27T00:00:00Z",
+  "workspace_root": "<workspace-root>",
+  "totals": {
+    "impure_dispatch_lines_android":     0,
+    "impure_dispatch_lines_ios":         0,
+    "impure_dispatch_lines_total":       0
+  }
+}
