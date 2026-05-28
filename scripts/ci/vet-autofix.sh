@@ -418,6 +418,50 @@ MR_URL=$(echo "$MR_RESPONSE" | grep -o '"web_url":"[^"]*"' | head -1 | cut -d'"'
 
 echo "Created MR !${MR_IID}: ${MR_URL}"
 
+# ============================================================
+# Step 4b: Close stale predecessor vet-autofix MRs
+# ============================================================
+# Each CI run that detects an exemption-needing dep update opens a
+# new MR. Without cleanup, stacks accumulate (observed 2026-05-28:
+# two open MRs each in cli + tui, two in relay). The newest MR
+# subsumes all older ones — same `cargo vet regenerate exemptions`
+# output, just on a fresher commit base — so close older siblings
+# rather than leaving humans to triage the stack. Non-fatal: a
+# close failure leaves the old MR open (harmless) and never blocks
+# the new MR's auto-merge.
+if [[ -n "$MR_IID" ]]; then
+    STALE_IIDS=$(curl --silent --fail \
+        --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests?state=opened&per_page=100" \
+        2>/dev/null \
+        | NEW_MR_IID="$MR_IID" python3 -c "
+import json, os, sys
+new_iid = int(os.environ.get('NEW_MR_IID', '0'))
+try:
+    for mr in json.load(sys.stdin):
+        iid = mr.get('iid')
+        sb = mr.get('source_branch', '')
+        if sb.startswith('tidy/vet-autofix-') and iid != new_iid:
+            print(iid)
+except Exception:
+    pass
+" 2>/dev/null || true)
+
+    for iid in $STALE_IIDS; do
+        echo "Closing superseded MR !${iid}"
+        curl --silent --fail --request PUT \
+            --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
+            "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${iid}" \
+            --data "state_event=close" \
+            >/dev/null 2>&1 || echo "  (close failed for !${iid} — leaving open)"
+        curl --silent --fail --request POST \
+            --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
+            "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${iid}/notes" \
+            --data-urlencode "body=Superseded by !${MR_IID} (newer auto-sync run)." \
+            >/dev/null 2>&1 || true
+    done
+fi
+
 # Enable merge-when-pipeline-succeeds (auto-merge)
 if [[ -n "$MR_IID" ]]; then
     curl --silent --fail --request PUT \
