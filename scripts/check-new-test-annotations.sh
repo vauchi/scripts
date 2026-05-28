@@ -90,7 +90,13 @@ while IFS= read -r file; do
             REPORT="${REPORT}  ${file}:${tl} — ${fn_name:-unknown}()\n"
         fi
     done
-done < <(git diff --name-only "$BASE"..."$HEAD" -- '*.rs' 2>/dev/null)
+# --diff-filter=AM: only Added or Modified files. Excludes pure
+# renames (R), which appear as "all-new" content when re-scoped to a
+# single path filter (git's rename detection requires the unscoped
+# pairing). A rename with no content change adds no test functions
+# by definition; a rename-with-modifications (similarity ≥ 50%) still
+# gets caught by the CI gate, which runs without the path filter.
+done < <(git diff --name-only --diff-filter=AM "$BASE"..."$HEAD" -- '*.rs' 2>/dev/null)
 
 echo "=== New Test Annotation Gate ==="
 echo "New #[test] functions in this MR: $FOUND"
