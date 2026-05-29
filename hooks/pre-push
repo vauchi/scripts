@@ -1300,7 +1300,7 @@ if [[ -f "$REPO_ROOT/Cargo.toml" || -f "${REPO_ROOT}/src-tauri/Cargo.toml" ]]; t
         if [[ -x "$SIZE_SCRIPT" ]]; then
             # Collect .rs files changed on this branch
             CHANGED_RS=$(git -C "$REPO_ROOT" diff --name-only origin/main...HEAD -- '*.rs' 2>/dev/null \
-                | grep -v '^target/' || true)
+                | grep -v '^target/' | grep -vE '(^|/)vendor/' || true)
             if [[ -n "$CHANGED_RS" ]]; then
                 echo ""
                 echo "Checking file sizes..."

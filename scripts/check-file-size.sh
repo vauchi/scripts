@@ -115,7 +115,7 @@ for DIR in "${DIRS[@]}"; do
     while IFS= read -r -d '' filepath; do
         # Skip build artifacts, cargo caches, and vendored dependencies
         case "$filepath" in
-            */target/*|*/build/*|*/.cargo/*|*/vendor/*) continue ;;
+            */target/*|*/build/*|*/.cargo/*|*/vendor/*|vendor/*) continue ;;
         esac
         # Count lines
         lines=$(wc -l < "$filepath" | tr -d ' ')
