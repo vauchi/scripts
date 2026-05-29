@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-05-29T10:13:29Z",
+  "workspace_root": "<workspace-root>",
+  "totals": {
+    "app_pref_callers_android":        0,
+    "app_pref_callers_ios":            0,
+    "app_pref_callers_cli":            0,
+    "app_pref_callers_tui":            0,
+    "app_pref_callers_linux_gtk":      0,
+    "app_pref_callers_linux_qt":       0,
+    "app_pref_callers_windows":        0,
+    "app_pref_callers_web_demo":       0,
+    "app_pref_callers_total":          0
+  }
+}
