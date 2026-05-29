@@ -326,12 +326,20 @@ workflow:
         rm .cargo/config.toml
       fi
 
-      # Fail if Cargo.toml has committed [patch] with local path overrides.
-      # These belong in gitignored .cargo/config.toml (via: just setup-path-overrides).
-      # Committed path overrides break Docker builds and create fragile CI that only
-      # passes when stale sibling checkouts exist on shell runners.
-      if sed -n '/^\[patch\./,/^\[/p' Cargo.toml 2>/dev/null | grep -v '^[[:space:]]*#' | grep -Eq 'path[[:space:]]*='; then
-        echo "ERROR: Cargo.toml contains [patch] with local path overrides"
+      # Fail if Cargo.toml has committed [patch] with local SIBLING path
+      # overrides (path = "../…"). These belong in gitignored
+      # .cargo/config.toml (via: just setup-path-overrides) — committed
+      # sibling overrides break Docker builds and create fragile CI that
+      # only passes when stale sibling checkouts exist on shell runners.
+      # In-repo vendored patches (path = "vendor/…", e.g. the rqrr fork)
+      # are committed IN the repo and present in every build, so exempt them.
+      # Capture into a variable (no `grep -q` mid-pipe — early-exit SIGPIPE
+      # makes the upstream grep flaky across implementations and could let a
+      # forbidden line through). A non-empty result = a path override that is
+      # NOT an in-repo vendor/ patch → fail.
+      FORBIDDEN_PATCH=$(sed -n '/^\[patch\./,/^\[/p' Cargo.toml 2>/dev/null | grep -v '^[[:space:]]*#' | grep -E 'path[[:space:]]*=' | grep -vE 'path[[:space:]]*=[[:space:]]*"?vendor/' || true)
+      if [ -n "$FORBIDDEN_PATCH" ]; then
+        echo "ERROR: Cargo.toml contains [patch] with local sibling path overrides"
         echo "Move to .cargo/config.toml (gitignored). See: just setup-path-overrides"
         exit 1
       fi
