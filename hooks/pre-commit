@@ -258,8 +258,12 @@ fi
 # ============================================================
 echo "[3/4] Checking test structure..."
 
-# Only check staged Rust files in src/ directories
-STAGED_RS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^.*src/.*\.rs$' || true)
+# Only check staged Rust files in src/ directories. Vendored third-party
+# crates (core/vendor/) are copied byte-identical from the cargo registry
+# and keep upstream's inline #[cfg(test)] modules — they are not held to the
+# project's production/test-separation rule (the byte-identical requirement
+# forbids adding INLINE_TEST_REQUIRED markers to them).
+STAGED_RS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^.*src/.*\.rs$' | grep -Ev '(^|/)vendor/' || true)
 
 if [[ -z "$STAGED_RS_FILES" ]]; then
     exit 0
