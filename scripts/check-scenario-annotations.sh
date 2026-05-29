@@ -34,7 +34,7 @@ for DIR in "$@"; do
     fi
 
     # shellcheck disable=SC2016
-    find "$DIR" -name '*.rs' -print0 | xargs -0 awk '
+    find "$DIR" -name '*.rs' -not -path '*/vendor/*' -print0 | xargs -0 awk '
     BEGIN {
         # Ring buffer for last 5 lines
         for (i = 0; i < 5; i++) buf[i] = ""

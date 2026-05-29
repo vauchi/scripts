@@ -96,7 +96,8 @@ while IFS= read -r file; do
 # pairing). A rename with no content change adds no test functions
 # by definition; a rename-with-modifications (similarity ≥ 50%) still
 # gets caught by the CI gate, which runs without the path filter.
-done < <(git diff --name-only --diff-filter=AM "$BASE"..."$HEAD" -- '*.rs' 2>/dev/null)
+done < <(git diff --name-only --diff-filter=AM "$BASE"..."$HEAD" -- '*.rs' 2>/dev/null \
+    | grep -vE '(^|/)vendor/')
 
 echo "=== New Test Annotation Gate ==="
 echo "New #[test] functions in this MR: $FOUND"
