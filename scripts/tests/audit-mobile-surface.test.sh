@@ -434,6 +434,26 @@ KT
 }
 
 # ── run ──────────────────────────────────────────────────────────────
+test_check_core_purity_mode() {
+    local clean dirty rc
+    # Clean fixture: only the exempt seam file (clock.rs) present → the
+    # --check-core-purity gate must pass (exit 0).
+    clean=$(mktemp -d); mkdir -p "$clean/core/vauchi-core/src"
+    printf 'impl Clock for SystemClock { fn now(&self) -> SystemTime { SystemTime::now() } }\n' \
+        >"$clean/core/vauchi-core/src/clock.rs"
+    set +e; bash "$SCRIPT" --check-core-purity "$clean" >/dev/null 2>&1; rc=$?; set -e
+    assert_eq "check-core-purity: clean fixture exits 0" 0 "$rc"
+    rm -rf "$clean"
+    # Violation fixture: an ambient SystemTime::now() in a non-seam file
+    # → the gate must FAIL (exit 1). Proves the gate is non-tautological
+    # (CC-20/CC-21).
+    dirty=$(mktemp -d); mkdir -p "$dirty/core/vauchi-core/src"
+    printf 'fn a() { let _ = SystemTime::now(); }\n' >"$dirty/core/vauchi-core/src/foo.rs"
+    set +e; bash "$SCRIPT" --check-core-purity "$dirty" >/dev/null 2>&1; rc=$?; set -e
+    assert_eq "check-core-purity: violation fixture exits 1" 1 "$rc"
+    rm -rf "$dirty"
+}
+
 test_empty_workspace
 test_mobile_counters
 test_lib_rs_mobile_returns
@@ -444,6 +464,7 @@ test_android_counter
 test_capability_reporting_wired
 test_tui_screen_variants
 test_core_nondeterminism
+test_check_core_purity_mode
 test_json_validity
 test_bad_workspace
 

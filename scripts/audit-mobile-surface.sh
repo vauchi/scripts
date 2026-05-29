@@ -27,6 +27,22 @@ set -euo pipefail
 # ── locate workspace root ─────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# ── optional --check-core-purity hard-gate mode ──────────────────────
+# Phase 1 (pure-functional-core) seal: with this flag the script does NOT
+# emit JSON — it asserts the five vauchi-core side-effect counters are all
+# 0 (state machines own no ambient time/rng/sleep) and exits 1 on any
+# regression. The file-scoped counting below already exempts the seam
+# files (clock.rs / rng.rs / sleeper.rs / monotonic.rs), the test trees,
+# and the diagnostic perf-timer carve-outs — so this expresses the precise
+# invariant a blanket clippy `disallowed-methods` cannot (it would false-
+# fire on the seam implementations and tests).
+CHECK_CORE_PURITY=0
+if [ "${1:-}" = "--check-core-purity" ]; then
+    CHECK_CORE_PURITY=1
+    shift
+fi
+
 WORKSPACE_ROOT="${1:-$DEFAULT_ROOT}"
 
 if [ ! -d "$WORKSPACE_ROOT" ]; then
@@ -356,6 +372,25 @@ done
 
 # ── timestamp (BSD + GNU + BusyBox safe) ─────────────────────────────
 captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# ── --check-core-purity: pure-functional-core hard gate ──────────────
+if [ "$CHECK_CORE_PURITY" = "1" ]; then
+    bad=""
+    for pair in \
+        "core_system_time_now=$core_system_time_now" \
+        "core_thread_rng=$core_thread_rng" \
+        "core_thread_sleep=$core_thread_sleep" \
+        "core_ambient_now_secs=$core_ambient_now_secs" \
+        "core_instant_now=$core_instant_now"; do
+        [ "${pair#*=}" -gt 0 ] && bad="$bad $pair"
+    done
+    if [ -n "$bad" ]; then
+        printf 'FAIL: pure-functional-core regression — vauchi-core state machines must own NO ambient time/rng/sleep, found:%s\n' "$bad" >&2
+        exit 1
+    fi
+    echo "OK: pure-functional-core sealed — core time/rng/sleep/instant counters all 0"
+    exit 0
+fi
 
 # ── emit JSON ─────────────────────────────────────────────────────────
 # Plain printf — no jq dependency. All values are integers, so no
