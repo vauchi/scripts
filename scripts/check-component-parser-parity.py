@@ -12,15 +12,22 @@ mentions every variant. The pre-Tier-0 single-file layout
 (`component.rs`) is still recognised when --enum-file is omitted, so
 older binding refs continue to work.
 
-Why: each frontend (linux-gtk, linux-qt, windows, android) deserializes
-the externally-tagged `{"VariantName": {...}}` JSON shape with its own
-dispatch table. Drift is silent — a new core variant rendered as a
-warning placeholder on linux-qt will deploy without anyone noticing.
+Why: each frontend deserializes the externally-tagged
+`{"VariantName": {...}}` JSON shape (or, for Swift, decodes it into a
+hand-rolled `enum Component: Decodable`) with its own dispatch table.
+Drift is silent — a new core variant rendered as a warning placeholder
+(or, on Swift, simply un-decodable) ships without anyone noticing.
+
+Naming conventions differ per frontend, so each entry carries a
+`transform` that maps the canonical PascalCase variant onto the form
+that frontend uses (e.g. Swift lower-camelCases its enum cases:
+`Component::Row` → `case row(RowComponent)`).
 
 Out of scope:
-  - iOS / macOS — types come from UniFFI-generated Swift bindings
-    (sync by construction).
-  - web-demo — read-only demo, not user-installable.
+  - iOS / macOS native view code — they consume the **shared**
+    `vauchi-platform-swift/Sources/CoreUIModels/Models.swift` enum,
+    which IS hand-written (not UniFFI-generated) and so is covered by
+    the `swift` entry below. One check guards both platforms.
 
 Exit codes:
   0  parity OK
@@ -39,29 +46,56 @@ import re
 import sys
 from pathlib import Path
 
-# Frontends that hand-roll parsers — each maps to (parser file, marker
-# pattern). The marker `{V}` is replaced by each variant name.
+# Per-frontend variant-name transforms (canonical PascalCase -> frontend form).
+TRANSFORMS = {
+    "identity": lambda v: v,
+    # Swift enum cases lower-camelCase the first letter: Row -> row,
+    # QrCode -> qrCode, TextInput -> textInput.
+    "lower_first": lambda v: v[:1].lower() + v[1:],
+}
+
+# Frontends that hand-roll parsers — each maps to
+# (parser file, marker pattern, transform-key). `{V}` in the marker is
+# replaced by the (transformed, regex-escaped) variant name.
 HAND_ROLLED_PARSERS = {
     "linux-gtk": (
         "linux-gtk/src/core_ui/components/mod.rs",
         # Rust match arm: `Component::Slider {` or `Component::Divider =>`
         r"Component::{V}(\s*\{|\s*=>|\s*\()",
+        "identity",
     ),
     "linux-qt": (
         "linux-qt/src/coreui/componentrenderer.cpp",
         # C++ dispatch: `contains("Slider")` (Divider handled as bare string)
         r'(contains\("{V}"\)|"{V}")',
+        "identity",
     ),
     "windows": (
         "windows/Vauchi/CoreUI/ComponentRenderer.cs",
         # C# switch expression: `"Slider" => CreateAndRender<...>(...)`
         # or classic `case "Slider":`
         r'(case\s+"{V}"|"{V}"\s*=>)',
+        "identity",
     ),
     "android": (
         "android/app/src/main/kotlin/app/vauchi/ui/coreui/Models.kt",
         # Kotlin sealed dispatch: `"Slider" in element` or `"Divider" ->`
         r'"{V}"(\s*in element|\s*->)',
+        "identity",
+    ),
+    "swift": (
+        # Shared by iOS + macOS via the CoreUIModels SPM package.
+        "vauchi-platform-swift/Sources/CoreUIModels/Models.swift",
+        # Swift Decodable enum case: `case row(` or unit `case divider`.
+        r"case {V}\b",
+        "lower_first",
+    ),
+    "web-demo": (
+        "web-demo/src/core-ui/ComponentRenderer.tsx",
+        # SolidJS dispatch on the externally-tagged key: `"Row" in comp`
+        # (string-only variants like Divider compared as `"Divider"`).
+        r'"{V}"',
+        "identity",
     ),
 }
 
@@ -95,14 +129,17 @@ def extract_variants(enum_path: Path, enum_name: str) -> list[str]:
     return sorted(set(variant_re.findall(cleaned)))
 
 
-def check_parser(parser_path: Path, marker_template: str, variants: list[str]) -> list[str]:
+def check_parser(
+    parser_path: Path, marker_template: str, transform_key: str, variants: list[str]
+) -> list[str]:
     """Return the variants whose marker pattern is missing from `parser_path`."""
     if not parser_path.exists():
         return variants  # everything missing
     text = parser_path.read_text()
+    transform = TRANSFORMS[transform_key]
     missing = []
     for v in variants:
-        pattern = marker_template.replace("{V}", re.escape(v))
+        pattern = marker_template.replace("{V}", re.escape(transform(v)))
         if not re.search(pattern, text):
             missing.append(v)
     return missing
@@ -159,9 +196,9 @@ def main() -> int:
     )
 
     drift = False
-    for frontend, (rel_path, marker) in targets.items():
+    for frontend, (rel_path, marker, transform_key) in targets.items():
         parser_path = args.parser_file if args.parser_file else (args.workspace / rel_path)
-        missing = check_parser(parser_path, marker, variants)
+        missing = check_parser(parser_path, marker, transform_key, variants)
         display_path = str(parser_path) if args.parser_file else rel_path
         if missing:
             drift = True
