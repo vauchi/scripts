@@ -97,6 +97,13 @@ HAND_ROLLED_PARSERS = {
         r'"{V}"',
         "identity",
     ),
+    "tui": (
+        "tui/src/ui/widgets/screen_renderer/mod.rs",
+        # Rust match arm: `Component::Slider {` or `Component::Divider =>`
+        # (same dispatch shape as linux-gtk).
+        r"Component::{V}(\s*\{|\s*=>|\s*\()",
+        "identity",
+    ),
 }
 
 # Post-Tier-0 layout is preferred; the pre-Tier-0 single-file layout is
