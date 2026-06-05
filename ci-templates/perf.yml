@@ -48,7 +48,9 @@
       changes:
         - "**/Cargo.toml"
         - "**/Cargo.lock"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # No schedule run: a no-change nightly re-checks identical locked deps
+    # (Cargo.lock only changes via a commit), so the result duplicates the
+    # last MR/main run. Runs on MRs that touch Cargo.toml/Cargo.lock only.
   before_script:
     - !reference [.self-hosted, before_script]
     - command -v cargo-duplicates >/dev/null 2>&1 || cargo binstall cargo-duplicates --no-confirm 2>/dev/null || true
@@ -91,7 +93,9 @@
       changes:
         - "**/Cargo.toml"
         - "**/Cargo.lock"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # No schedule run: a no-change nightly re-checks identical locked deps
+    # (Cargo.lock only changes via a commit), so the result duplicates the
+    # last MR/main run. Runs on MRs that touch Cargo.toml/Cargo.lock only.
   before_script:
     - !reference [.self-hosted, before_script]
     - command -v cargo-machete >/dev/null 2>&1 || cargo binstall cargo-machete --no-confirm 2>/dev/null || true
