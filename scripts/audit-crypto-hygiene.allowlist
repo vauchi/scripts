@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Collision allow-list for audit-crypto-hygiene.sh (hkdf_dup_info).
+#
+# Format: VALUE:COUNT — one resolved HKDF `info` value, then the EXACT
+# number of known sites that intentionally share it. '#' comments + blank
+# lines ignored. The COUNT pins the reuse: a NEW site using an
+# allow-listed string (i.e. reuse for a new purpose) pushes the live count
+# ABOVE the permitted number and trips the gate, so an allow-listed string
+# is not a permanent blind spot — re-review is forced.
+#
+# An entry means: every site sharing this string derives the SAME logical
+# key for the SAME purpose. A NEW string used for two DIFFERENT purposes
+# is a domain-separation bug — fix the source, do NOT allow-list it (CC-21).
+# When a count legitimately changes (a site added/removed for the same
+# key), update the number here in the same MR, with review.
+
+# X25519 exchange static secret from master_seed. 4 inline copies:
+# identity/mod.rs:133 (+:197 x3dh_keypair re-derive), recovery.rs:213,
+# shredding.rs:192 (test). TIDY: collapse to one EXCHANGE_SEED_INFO const.
+Vauchi_Exchange_Seed_v2:4
+
+# GDPR export encryption key (Argon2id base -> HKDF). Encrypt + decrypt
+# paths in api/gdpr.rs share GDPR_HKDF_INFO. Same key by design.
+vauchi-gdpr-export-v1:2
+
+# X3DH key-agreement output. exchange/x3dh.rs (X3DH_KEY_INFO const, 2
+# paths) + api/vauchi/exchange_relay.rs inline literal. Same key. TIDY:
+# exchange_relay should use the X3DH_KEY_INFO const, not an inline copy.
+vauchi-x3dh-key-v2:3
+
+# Label-name HMAC key. Derived in storage/migration.rs and re-derived
+# under the new key in storage/rekey.rs. Same HMAC key by design.
+Vauchi_Label_Name_HMAC_v1:2
+
+# Sealed-box encryption key. Encrypt + decrypt paths in
+# recovery/sealed_box.rs share the module DOMAIN const. Same key.
+vauchi-sealed-box-v1:2

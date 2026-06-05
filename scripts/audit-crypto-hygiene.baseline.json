@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "captured_at": "2026-06-05T13:34:18Z",
+  "workspace_root": "<workspace-root>",
+  "totals": {
+    "hkdf_empty_info":         0,
+    "hkdf_dup_info":           0,
+    "hkdf_raw_bypass":         0,
+    "hkdf_unparsed_calls":     0,
+    "argon2_const_salt":       0,
+    "trust_level_setters":     0,
+    "crypto_hygiene_total":    0
+  }
+}
