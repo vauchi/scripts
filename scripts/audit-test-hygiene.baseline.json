@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-06-05T13:55:24Z",
+  "workspace_root": "<workspace-root>",
+  "totals": {
+    "test_sleeps":           5,
+    "silent_skips":          22,
+    "test_hygiene_total":    27
+  }
+}
