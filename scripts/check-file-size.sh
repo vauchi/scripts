@@ -117,7 +117,6 @@ for DIR in "${DIRS[@]}"; do
         case "$filepath" in
             */target/*|*/build/*|*/.cargo/*|*/vendor/*|vendor/*) continue ;;
         esac
-        # Count lines
         lines=$(wc -l < "$filepath" | tr -d ' ')
 
         # Determine thresholds

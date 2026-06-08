@@ -40,7 +40,6 @@ display_name() {
     fi
 }
 
-# Find all git repos
 find_repos() {
     local repos=()
 

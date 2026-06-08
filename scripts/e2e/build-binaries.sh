@@ -77,7 +77,6 @@ echo ""
 # Build CLI (no secure-storage for e2e — keys don't persist between invocations)
 build_if_changed "$WORKSPACE_ROOT/cli" "vauchi" --no-default-features
 
-# Build relay
 build_if_changed "$WORKSPACE_ROOT/relay" "vauchi-relay"
 
 echo ""

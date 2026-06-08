@@ -61,7 +61,6 @@ for DIR in "$@"; do
     done
 done > "$TMPFILE"
 
-# Sum up
 TOTAL=0
 while IFS=' ' read -r count _; do
     TOTAL=$((TOTAL + count))

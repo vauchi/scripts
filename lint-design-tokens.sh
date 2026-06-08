@@ -81,7 +81,6 @@ patterns=(
 tmpfile=$(mktemp)
 trap 'rm -f "$tmpfile"' EXIT
 
-# Build search paths array
 search_paths=()
 for p in $TOKEN_LINT_PATHS; do
   search_paths+=("$p")

@@ -45,7 +45,6 @@ get_keys() {
     jq -r 'keys[] | select(startswith("_meta") | not)' "$1" | sort
 }
 
-# Get source keys
 SOURCE_KEYS=$(get_keys "$SOURCE_FILE")
 SOURCE_COUNT=$(echo "$SOURCE_KEYS" | wc -l | tr -d ' ')
 
