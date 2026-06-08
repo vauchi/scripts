@@ -165,7 +165,11 @@ lint:markdown:
   tags: [docker]
   before_script:
     - apk add --no-cache curl bash
-    - curl -sL https://github.com/lycheeverse/lychee/releases/download/lychee-v0.23.0/lychee-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
+    # Download to a file with fail-fast (-f) + retries so a transient GitHub
+    # CDN error (e.g. 504) errors out and retries instead of piping an error
+    # page into `tar` (which fails opaquely with "tar: invalid magic").
+    - curl --fail --location --show-error --retry 5 --retry-delay 3 --retry-all-errors -o /tmp/lychee.tar.gz https://github.com/lycheeverse/lychee/releases/download/lychee-v0.23.0/lychee-x86_64-unknown-linux-musl.tar.gz
+    - tar xzf /tmp/lychee.tar.gz -C /usr/local/bin
 
 lint:links:
   extends: .lint-links-base
