@@ -15,16 +15,24 @@
 # This is the Phase-1 lint guard for problem
 # `2026-05-01-android-humble-ui-deep-retirement`. It fences off new
 # `Mobile*` imports and identity/biometric branches landing in the
-# view layer while Phases 2–4 retire the existing ones. Phase 4.6
-# flips the wiring from default (warn) to `--strict`.
+# view layer. Phase 4.6 closed 2026-06-08 (the MainViewModel diet
+# landed, 1,881 → 537 LOC) and flipped the wiring to `--strict` — new
+# `Mobile*` imports in view Composables now fail CI, not just warn.
 #
 # Allowlist:
 #   - `app/src/main/kotlin/app/vauchi/ui/coreui/` — generic
 #     `Component` renderers; the legitimate FFI boundary.
-#   - `app/src/main/kotlin/app/vauchi/ui/MainViewModel.kt` — Phase-4
-#     target; tolerated during Phases 2–3.
+#   - `app/src/main/kotlin/app/vauchi/ui/MainViewModel.kt` — the app
+#     shell ViewModel; holds shell-state `Mobile*` types
+#     (`MobileContactCard` on `UiState.Ready`, `MobileSyncResult`,
+#     `MobileEvent`, `MobileException`), not domain-CRUD wrappers.
 #   - `app/src/main/kotlin/app/vauchi/ui/MainActivity.kt` — app
 #     entrypoint, may need bootstrap-time domain refs.
+#   - `app/src/main/kotlin/app/vauchi/ui/theme/Theme.kt` — reads
+#     `MobileTheme.colors.*` design tokens to build the Material3
+#     `ColorScheme`. ADR-038 mandates reading tokens from the
+#     core/UniFFI surface; `MobileTheme` *is* that surface, so this is
+#     a sanctioned token read, not a domain leak.
 #
 # Patterns flagged outside the allowlist:
 #   - `import uniffi.vauchi_platform.Mobile[A-Z]` (Mobile* type import)
@@ -86,6 +94,7 @@ ALLOWLIST_GLOBS=(
     'coreui/*'
     'MainViewModel.kt'
     'MainActivity.kt'
+    'theme/Theme.kt'
 )
 
 # Each entry: pattern|description
