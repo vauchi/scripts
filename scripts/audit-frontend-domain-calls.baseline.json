@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-06-09T14:36:37Z",
+  "workspace_root": "<workspace-root>",
+  "totals": {
+    "domain_calls_tui":            4,
+    "domain_calls_cli":            20,
+    "domain_calls_linux_gtk":      2,
+    "domain_calls_linux_qt":       3,
+    "domain_calls_windows":        2,
+    "domain_calls_total":          31
+  }
+}
