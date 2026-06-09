@@ -76,6 +76,7 @@ handle_action_json
 handle_hardware_event
 advance_qr_frame_json
 navigate_back_json
+nav_items
 handle_deep_link_uri
 current_tab_id
 invalidate_all
