@@ -60,7 +60,7 @@ WORKSPACE_ROOT="$(cd "$WORKSPACE_ROOT" && pwd)"
 # list counts as legacy debt and is retired in Phase 3.
 #
 # MUST mirror HUMBLE_ALLOWLIST in
-# core/vauchi-app/tests/it/humble_surface_contract_tests.rs (26 entries)
+# core/vauchi-app/tests/it/humble_surface_contract_tests.rs (23 entries)
 # — test and audit must agree on the counted set or the ratchet floor
 # and the contract gate talk past each other. `dispatch_domain_command`
 # and `new` are permanent binding surface (ADR-043 Amendment 3), not
@@ -70,8 +70,6 @@ PAE_ALLOWLIST="$(cat <<'EOF'
 boot
 can_go_back
 current_screen_json
-tab_info
-sidebar_items
 handle_action_json
 handle_hardware_event
 advance_qr_frame_json
