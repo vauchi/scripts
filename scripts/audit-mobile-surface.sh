@@ -77,7 +77,6 @@ handle_hardware_event
 advance_qr_frame_json
 navigate_back_json
 handle_deep_link_uri
-available_screens_json
 current_tab_id
 invalidate_all
 invalidate_screen_json
