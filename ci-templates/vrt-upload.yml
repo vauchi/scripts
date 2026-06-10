@@ -33,6 +33,22 @@
   script:
     - |
       if [ -n "${VRT_API_KEY:-}" ]; then
+        # Consumers reference this block from `after_script`, which GitLab runs
+        # in a FRESH shell — so a `fetch_vauchi_script` defined by a base
+        # `before_script` is NOT in scope here. Define it when absent (mirrors
+        # rust-base.yml; project 77957857 = vauchi/scripts) so every VRT
+        # consumer uploads without needing its own inline copy.
+        if ! command -v fetch_vauchi_script >/dev/null 2>&1; then
+          fetch_vauchi_script() {
+            local src_path="$1" dest="$2"
+            local encoded_path
+            encoded_path=$(printf '%s' "$src_path" | sed 's|/|%2F|g')
+            curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
+              "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=main" \
+              -o "$dest"
+            chmod +x "$dest"
+          }
+        fi
         fetch_vauchi_script scripts/ci/vrt-upload.sh vrt-upload.sh
         VRT_API_URL="${VRT_API_URL:-https://vrt.vauchi.app}" \
         VRT_PROJECT="${VRT_PROJECT:-vauchi}" \
