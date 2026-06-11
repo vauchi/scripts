@@ -49,7 +49,7 @@ for dir in "$baseline_root"/*/; do
             for png in "$dir"*.png; do
                 [ -f "$png" ] || continue
                 base=$(basename "$png")
-                fn=$(echo "$base" | sed 's/\.[0-9][0-9]*\.png$//')
+                fn="${base%.*.png}"
                 if ! grep -q "func ${fn}(" "$src"; then
                     echo "ORPHAN: $png — no 'func ${fn}(' in $src"
                     errors=$((errors + 1))
@@ -68,7 +68,7 @@ for dir in "$baseline_root"/*/; do
             for png in "$dir"*.png; do
                 [ -f "$png" ] || continue
                 base=$(basename "$png")
-                fn=$(echo "$base" | sed 's/_[0-9a-f]*_[0-9][0-9]*\.png$//')
+                fn="${base%_*_*.png}"
                 if ! grep -q "fun ${fn}(" "$src"; then
                     echo "ORPHAN: $png — no 'fun ${fn}(' in $src"
                     errors=$((errors + 1))
