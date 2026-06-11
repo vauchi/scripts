@@ -41,17 +41,18 @@ for dir in "$baseline_root"/*/; do
         swift)
             src="$test_src_dir/$name.swift"
             if [ ! -f "$src" ]; then
-                count=$(find "$dir" -name '*.png' | wc -l | tr -d ' ')
+                count=$(find "$dir" \( -name '*.png' -o -name '*.txt' \) | wc -l | tr -d ' ')
                 echo "ORPHAN CLASS: $dir ($count baselines) has no $src"
                 errors=$((errors + count))
                 continue
             fi
-            for png in "$dir"*.png; do
-                [ -f "$png" ] || continue
-                base=$(basename "$png")
+            for snap in "$dir"*.png "$dir"*.txt; do
+                [ -f "$snap" ] || continue
+                base=$(basename "$snap")
                 fn="${base%.*.png}"
+                fn="${fn%.*.txt}"
                 if ! grep -q "func ${fn}(" "$src"; then
-                    echo "ORPHAN: $png — no 'func ${fn}(' in $src"
+                    echo "ORPHAN: $snap — no 'func ${fn}(' in $src"
                     errors=$((errors + 1))
                 fi
             done
