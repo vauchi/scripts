@@ -30,8 +30,8 @@ OUTPUT_FILE="$OUTPUT_DIR/index.html"
 
 # Platform baseline directories
 IOS_SNAPS="$PROJECT_ROOT/ios/VauchiSnapshotTests/__Snapshots__/VisualRegressionTests"
-MACOS_SNAPS="$PROJECT_ROOT/macos/VauchiSnapshotTests/__Snapshots__/VisualRegressionTests"
-ANDROID_SNAPS="$PROJECT_ROOT/android/app/src/screenshotTestDebug/reference/app/vauchi/ScreenshotTestsKt"
+MACOS_SNAPS="$PROJECT_ROOT/macos/VauchiSnapshotTests/__Snapshots__/ScreenSnapshotTests"
+ANDROID_SNAPS="$PROJECT_ROOT/android/app/src/screenshotTestDebug/reference/app/vauchi/CoreUIComponentScreenshotTestsKt"
 WEB_DEMO_SNAPS="$PROJECT_ROOT/web-demo/tests/playwright/vrt.spec.ts-snapshots"
 LINUX_GTK_SNAPS="$PROJECT_ROOT/linux-gtk/tests/atspi/snapshots/baseline"
 LINUX_QT_SNAPS="$PROJECT_ROOT/linux-qt/tests/atspi/snapshots/baseline"

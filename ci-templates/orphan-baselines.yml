@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Orphan Baseline Check Template
+# Fails when committed snapshot baselines no longer map to a live test
+# function — orphans survive test deletions silently and masquerade as
+# current UI in VRT galleries (found 2026-06-11: 99 orphans across
+# ios/macos/android).
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: main
+#       file: '/ci-templates/orphan-baselines.yml'
+#
+#   check:orphan-baselines:
+#     extends: .check-orphan-baselines
+#     variables:
+#       ORPHAN_STYLE: swift            # swift | compose
+#       ORPHAN_BASELINE_ROOT: VauchiSnapshotTests/__Snapshots__
+#       ORPHAN_TEST_SRC: VauchiSnapshotTests
+#     tags: [macos, self-hosted]      # match where the repo checks out
+
+.check-orphan-baselines:
+  stage: lint
+  needs: []
+  timeout: 5m
+  variables:
+    GIT_DEPTH: "1"
+  script:
+    - |
+      if ! command -v fetch_vauchi_script >/dev/null 2>&1; then
+        fetch_vauchi_script() {
+          local src_path="$1" dest="$2"
+          local encoded_path
+          encoded_path=$(printf '%s' "$src_path" | sed 's|/|%2F|g')
+          curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
+            "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=main" \
+            -o "$dest"
+          chmod +x "$dest"
+        }
+      fi
+      fetch_vauchi_script scripts/ci/check-orphan-baselines.sh check-orphan-baselines.sh
+      bash check-orphan-baselines.sh "$ORPHAN_STYLE" "$ORPHAN_BASELINE_ROOT" "$ORPHAN_TEST_SRC"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
