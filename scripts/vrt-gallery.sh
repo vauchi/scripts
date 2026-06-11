@@ -96,11 +96,18 @@ if [ -d "$LINUX_GTK_SNAPS" ]; then
 fi
 
 # ── Collect Linux Qt baselines ───────────────────────────────────
+# linux-qt nests baselines per theme (baseline/dark/, baseline/light/);
+# flatten with a theme prefix so both variants land in the gallery.
 linux_qt_count=0
 if [ -d "$LINUX_QT_SNAPS" ]; then
-    for f in "$LINUX_QT_SNAPS"/*.png; do
+    for f in "$LINUX_QT_SNAPS"/*.png "$LINUX_QT_SNAPS"/*/*.png; do
         [ -f "$f" ] || continue
-        cp "$f" "$OUTPUT_DIR/images/linux-qt/"
+        theme_dir=$(basename "$(dirname "$f")")
+        if [ "$theme_dir" = "baseline" ]; then
+            cp "$f" "$OUTPUT_DIR/images/linux-qt/"
+        else
+            cp "$f" "$OUTPUT_DIR/images/linux-qt/${theme_dir}-$(basename "$f")"
+        fi
         linux_qt_count=$((linux_qt_count + 1))
     done
 fi
