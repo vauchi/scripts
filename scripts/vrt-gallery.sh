@@ -35,7 +35,7 @@ ANDROID_SNAPS="$PROJECT_ROOT/android/app/src/screenshotTestDebug/reference/app/v
 WEB_DEMO_SNAPS="$PROJECT_ROOT/web-demo/tests/playwright/vrt.spec.ts-snapshots"
 LINUX_GTK_SNAPS="$PROJECT_ROOT/linux-gtk/tests/atspi/snapshots/baseline"
 LINUX_QT_SNAPS="$PROJECT_ROOT/linux-qt/tests/atspi/snapshots/baseline"
-TUI_SNAPS="$PROJECT_ROOT/tui/tests/snapshots"
+TUI_SNAPS="$PROJECT_ROOT/tui/tests/it/snapshots"
 
 NO_OPEN=false
 if [[ "${1:-}" == "--no-open" ]]; then
