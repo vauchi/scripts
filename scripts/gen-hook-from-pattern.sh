@@ -96,6 +96,13 @@ case "$CATEGORY" in
         ;;
 esac
 
+# The generation tail below activates once a real category template
+# branch is added to the case above (setting MATCHER/BODY and falling
+# through instead of hitting the *) guard). With the stale reread/reedit
+# templates retired and none re-added yet, shellcheck sees it as
+# unreachable — suppress SC2317 for the intentional scaffolding.
+# shellcheck disable=SC2317
+{
 # Don't overwrite an existing hook unless the user passes --force.
 if [[ -f "$HOOK_PATH" && "${2:-}" != "--force" ]]; then
     echo "$HOOK_PATH already exists. Pass --force as the 2nd arg to overwrite." >&2
@@ -143,3 +150,4 @@ echo "  1. Review the threshold ($THRESHOLD) and block message."
 echo "  2. Add the snippet to .claude/settings.json under hooks.PreToolUse."
 echo "  3. Test in a fresh session — verify legitimate use isn't blocked."
 echo "  4. Commit with 'feat: PreToolUse $CATEGORY hook (3-strike escalation)'."
+}
