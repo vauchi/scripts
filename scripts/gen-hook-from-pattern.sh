@@ -58,6 +58,21 @@ if [[ -z "$CATEGORY" ]]; then
     exit 1
 fi
 
+# Retired categories: these escalated into hand-maintained hooks with
+# a session-scoped .session-activity tracker; the generator templates
+# embedded the superseded pre-2026-06-12 design (cross-session counts,
+# dead-end block). Refuse instead of re-emitting the stale hook.
+case "$CATEGORY" in
+    excessive-reread|excessive-reedit)
+        echo "category '$CATEGORY' is already enforced by a hand-maintained hook:" >&2
+        echo "  excessive-reread → .claude/hooks/pretool-read-cap.sh" >&2
+        echo "  excessive-reedit → .claude/hooks/pretool-edit-cap.sh" >&2
+        echo "Generator template retired 2026-06-12; tune those hooks instead." >&2
+        echo "See _private/docs/problems/2026-04-20-excessive-reedit-reread-pattern/." >&2
+        exit 1
+        ;;
+esac
+
 OCCURRENCES=$( {
     [[ -f "$LEDGER" ]] && cat "$LEDGER" || true
     [[ -f "$SESSION_ERRORS" ]] && cat "$SESSION_ERRORS" || true
@@ -74,59 +89,6 @@ HOOK_PATH="$HOOKS_DIR/$HOOK_NAME"
 SNIPPET_PATH="$HOOKS_DIR/pretool-${CATEGORY}.snippet"
 
 case "$CATEGORY" in
-    excessive-reread)
-        MATCHER="Read"
-        THRESHOLD=3
-        BODY=$(cat <<'BODY'
-INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
-OFFSET=$(echo "$INPUT" | jq -r '.tool_input.offset // empty')
-LIMIT=$(echo "$INPUT" | jq -r '.tool_input.limit // empty')
-[[ -z "$FILE_PATH" ]] && exit 0
-# Region-targeted reads bypass the cap — they're not redundant.
-[[ -n "$OFFSET" || -n "$LIMIT" ]] && exit 0
-
-TRACKER="${CLAUDE_PROJECT_DIR:-.}/.claude/.session-reads"
-COUNT=$([[ -f "$TRACKER" ]] && grep -cF "$FILE_PATH" "$TRACKER" 2>/dev/null || echo "0")
-
-# Verify-after-edit escape: if there's been an Edit/Write since the
-# last Read of this file, allow.
-EDITS_TRACKER="${CLAUDE_PROJECT_DIR:-.}/.claude/.session-edits"
-if [[ -f "$EDITS_TRACKER" && "$COUNT" -ge 3 ]]; then
-    LAST_READ=$(grep -nF "$FILE_PATH" "$TRACKER" 2>/dev/null | tail -1 | cut -d: -f1)
-    LAST_EDIT=$(grep -nF "$FILE_PATH" "$EDITS_TRACKER" 2>/dev/null | tail -1 | cut -d: -f1)
-    [[ -n "$LAST_EDIT" && -n "$LAST_READ" && "$LAST_EDIT" -gt "$LAST_READ" ]] && exit 0
-fi
-
-if [[ "$COUNT" -ge 3 ]]; then
-    echo "Blocked: $((COUNT + 1))th Read of $FILE_PATH this session." >&2
-    echo "Use Grep, sed -n, or trust your context." >&2
-    exit 2
-fi
-BODY
-)
-        ;;
-    excessive-reedit)
-        MATCHER="Edit"
-        THRESHOLD=4
-        BODY=$(cat <<'BODY'
-INPUT=$(cat)
-TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty')
-[[ "$TOOL" != "Edit" ]] && exit 0
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
-[[ -z "$FILE_PATH" ]] && exit 0
-
-TRACKER="${CLAUDE_PROJECT_DIR:-.}/.claude/.session-edits"
-COUNT=$([[ -f "$TRACKER" ]] && grep -cF "$FILE_PATH" "$TRACKER" 2>/dev/null || echo "0")
-if [[ "$COUNT" -ge 4 ]]; then
-    echo "Blocked: $((COUNT + 1))th Edit of $FILE_PATH this session." >&2
-    echo "Use Write to replace the whole file, or batch the remaining" >&2
-    echo "changes into a single Edit with replace_all." >&2
-    exit 2
-fi
-BODY
-)
-        ;;
     *)
         echo "no generator template for category '$CATEGORY' — add a case branch" >&2
         echo "to gen-hook-from-pattern.sh with the matcher and block body." >&2
