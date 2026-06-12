@@ -72,6 +72,15 @@ check:doc-naming:
           continue
         fi
 
+        # Skip Claude Code harness config — rules/skills/agents/docs use
+        # their own naming (kebab-case, SKILL.md), never date prefixes.
+        # Tree relocated into _private 2026-06-12 (root .claude → symlink).
+        # Keep in sync with check-doc-naming.sh EXEMPT_DIRS and
+        # gate-push.sh doc-naming case.
+        case "$file" in
+          .claude/*|*/.claude/*) continue ;;
+        esac
+
         # Skip directories where date prefix convention doesn't apply
         if echo "$dirname" | grep -qE "(diagrams|ideas|strategy|infra|knowledge|audit-review-frameworks|decisions|guides|reference|testing|admin-guides|components)"; then
           continue
