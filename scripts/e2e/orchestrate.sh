@@ -34,8 +34,6 @@ source "$SCRIPT_DIR/lib/relay.sh"
 source "$SCRIPT_DIR/lib/cli.sh"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/tui.sh"
-# shellcheck source=/dev/null
-source "$SCRIPT_DIR/lib/desktop.sh"
 
 # ═══════════════════════════════════════════════════════════════
 # Commands
@@ -50,7 +48,6 @@ cmd_status() {
     relay_status
     cli_status
     tui_status
-    desktop_status
     ios_status
     android_status
 
@@ -393,30 +390,6 @@ cmd_tui_multi() {
 }
 
 # ═══════════════════════════════════════════════════════════════
-# Desktop Commands
-# ═══════════════════════════════════════════════════════════════
-
-cmd_desktop() {
-    local instance="${1:-}"
-
-    if [ -z "$instance" ]; then
-        desktop_status
-        return
-    fi
-
-    desktop_launch "$instance"
-}
-
-cmd_desktop_dev() {
-    local instance="${1:-default}"
-    desktop_launch_dev "$instance"
-}
-
-cmd_desktop_build() {
-    desktop_build_release
-}
-
-# ═══════════════════════════════════════════════════════════════
 # Clean Commands
 # ═══════════════════════════════════════════════════════════════
 
@@ -425,7 +398,6 @@ cmd_clean() {
 
     cli_clean_instances
     tui_clean_instances
-    desktop_clean_instances
     clean_screenshots
     clean_logs
 
@@ -1022,9 +994,6 @@ cmd_map() {
     local tui_status="○"
     # shellcheck disable=SC2034 # Reserved for future diagram enhancement
     local tui_text="Not built"
-    local desktop_status="○"
-    # shellcheck disable=SC2034 # Reserved for future diagram enhancement
-    local desktop_text="Not available"
     local ios_status="○"
     local ios_text="Not available"
     local android_status="○"
@@ -1051,13 +1020,6 @@ cmd_map() {
         tui_status="●"
         # shellcheck disable=SC2034
         tui_text="Built"
-    fi
-
-    if desktop_is_dev_available 2>/dev/null || desktop_is_built 2>/dev/null; then
-        # shellcheck disable=SC2034
-        desktop_status="●"
-        # shellcheck disable=SC2034
-        desktop_text="Available"
     fi
 
     if check_ssh_mac 2>/dev/null; then
@@ -1089,7 +1051,6 @@ cmd_map() {
     # Collect session identities
     local cli_instances=()
     local tui_instances=()
-    local desktop_instances=()
 
     if [ -d "$CLI_TEST_DATA_DIR" ]; then
         while IFS= read -r dir; do
@@ -1101,19 +1062,12 @@ cmd_map() {
             [ -n "$dir" ] && tui_instances+=("$(basename "$dir")")
         done < <(find "$TUI_TEST_DATA_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -10)
     fi
-    if [ -d "$DESKTOP_TEST_DATA_DIR" ]; then
-        while IFS= read -r dir; do
-            [ -n "$dir" ] && desktop_instances+=("$(basename "$dir")")
-        done < <(find "$DESKTOP_TEST_DATA_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -10)
-    fi
 
     # Format instance lists for display
     # shellcheck disable=SC2034 # Reserved for future diagram enhancement
     local cli_inst_str="${cli_instances[*]:-none}"
     # shellcheck disable=SC2034
     local tui_inst_str="${tui_instances[*]:-none}"
-    # shellcheck disable=SC2034
-    local desktop_inst_str="${desktop_instances[*]:-none}"
 
     echo ""
     echo "  Legend: ● Ready   ◐ Partial   ○ Not Available"
@@ -1123,10 +1077,10 @@ cmd_map() {
     echo "  ║   ┌────────────────────────────────────────────────────────────────────────────┐   ║"
     echo "  ║   │                        🖥️  ORCHESTRATOR (Linux)                             │   ║"
     echo "  ║   │                                                                            │   ║"
-    printf "  ║   │   [%s] CLI              [%s] TUI              [%s] Desktop               │   ║\n" "$cli_status" "$tui_status" "$desktop_status"
-    echo "  ║   │       (vauchi)            (vauchi-tui)           (Tauri)               │   ║"
-    echo "  ║   │          │                    │                    │                   │   ║"
-    echo "  ║   │          └────────────────────┼────────────────────┘                   │   ║"
+    printf "  ║   │   [%s] CLI              [%s] TUI                                        │   ║\n" "$cli_status" "$tui_status"
+    echo "  ║   │       (vauchi)            (vauchi-tui)                                 │   ║"
+    echo "  ║   │          │                    │                                        │   ║"
+    echo "  ║   │          └────────────────────┤                                        │   ║"
     echo "  ║   │                               │                                        │   ║"
     echo "  ║   └───────────────────────────────┼────────────────────────────────────────┘   ║"
     echo "  ║                                   │                                            ║"
@@ -1222,31 +1176,6 @@ cmd_map() {
         done
     fi
 
-    # Desktop Identities
-    if [ ${#desktop_instances[@]} -gt 0 ]; then
-        has_any_identity=true
-        echo "  ║                                                                                    ║"
-        echo "  ║   Desktop Instances:                                                               ║"
-        for instance in "${desktop_instances[@]}"; do
-            local instance_dir="$DESKTOP_TEST_DATA_DIR/$instance"
-            local identity_name=""
-            local contacts_count=0
-
-            if [ -f "$instance_dir/identity.json" ]; then
-                identity_name=$(grep -oP '"name"\s*:\s*"\K[^"]+' "$instance_dir/identity.json" 2>/dev/null | head -1)
-            fi
-            if [ -d "$instance_dir/contacts" ]; then
-                contacts_count=$(find "$instance_dir/contacts" -name "*.json" 2>/dev/null | wc -l)
-            fi
-
-            if [ -n "$identity_name" ]; then
-                printf "  ║     ├─ 🔶 %-10s │ Identity: %-20s │ Contacts: %-3s     ║\n" "$instance" "${identity_name:0:20}" "$contacts_count"
-            else
-                printf "  ║     ├─ 🔶 %-10s │ (data dir only)                  │ Contacts: %-3s     ║\n" "$instance" "$contacts_count"
-            fi
-        done
-    fi
-
     # Mobile Apps (identities stored on device)
     if [ "$ios_status" = "●" ] || [ "$android_status" = "●" ]; then
         has_any_identity=true
@@ -1285,7 +1214,6 @@ cmd_map_mermaid() {
     echo "        orch[\"orchestrate.sh\"]"
     echo "        cli[\"CLI (vauchi)\"]"
     echo "        tui[\"TUI (vauchi-tui)\"]"
-    echo "        desktop[\"Desktop (Tauri)\"]"
     echo "    end"
     echo ""
     echo "    subgraph macos_vm[\"macOS VM (SSH :2222)\"]"
@@ -1311,7 +1239,6 @@ cmd_map_mermaid() {
     echo ""
     echo "    cli -.->|WebSocket| relay"
     echo "    tui -.->|WebSocket| relay"
-    echo "    desktop -.->|WebSocket| relay"
     echo "    ios_app -.->|WebSocket| relay"
     echo "    android_app -.->|WebSocket| relay"
     echo ""
@@ -1346,11 +1273,6 @@ cmd_help() {
     echo "TUI Testing:"
     echo "  tui [instance]      Launch TUI for instance (prompts if missing)"
     echo "  tui-multi [a b ..]  Launch multiple TUI instances in terminals"
-    echo ""
-    echo "Desktop Testing:"
-    echo "  desktop [instance]  Launch desktop app (prompts if missing)"
-    echo "  desktop-dev [inst]  Launch desktop in dev mode"
-    echo "  desktop-build       Build desktop release binary"
     echo ""
     echo "Mobile Testing:"
     echo "  deploy              Deploy apps to all mobile devices"
@@ -1431,17 +1353,6 @@ main() {
             ;;
         tui-multi)
             cmd_tui_multi "$@"
-            ;;
-
-        # Desktop
-        desktop)
-            cmd_desktop "$@"
-            ;;
-        desktop-dev)
-            cmd_desktop_dev "$@"
-            ;;
-        desktop-build)
-            cmd_desktop_build
             ;;
 
         # Mobile
