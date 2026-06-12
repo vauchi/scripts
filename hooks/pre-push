@@ -472,7 +472,10 @@ fi
 if command -v markdownlint &> /dev/null; then
     MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
     if [[ -n "$MD_BASE" ]]; then
-        MD_FILES=$(git diff --name-only "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' | grep -vE '(^|/)vendor/' || true)
+        # --diff-filter=d: deleted files can't be linted. Without it a
+        # deleted path that still resolves on disk (e.g. via the root
+        # .claude → _private/.claude symlink) gets linted by accident.
+        MD_FILES=$(git diff --name-only --diff-filter=d "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' | grep -vE '(^|/)vendor/' || true)
     else
         MD_FILES=$(git ls-files '*.md' 2>/dev/null | grep -vE '(^|/)vendor/' || true)
     fi
@@ -941,7 +944,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
             # Lint only .md files changed on this branch vs origin/main
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
             if [[ -n "$MD_BASE" ]]; then
-                MD_FILES=$(git diff --name-only "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' || true)
+                MD_FILES=$(git diff --name-only --diff-filter=d "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' || true)
             else
                 MD_FILES=$(git ls-files '*.md' 2>/dev/null || true)
             fi
@@ -1108,7 +1111,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
         if command -v lychee &> /dev/null; then
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
             if [[ -n "$MD_BASE" ]]; then
-                LINK_FILES=$(git diff --name-only "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' || true)
+                LINK_FILES=$(git diff --name-only --diff-filter=d "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' || true)
             else
                 LINK_FILES=""
             fi
