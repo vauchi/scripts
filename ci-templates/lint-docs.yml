@@ -56,7 +56,7 @@ check:doc-naming:
           assumptions.md|master-plan.plan.md|work-board.md|work-board-archive.md)
             continue
             ;;
-          STRUCTURE.md|ARCHITECTURE.md|SECURITY.md|CHECKLIST.md)
+          STRUCTURE.md|ARCHITECTURE.md|SECURITY.md|CHECKLIST.md|MANIFEST.md)
             continue
             ;;
           investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md)
