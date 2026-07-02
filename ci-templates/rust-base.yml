@@ -476,6 +476,18 @@ workflow:
 .git-credentials:
   before_script:
     - |
+      # Self-heal: strip the legacy per-job token sections this template
+      # used to append (10k of them by 2026-07-02). Runs as the runner
+      # user, so no manual box access is needed; temp-file + rename keeps
+      # concurrent readers safe, and a lost-update race with a concurrent
+      # `git config` write is benign — the next job re-heals, and nothing
+      # appends token sections anymore.
+      if grep -q '^\[url "https://gitlab-ci-token:' "$HOME/.gitconfig" 2>/dev/null; then
+        awk '/^\[url "https:\/\/gitlab-ci-token:/{skip=1; next} /^\[/{skip=0} !skip{print}' \
+          "$HOME/.gitconfig" > "$HOME/.gitconfig.heal.$$" \
+          && mv "$HOME/.gitconfig.heal.$$" "$HOME/.gitconfig"
+        echo "gitconfig self-heal: stripped legacy per-job token sections"
+      fi
       # Retry git config to handle .gitconfig lock races on shared shell runners
       for _attempt in 1 2 3; do
         git config --global --replace-all credential.helper '!f() { echo "username=gitlab-ci-token"; echo "password=${CI_JOB_TOKEN}"; }; f' && break
