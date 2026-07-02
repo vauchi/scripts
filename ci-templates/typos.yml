@@ -25,7 +25,11 @@ lint:typos:
     - self-hosted
   stage: lint
   needs: []
-  timeout: 2m
+  # The scan itself is seconds; the budget is mostly get_sources, which
+  # on the co-located shell runner exceeded 2m under load (4 spurious
+  # job_execution_timeouts on 2026-07-02). 5m keeps fail-fast intent
+  # vs the 1h default while absorbing fetch variance.
+  timeout: 5m
   resource_group: typos-install
   variables:
     TYPOS_VERSION: "1.33.1"
