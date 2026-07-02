@@ -462,12 +462,23 @@ workflow:
 
 # Git credentials helper for cross-repo Cargo fetches
 # Configures git to use CI_JOB_TOKEN for HTTPS clones of vauchi/* repos
+#
+# WHY a credential helper and not url.insteadOf: the insteadOf section
+# name embedded the (unique, per-job) token, so `git config --global`
+# could never overwrite a previous job's entry — every Rust job APPENDED
+# a section to the runner's shared ~/.gitconfig. By 2026-07-02 that file
+# held 10k stale-token sections (8.8 MB); every git spawn parsed it and
+# rewrote URLs to expired tokens, slowing runner fetches into
+# job_execution_timeouts across all repos. The helper below is one
+# FIXED-key entry: nothing accumulates, and the token is read from the
+# calling job's environment at fetch time, so concurrent jobs cannot
+# clobber each other's credentials either.
 .git-credentials:
   before_script:
     - |
       # Retry git config to handle .gitconfig lock races on shared shell runners
       for _attempt in 1 2 3; do
-        git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/".insteadOf "https://gitlab.com/" && break
+        git config --global --replace-all credential.helper '!f() { echo "username=gitlab-ci-token"; echo "password=${CI_JOB_TOKEN}"; }; f' && break
         echo "WARN: git config --global failed (attempt $_attempt), retrying in 2s..."
         sleep 2
       done
