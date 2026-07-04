@@ -13,6 +13,18 @@
 rules:
   # ============================================================
   # CC-03: Specific assertions
+  #
+  # These fire on ANY bare assert!(x.is_ok()/is_err()/is_some()),
+  # including cases where a specific check (unwrap_err().contains(...),
+  # assert_eq!(x.unwrap(), ...)) follows on the next line — there, the
+  # bare assert is merely redundant, not a real gap. The rule cannot
+  # auto-distinguish the two: doing so needs statement-sequence matching
+  # with a metavariable back-reference (assert!($X.is_err()); ...;
+  # $X.unwrap_err()), which the opengrep/semgrep OSS engine does not
+  # support for Rust (verified empirically 2026-07-04 — the positive
+  # sequence pattern matched nothing). So treat a hit as: add a specific
+  # check OR delete the redundant assert. Do not try to encode the
+  # suppression in the pattern; it will not work with this engine.
   # ============================================================
 
   - id: vauchi-cc03-assert-is-ok
