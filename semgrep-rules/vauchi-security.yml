@@ -41,6 +41,25 @@ rules:
       include:
         - "**/Cargo.toml"
 
+  - id: vauchi-no-snow-in-core
+    patterns:
+      - pattern: use snow::$MOD
+    message: >
+      `snow` (Noise NK) is prohibited in vauchi-core / vauchi-app.
+      Per ADR-002 it was removed from vauchi-core and now lives only in
+      the relay for relay-to-relay federation. Client transport is
+      HTTP v2 + `ohttp` (ADR-037). If you need a handshake in core,
+      it is the wrong layer.
+    severity: ERROR
+    languages: [rust]
+    paths:
+      include:
+        - "**/vauchi-core/**"
+        - "**/vauchi-app/**"
+    metadata:
+      category: security
+      confidence: HIGH
+
   # ============================================================
   # Information leak prevention
   #
