@@ -971,7 +971,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_markdownlint_check() {
         echo ""
-        echo "[1/8] Linting markdown..."
+        echo "[1/9] Linting markdown..."
         if command -v markdownlint &> /dev/null; then
             # Lint only .md files changed on this branch vs origin/main
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
@@ -1026,7 +1026,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_reuse_check() {
         echo ""
-        echo "[2/8] Checking REUSE compliance..."
+        echo "[2/9] Checking REUSE compliance..."
         if command -v reuse &> /dev/null; then
             if ! reuse lint > /dev/null 2>&1; then
                 echo ""
@@ -1056,7 +1056,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_doc_naming_check() {
         echo ""
-        echo "[3/8] Checking doc naming convention..."
+        echo "[3/9] Checking doc naming convention..."
         ERRORS=0
         EXEMPT_NAMES="README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|INDEX.md"
         EXEMPT_COMPANION="investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md"
@@ -1086,7 +1086,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_plan_presence_check() {
         echo ""
-        echo "[4/8] Checking plan.md companions..."
+        echo "[4/9] Checking plan.md companions..."
         ERRORS=0
         # 1. Problem records in planning/implementing status with implementation-plan.md
         # should have plan.md (task DAG). Skip intake/investigating (too early),
@@ -1139,7 +1139,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_local_link_check() {
         echo ""
-        echo "[5/8] Checking local file links..."
+        echo "[5/9] Checking local file links..."
         if command -v lychee &> /dev/null; then
             MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
             if [[ -n "$MD_BASE" ]]; then
@@ -1173,7 +1173,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
     run_stale_ref_check() {
         echo ""
-        echo "[6/8] Checking stale references (ADR-027 + RC-3)..."
+        echo "[6/9] Checking stale references (ADR-027 + RC-3)..."
 
         # If the authoritative checker exists, delegate to it in MR-diff mode.
         # Same script CI runs — keeps pre-push and CI in sync, and catches
@@ -1251,7 +1251,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
     run_problem_records_check() {
         if [[ "$REPO_DIR" == "_private" ]]; then
             echo ""
-            echo "[7/8] Validating problem records..."
+            echo "[7/9] Validating problem records..."
             if [[ -f "scripts/check-problem-records.py" ]]; then
                 if ! python3 scripts/check-problem-records.py; then
                     echo ""
@@ -1287,7 +1287,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
             return 0
         fi
         echo ""
-        echo "[8/8] Checking ADR index freshness..."
+        echo "[8/9] Checking ADR index freshness..."
         local before_snapshot
         before_snapshot=$(mktemp)
         cp "$index_md" "$before_snapshot"
@@ -1313,6 +1313,43 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
         echo "  ADR index OK"
     }
     time_step "ADR index" run_adr_index_check
+
+    run_adr_paths_check() {
+        # ADR source-path freshness (lint-adr-paths.sh pass 2). Only
+        # _private carries ADRs; docs/ shares this block but has none.
+        if [[ "$REPO_DIR" != "_private" ]]; then
+            return 0
+        fi
+        local linter="docs/decisions/lint-adr-paths.sh"
+        if [[ ! -x "$linter" ]]; then
+            return 0
+        fi
+        # Only when this push touches ADRs (mirrors the index gate).
+        if ! git diff --name-only origin/main...HEAD 2>/dev/null \
+            | grep -qE '^docs/decisions/'; then
+            return 0
+        fi
+        echo ""
+        echo "[9/9] Checking ADR source-path freshness..."
+        # Pass 2 needs the sibling repos (core/, ios/, etc.) at the
+        # workspace root -- the parent of this _private checkout. In a
+        # standalone or CI checkout they are absent and the linter
+        # announces a skip rather than failing, so this is a no-op there.
+        local ws_root
+        ws_root="$(dirname "$REPO_ROOT")"
+        if bash "$linter" docs/decisions "$ws_root"; then
+            echo "  ADR paths OK"
+        else
+            echo "FAILED: an ADR cites a source path that does not exist."
+            echo "  - Stale ADR ref: fix the path in the ADR."
+            echo "  - File intentionally removed by that ADR: mark the line"
+            echo "    with  \`path\` <!-- adr-lint:ignore-path <reason> -->"
+            echo "  - Stale local sibling checkout: refresh it (e.g. just"
+            echo "    sync) so the cited files are present, then re-push."
+            exit 1
+        fi
+    }
+    time_step "ADR paths" run_adr_paths_check
 
 
 # ─── Unknown repo type ───────────────────────────────────────────────
