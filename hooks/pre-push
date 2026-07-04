@@ -18,6 +18,7 @@ set -e
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 REPO_DIR="$(basename "$REPO_ROOT")"
+BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 HOOK_START=$SECONDS
 _STAMP_SKIP=0
 
@@ -74,7 +75,6 @@ fi
 # BEFORE the hook runs, so the rebase can't change what gets sent —
 # the user must push again to send the rebased branch.
 
-BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 if [[ -n "$BRANCH" && "$BRANCH" != "main" ]]; then
     # Self-healing: unshallow if needed, then normal fetch.
     # Never use --depth on local dev repos — it progressively cuts history.
