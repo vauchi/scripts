@@ -293,6 +293,64 @@ test_bad_workspace() {
     assert_eq "bad workspace: exit 2" "2" "$rc"
 }
 
+# ── 13. VRS02: form-factor BRANCHES count; construction params do not ─
+# ADR-043: frontends never branch on form factor. Passing DisplayHint
+# to an engine constructor is the sanctioned use and must NOT count.
+test_form_factor_rust_sentinel() {
+    root=$(mktemp -d)
+    mkdir -p "$root/tui/src"
+    cat >"$root/tui/src/screen.rs" <<'RS'
+fn render() {
+    if hint == DisplayHint::Watch { compact() }
+    if matches!(h, DisplayHint::Phone) { phone() }
+    // sanctioned uses below must NOT count
+    let engine = AppEngine::new(DisplayHint::Desktop);
+    let hint = DisplayHint::Desktop;
+}
+RS
+    out=$("$SCRIPT" "$root")
+    assert_eq "vrs02 rust: counts 2 branch lines" \
+        "2" "$(extract_counter "$out" form_factor_tui)"
+    assert_eq "vrs02 rust: total == 2" \
+        "2" "$(extract_counter "$out" form_factor_total)"
+    rm -rf "$root"
+}
+
+# ── 14. VRS02: empty workspace has zeroed form-factor counters ─────────
+test_form_factor_empty() {
+    root=$(mktemp -d)
+    out=$("$SCRIPT" "$root")
+    assert_eq "vrs02 empty: form_factor_total == 0" \
+        "0" "$(extract_counter "$out" form_factor_total)"
+    rm -rf "$root"
+}
+
+# ── 15. VRS02: ratchet fires when a branch appears over baseline 0 ─────
+test_form_factor_ratchet() {
+    root=$(mktemp -d)
+    mkdir -p "$root/windows/Vauchi"
+    cat >"$root/windows/Vauchi/Shell.cs" <<'CS'
+void Render() {
+    if (Model.Hint == DisplayHint.Watch) { Compact(); }
+}
+CS
+    base="$root/baseline.json"
+    cat >"$base" <<'JSON'
+{
+  "totals": {
+    "form_factor_windows": 0,
+    "form_factor_total": 0
+  }
+}
+JSON
+    set +e
+    out=$("$SCRIPT" --check "$base" "$root" 2>&1)
+    rc=$?
+    set -e
+    assert_eq "vrs02 ratchet: exit 1 above baseline" "1" "$rc"
+    rm -rf "$root"
+}
+
 # ── run ───────────────────────────────────────────────────────────────
 test_empty_workspace
 test_rust_sentinel
@@ -306,6 +364,9 @@ test_check_at_or_below_baseline_passes
 test_check_missing_baseline
 test_json_validity
 test_bad_workspace
+test_form_factor_rust_sentinel
+test_form_factor_empty
+test_form_factor_ratchet
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
