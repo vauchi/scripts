@@ -15,6 +15,13 @@ set -euo pipefail
 VIOLATIONS=0
 CHECKED=0
 
+# emit <id> <file> <line_no> <what> <fix> <page-slug>
+# One line per violation: ID, location, problem, imperative fix, page.
+emit() {
+    printf '  %s:%s: %s: %s — fix: %s. [_private/docs/lint-errors/%s.md]\n' \
+        "$2" "$3" "$1" "$4" "$5" "$6"
+}
+
 check_file() {
     local file="$1"
     local line_no=0
@@ -36,46 +43,85 @@ check_file() {
             continue
         fi
 
-        # grep -P (GNU Perl regex — not available on macOS BSD grep)
+        # VSH01 grep -P (GNU Perl regex — absent on BSD/BusyBox grep)
         if [[ "$line" =~ grep[[:space:]]+-[a-zA-Z]*P ]]; then
-            printf '  %s:%d: %s\n' "$file" "$line_no" 'grep -P (GNU Perl regex)' # portable-shell-ok
-            printf '    Use: grep -E or just grep (ripgrep)\n'
+            emit VSH01 "$file" "$line_no" 'grep -P is GNU-only (BSD/BusyBox lack it)' 'use grep -E, just grep (ripgrep), or sed -n extraction' vsh01-grep-perl-regex # portable-shell-ok
             found=1
         fi
 
-        # echo -e (non-POSIX — behavior varies across shells and platforms)
+        # VSH02 echo -e (non-POSIX — behavior varies across shells)
         if [[ "$line" =~ echo[[:space:]]+-e[[:space:]] ]]; then
-            printf '  %s:%d: %s\n' "$file" "$line_no" 'echo -e (non-POSIX)' # portable-shell-ok
-            printf '    Use: printf "%%b\\n" instead\n'
+            emit VSH02 "$file" "$line_no" 'echo -e is non-POSIX (escape handling varies)' 'use printf (%b for escape expansion)' vsh02-echo-dash-e # portable-shell-ok
             found=1
         fi
 
-        # \s in grep/sed (non-POSIX regex class — fails on macOS sed)
-        # Only flag when used as a command argument, not in Python/jq contexts
+        # VSH03 \s in grep/sed/awk (PCRE class — BSD/BusyBox match literal s)
         if [[ "$line" =~ \\s ]] && [[ "$line" =~ (grep|sed|awk) ]]; then
             # Exclude Python raw strings, jq, and inline-disable comments
             if [[ ! "$line" =~ (r\'|r\"|python|\\.jq|portable-shell-ok) ]]; then
-                printf '  %s:%d: %s\n' "$file" "$line_no" '\s in grep/sed (non-POSIX)' # portable-shell-ok
-                printf '    Use: [[:space:]] instead\n'
+                emit VSH03 "$file" "$line_no" '\s in grep/sed/awk is non-POSIX (silently wrong on BSD)' 'use [[:space:]]' vsh03-backslash-s-class # portable-shell-ok
                 found=1
             fi
         fi
 
-        # readlink -f (GNU-only — macOS ships BSD readlink without -f)
+        # VSH04 readlink -f (GNU-only — macOS BSD readlink has no -f)
         if [[ "$line" =~ readlink[[:space:]]+-f ]]; then
-            printf '  %s:%d: %s\n' "$file" "$line_no" 'readlink -f (GNU-only)' # portable-shell-ok
-            printf '    Use: realpath or manual resolution\n'
+            emit VSH04 "$file" "$line_no" 'readlink -f is GNU-only (fails on macOS)' 'use realpath or cd+pwd resolution' vsh04-readlink-f # portable-shell-ok
             found=1
         fi
 
-        # stat -c (GNU format flag — macOS uses stat -f)
+        # VSH05 stat -c (GNU format flag — macOS uses stat -f)
         if [[ "$line" =~ stat[[:space:]]+-c ]]; then
             # Allow if there's a fallback on the same line
             if [[ ! "$line" =~ stat[[:space:]]+-f ]]; then
-                printf '  %s:%d: %s\n' "$file" "$line_no" 'stat -c (GNU-only, no fallback)' # portable-shell-ok
-                printf '    Use: stat -f (macOS) with || fallback\n'
+                emit VSH05 "$file" "$line_no" 'stat -c is GNU-only with no BSD fallback' 'pair it: stat -c ... 2>/dev/null || stat -f ...' vsh05-stat-c # portable-shell-ok
                 found=1
             fi
+        fi
+
+        # VSH06 grep --exclude/--include (GNU long options — BusyBox grep
+        # ignores or rejects them; caused the 2026-04 lint:claude-md
+        # every-doc-is-orphan incident)
+        if [[ "$line" =~ grep[[:space:]].*--(exclude|include) ]]; then
+            emit VSH06 "$file" "$line_no" 'grep --exclude/--include is GNU-only (BusyBox CI ignores it)' 'use find|xargs grep or a grep -v post-filter' vsh06-grep-exclude # portable-shell-ok
+            found=1
+        fi
+
+        # VSH07 sed in-place: --in-place is GNU-only; -i '' is BSD-only
+        if [[ "$line" =~ sed[[:space:]].*--in-place ]] \
+            || [[ "$line" == *"sed -i ''"* ]] || [[ "$line" == *'sed -i ""'* ]]; then # portable-shell-ok
+            emit VSH07 "$file" "$line_no" 'non-portable sed in-place form (GNU/BSD/BusyBox disagree)' "use sed -i.bak ... && rm ...bak" vsh07-sed-in-place # portable-shell-ok
+            found=1
+        fi
+
+        # VSH08 find -printf (GNU findutils — absent on BSD/BusyBox find)
+        if [[ "$line" =~ find[[:space:]].*-printf ]]; then
+            emit VSH08 "$file" "$line_no" 'find -printf is GNU-only' 'use find -exec <cmd> {} \; or -print0|xargs -0' vsh08-find-printf # portable-shell-ok
+            found=1
+        fi
+
+        # VSH09 awk gensub() (gawk-only — BusyBox/one-true-awk lack it)
+        if [[ "$line" =~ gensub\( ]] && [[ "$line" =~ awk ]]; then
+            emit VSH09 "$file" "$line_no" 'awk gensub() is gawk-only' 'use POSIX sub()/gsub() with an intermediate variable' vsh09-awk-gensub # portable-shell-ok
+            found=1
+        fi
+
+        # VSH10 date -d/--date (GNU parsing — BSD date -d sets DST flag!)
+        if [[ "$line" =~ date[[:space:]]+(-d|--date)[[:space:]] ]]; then
+            emit VSH10 "$file" "$line_no" 'date -d is GNU-only (BSD does something else silently)' 'use epoch math (date +%s) or platform-switched date -j -f' vsh10-date-d # portable-shell-ok
+            found=1
+        fi
+
+        # VSH11 md5sum (not on macOS; md5 there — prefer shasum anyway)
+        if [[ "$line" =~ md5sum ]]; then
+            emit VSH11 "$file" "$line_no" 'md5sum does not exist on macOS' 'use shasum -a 256' vsh11-md5sum # portable-shell-ok
+            found=1
+        fi
+
+        # VSH12 GNU \+ in sed basic regex (BSD sed matches a literal +)
+        if [[ "$line" == *sed* ]] && [[ "$line" == *'\+'* ]]; then # portable-shell-ok
+            emit VSH12 "$file" "$line_no" 'GNU \+ in sed basic regex (BSD sed matches literal +)' 'use sed -E with POSIX + or write [x][x]*' vsh12-sed-gnu-plus # portable-shell-ok
+            found=1
         fi
 
     done < "$file"
