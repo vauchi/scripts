@@ -39,6 +39,8 @@ rules:
     metadata:
       category: correctness
       confidence: HIGH
+      rule_id: CC-03
+      lint_errors_page: _private/docs/lint-errors/cc03-specific-assertions.md
 
   - id: vauchi-cc03-assert-is-err
     patterns:
@@ -52,6 +54,8 @@ rules:
     metadata:
       category: correctness
       confidence: MEDIUM
+      rule_id: CC-03
+      lint_errors_page: _private/docs/lint-errors/cc03-specific-assertions.md
 
   - id: vauchi-cc03-assert-is-some
     patterns:
@@ -64,6 +68,8 @@ rules:
     metadata:
       category: correctness
       confidence: MEDIUM
+      rule_id: CC-03
+      lint_errors_page: _private/docs/lint-errors/cc03-specific-assertions.md
 
   # ============================================================
   # CC-06: No real-time waits in tests
@@ -85,6 +91,8 @@ rules:
     metadata:
       category: correctness
       confidence: HIGH
+      rule_id: CC-06
+      lint_errors_page: _private/docs/lint-errors/cc06-no-realtime-waits.md
 
   - id: vauchi-cc06-no-tokio-sleep-in-tests
     patterns:
@@ -102,3 +110,50 @@ rules:
     metadata:
       category: correctness
       confidence: HIGH
+      rule_id: CC-06
+      lint_errors_page: _private/docs/lint-errors/cc06-no-realtime-waits.md
+
+  # ============================================================
+  # ADR-030: no Transport generic on FFI-surface types
+  # (Vauchi/AppEngine use Box<dyn Transport> inside SyncController;
+  # inner types SyncController/RelayClient/ConnectionManager keep the
+  # generic — see the ok: cases in vauchi-quality.rs)
+  # ============================================================
+
+  - id: vauchi-adr030-no-transport-generic
+    patterns:
+      - pattern-regex: '(struct|impl(<[^>]*>)?)\s+(Vauchi|AppEngine)\s*<'
+    message: >
+      ADR-030: Transport generic reintroduced on the FFI-surface type —
+      fix: keep Box<dyn Transport> boxed inside SyncController; only
+      inner types carry the generic.
+      [_private/docs/lint-errors/adr030-no-transport-generic.md]
+    severity: WARNING
+    languages: [rust]
+    metadata:
+      category: architecture
+      confidence: HIGH
+      rule_id: ADR-030
+      lint_errors_page: _private/docs/lint-errors/adr030-no-transport-generic.md
+
+  # ============================================================
+  # ADR-043: DisplayHint is a construction parameter, never wire data
+  # ============================================================
+
+  - id: vauchi-adr043-no-displayhint-on-screenmodel
+    patterns:
+      - pattern-inside: |
+          struct $S { ... }
+      - pattern-regex: 'display_hint\s*:\s*DisplayHint'
+    message: >
+      ADR-043: DisplayHint field on a wire/screen struct — fix: pass it
+      to the engine constructor; by ScreenModel time the form-factor
+      decision is already baked in.
+      [_private/docs/lint-errors/adr043-no-displayhint-on-screenmodel.md]
+    severity: WARNING
+    languages: [rust]
+    metadata:
+      category: architecture
+      confidence: HIGH
+      rule_id: ADR-043
+      lint_errors_page: _private/docs/lint-errors/adr043-no-displayhint-on-screenmodel.md
