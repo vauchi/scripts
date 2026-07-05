@@ -206,8 +206,22 @@ if command -v cargo &> /dev/null; then
     STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.rs$' || true)
 
     if [[ -n "$STAGED_RS" ]]; then
+        # Repos without any Cargo manifest (scripts: semgrep rule
+        # fixtures are plain .rs files) can't run cargo fmt — check the
+        # staged files with rustfmt directly instead of erroring out.
+        if [ ! -f Cargo.toml ] && [ ! -d core ] && ! { [ -d wasm ] && [ -f wasm/Cargo.toml ]; }; then
+            if command -v rustfmt &> /dev/null; then
+                # shellcheck disable=SC2086
+                if ! rustfmt --edition 2021 --check $STAGED_RS; then
+                    echo ""
+                    echo "ERROR: rustfmt check failed on staged .rs files."
+                    echo "Run 'rustfmt --edition 2021 <file>' to fix."
+                    exit 1
+                fi
+                echo "  Formatting OK (rustfmt, no Cargo manifest in repo)"
+            fi
         # Check if cargo fmt is available
-        if cargo fmt --version &> /dev/null; then
+        elif cargo fmt --version &> /dev/null; then
             # Check formatting without making changes
             # Run fmt in the directory containing Cargo.toml (core/ for core workspace,
             # wasm/ for web-demo, or repo root for cli/tui/relay/e2e).
