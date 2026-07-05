@@ -90,6 +90,16 @@ RUST_RE='(\.(save|configure|setup|validate)_[a-z_]+\()|(vauchi_core::types::)'
 CPP_RE='(^|[^A-Za-z0-9_])(save|configure|setup|validate)[A-Za-z_]*\('
 CS_RE='(^|[^A-Za-z0-9_])(Save|Configure|Setup|Validate)[A-Za-z]*\('
 
+# VRS02 (ADR-043): frontends never BRANCH on form factor. Comparing or
+# matching on DisplayHint is the violation; passing DisplayHint::X as an
+# engine-constructor argument is the sanctioned use and must not count.
+# Curated-loose like the mutating-verb list; reversed-operand compares
+# (DisplayHint::X == hint) are not matched yet — tighten as counts hit 0.
+# Page: _private/docs/lint-errors/vrs02-form-factor-branches.md
+RUST_FF_RE='(==|!=)[[:space:]]*DisplayHint::|matches!\([^)]*DisplayHint|match[[:space:]]+[A-Za-z_.]*display_hint'
+CPP_FF_RE='(==|!=)[[:space:]]*(DisplayHint::|DISPLAY_HINT_)|display_hint[[:space:]]*(==|!=)|switch[[:space:]]*\([^)]*display_hint'
+CS_FF_RE='(==|!=)[[:space:]]*DisplayHint\.|DisplayHint\.[A-Za-z]+[[:space:]]*(==|!=)|switch[[:space:]]*\([^)]*DisplayHint'
+
 # ── exclusion filter ─────────────────────────────────────────────────
 # Drop build output, vendored deps, generated bindings, and test trees so
 # the baseline does not churn on test edits. Applied as a grep -v chain on
@@ -138,13 +148,21 @@ domain_calls_windows=$(count_calls "$WIN_SRC" '\.cs:' "$CS_RE")
 domain_calls_total=$((domain_calls_tui + domain_calls_cli \
     + domain_calls_linux_gtk + domain_calls_linux_qt + domain_calls_windows))
 
+form_factor_tui=$(count_calls "$TUI_SRC" '\.rs:' "$RUST_FF_RE")
+form_factor_cli=$(count_calls "$CLI_SRC" '\.rs:' "$RUST_FF_RE")
+form_factor_linux_gtk=$(count_calls "$GTK_SRC" '\.rs:' "$RUST_FF_RE")
+form_factor_linux_qt=$(count_calls "$QT_SRC" '\.(cpp|cc|h|hpp):' "$CPP_FF_RE")
+form_factor_windows=$(count_calls "$WIN_SRC" '\.cs:' "$CS_FF_RE")
+form_factor_total=$((form_factor_tui + form_factor_cli \
+    + form_factor_linux_gtk + form_factor_linux_qt + form_factor_windows))
+
 # ── timestamp (BSD + GNU + BusyBox safe) ─────────────────────────────
 captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # ── render JSON ───────────────────────────────────────────────────────
 emit_json() {
     printf '{\n'
-    printf '  "schema_version": 1,\n'
+    printf '  "schema_version": 2,\n'
     printf '  "captured_at": "%s",\n' "$captured_at"
     printf '  "workspace_root": "%s",\n' "$WORKSPACE_ROOT"
     printf '  "totals": {\n'
@@ -153,7 +171,13 @@ emit_json() {
     printf '    %-30s %d,\n' '"domain_calls_linux_gtk":'  "$domain_calls_linux_gtk"
     printf '    %-30s %d,\n' '"domain_calls_linux_qt":'   "$domain_calls_linux_qt"
     printf '    %-30s %d,\n' '"domain_calls_windows":'    "$domain_calls_windows"
-    printf '    %-30s %d\n'  '"domain_calls_total":'      "$domain_calls_total"
+    printf '    %-30s %d,\n' '"domain_calls_total":'      "$domain_calls_total"
+    printf '    %-30s %d,\n' '"form_factor_tui":'         "$form_factor_tui"
+    printf '    %-30s %d,\n' '"form_factor_cli":'         "$form_factor_cli"
+    printf '    %-30s %d,\n' '"form_factor_linux_gtk":'   "$form_factor_linux_gtk"
+    printf '    %-30s %d,\n' '"form_factor_linux_qt":'    "$form_factor_linux_qt"
+    printf '    %-30s %d,\n' '"form_factor_windows":'     "$form_factor_windows"
+    printf '    %-30s %d\n'  '"form_factor_total":'       "$form_factor_total"
     printf '  }\n'
     printf '}\n'
 }
@@ -196,6 +220,13 @@ check_one 'domain_calls_linux_gtk' "$domain_calls_linux_gtk"
 check_one 'domain_calls_linux_qt'  "$domain_calls_linux_qt"
 check_one 'domain_calls_windows'   "$domain_calls_windows"
 check_one 'domain_calls_total'     "$domain_calls_total"
+
+check_one 'form_factor_tui'        "$form_factor_tui"
+check_one 'form_factor_cli'        "$form_factor_cli"
+check_one 'form_factor_linux_gtk'  "$form_factor_linux_gtk"
+check_one 'form_factor_linux_qt'   "$form_factor_linux_qt"
+check_one 'form_factor_windows'    "$form_factor_windows"
+check_one 'form_factor_total'      "$form_factor_total"
 
 if [ "$regressions" -gt 0 ]; then
     printf 'audit-frontend-domain-calls: %d counter(s) exceeded baseline %s\n' \
