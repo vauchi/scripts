@@ -392,6 +392,18 @@ else
 fi
 
 # ============================================================
+# cargo-vet audits guard (VSC01)
+# ============================================================
+# [[audits]] entries are human attestations; AI-staged additions are
+# blocked. Page: _private/docs/lint-errors/vsc01-no-ai-audits.md
+if git diff --cached --name-only --diff-filter=ACM | grep -q 'supply-chain/audits\.toml$'; then
+    VET_GUARD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/check-vet-audits.sh"
+    if [[ -x "$VET_GUARD" ]] && ! "$VET_GUARD"; then
+        exit 1
+    fi
+fi
+
+# ============================================================
 # CI-yaml configuration lint (VCI02/03)
 # ============================================================
 # extends+before_script without !reference (VCI02, archive E23) and
