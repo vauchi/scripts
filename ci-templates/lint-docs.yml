@@ -82,7 +82,7 @@ check:doc-naming:
         esac
 
         # Skip directories where date prefix convention doesn't apply
-        if echo "$dirname" | grep -qE "(diagrams|ideas|strategy|infra|knowledge|audit-review-frameworks|decisions|guides|reference|testing|admin-guides|components)"; then
+        if echo "$dirname" | grep -qE "(diagrams|ideas|strategy|infra|knowledge|audit-review-frameworks|decisions|guides|reference|testing|admin-guides|components|lint-errors)"; then
           continue
         fi
 
