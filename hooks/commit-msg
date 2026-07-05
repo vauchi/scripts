@@ -34,7 +34,7 @@ fi
 VALID_TYPES="feat|fix|refactor|tidy|docs|test|chore|wip"
 if ! echo "$SUBJECT" | grep -qE "^($VALID_TYPES): .+"; then
     echo ""
-    echo "ERROR: Invalid commit message format."
+    echo "  VGT08: invalid commit message format — fix: prefix with '{type}: '. [_private/docs/lint-errors/vgt08-commit-format.md]"
     echo ""
     echo "  Expected: {type}: {description}"
     echo "  Got:      $SUBJECT"
