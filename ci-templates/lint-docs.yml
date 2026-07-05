@@ -33,79 +33,25 @@ check:doc-naming:
   variables:
     GIT_DEPTH: 0
   before_script:
-    - apk add --no-cache bash git
+    - apk add --no-cache bash git curl
   script:
     - |
-      # Check for files that should have date prefix but don't
-      # Exceptions: well-known filenames, problem record artifacts,
-      # diagrams/, ideas/, strategy/, infra/, knowledge/
-      ERRORS=0
-
-      for file in $(git diff --name-only origin/$CI_DEFAULT_BRANCH...HEAD -- '*.md' 2>/dev/null || find . -name "*.md" -type f); do
-        filename=$(basename "$file")
-        dirname=$(dirname "$file")
-
-        # Skip well-known filenames that don't need date prefixes
-        # NOTE: keep this list in sync with `_private/docs/scripts/check-doc-naming.sh`
-        # EXCEPTIONS and `.claude/hooks/gate-push.sh` doc-naming case — same
-        # convention enforced at three stages (CI, CI helper, pre-push).
-        case "$filename" in
-          README.md|CLAUDE.md|CONTEXT.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|VISIBILITY_POLICY.md|INDEX.md)
-            continue
-            ;;
-          assumptions.md|master-plan.plan.md|work-board.md|work-board-archive.md)
-            continue
-            ;;
-          STRUCTURE.md|ARCHITECTURE.md|SECURITY.md|CHECKLIST.md|MANIFEST.md)
-            continue
-            ;;
-          investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md)
-            continue
-            ;;
-          *-audit.md|*-report.md|*-checklist.md|*-analysis.md)
-            continue
-            ;;
-        esac
-
-        # Skip .plan.md task DAG files
-        if echo "$filename" | grep -qE '\.plan\.md$'; then
-          continue
-        fi
-
-        # Skip Claude Code harness config — rules/skills/agents/docs use
-        # their own naming (kebab-case, SKILL.md), never date prefixes.
-        # Tree relocated into _private 2026-06-12 (root .claude → symlink).
-        # Keep in sync with check-doc-naming.sh EXEMPT_DIRS and
-        # gate-push.sh doc-naming case.
-        case "$file" in
-          .claude/*|*/.claude/*) continue ;;
-        esac
-
-        # Skip directories where date prefix convention doesn't apply
-        if echo "$dirname" | grep -qE "(diagrams|ideas|strategy|infra|knowledge|audit-review-frameworks|decisions|guides|reference|testing|admin-guides|components|lint-errors)"; then
-          continue
-        fi
-
-        # Skip root level files
-        if [ "$dirname" = "." ]; then
-          continue
-        fi
-
-        # Check for date prefix (YYYY-MM-DD-)
-        if ! echo "$filename" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}-'; then
-          echo "ERROR: $file does not follow YYYY-MM-DD-name.md convention"
-          ERRORS=$((ERRORS + 1))
-        fi
-      done
-
-      if [ $ERRORS -gt 0 ]; then
-        echo ""
-        echo "Found $ERRORS file(s) not following naming convention."
-        echo "Files must be named: YYYY-MM-DD-description.md"
-        exit 1
+      # VDC05 — the check body lives in ONE place now:
+      # ci-templates/check-doc-naming.sh. The previous four inline
+      # copies (this job, _private helper, gate-push, pre-push)
+      # drifted apart — 7 CI failures in the 2026-03..07 sample.
+      if ! command -v fetch_vauchi_script >/dev/null 2>&1; then
+        fetch_vauchi_script() {
+          src_path="$1"; dest="$2"
+          encoded_path=$(printf '%s' "$src_path" | sed 's|/|%2F|g')
+          curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
+            "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=main" \
+            -o "$dest"
+          chmod +x "$dest"
+        }
       fi
-
-      echo "All documentation files follow naming convention."
+      fetch_vauchi_script ci-templates/check-doc-naming.sh check-doc-naming.sh
+      bash check-doc-naming.sh
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -128,16 +74,22 @@ lint:markdown:
   variables:
     GIT_DEPTH: 0
   before_script:
-    # Fetch the shared custom rule (backtick-path-exempt line length)
+    # Fetch the shared custom rules (backtick-path-exempt line length,
+    # VDC01 no-abs-paths)
     - |
       RULE_FILE="/tmp/markdownlint-rule-line-length.js"
       fetch_vauchi_script ci-templates/markdownlint-rule-line-length.js "$RULE_FILE" 2>/dev/null || true
+      ABS_RULE_FILE="/tmp/markdownlint-rule-no-abs-paths.js"
+      fetch_vauchi_script ci-templates/markdownlint-rule-no-abs-paths.js "$ABS_RULE_FILE" 2>/dev/null || true
   script:
     - |
-      # Build markdownlint args: use custom rule if available
+      # Build markdownlint args: use custom rules if available
       RULE_ARGS=""
       if [ -f /tmp/markdownlint-rule-line-length.js ]; then
         RULE_ARGS="-r /tmp/markdownlint-rule-line-length.js"
+      fi
+      if [ -f /tmp/markdownlint-rule-no-abs-paths.js ]; then
+        RULE_ARGS="$RULE_ARGS -r /tmp/markdownlint-rule-no-abs-paths.js"
       fi
 
       # Lint only files changed in this MR (avoids pre-existing errors).
@@ -159,6 +111,38 @@ lint:markdown:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "**/*.md"
+
+# ============================================================
+# Private-reference check (VDC02)
+# ============================================================
+
+# _private is inaccessible to contributors; a public doc pointing into
+# it is a dead link for every reader and leaks internal planning
+# layout. Skipped in vauchi/private itself (self-references are fine).
+# Page: _private/docs/lint-errors/vdc02-private-refs.md
+check:no-private-refs:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - |
+      HITS=$(grep -rn '_private/' --include='*.md' . 2>/dev/null | grep -v '^\./\.git/' || true)
+      if [ -n "$HITS" ]; then
+        echo "$HITS"
+        echo ""
+        echo "VDC02: public docs reference _private/ paths — fix: inline the needed content or drop the pointer; _private cross-references belong only in _private."
+        exit 1
+      fi
+      echo "No _private references in public docs."
+  rules:
+    - if: $CI_PROJECT_PATH == "vauchi/private"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/*.md"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # ============================================================
 # Link Checking (lychee)
