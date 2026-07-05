@@ -40,18 +40,25 @@ check:doc-naming:
       # ci-templates/check-doc-naming.sh. The previous four inline
       # copies (this job, _private helper, gate-push, pre-push)
       # drifted apart — 7 CI failures in the 2026-03..07 sample.
-      if ! command -v fetch_vauchi_script >/dev/null 2>&1; then
-        fetch_vauchi_script() {
-          src_path="$1"; dest="$2"
-          encoded_path=$(printf '%s' "$src_path" | sed 's|/|%2F|g')
-          curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
-            "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=main" \
-            -o "$dest"
-          chmod +x "$dest"
-        }
+      # Local-checkout copy first (the scripts repo itself, and the
+      # only way the script's own MR can test its changes); fetch from
+      # scripts@main for consumer repos.
+      if [ -f ci-templates/check-doc-naming.sh ]; then
+        bash ci-templates/check-doc-naming.sh
+      else
+        if ! command -v fetch_vauchi_script >/dev/null 2>&1; then
+          fetch_vauchi_script() {
+            src_path="$1"; dest="$2"
+            encoded_path=$(printf '%s' "$src_path" | sed 's|/|%2F|g')
+            curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
+              "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=main" \
+              -o "$dest"
+            chmod +x "$dest"
+          }
+        fi
+        fetch_vauchi_script ci-templates/check-doc-naming.sh check-doc-naming.sh
+        bash check-doc-naming.sh
       fi
-      fetch_vauchi_script ci-templates/check-doc-naming.sh check-doc-naming.sh
-      bash check-doc-naming.sh
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

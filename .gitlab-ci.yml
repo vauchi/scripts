@@ -31,13 +31,19 @@ stages:
 # ran green here. Runs on the markdownlint-tagged shell runner so the
 # markdownlint fixture suite exercises for real; suites for tools the
 # runner lacks self-skip and say so in the log.
-test:selftests:
+test:selftests: # vci02-ok: .mr-or-main is rules-only, no before_script to preserve
   extends: .mr-or-main
   stage: lint
-  tags:
-    - self-hosted
-    - markdownlint
+  # Deterministic GNU/Linux environment — the detectors' real CI
+  # habitat. (First run landed on the macOS markdownlint runner and
+  # surfaced that check-no-domain-imports-in-views silently no-ops on
+  # BSD grep — real pre-existing bug, tracked as its own problem
+  # record, not something this job should inherit per-run.)
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/node:20
+  tags: [docker]
   timeout: 10m
+  before_script:
+    - npm install -g markdownlint-cli@0.41.0 >/dev/null 2>&1 || echo "markdownlint install failed — its suite self-skips"
   script:
     - |
       FAILED=0
