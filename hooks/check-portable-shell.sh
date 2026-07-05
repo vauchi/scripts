@@ -102,6 +102,9 @@ fi
 
 for f in "${files[@]}"; do
     [[ -f "$f" ]] || continue
+    # Detector self-tests carry intentionally-violating fixture heredocs;
+    # scanning them would flag the fixtures (see check-portable-shell.test.sh).
+    case "$f" in */tests/*.test.sh|tests/*.test.sh) continue ;; esac
     check_file "$f"
 done
 
