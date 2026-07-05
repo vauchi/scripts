@@ -47,6 +47,14 @@
 
 set -euo pipefail
 
+# Guard fails LOUD without ripgrep: `rg … || true` silently reported
+# clean wherever rg was missing (both CI runner flavors) — a guard
+# that self-disables is worse than none.
+if ! command -v rg >/dev/null 2>&1; then
+    echo "ERROR: ripgrep (rg) is required by $(basename "$0") — install it (apt/brew/apk add ripgrep)" >&2
+    exit 2
+fi
+
 STRICT=0
 WORKSPACE_ROOT=""
 
