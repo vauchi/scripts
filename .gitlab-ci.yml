@@ -66,9 +66,15 @@ lint:shellcheck:
       echo "Linting shell scripts..."
       ERRORS=0
 
+      # -S warning pins the same severity the pre-commit hook uses
+      # (scripts/hooks/pre-commit). Default severity also fails on
+      # info-level findings (SC2317 unreachable-code false positives
+      # alone caused 22 pipeline failures 2026-03..07) that the local
+      # hook never surfaced — the divergence made "works locally,
+      # fails in CI" the norm for this job.
       for file in $(find scripts -name "*.sh" -type f); do
         echo "Checking: $file"
-        if ! shellcheck "$file"; then
+        if ! shellcheck -S warning "$file"; then
           ERRORS=$((ERRORS + 1))
         fi
       done
