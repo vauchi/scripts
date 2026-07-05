@@ -173,5 +173,5 @@
       # --- Update sync cursor ---
       git checkout "$CI_DEFAULT_BRANCH"
       git update-ref refs/plan-sync/last-processed "$CI_COMMIT_SHA"
-      git push origin refs/plan-sync/last-processed 2>/dev/null || true
+      git push origin refs/plan-sync/last-processed 2>/dev/null || true # vci03-ok: cursor push is best-effort; a lost cursor only means idempotent MR re-processing next run
       echo "Sync cursor updated to $CI_COMMIT_SHA"

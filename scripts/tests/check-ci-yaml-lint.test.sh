@@ -66,7 +66,8 @@ run_yml vci02 'myjob:
   script:
     - echo ok'
 assert_eq "VCI02: exit 1" "1" "$rc"
-assert_eq "VCI02: message carries ID" "0" "${out##*VCI02*}"
+assert_eq "VCI02: message carries ID" "1" \
+    "$(printf '%s' "$out" | grep -q 'VCI02:' && echo 1 || echo 0)"
 assert_eq "VCI02: message names the fix" "1" \
     "$(printf '%s' "$out" | grep -qE 'VCI02: .+ — fix: .+' && echo 1 || echo 0)"
 
@@ -83,7 +84,8 @@ run_yml vci03 'myjob:
     - git pull --ff-only 2>/dev/null || true
     - ./deploy.sh'
 assert_eq "VCI03: exit 1" "1" "$rc"
-assert_eq "VCI03: message carries ID" "0" "${out##*VCI03*}"
+assert_eq "VCI03: message carries ID" "1" \
+    "$(printf '%s' "$out" | grep -q 'VCI03:' && echo 1 || echo 0)"
 assert_eq "VCI03: message names the fix" "1" \
     "$(printf '%s' "$out" | grep -qE 'VCI03: .+ — fix: .+' && echo 1 || echo 0)"
 

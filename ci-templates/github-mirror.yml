@@ -90,8 +90,8 @@
         "https://x-access-token:${TOKEN}@github.com/${GITHUB_MIRROR_ORG}/${GITHUB_MIRROR_REPO}.git"
 
       # Fetch full history — CI clone may be shallow or detached
-      git fetch origin "+refs/heads/${CI_DEFAULT_BRANCH}:refs/heads/${CI_DEFAULT_BRANCH}" --depth=2147483647 2>/dev/null || true
-      git fetch origin --tags 2>/dev/null || true
+      git fetch origin "+refs/heads/${CI_DEFAULT_BRANCH}:refs/heads/${CI_DEFAULT_BRANCH}" --depth=2147483647 2>/dev/null || true # vci03-ok: history deepening is best-effort; job is allow_failure and the push below fails loudly on stale refs
+      git fetch origin --tags 2>/dev/null || true # vci03-ok: tags fetch is best-effort, same rationale
 
       # Convert large files to LFS pointers if configured.
       # Required for repos where committed binaries exceed GitHub's 100 MB limit

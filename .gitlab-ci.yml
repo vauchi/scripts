@@ -26,7 +26,7 @@ stages:
   - deploy
 
 # Lint shell scripts with shellcheck
-lint:shellcheck:
+lint:shellcheck: # vci02-ok: .mr-or-main is rules-only, no before_script to preserve
   extends: .mr-or-main
   stage: lint
   tags:
@@ -94,7 +94,7 @@ lint:shellcheck:
 # itself is allow_failure: true so style nits stay out of the merge
 # gate. Audited 2026-04-22 T2.5 — both safeguards retained because
 # CI-template style is intentionally low-stakes.
-lint:ci-templates:
+lint:ci-templates: # vci02-ok: .mr-or-main is rules-only, no before_script to preserve
   extends: .mr-or-main
   stage: lint
   tags:

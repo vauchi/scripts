@@ -376,7 +376,11 @@ if [[ -n "$STAGED_SHELL" ]]; then
     fi
 
     # Custom portable-shell linter (catches GNU-vs-BSD patterns shellcheck misses)
-    HOOK_DIR="$(git rev-parse --show-toplevel)/scripts/hooks"
+    # Resolve from the hook's own location (core.hooksPath), not the
+    # committed repo's toplevel — toplevel-relative resolution only
+    # worked for the workspace-root repo and silently skipped the
+    # check for every sub-repo commit (including scripts itself).
+    HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if [[ -x "$HOOK_DIR/check-portable-shell.sh" ]]; then
         # shellcheck disable=SC2086
         if ! "$HOOK_DIR/check-portable-shell.sh" $STAGED_SHELL; then
@@ -385,6 +389,24 @@ if [[ -n "$STAGED_SHELL" ]]; then
     fi
 else
     echo "[5/6] No shell files staged, skipping"
+fi
+
+# ============================================================
+# CI-yaml configuration lint (VCI02/03)
+# ============================================================
+# extends+before_script without !reference (VCI02, archive E23) and
+# || true swallowing state-changing git in CI (VCI03, log L26).
+# Pages: _private/docs/lint-errors/vci*.md
+STAGED_CI_YML=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -E '(^|/)\.gitlab-ci\.yml$|(^|/)ci-templates/[^/]+\.ya?ml$|(^|/)\.gitlab/.+\.ya?ml$' || true)
+if [[ -n "$STAGED_CI_YML" ]]; then
+    CI_LINT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/check-ci-yaml-lint.sh"
+    if [[ -x "$CI_LINT" ]]; then
+        # shellcheck disable=SC2086
+        if ! "$CI_LINT" $STAGED_CI_YML; then
+            exit 1
+        fi
+    fi
 fi
 
 # ============================================================
