@@ -1,0 +1,343 @@
+{
+  "repos": {
+    "ios": {
+      "source_roots": [
+        "ios/Vauchi"
+      ],
+      "extensions": [
+        ".swift"
+      ],
+      "exclude_dirs": [
+        "Generated",
+        "uniffi",
+        "Libs",
+        "Vauchi.xcodeproj",
+        "VauchiSnapshotTests",
+        "VauchiUITests",
+        "VauchiTests",
+        "Preview Content",
+        "build",
+        ".spm-packages"
+      ],
+      "rules": {
+        "action_id_minting": {
+          "message": "Frontend must not mint action ids; core must supply explicit action_id.",
+          "patterns": [
+            "\"\\\\\\([^)]*\\):edit\"",
+            "\"\\\\\\([^)]*\\):save\"",
+            "\"confirm_\\$\\{[^}]*\\}\"",
+            "\"cancel_\\$\\{[^}]*\\}\"",
+            "\"edit_avatar\"",
+            "\"filter_group:"
+          ]
+        },
+        "error_substring_classification": {
+          "message": "Core must return typed error codes; frontend must not classify errors by substring.",
+          "patterns": [
+            "\\.contains\\(\"lock screen\"",
+            "\\.contains\\(\"device authentication\"",
+            "\\.contains\\(\"wrong key\"",
+            "\\.contains\\(\"corrupted\"",
+            "hasPrefix\\(\"wb://\"\\)"
+          ]
+        },
+        "domain_screen_id_branch": {
+          "message": "screen_id must be opaque; do not branch on domain screen id literals.",
+          "patterns": [
+            "case\\s+\"(multi_stage_exchange|exchange_nfc_role|exchange_show_qr|contact_detail|contacts|my_info|group_detail|entry_detail|contact_edit)\"",
+            "==\\s+\"(multi_stage_exchange|exchange_nfc_role|exchange_show_qr|contact_detail|contacts|my_info)\""
+          ]
+        },
+        "notification_category_mapping": {
+          "message": "NotificationCategory mapping to OS presentation belongs in core.",
+          "patterns": [
+            "\\bNotificationCategory\\b"
+          ]
+        },
+        "field_visibility_interpretation": {
+          "message": "Core must emit visibility_controls and icon_token; frontend must not interpret domain strings.",
+          "patterns": [
+            "\\bfunc\\s+iconForFieldType",
+            "\\bVisibilityMode\\b",
+            "\\bvisibility_mode\\b"
+          ]
+        }
+      }
+    },
+    "android": {
+      "source_roots": [
+        "android/app/src/main"
+      ],
+      "extensions": [
+        ".kt",
+        ".java"
+      ],
+      "exclude_dirs": [
+        "uniffi",
+        "build",
+        "test",
+        "androidTest"
+      ],
+      "rules": {
+        "action_id_minting": {
+          "message": "Frontend must not mint action ids; core must supply explicit action_id.",
+          "patterns": [
+            "\"\\$\\{[^}]*\\}:edit\"",
+            "\"\\$[^\"]*:edit\"",
+            "\"confirm_\\$\\{[^}]*\\}\"",
+            "\"cancel_\\$\\{[^}]*\\}\"",
+            "\"edit_avatar\"",
+            "\"filter_group:"
+          ]
+        },
+        "error_substring_classification": {
+          "message": "Core must return typed error codes; frontend must not classify errors by substring.",
+          "patterns": [
+            "\\.contains\\(\"lock screen\"",
+            "\\.contains\\(\"device authentication\"",
+            "\\.contains\\(\"wrong key\"",
+            "\\.contains\\(\"corrupted\""
+          ]
+        },
+        "domain_screen_id_branch": {
+          "message": "screen_id must be opaque; do not branch on domain screen id literals.",
+          "patterns": [
+            "\"(multi_stage_exchange|exchange_nfc_role|exchange_show_qr|contact_detail|contacts|my_info|group_detail|entry_detail|contact_edit)\""
+          ]
+        },
+        "notification_category_mapping": {
+          "message": "MobileNotificationCategory mapping to OS presentation belongs in core.",
+          "patterns": [
+            "\\bMobileNotificationCategory\\b"
+          ]
+        },
+        "field_visibility_interpretation": {
+          "message": "Core must emit visibility_controls and icon_token; frontend must not interpret domain strings.",
+          "patterns": [
+            "\\bfun\\s+iconForFieldType",
+            "\\bVisibilityMode\\b",
+            "\\bvisibility_mode\\b"
+          ]
+        }
+      }
+    },
+    "macos": {
+      "source_roots": [
+        "macos/Vauchi"
+      ],
+      "extensions": [
+        ".swift"
+      ],
+      "exclude_dirs": [
+        "Generated",
+        "uniffi",
+        "Libs",
+        "Vauchi.xcodeproj",
+        "VauchiSnapshotTests",
+        "VauchiUITests",
+        "VauchiTests",
+        "Preview Content",
+        "build",
+        ".spm-packages"
+      ],
+      "rules": {
+        "action_id_minting": {
+          "message": "Frontend must not mint action ids; core must supply explicit action_id.",
+          "patterns": [
+            "\"\\\\\\([^)]*\\):edit\"",
+            "\"edit_avatar\"",
+            "\"filter_group:"
+          ]
+        },
+        "error_substring_classification": {
+          "message": "Core must return typed error codes; frontend must not classify errors by substring.",
+          "patterns": [
+            "\\.contains\\(\"lock screen\"",
+            "\\.contains\\(\"device authentication\""
+          ]
+        },
+        "domain_screen_id_branch": {
+          "message": "screen_id must be opaque; do not branch on domain screen id literals.",
+          "patterns": [
+            "case\\s+\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\"",
+            "==\\s+\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
+          ]
+        },
+        "field_visibility_interpretation": {
+          "message": "Core must emit visibility_controls and icon_token; frontend must not interpret domain strings.",
+          "patterns": [
+            "\\bfunc\\s+iconForFieldType",
+            "\\bVisibilityMode\\b",
+            "\\bvisibility_mode\\b"
+          ]
+        }
+      }
+    },
+    "windows": {
+      "source_roots": [
+        "windows/Vauchi"
+      ],
+      "extensions": [
+        ".cs",
+        ".xaml"
+      ],
+      "exclude_dirs": [
+        "bin",
+        "obj",
+        "Properties",
+        "Tests"
+      ],
+      "rules": {
+        "action_id_minting": {
+          "message": "Frontend must not mint action ids; core must supply explicit action_id.",
+          "patterns": [
+            "\"\\$\\{[^}]*\\}:edit\"",
+            "\"edit_avatar\"",
+            "\"filter_group:"
+          ]
+        },
+        "error_substring_classification": {
+          "message": "Core must return typed error codes; frontend must not classify errors by substring.",
+          "patterns": [
+            "\\.Contains\\(\"lock screen\"",
+            "\\.Contains\\(\"device authentication\""
+          ]
+        },
+        "domain_screen_id_branch": {
+          "message": "screen_id must be opaque; do not branch on domain screen id literals.",
+          "patterns": [
+            "\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
+          ]
+        }
+      }
+    },
+    "linux-gtk": {
+      "source_roots": [
+        "linux-gtk/src"
+      ],
+      "extensions": [
+        ".rs"
+      ],
+      "exclude_dirs": [
+        "target",
+        "tests"
+      ],
+      "rules": {
+        "action_id_minting": {
+          "message": "Frontend must not mint action ids; core must supply explicit action_id.",
+          "patterns": [
+            "format!\\s*\\(\\s*\"[^\"]*\\{\\}[^\"]*:edit\"",
+            "\"edit_avatar\"",
+            "\"filter_group:"
+          ]
+        },
+        "domain_screen_id_branch": {
+          "message": "screen_id must be opaque; do not branch on domain screen id literals.",
+          "patterns": [
+            "\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
+          ]
+        }
+      }
+    },
+    "linux-qt": {
+      "source_roots": [
+        "linux-qt/src"
+      ],
+      "extensions": [
+        ".cpp",
+        ".h",
+        ".hpp"
+      ],
+      "exclude_dirs": [
+        "build",
+        "tests"
+      ],
+      "rules": {
+        "action_id_minting": {
+          "message": "Frontend must not mint action ids; core must supply explicit action_id.",
+          "patterns": [
+            "\"%1[^\"]*:edit\"",
+            "\"edit_avatar\"",
+            "\"filter_group:"
+          ]
+        },
+        "domain_screen_id_branch": {
+          "message": "screen_id must be opaque; do not branch on domain screen id literals.",
+          "patterns": [
+            "\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
+          ]
+        }
+      }
+    },
+    "tui": {
+      "source_roots": [
+        "tui/src"
+      ],
+      "extensions": [
+        ".rs"
+      ],
+      "exclude_dirs": [
+        "target",
+        "tests"
+      ],
+      "rules": {
+        "action_id_minting": {
+          "message": "Frontend must not mint action ids; core must supply explicit action_id.",
+          "patterns": [
+            "format!\\s*\\(\\s*\"[^\"]*\\{\\}[^\"]*:edit\"",
+            "\"edit_avatar\"",
+            "\"filter_group:"
+          ]
+        },
+        "error_substring_classification": {
+          "message": "Core must return typed error codes; frontend must not classify errors by substring.",
+          "patterns": [
+            "\\.contains\\(\"lock screen\"",
+            "\\.contains\\(\"device authentication\"",
+            "\\.contains\\(\"wrong key\"",
+            "\\.contains\\(\"corrupted\""
+          ]
+        },
+        "domain_screen_id_branch": {
+          "message": "screen_id must be opaque; do not branch on domain screen id literals.",
+          "patterns": [
+            "\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
+          ]
+        }
+      }
+    },
+    "web-demo": {
+      "source_roots": [
+        "web-demo/src"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx"
+      ],
+      "exclude_dirs": [
+        "node_modules",
+        "wasm"
+      ],
+      "rules": {
+        "action_id_minting": {
+          "message": "Frontend must not mint action ids; core must supply explicit action_id.",
+          "patterns": [
+            "\"\\$\\{[^}]*\\}:edit\"",
+            "\"confirm_\\$\\{[^}]*\\}\"",
+            "\"cancel_\\$\\{[^}]*\\}\"",
+            "\"edit_avatar\"",
+            "\"filter_group:"
+          ]
+        },
+        "domain_screen_id_branch": {
+          "message": "screen_id must be opaque; do not branch on domain screen id literals.",
+          "patterns": [
+            "\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
+          ]
+        }
+      }
+    }
+  }
+}
