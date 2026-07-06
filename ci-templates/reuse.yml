@@ -101,7 +101,11 @@ lint:reuse:
         fetch_ref
       fi
       git clean -ffd -e node_modules/ -e .cache/
-    - command -v reuse >/dev/null 2>&1 || uv tool install --quiet reuse
+    # Self-hosted runners cache the reuse binary. Stale cached versions have
+    # mis-parsed .gitignore (scanning node_modules) and missed HTML-comment
+    # SPDX headers in markdown. Upgrade with the charset-normalizer extra so
+    # encoding detection works on all runner images.
+    - uv tool install --upgrade --quiet "reuse[charset-normalizer]"
   script:
     - reuse lint
   rules:
