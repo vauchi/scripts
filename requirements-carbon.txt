@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Dependencies for carbon-emission measurement tooling.
+# Install in a virtual environment:
+#   python3 -m venv .venv/carbon
+#   source .venv/carbon/bin/activate
+#   pip install -r scripts/requirements-carbon.txt
+
+codecarbon~=2.8
