@@ -86,7 +86,9 @@ count_strings_from_stdin() {
 # Count lines where a line matching $2 contains a string that looks like English.
 # $1 = file, $2 = POSIX ERE regex
 count_english_strings() {
-    grep -E "$2" "$1" 2>/dev/null | count_strings_from_stdin | while IFS= read -r s; do
+    # -o emits only the matched text, so we extract string literals from the
+    # attribute/macro call itself rather than every quoted substring on the line.
+    grep -E -o "$2" "$1" 2>/dev/null | count_strings_from_stdin | while IFS= read -r s; do
         if looks_like_english "$s"; then
             echo "$s"
         fi

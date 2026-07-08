@@ -105,6 +105,25 @@ XAML
     rm -rf "$root"
 }
 
+# ── 3b. Windows false-positive guard — only the matched attribute counts ─────
+test_windows_false_positive_guard() {
+    root=$(mktemp -d)
+    dir="$root/windows/Vauchi/Views"
+    mkdir -p "$dir"
+    cat >"$dir/MainPage.xaml" <<'XAML'
+<Page>
+    <!-- Only "Hello" counts; "Center", "Wrap", and x:Name values on the same
+         line must NOT be picked up by the attribute-value extractor. -->
+    <TextBlock Text="Hello" VerticalAlignment="Center" TextWrapping="Wrap"
+               x:Name="GreetingLabel" />
+</Page>
+XAML
+    out=$("$SCRIPT" "$root")
+    assert_eq "windows: ignores sibling attribute values on matched line" \
+        "1" "$(extract_counter "$out" windows)"
+    rm -rf "$root"
+}
+
 # ── 4. linux-qt sentinel — counts QStringLiteral and setter calls ───────────
 test_linux_qt_sentinel() {
     root=$(mktemp -d)
@@ -360,6 +379,7 @@ test_bad_workspace() {
 test_empty_workspace
 test_android_sentinel
 test_windows_sentinel
+test_windows_false_positive_guard
 test_linux_qt_sentinel
 test_linux_gtk_sentinel
 test_tui_sentinel
