@@ -69,12 +69,39 @@ looks_like_english() {
     return 0
 }
 
+# linux-qt has many non-user-visible strings that pass the generic English
+# heuristic: CSS snippets, icon names, object-name identifiers, D-Bus method
+# names and date/time format patterns. Treat them as infrastructure.
+is_linux_qt_infrastructure_string() {
+    case "$1" in
+        # CSS style/template snippets
+        *";"*) return 0 ;;
+        # printf / Q_ARG placeholders
+        *%[0-9]*) return 0 ;;
+        # Freedesktop icon / theme names
+        emblem-*|dialog-*|view-*) return 0 ;;
+        # D-Bus method names
+        RegisterAdvertisement*|UnregisterAdvertisement*) return 0 ;;
+        # Date/time format patterns
+        yyyy*|*yyyy*|*MM-dd*|*hh:mm*) return 0 ;;
+        # CSS font-family templates that get truncated by the line matcher
+        font-family*|*\\) return 0 ;;
+    esac
+    # Object-name identifiers: lowercase letters/digits/underscores, no spaces
+    if printf '%s' "$1" | grep -Eq '^[a-z_][a-z0-9_]*$'; then
+        return 0
+    fi
+    return 1
+}
+
 # Extract the contents of every double-quoted string literal from stdin.
+# Treats backslash-escaped quotes (\") as part of the literal so CSS
+# templates like "font-family: \"%1\";" are extracted whole.
 count_strings_from_stdin() {
     awk '
         {
             rest = $0
-            while (match(rest, /"[^"]*"/)) {
+            while (match(rest, /"([^"]|\\")*"/)) {
                 s = substr(rest, RSTART + 1, RLENGTH - 2)
                 print s
                 rest = substr(rest, RSTART + RLENGTH)
@@ -136,8 +163,14 @@ count_linux_qt() {
     tmp_list=$(mktemp)
     find "$dir" \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) -type f -print > "$tmp_list"
     while IFS= read -r f; do
+        # Skip test code: test fixtures are not shipped UI.
+        case "$f" in */tests/*|*/test/*) continue ;; esac
         # QStringLiteral fallback in tr_vauchi, and direct setText/setWindowTitle.
-        t=$(count_english_strings "$f" '(QStringLiteral|setText|setWindowTitle|setPlaceholderText)\([[:space:]]*"[^"]*"')
+        t=$(grep -E -o '(QStringLiteral|setText|setWindowTitle|setPlaceholderText)\([[:space:]]*"[^"]*"' "$f" 2>/dev/null | count_strings_from_stdin | while IFS= read -r s; do
+            if looks_like_english "$s" && ! is_linux_qt_infrastructure_string "$s"; then
+                echo "$s"
+            fi
+        done | wc -l | tr -d ' ')
         n=$((n + t))
     done < "$tmp_list"
     rm -f "$tmp_list"

@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "totals": {
-    "android": 35,
-    "windows": 9,
-    "linux_qt": 103,
+    "android": 0,
+    "windows": 0,
+    "linux_qt": 0,
     "linux_gtk": 0,
     "tui": 0,
-    "cli": 34,
-    "total": 181
+    "cli": 0,
+    "total": 0
   }
 }
