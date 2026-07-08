@@ -173,7 +173,7 @@ lint:ci-templates: # vci02-ok: .mr-or-main is rules-only, no before_script to pr
       FAILED=0
       for file in ci-templates/*.yml; do
         echo "Checking syntax: $file"
-        if ! python3 -c "import yaml; yaml.safe_load(open('$file'))"; then
+        if ! python3 -c "import yaml; yaml.SafeLoader.add_constructor('!reference', lambda loader,node: loader.construct_sequence(node)); yaml.safe_load(open('$file'))"; then
           echo "ERROR: YAML syntax error in $file" >&2
           FAILED=1
         fi
