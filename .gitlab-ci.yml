@@ -129,13 +129,9 @@ lint:shellcheck: # vci02-ok: .mr-or-main is rules-only, no before_script to pres
 
       echo "All shell scripts pass shellcheck."
 
-# Validate CI templates (YAML syntax)
-# yamllint -d relaxed is advisory by design — purely cosmetic style
-# warnings on shared CI templates. The script body uses `|| true` per
-# file so a single bad file doesn't terminate the loop, and the job
-# itself is allow_failure: true so style nits stay out of the merge
-# gate. Audited 2026-04-22 T2.5 — both safeguards retained because
-# CI-template style is intentionally low-stakes.
+# Validate CI templates (YAML syntax is blocking; style is advisory)
+# Syntax errors in shared CI templates break every consumer, so they must
+# fail the pipeline. Style warnings from yamllint -d relaxed remain advisory.
 lint:ci-templates: # vci02-ok: .mr-or-main is rules-only, no before_script to preserve
   extends: .mr-or-main
   stage: lint
@@ -173,15 +169,26 @@ lint:ci-templates: # vci02-ok: .mr-or-main is rules-only, no before_script to pr
       git clean -ffd
   script:
     - |
-      echo "Validating CI template YAML..."
-
+      echo "Validating CI template YAML syntax..."
+      FAILED=0
       for file in ci-templates/*.yml; do
-        echo "Checking: $file"
+        echo "Checking syntax: $file"
+        if ! python3 -c "import yaml; yaml.safe_load(open('$file'))"; then
+          echo "ERROR: YAML syntax error in $file" >&2
+          FAILED=1
+        fi
+      done
+      if [ "$FAILED" -ne 0 ]; then
+        exit 1
+      fi
+
+      echo "Running style lint (advisory)..."
+      for file in ci-templates/*.yml; do
         yamllint -d relaxed "$file" || true
       done
 
       echo "CI template validation complete."
-  allow_failure: true
+  allow_failure: false
 
 # ============================================================
 # Security Stage
@@ -190,6 +197,7 @@ lint:ci-templates: # vci02-ok: .mr-or-main is rules-only, no before_script to pr
 secret_detection:
   stage: security
   tags: [docker]
+  allow_failure: false
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
