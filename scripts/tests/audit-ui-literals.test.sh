@@ -119,7 +119,33 @@ RS
     rm -rf "$root"
 }
 
-# ── 4. #[cfg(test)] blocks are NOT counted ─────────────────────────────
+# ── 4. Locale-key literals (contain '.') are NOT counted ───────────────
+test_locale_key_literals_excluded() {
+    root=$(mktemp -d)
+    mk_ui "$root" keyed_literals.rs <<'RS'
+fn build() -> ScreenModel {
+    ScreenModel {
+        title: "exchange.success_title".into(),
+        subtitle: Some("exchange.success_subtitle".into()),
+        components: vec![Component::StatusIndicator {
+            label: Some("exchange.success_label".into()),
+            hint: Some("exchange.success_hint".into()),
+        }],
+        actions: vec![ScreenAction {
+            label: "action.done".into(),
+            placeholder: Some("form.input_placeholder".into()),
+        }],
+    }
+}
+RS
+    out=$("$SCRIPT" "$root"); rc=$?
+    assert_eq "locale-keys: exit 0" 0 "$rc"
+    assert_eq "locale-keys: titles == 0" "0" "$(extract_counter "$out" ui_literal_titles)"
+    assert_eq "locale-keys: labels == 0" "0" "$(extract_counter "$out" ui_literal_labels)"
+    rm -rf "$root"
+}
+
+# ── 5. #[cfg(test)] blocks are NOT counted ─────────────────────────────
 test_cfg_test_block_excluded() {
     root=$(mktemp -d)
     mk_ui "$root" tested.rs <<'RS'
@@ -141,7 +167,7 @@ RS
     rm -rf "$root"
 }
 
-# ── 5. --check ratchet: above baseline fails, at/below passes ──────────
+# ── 6. --check ratchet: above baseline fails, at/below passes ──────────
 test_check_ratchet() {
     root=$(mktemp -d)
     mk_ui "$root" dirty.rs <<'RS'
@@ -175,6 +201,7 @@ RS
 test_empty_workspace
 test_keyed_and_data_score_zero
 test_literals_are_counted
+test_locale_key_literals_excluded
 test_cfg_test_block_excluded
 test_check_ratchet
 

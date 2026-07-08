@@ -62,15 +62,19 @@ UI_DIR="$ROOT/core/vauchi-app/src/ui"
 # of one file. `kind` selects the field-name alternation. The awk state
 # machine stops counting at the first `#[cfg(test)]` attribute — ui
 # files keep their test module last (pinned by the sentinel suite).
+#
+# Strings that look like locale keys (contain a '.') are excluded — the
+# desired end-state for i18n threading is `title: "some.key".into()`, not
+# a hardcoded English literal.
 count_kind() { # $1 = file, $2 = "title" | "label"
     awk -v kind="$2" '
         /^#\[cfg\(test\)\]/ { intest = 1 }
         intest { next }
         {
             if (kind == "title")
-                pat = "(^|[^_a-zA-Z])title:[[:space:]]*(Some\\()?\"[A-Za-z]"
+                pat = "(^|[^_a-zA-Z])title:[[:space:]]*(Some\\()?\"[A-Za-z][^.\"]*\""
             else
-                pat = "(^|[^_a-zA-Z])(label|subtitle|detail|hint|placeholder|content):[[:space:]]*(Some\\()?\"[A-Za-z]"
+                pat = "(^|[^_a-zA-Z])(label|subtitle|detail|hint|placeholder|content):[[:space:]]*(Some\\()?\"[A-Za-z][^.\"]*\""
             if ($0 ~ pat) n++
         }
         END { print n + 0 }
