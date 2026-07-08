@@ -114,6 +114,12 @@
       exit 0
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "Cargo.toml"
+          - "Cargo.lock"
+          - ".gitlab-ci.yml"
 
 # Git Dependency Branch Ref Guard
 # Blocks MRs targeting main when Cargo.toml contains non-main branch refs.
