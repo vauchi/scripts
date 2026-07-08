@@ -44,7 +44,7 @@
             local encoded_path
             encoded_path=$(printf '%s' "$src_path" | sed 's|/|%2F|g')
             curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
-              "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=main" \
+              "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=${VAUCHI_SCRIPTS_REF}" \
               -o "$dest"
             chmod +x "$dest"
           }

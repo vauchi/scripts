@@ -15,7 +15,7 @@
 # create an MR with merge-when-pipeline-succeeds enabled.
 #
 # Usage (in .gitlab-ci.yml script section):
-#   - curl -sf "$CI_API_V4_URL/projects/77957857/repository/files/scripts%2Fci%2Fvet-autofix.sh/raw?ref=main" -o vet-autofix.sh
+#   - curl -sf "$CI_API_V4_URL/projects/77957857/repository/files/scripts%2Fci%2Fvet-autofix.sh/raw?ref=${VAUCHI_SCRIPTS_REF}" -o vet-autofix.sh
 #   - chmod +x vet-autofix.sh
 #   - ./vet-autofix.sh [--regenerate-lockfile] [--sync-from=PROJECT_ID]
 #
