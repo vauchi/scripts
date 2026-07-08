@@ -56,6 +56,7 @@ variables:
 # the rules locally (e.g., changes: ["**/*.kt"]).
 semgrep-sast:
   tags: [docker]
+  allow_failure: false
   rules:
     # Skip on triggered pipelines (downstream verification checks compatibility, not security)
     - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
@@ -67,6 +68,7 @@ semgrep-sast:
 # Secret detection analyzer - use Docker runner
 secret_detection:
   tags: [docker]
+  allow_failure: false
   rules:
     # Skip on triggered pipelines (downstream verification checks compatibility, not security)
     - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
