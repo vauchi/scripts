@@ -63,10 +63,14 @@ collect_project() {
     local now_epoch
     now_epoch=$(date -u +%s)
 
-    api_get "$url" | python3 - "$now_epoch" - 2>/dev/null <<'PY'
+    local tmp
+    tmp=$(mktemp)
+    if api_get "$url" > "$tmp" 2>/dev/null; then
+        python3 - "$now_epoch" "$tmp" <<'PY'
 import sys, json
 now_epoch = int(sys.argv[1])
-data = json.load(sys.stdin)
+with open(sys.argv[2]) as f:
+    data = json.load(f)
 if not isinstance(data, list):
     sys.exit(0)
 
@@ -114,6 +118,8 @@ for tag, vals in by_tag.items():
     avg = vals["queued_seconds"] / vals["count"] if vals["count"] else 0.0
     print(json.dumps({"tag": tag, "avg_queued_seconds": avg, "pending": vals["pending"], "sample_count": vals["count"]}))
 PY
+    fi
+    rm -f "$tmp"
 }
 
 # Discover projects in the vauchi group (public + accessible to token).
