@@ -121,7 +121,7 @@ quality:metrics-dashboard:
   allow_failure: true
   script:
     - apt-get update -qq && apt-get install -y -qq git findutils gawk >/dev/null 2>&1
-    - git clone --depth=1 https://gitlab.com/vauchi/scripts.git /tmp/scripts
+    - git clone --depth=1 --branch "${VAUCHI_SCRIPTS_REF}" https://gitlab.com/vauchi/scripts.git /tmp/scripts
     - chmod +x /tmp/scripts/scripts/engineering-metrics.sh
     - |
       # Clone all Rust repos for local measurement
