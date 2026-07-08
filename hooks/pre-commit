@@ -165,7 +165,35 @@ if [[ -n "$TOML_FOUND" || -n "$LOCK_FOUND" ]]; then
 fi
 
 # ============================================================
-# 1.6. ADR-046: forbid `hpke::Aead::Aes(128|256)Gcm` in staged Rust files
+# 1.6. Workspace dependency version alignment
+# ============================================================
+# When workspace.package.version is bumped, [workspace.dependencies]
+# entries for workspace members must be bumped too. Mismatches break
+# golden fixture version checks (core_version vs CARGO_PKG_VERSION)
+# and can mislead downstream consumers resolving version requirements.
+echo "[1.6/6] Checking workspace dependency version alignment..."
+STAGED_CARGO_TOML_ROOT=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -E '(^|/)Cargo\.toml$' || true)
+if [[ -n "$STAGED_CARGO_TOML_ROOT" ]]; then
+    WS_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)/.."
+    VERSION_CHECK_SCRIPT="$WS_ROOT/scripts/scripts/check-workspace-versions.sh"
+    if [[ -x "$VERSION_CHECK_SCRIPT" ]]; then
+        for f in $STAGED_CARGO_TOML_ROOT; do
+            [[ -f "$f" ]] || continue
+            # Only workspace-root Cargo.toml files have [workspace.package].
+            if grep -q '^\[workspace\.package\]' "$f"; then
+                if ! "$VERSION_CHECK_SCRIPT" "$f"; then
+                    echo ""
+                    echo "Fix: align workspace.dependencies versions with workspace.package.version."
+                    exit 1
+                fi
+            fi
+        done
+    fi
+fi
+
+# ============================================================
+# 1.7. ADR-046: forbid `hpke::Aead::Aes(128|256)Gcm` in staged Rust files
 # ============================================================
 # HPKE-internal AEAD is bound to ChaCha20-Poly1305 by ADR-046 to
 # preserve ADR-019's anti-AES intent and avoid a per-envelope
