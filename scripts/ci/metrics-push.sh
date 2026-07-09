@@ -94,8 +94,20 @@ gitlab_get() {
         return
     fi
 
-    curl -s --header "$token_header" \
-        "${GITLAB_API}${endpoint}" 2>/dev/null || echo "null"
+    local http_code body
+    body=$(curl -s --header "$token_header" \
+        -w "\n%{http_code}" \
+        "${GITLAB_API}${endpoint}" 2>/dev/null)
+    http_code=$(echo "$body" | tail -1)
+    body=$(echo "$body" | sed '$d')
+
+    if [ "$http_code" != "200" ]; then
+        echo "WARNING: GitLab API ${endpoint} returned HTTP ${http_code} (auth scope may be too narrow)" >&2
+        echo "null"
+        return
+    fi
+
+    echo "$body"
 }
 
 # Append a metric line in Prometheus exposition format
@@ -594,6 +606,17 @@ if [ -z "$METRICS_TEXT" ]; then
     exit 0
 fi
 
+# Sanity check: the script queries every repo in GITLAB_PROJECTS. If only a
+# handful returned data, the CI token likely lacks cross-project API access.
+# (This happens when vauchi/scripts is not in the job-token allowlist of the
+# target projects; see scripts/.gitlab-ci.yml::metrics:daily.)
+repos_with_data=$(echo "$METRICS_TEXT" | grep -oE 'repo="[^"]+"' | sed 's/repo="//;s/"$//' | sort -u | wc -l | tr -d ' ')
+expected_repos=${#GITLAB_PROJECTS[@]}
+if [ "$repos_with_data" -lt "$(( expected_repos / 2 ))" ]; then
+    echo "WARNING: Only ${repos_with_data}/${expected_repos} repos returned data." >&2
+    echo "WARNING: Check CI_JOB_TOKEN allowlists — vauchi/scripts must be allowed to read each target project." >&2
+fi
+
 push_metrics
 
-echo "vauchi metrics-push: done ($(echo "$METRICS_TEXT" | wc -l | tr -d ' ') metric lines)" >&2
+echo "vauchi metrics-push: done ($(echo "$METRICS_TEXT" | wc -l | tr -d ' ') metric lines, ${repos_with_data}/${expected_repos} repos)" >&2

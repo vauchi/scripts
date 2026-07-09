@@ -238,6 +238,12 @@ resource-group:reset:
 # allow_failure: true because pushgateway availability is best-effort
 # observability — a missed daily push is recoverable on the next run
 # and must never gate scheduled work. Audited 2026-04-22 T2.5.
+#
+# REQUIRES: vauchi/scripts must be in the CI/CD job-token allowlist of every
+# project queried by scripts/scripts/ci/metrics-push.sh (core, relay, cli, tui,
+# ios, android, e2e, macos, windows, linux-gtk, linux-qt, ohttp-relay, web-demo).
+# Without this, the job token can only read vauchi/scripts itself and the
+# Engineering Metrics dashboard will show only the scripts repo.
 metrics:daily:
   stage: metrics
   tags:
