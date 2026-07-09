@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # SHA-based binary cache for E2E test binaries.
-# Builds relay + CLI only when source has changed.
+# Builds relay + CLI + ohttp-relay only when source has changed.
 
 set -euo pipefail
 
@@ -70,6 +70,38 @@ build_if_changed() {
     echo "  [done]   $binary_name"
 }
 
+# Build the ohttp-relay binary if the SHA has changed.
+# ohttp-relay lives in its own Cargo workspace, so its target dir differs
+# from the workspace-root target used by cli/relay.
+build_ohttp_relay_if_changed() {
+    local repo_dir="$1"
+    local binary_name="vauchi-ohttp-relay"
+    local sha
+    sha="$(repo_sha "$repo_dir")"
+    local sha_file="$BIN_DIR/.${binary_name}.sha"
+
+    if [[ -f "$sha_file" ]] && [[ -f "$BIN_DIR/$binary_name" ]]; then
+        local cached_sha
+        cached_sha="$(cat "$sha_file")"
+        if [[ "$cached_sha" == "$sha" ]]; then
+            echo "  [cached] $binary_name (SHA unchanged)"
+            return 0
+        fi
+    fi
+
+    echo "  [build]  $binary_name ..."
+    (cd "$repo_dir" && cargo build --release --manifest-path "$repo_dir/Cargo.toml")
+
+    local built_path="$repo_dir/target/release/$binary_name"
+    if [[ ! -f "$built_path" ]]; then
+        echo "ERROR: Expected binary not found at $built_path" >&2
+        exit 1
+    fi
+    cp "$built_path" "$BIN_DIR/$binary_name"
+    echo "$sha" > "$sha_file"
+    echo "  [done]   $binary_name"
+}
+
 echo "═══ E2E Binary Build (SHA cache) ═══"
 echo "  Cache dir: $BIN_DIR"
 echo ""
@@ -78,6 +110,8 @@ echo ""
 build_if_changed "$WORKSPACE_ROOT/cli" "vauchi" --no-default-features
 
 build_if_changed "$WORKSPACE_ROOT/relay" "vauchi-relay"
+
+build_ohttp_relay_if_changed "$WORKSPACE_ROOT/ohttp-relay"
 
 echo ""
 echo "Binaries ready in $BIN_DIR"
