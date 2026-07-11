@@ -61,6 +61,13 @@
             "\\bVisibilityMode\\b",
             "\\bvisibility_mode\\b"
           ]
+        },
+        "app_screen_enum_branch": {
+          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "patterns": [
+            "case\\s+AppScreen\\.",
+            "[=!]=\\s*AppScreen\\."
+          ]
         }
       }
     },
@@ -118,6 +125,14 @@
             "\\bVisibilityMode\\b",
             "\\bvisibility_mode\\b"
           ]
+        },
+        "app_screen_enum_branch": {
+          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "patterns": [
+            "enum class Screen\\b",
+            "\\bScreen\\.\\w+\\s*->",
+            "=\\s*Screen\\."
+          ]
         }
       }
     },
@@ -170,6 +185,13 @@
             "\\bVisibilityMode\\b",
             "\\bvisibility_mode\\b"
           ]
+        },
+        "app_screen_enum_branch": {
+          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "patterns": [
+            "case\\s+AppScreen\\.",
+            "[=!]=\\s*AppScreen\\."
+          ]
         }
       }
     },
@@ -208,6 +230,13 @@
           "patterns": [
             "\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
           ]
+        },
+        "app_screen_enum_branch": {
+          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "patterns": [
+            "case\\s+AppScreen\\.",
+            "[=!]=\\s*AppScreen\\."
+          ]
         }
       }
     },
@@ -235,6 +264,17 @@
           "message": "screen_id must be opaque; do not branch on domain screen id literals.",
           "patterns": [
             "\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
+          ]
+        },
+        "app_screen_enum_branch": {
+          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "patterns": [
+            "[=!]=\\s*AppScreen::",
+            "matches!\\s*\\([^;]*AppScreen::",
+            "AppScreen::from_screen_id",
+            "AppScreen::\\w+\\s*(?:\\{[^}]*\\}\\s*)?=>",
+            "\\|\\s*AppScreen::",
+            "(?:navigate_to|goto)\\s*\\(\\s*AppScreen::"
           ]
         }
       }
@@ -265,6 +305,15 @@
           "message": "screen_id must be opaque; do not branch on domain screen id literals.",
           "patterns": [
             "\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
+          ]
+        },
+        "app_screen_enum_branch": {
+          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "patterns": [
+            "[=!]=\\s*AppScreen::",
+            "case\\s+AppScreen::",
+            "AppScreen::from_screen_id",
+            "navigate_to\\s*\\(\\s*AppScreen::"
           ]
         }
       }
@@ -303,6 +352,17 @@
           "patterns": [
             "\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
           ]
+        },
+        "app_screen_enum_branch": {
+          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "patterns": [
+            "[=!]=\\s*AppScreen::",
+            "matches!\\s*\\([^;]*AppScreen::",
+            "AppScreen::from_screen_id",
+            "AppScreen::\\w+\\s*(?:\\{[^}]*\\}\\s*)?=>",
+            "\\|\\s*AppScreen::",
+            "(?:navigate_to|goto)\\s*\\(\\s*AppScreen::"
+          ]
         }
       }
     },
@@ -335,6 +395,13 @@
           "message": "screen_id must be opaque; do not branch on domain screen id literals.",
           "patterns": [
             "\"(multi_stage_exchange|exchange_show_qr|contact_detail|contacts|my_info)\""
+          ]
+        },
+        "app_screen_enum_branch": {
+          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "patterns": [
+            "case\\s+AppScreen\\.",
+            "[=!]=\\s*AppScreen\\."
           ]
         }
       }

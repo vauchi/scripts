@@ -210,6 +210,102 @@ test_json_validity() {
     rm -rf "$root"
 }
 
+# test_app_screen_enum_branch_rust — match/comparison/matches!/goto on core AppScreen counts
+test_app_screen_enum_branch_rust() {
+    root=$(mktemp -d)
+    dir="$root/tui/src/ui"
+    mkdir -p "$dir"
+    cat >"$dir/render.rs" <<'RS'
+fn tab(app: &App) -> usize {
+    match app.current_app_screen() {
+        AppScreen::Lock => 0,
+        AppScreen::Onboarding => 1,
+        AppScreen::Contacts | AppScreen::ContactDetail { .. } => 2,
+    }
+}
+fn is_form(app: &App) -> bool {
+    matches!(app.current_app_screen(), AppScreen::FormDialog { .. })
+}
+fn go(app: &mut App) {
+    app.goto(AppScreen::Settings);
+}
+fn eq(app: &App) -> bool {
+    app.current_app_screen() == AppScreen::Lock
+}
+RS
+    # Opaque rendering must not add to the count (true negative).
+    cat >"$dir/opaque.rs" <<'RS'
+fn render(model: &ScreenModel) {
+    for component in &model.components {
+        draw(component);
+    }
+    dispatch(UserAction::NavigateToTab { action_id });
+}
+RS
+    out=$(python3 "$SCRIPT" --repo tui --workspace-root "$root" --config "$CONFIG")
+    assert_eq "app_screen rust: branch sites counted, opaque render ignored" "6" "$(extract_counter "$out" app_screen_enum_branch)"
+    rm -rf "$root"
+}
+
+# test_app_screen_enum_branch_kotlin — local Screen enum decl + when-arms + comparison
+test_app_screen_enum_branch_kotlin() {
+    root=$(mktemp -d)
+    dir="$root/android/app/src/main/kotlin/app/vauchi"
+    mkdir -p "$dir"
+    cat >"$dir/Main.kt" <<'KT'
+enum class Screen {
+    Home, NfcExchange, Recovery,
+}
+fun render(screen: Screen) {
+    when (screen) {
+        Screen.Home -> renderHome()
+        Screen.NfcExchange -> renderNfc()
+    }
+    if (screen == Screen.Recovery) { back() }
+    var current = Screen.Home
+}
+KT
+    out=$(python3 "$SCRIPT" --repo android --workspace-root "$root" --config "$CONFIG")
+    assert_eq "app_screen kotlin: enum decl + arms + comparison + assignment" "5" "$(extract_counter "$out" app_screen_enum_branch)"
+    rm -rf "$root"
+}
+
+# test_app_screen_enum_branch_true_negatives — opaque native code must not fire
+test_app_screen_enum_branch_true_negatives() {
+    root=$(mktemp -d)
+    dir="$root/android/app/src/main/kotlin/app/vauchi"
+    mkdir -p "$dir"
+    cat >"$dir/Opaque.kt" <<'KT'
+fun render(model: ScreenModel, screen: NativeScreen) {
+    renderComponents(model.components)
+    when (screen.nativeWrapperHint) {
+        NativeWrapperHint.MultiStageExchange -> showExchange()
+        else -> showHome()
+    }
+    dispatch(NavigateToTab(actionId))
+}
+KT
+    out=$(python3 "$SCRIPT" --repo android --workspace-root "$root" --config "$CONFIG")
+    assert_eq "app_screen kotlin: opaque nativeWrapperHint/ScreenModel/NavigateToTab ignored" "0" "$(extract_counter "$out" app_screen_enum_branch)"
+    rm -rf "$root"
+}
+
+# test_app_screen_enum_branch_exception — TODO(HUMBLE) suppresses a branch site
+test_app_screen_enum_branch_exception() {
+    root=$(mktemp -d)
+    dir="$root/tui/src/ui"
+    mkdir -p "$dir"
+    cat >"$dir/render.rs" <<'RS'
+fn go(app: &mut App) {
+    // TODO(HUMBLE): D — grandfathered navigation until core owns routing
+    app.goto(AppScreen::Settings);
+}
+RS
+    out=$(python3 "$SCRIPT" --repo tui --workspace-root "$root" --config "$CONFIG")
+    assert_eq "app_screen rust: TODO(HUMBLE) suppresses" "0" "$(extract_counter "$out" app_screen_enum_branch)"
+    rm -rf "$root"
+}
+
 # test_bad_repo — unknown repo exits 2
 test_bad_repo() {
     root=$(mktemp -d)
@@ -230,6 +326,10 @@ test_excluded_paths
 test_check_above_baseline_fails
 test_check_at_baseline_passes
 test_json_validity
+test_app_screen_enum_branch_rust
+test_app_screen_enum_branch_kotlin
+test_app_screen_enum_branch_true_negatives
+test_app_screen_enum_branch_exception
 test_bad_repo
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

@@ -6,42 +6,50 @@
       "error_substring_classification": 0,
       "domain_screen_id_branch": 1,
       "notification_category_mapping": 0,
-      "field_visibility_interpretation": 1
+      "field_visibility_interpretation": 1,
+      "app_screen_enum_branch": 0
     },
     "android": {
       "action_id_minting": 0,
       "error_substring_classification": 0,
       "domain_screen_id_branch": 8,
       "notification_category_mapping": 2,
-      "field_visibility_interpretation": 7
+      "field_visibility_interpretation": 7,
+      "app_screen_enum_branch": 13
     },
     "macos": {
       "action_id_minting": 3,
       "error_substring_classification": 0,
       "domain_screen_id_branch": 1,
-      "field_visibility_interpretation": 1
+      "field_visibility_interpretation": 1,
+      "app_screen_enum_branch": 0
     },
     "windows": {
       "action_id_minting": 1,
       "error_substring_classification": 0,
-      "domain_screen_id_branch": 1
+      "domain_screen_id_branch": 1,
+      "app_screen_enum_branch": 0
     },
     "linux-gtk": {
       "action_id_minting": 0,
-      "domain_screen_id_branch": 0
+      "domain_screen_id_branch": 0,
+      "app_screen_enum_branch": 0
     },
     "linux-qt": {
       "action_id_minting": 0,
-      "domain_screen_id_branch": 0
+      "domain_screen_id_branch": 0,
+      "app_screen_enum_branch": 0
     },
     "tui": {
       "action_id_minting": 2,
       "error_substring_classification": 0,
-      "domain_screen_id_branch": 2
+      "domain_screen_id_branch": 2,
+      "app_screen_enum_branch": 111
     },
     "web-demo": {
       "action_id_minting": 0,
-      "domain_screen_id_branch": 0
+      "domain_screen_id_branch": 0,
+      "app_screen_enum_branch": 0
     }
   }
 }
