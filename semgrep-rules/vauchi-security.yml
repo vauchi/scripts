@@ -94,6 +94,11 @@ rules:
         - "**/src/main.rs"
         - "**/src/bin/**"
         - "**/examples/**"
+        # flame.rs is #[cfg(feature = "flame")] dev-only profiling that
+        # never compiles into a production build; its eprintln/println
+        # report where the trace file was written. Same non-production
+        # category as main.rs/bin/examples above.
+        - "**/flame.rs"
     metadata:
       category: security
       confidence: MEDIUM
@@ -154,6 +159,11 @@ rules:
         - "**/src/main.rs"
         - "**/src/bin/**"
         - "**/examples/**"
+        # flame.rs is #[cfg(feature = "flame")] dev-only profiling that
+        # never compiles into a production build; its eprintln/println
+        # report where the trace file was written. Same non-production
+        # category as main.rs/bin/examples above.
+        - "**/flame.rs"
     metadata:
       category: security
       confidence: MEDIUM
