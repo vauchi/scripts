@@ -80,8 +80,8 @@ assert_eq "dirty branch: blocked (exit 1)" "1" "$RC"
 assert_eq "dirty branch: HEAD untouched" "$head" "$(git -C "$wc" rev-parse HEAD)"
 assert_eq "dirty branch: WIP preserved" "1" \
     "$(grep -c 'uncommitted-wip' "$wc/f")"
-assert_eq "dirty branch: message names the dirty tree" "1" \
-    "$(printf '%s' "$OUT" | grep -c -i 'dirty\|uncommitted')"
+assert_eq "dirty branch: message names the dirty tree" "present" \
+    "$(printf '%s' "$OUT" | grep -qiE 'dirty|uncommitted' && echo present || echo absent)"
 rm -rf "$(dirname "$wc")"
 
 # ── (c) branch push on a behind-main branch with a CLEAN tree rebases
