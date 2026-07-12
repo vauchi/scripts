@@ -1174,35 +1174,27 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
         #   grep -rn       — code blocks containing the checker's own patterns
         #   stale_refs=    — shell variable assignments in code blocks
         #   - [x]          — checked-off plan items
-        stale_refs=$(grep -rn 'desktop/' --include='*.md' \
+        # ADR-027: the archived Tauri desktop lived at desktop/src-tauri/ and
+        # desktop/ui/src/. Flag references to those *paths* — the concrete stale
+        # signal — not the bare word "desktop", which is legitimate shorthand for
+        # the native desktop frontends (linux-gtk/linux-qt/macos/windows) and was
+        # false-positiving on category labels ("desktop/TUI/web"), commit-message
+        # quotes, and the rot-audit that documents the Tauri removal. SolidJS
+        # under desktop/ui/src is caught by the path; live web-demo SolidJS is
+        # not (correct). Mirrors _private/scripts/check-adr-references.sh, which
+        # is already path-based. (Tightened 2026-07-12 from a broad `desktop/` +
+        # bare `Tauri|SolidJS` grep that required an ever-growing exclusion list.)
+        stale_refs=$(grep -rnE 'desktop/src-tauri/|desktop/ui/src/' --include='*.md' \
             docs/problems/ docs/planning/todo/ 2>/dev/null \
             | grep -v 'done/' \
             | grep -v 'archived' \
             | grep -v 'deferred/' \
             | grep -v '~~' \
             | grep -v 'ADR-027' \
-            | grep -v 'changelog' \
-            | grep -v 'evidence' \
-            | grep -v 'grep -rn' \
-            | grep -v 'stale_refs=' \
-            | grep -v '`desktop/`' || true)
+            | grep -v 'grep -rnE' \
+            | grep -v 'stale_refs=' || true)
 
-        stale_tauri=$(grep -rn 'Tauri\|SolidJS' --include='*.md' \
-            docs/problems/ docs/planning/todo/ 2>/dev/null \
-            | grep -v 'done/' \
-            | grep -v 'archived' \
-            | grep -v 'deferred/' \
-            | grep -v '~~' \
-            | grep -v 'ADR-027' \
-            | grep -v 'changelog' \
-            | grep -v 'evidence' \
-            | grep -v 'web-demo' \
-            | grep -v 'grep -rn' \
-            | grep -v 'stale_tauri=' \
-            | grep -v '\- \[x\]' \
-            | grep -v '# git -C desktop' || true)
-
-        combined="${stale_refs}${stale_tauri}"
+        combined="${stale_refs}"
         if [[ -n "$combined" ]]; then
             echo "  WARNING: Stale references to archived desktop/Tauri/SolidJS:"
             echo "$combined" | head -10
