@@ -57,6 +57,17 @@ variables:
 semgrep-sast:
   tags: [docker]
   allow_failure: false
+  # Self-heal transient SAST failures (analyzer image / ruleset download,
+  # registry hiccups). semgrep is deterministic on fixed source, so a real
+  # finding fails every attempt — retry cannot mask it. Overriding retry
+  # REPLACES the rust-base default, so the infra conditions are re-listed.
+  retry:
+    max: 2
+    when:
+      - script_failure
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
   rules:
     # Skip on triggered pipelines (downstream verification checks compatibility, not security)
     - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
