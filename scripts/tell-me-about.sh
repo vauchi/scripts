@@ -8,7 +8,7 @@
 set -euo pipefail
 
 # Configuration
-MODEL="${TELL_ME_MODEL:-qwen2:0.5b}"
+MODEL="${TELL_ME_MODEL:-gemma4:e2b}"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 MAX_RESULTS=20
 MAX_CONTENT_LINES=100
@@ -22,7 +22,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 usage() {
-    echo -e "${BLUE}tell-me-about${NC} - Quick codebase exploration"
+    printf '%b\n' "${BLUE}tell-me-about${NC} - Quick codebase exploration"
     echo ""
     echo "Usage: $0 <topic>"
     echo ""
@@ -33,7 +33,7 @@ usage() {
     echo "  $0 'relay server'"
     echo ""
     echo "Environment:"
-    echo "  TELL_ME_MODEL  Ollama model (default: qwen2:0.5b)"
+    echo "  TELL_ME_MODEL  Ollama model (default: gemma4:e2b)"
     echo "  PROJECT_ROOT   Project root (default: auto-detect)"
 }
 
@@ -44,18 +44,43 @@ fi
 
 TOPIC="$*"
 
-# Check ollama
+# Preflight — fail LOUD, never silently degrade to plain grep. A silent
+# fallback makes the tool look "working" while the local-LLM keyword
+# expansion and summary (the whole point vs. raw grep) are dead.
 if ! command -v ollama &>/dev/null; then
-    echo -e "${YELLOW}Error: ollama not found. Install from https://ollama.ai${NC}"
+    printf '%b\n' "${YELLOW}Error: ollama not found. Install from https://ollama.ai${NC}"
     exit 1
 fi
 
-echo -e "${BLUE}Searching for:${NC} $TOPIC"
-echo -e "${DIM}Using model: $MODEL${NC}"
+# Daemon reachable? `ollama list` fails when the server isn't running.
+if ! ollama list &>/dev/null; then
+    printf '%b\n' "${YELLOW}Error: ollama daemon not reachable.${NC}" >&2
+    echo "  Start it, then re-run:" >&2
+    echo "    ollama serve >/dev/null 2>&1 &   # or: systemctl --user start ollama" >&2
+    exit 1
+fi
+
+# Model present? Auto-pull only when explicitly opted in (avoids a silent
+# ~350MB download); otherwise instruct.
+if ! ollama list 2>/dev/null | awk '{print $1}' | grep -qx "$MODEL" \
+   && ! ollama list 2>/dev/null | awk '{print $1}' | grep -q "^${MODEL%%:*}:"; then
+    if [[ "${TELL_ME_AUTOPULL:-0}" == "1" ]]; then
+        printf '%b\n' "${CYAN}Pulling $MODEL (one-time)...${NC}" >&2
+        ollama pull "$MODEL" || { printf '%b\n' "${YELLOW}pull failed${NC}" >&2; exit 1; }
+    else
+        printf '%b\n' "${YELLOW}Error: model '$MODEL' not pulled.${NC}" >&2
+        echo "  One-time: ollama pull $MODEL" >&2
+        echo "  Or set TELL_ME_AUTOPULL=1 to pull automatically." >&2
+        exit 1
+    fi
+fi
+
+printf '%b\n' "${BLUE}Searching for:${NC} $TOPIC"
+printf '%b\n' "${DIM}Using model: $MODEL${NC}"
 echo ""
 
 # Step 1: Generate search keywords using LLM
-echo -e "${CYAN}Generating search terms...${NC}"
+printf '%b\n' "${CYAN}Generating search terms...${NC}"
 
 KEYWORDS_PROMPT="You are a code search assistant. Given a topic, output 5-8 search keywords/patterns that would help find relevant files and code in a software project. Output ONLY the keywords, one per line, no explanations.
 
@@ -69,11 +94,11 @@ KEYWORDS=$(ollama run "$MODEL" "$KEYWORDS_PROMPT" 2>/dev/null | grep -v '^$' | h
 TOPIC_WORDS=$(echo "$TOPIC" | tr ' ' '\n' | grep -v '^$')
 KEYWORDS="$TOPIC_WORDS"$'\n'"$KEYWORDS"
 
-echo -e "${DIM}Keywords: $(echo "$KEYWORDS" | tr '\n' ', ')${NC}"
+printf '%b\n' "${DIM}Keywords: $(echo "$KEYWORDS" | tr '\n' ', ')${NC}"
 echo ""
 
 # Step 2: Search for files
-echo -e "${CYAN}Searching files...${NC}"
+printf '%b\n' "${CYAN}Searching files...${NC}"
 
 FOUND_FILES=""
 FOUND_CONTENT=""
@@ -105,10 +130,12 @@ while IFS= read -r keyword; do
     [[ -z "$clean_kw" ]] && continue
 
     # Content search with context
-    content=$(grep -rn --include="*.rs" --include="*.swift" --include="*.kt" --include="*.md" --include="*.sh" --include="*.feature" \
-        -i "$clean_kw" . \
-        --exclude-dir=target --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=DerivedData \
-        2>/dev/null | head -10) || true
+    # find|xargs grep instead of GNU `grep -r --include/--exclude-dir`
+    # (VSH06: those flags are non-POSIX). Trailing /dev/null keeps grep in
+    # multi-file mode (filename:line prefix) and avoids an empty-input hang.
+    content=$(find . -type f \( -name "*.rs" -o -name "*.swift" -o -name "*.kt" -o -name "*.md" -o -name "*.sh" -o -name "*.feature" \) \
+        -not -path "*/target/*" -not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/DerivedData/*" \
+        -print0 2>/dev/null | xargs -0 grep -in -- "$clean_kw" /dev/null 2>/dev/null | head -10) || true
 
     if [[ -n "$content" ]]; then
         FOUND_CONTENT="$FOUND_CONTENT"$'\n'"$content"
@@ -121,43 +148,43 @@ FOUND_CONTENT=$(echo "$FOUND_CONTENT" | sort -u | grep -v '^$' | head -"$MAX_CON
 
 # Step 3: Display results
 echo ""
-echo -e "${GREEN}=== Relevant Files ===${NC}"
+printf '%b\n' "${GREEN}=== Relevant Files ===${NC}"
 if [[ -n "$FOUND_FILES" ]]; then
     echo "$FOUND_FILES" | while read -r f; do
-        [[ -n "$f" ]] && echo -e "  ${CYAN}$f${NC}"
+        [[ -n "$f" ]] && printf '%b\n' "  ${CYAN}$f${NC}"
     done
 else
-    echo -e "  ${DIM}No files found${NC}"
+    printf '%b\n' "  ${DIM}No files found${NC}"
 fi
 
 echo ""
-echo -e "${GREEN}=== Key Locations ===${NC}"
+printf '%b\n' "${GREEN}=== Key Locations ===${NC}"
 
 # Extract unique file paths from content matches
 if [[ -n "$FOUND_CONTENT" ]]; then
     echo "$FOUND_CONTENT" | cut -d: -f1 | sort -u | head -10 | while read -r f; do
-        [[ -n "$f" ]] && echo -e "  ${CYAN}$f${NC}"
+        [[ -n "$f" ]] && printf '%b\n' "  ${CYAN}$f${NC}"
     done
 fi
 
 echo ""
-echo -e "${GREEN}=== Sample Matches ===${NC}"
+printf '%b\n' "${GREEN}=== Sample Matches ===${NC}"
 if [[ -n "$FOUND_CONTENT" ]]; then
     echo "$FOUND_CONTENT" | head -15 | while read -r line; do
         # Truncate long lines
         if [[ ${#line} -gt 120 ]]; then
-            echo -e "  ${DIM}${line:0:120}...${NC}"
+            printf '%b\n' "  ${DIM}${line:0:120}...${NC}"
         else
-            echo -e "  ${DIM}$line${NC}"
+            printf '%b\n' "  ${DIM}$line${NC}"
         fi
     done
 else
-    echo -e "  ${DIM}No content matches found${NC}"
+    printf '%b\n' "  ${DIM}No content matches found${NC}"
 fi
 
 # Step 4: Generate summary using LLM
 echo ""
-echo -e "${CYAN}Generating summary...${NC}"
+printf '%b\n' "${CYAN}Generating summary...${NC}"
 
 # Prepare context for summary (truncate to avoid token limits)
 CONTEXT="Files found:
@@ -173,9 +200,9 @@ $CONTEXT
 Summary:"
 
 echo ""
-echo -e "${GREEN}=== Summary ===${NC}"
+printf '%b\n' "${GREEN}=== Summary ===${NC}"
 ollama run "$MODEL" "$SUMMARY_PROMPT" 2>/dev/null | head -20
 
 echo ""
-echo -e "${DIM}---${NC}"
-echo -e "${DIM}Tip: For more detail, read the files directly or run: just check${NC}"
+printf '%b\n' "${DIM}---${NC}"
+printf '%b\n' "${DIM}Tip: For more detail, read the files directly or run: just check${NC}"
