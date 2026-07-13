@@ -18,6 +18,10 @@ include:
 
 variables:
   SECRET_DETECTION_EXCLUDED_PATHS: "archive/"
+  # The shared templates fetch runtime scripts from vauchi/scripts via the
+  # GitLab API using this ref. Consumers (including this repo) must define it
+  # because the templates no longer hard-code ?ref=main (see commit 0192383).
+  VAUCHI_SCRIPTS_REF: "main"
 
 stages:
   - lint
