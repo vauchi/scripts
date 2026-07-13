@@ -1363,13 +1363,16 @@ if [[ -f "$REPO_ROOT/Cargo.toml" || -f "${REPO_ROOT}/src-tauri/Cargo.toml" ]]; t
                             | awk '{print $2}' || true)
                     fi
 
-                    if [[ -n "$baseline" ]]; then
-                        # Grandfathered: only fail if it grew beyond baseline
-                        if [[ "$lines" -gt "$baseline" ]]; then
-                            echo "  FAIL $rs_file ($lines lines, baseline $baseline — grew by $((lines - baseline)))"
+                    # Mirror of check-file-size.sh: `exempt` never fails;
+                    # numbered baselines ratchet with 100-line slack (fail
+                    # only past the next ceiling, not on every +1 line).
+                    if [[ -n "$baseline" && "$baseline" != "exempt" ]]; then
+                        ceiling=$(( ( (baseline + 99) / 100 ) * 100 ))
+                        if [[ "$lines" -gt "$ceiling" ]]; then
+                            echo "  FAIL $rs_file ($lines lines, baseline $baseline, ceiling $ceiling — grew past ceiling)"
                             SIZE_FAIL=1
                         fi
-                    elif [[ "$lines" -gt "$error_threshold" ]]; then
+                    elif [[ -z "$baseline" && "$lines" -gt "$error_threshold" ]]; then
                         echo "  FAIL $rs_file ($lines lines, $kind error threshold $error_threshold)"
                         SIZE_FAIL=1
                     fi

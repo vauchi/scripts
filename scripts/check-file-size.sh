@@ -15,7 +15,10 @@
 #   Test files (tests/**/*.rs):  warn >800, error >1200
 #
 # Reads .file-size-baseline in <directory> root for grandfathered files.
-# Grandfathered files only fail if they GROW beyond their baseline.
+# Each entry is "<relative_path> <count>" or "<relative_path> exempt".
+# A numbered file fails only if it grows past the next BUCKET-line ceiling
+# above its count (slack, not +1); an `exempt` file (structurally
+# un-splittable: FFI facades, migration ledgers, state machines) never fails.
 #
 # Suppression: Add "// allow(large_file)" on line 1 of a file.
 #
@@ -30,6 +33,11 @@ SRC_WARN=500
 SRC_ERROR=1000
 TEST_WARN=800
 TEST_ERROR=1200
+
+# Ratchet slack: a baselined file may grow up to the next BUCKET-line
+# ceiling above its recorded count before a baseline bump is required.
+# Prevents perpetual +1-line bump churn on un-shrinkable large files.
+BUCKET=100
 
 # ── Parse flags ───────────────────────────────────────────────────────
 ADVISORY=false
@@ -135,10 +143,17 @@ for DIR in "${DIRS[@]}"; do
         local_dir="${DIR%/}"
         relpath="${filepath#"$local_dir"/}"
 
-        # Generate baseline mode: just output files above error threshold
+        # Generate baseline mode: output files above error threshold,
+        # preserving any existing `exempt` marker so regeneration stays
+        # idempotent for structurally un-splittable files.
         if [ "$GENERATE_BASELINE" = true ]; then
             if [ "$lines" -gt "$error_threshold" ]; then
-                BASELINE_ENTRIES+=("$relpath $lines")
+                existing=$(get_baseline "$relpath" "$BASELINE_FILE")
+                if [ "$existing" = "exempt" ]; then
+                    BASELINE_ENTRIES+=("$relpath exempt")
+                else
+                    BASELINE_ENTRIES+=("$relpath $lines")
+                fi
             fi
             continue
         fi
@@ -150,9 +165,18 @@ for DIR in "${DIRS[@]}"; do
         baseline=$(get_baseline "$relpath" "$BASELINE_FILE")
 
         if [ -n "$baseline" ]; then
-            # Grandfathered file: only fail if it GREW beyond baseline
-            if [ "$lines" -gt "$baseline" ]; then
-                echo "FAIL $filepath ($lines lines, baseline $baseline — grew by $((lines - baseline)))" >> "$TMPFILE"
+            # Structurally un-splittable files (FFI facades, migration
+            # ledgers, state machines) are marked `exempt` — never fail,
+            # since there is no split the failure could prompt.
+            if [ "$baseline" = "exempt" ]; then
+                continue
+            fi
+            # Grandfathered file: ratchet with slack. Fail only when it
+            # grows past the next BUCKET-line ceiling above its baseline,
+            # not on every +1 line.
+            ceiling=$(( ( (baseline + BUCKET - 1) / BUCKET ) * BUCKET ))
+            if [ "$lines" -gt "$ceiling" ]; then
+                echo "FAIL $filepath ($lines lines, baseline $baseline, ceiling $ceiling — grew past ceiling)" >> "$TMPFILE"
                 FAIL_COUNT=$((FAIL_COUNT + 1))
             fi
             # Skip normal threshold checks for baselined files
@@ -208,6 +232,7 @@ if [ "$FAIL_COUNT" -gt 0 ]; then
     echo "Options:"
     echo "  - Split the file into smaller modules"
     echo "  - Add to .file-size-baseline if structurally necessary"
+    echo "    (use 'exempt' instead of a count for un-splittable FFI/migration files)"
     echo "  - Add '// allow(large_file)' on line 1 for exemptions (migrations, FFI)"
     if [ "$ADVISORY" = true ]; then
         echo ""
