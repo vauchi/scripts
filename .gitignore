@@ -12,3 +12,6 @@
 credentials.json
 service-account*.json
 .idea/
+
+# Python bytecode cache (from script self-tests importing modules)
+__pycache__/
