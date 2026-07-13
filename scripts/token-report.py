@@ -100,6 +100,63 @@ def token_side(project_match):
     return per, files, nested
 
 
+def kimi_token_side(project_match):
+    """Kimi Code sessions, same per-day shape as token_side().
+
+    Layout: ~/.kimi-code/sessions/wd_<repo>_<hash>/session_*/agents/<name>/
+    wire.jsonl. Each record: {type, event, time(epoch-ms)}; event.usage =
+    {inputOther, output, inputCacheRead, inputCacheCreation}. An agent dir
+    named other than 'main' is a subagent.
+    """
+    base = os.path.expanduser("~/.kimi-code/sessions")
+    per = collections.defaultdict(lambda: dict(
+        eff=0.0, out=0, msgs=0, sub=0.0, models=collections.Counter()))
+    files = nested = 0
+    for sess in glob.glob(os.path.join(base, f"wd_*{project_match}*")):
+        for root, _sub, names in os.walk(sess):
+            if "wire.jsonl" not in names:
+                continue
+            is_sub = (os.path.basename(os.path.dirname(root)) == "agents"
+                      and os.path.basename(root) != "main")
+            files += 1
+            nested += 1 if is_sub else 0
+            try:
+                fh = open(os.path.join(root, "wire.jsonl"),
+                          encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                ev = rec.get("event")
+                t = rec.get("time")
+                if not isinstance(ev, dict) or not t:
+                    continue
+                u = ev.get("usage")
+                if not isinstance(u, dict):
+                    continue
+                day = datetime.datetime.fromtimestamp(
+                    t / 1000, datetime.timezone.utc).date().isoformat()
+                eff = (u.get("inputOther", 0) * W["inp"]
+                       + u.get("output", 0) * W["out"]
+                       + u.get("inputCacheRead", 0) * W["cr"]
+                       + u.get("inputCacheCreation", 0) * W["cw5"])
+                p = per[day]
+                p["eff"] += eff
+                p["out"] += u.get("output", 0)
+                p["msgs"] += 1
+                p["models"][ev.get("model", "kimi")] += eff
+                if is_sub:
+                    p["sub"] += eff
+            fh.close()
+    return per, files, nested
+
+
 def results_side(workspace_root):
     """Return {day: (commits, lines_changed)} across all repos."""
     repos = [workspace_root] + glob.glob(os.path.join(workspace_root, "*/"))
@@ -136,30 +193,35 @@ def main():
     match = sys.argv[2] if len(sys.argv) > 2 else re.sub(
         r"-\d+$", "", os.path.basename(root))
     this_week = iso_week(datetime.date.today().isoformat())
-    per, files, nested = token_side(match)
+    per_c, files_c, nested_c = token_side(match)
+    per_k, files_k, nested_k = kimi_token_side(match)
     commits, lines = results_side(root)
-    if not per:
-        print(f"No transcripts found for project match '*{match}*' under "
-              f"~/.claude/projects. Pass a project_match arg.")
+    if not per_c and not per_k:
+        print(f"No transcripts found for match '*{match}*' under "
+              f"~/.claude/projects or ~/.kimi-code/sessions. Pass a match arg.")
         return 1
 
+    eff_c = sum(p["eff"] for p in per_c.values())
+    eff_k = sum(p["eff"] for p in per_k.values())
     wk = collections.defaultdict(lambda: dict(
         eff=0.0, out=0, msgs=0, sub=0.0, com=0, lin=0))
-    for day, p in per.items():
-        w = wk[iso_week(day)]
-        w["eff"] += p["eff"]
-        w["out"] += p["out"]
-        w["msgs"] += p["msgs"]
-        w["sub"] += p["sub"]
+    for per in (per_c, per_k):
+        for day, p in per.items():
+            w = wk[iso_week(day)]
+            w["eff"] += p["eff"]
+            w["out"] += p["out"]
+            w["msgs"] += p["msgs"]
+            w["sub"] += p["sub"]
     for day, c in commits.items():
         wk[iso_week(day)]["com"] += c
     for day, ln in lines.items():
         wk[iso_week(day)]["lin"] += ln
 
-    print(f"Claude Code cost-vs-output — project '*{match}*'  "
-          f"({files} transcripts, {nested} subagent)\n")
+    nested = nested_c + nested_k
+    print(f"Agent cost-vs-output — project '*{match}*'  "
+          f"(Claude {files_c} + Kimi {files_k} transcripts, {nested} subagent)\n")
     print("Cost = effective units (output×5, cache-read×0.1, "
-          "cache-write×1.25–2). Trend matters, not absolutes.\n")
+          "cache-write×1.25–2), Claude + Kimi combined. Trend matters.\n")
     hdr = ("week", "eff_M", "commits", "linesΔ", "cost/commit_k",
            "subagent%", "eff/msg_k")
     print("{:<9} {:>7} {:>8} {:>8} {:>14} {:>10} {:>10}".format(*hdr))
@@ -196,6 +258,10 @@ def main():
                   f"({delta:+.0f}%). "
                   + ("Check the subagent% column — that's usually the driver."
                      if worse else "Impression of 'more for less' not supported."))
+    total = eff_c + eff_k or 1
+    print("\nBy harness (effective units, all weeks):")
+    print(f"  Claude Code : {eff_c/1e6:8.1f}M  ({eff_c/total*100:4.0f}%)")
+    print(f"  Kimi Code   : {eff_k/1e6:8.1f}M  ({eff_k/total*100:4.0f}%)")
     print("\nNote: transcript retention is partial; raw eff_M for sparse "
           "weeks understates. cost/commit and subagent% are the signal.")
     return 0
