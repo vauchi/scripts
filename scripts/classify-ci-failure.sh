@@ -1,0 +1,83 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Deterministic CI-failure classifier. Reads a GitLab job trace (stdin or
+# a file argument) and prints a JSON verdict:
+#
+#   {"category":"c-ffi-cross","escalate":false,
+#    "signature":"<first matching line>","fix":"<short hint>"}
+#
+# Why: `/ci-fix` and the ci-fixer agent both carry a prose signature→fix
+# table and spend model tokens re-deriving it on every failure. This turns
+# the common 80% into a regex lookup — the model is reserved for the actual
+# fix and for the unknown tail (category "unknown", escalate=true). Same
+# "classical matching instead of a model" lever as the lint hooks.
+#
+# Signatures are ordered MOST-SPECIFIC first; first match wins. Categories
+# and fixes mirror the table in `.claude/skills/ci-fix/SKILL.md` /
+# `.claude/agents/ci-fixer.md` — keep the three in sync.
+#
+# Usage:
+#   glab api ".../jobs/<id>/trace" | scripts/scripts/classify-ci-failure.sh
+#   scripts/scripts/classify-ci-failure.sh trace.txt
+
+set -uo pipefail
+
+if [[ $# -ge 1 && -f "$1" ]]; then
+    TRACE=$(cat "$1")
+else
+    TRACE=$(cat)
+fi
+
+# Ordered, index-aligned rule arrays (patterns contain '|', so parallel
+# arrays are used instead of a delimited string).
+# Order matters — a compile error line can also contain the word "failed",
+# so error[E####] must be tried before the generic test-failure rule.
+CATS=(
+  "c-ffi-cross" "branch-protection" "timeout" "dep-resolution"
+  "missing-tool" "compile-error" "lint" "test-failure" "artifact-gap"
+)
+PATS=(
+  "fatal error: '[^']+\\.h' file not found"
+  "pre-receive hook declined"
+  "(exceeded maximum timeout|Job exceeded)"
+  "failed to select a version"
+  "(command not found|: not found)"
+  "error\\[E[0-9]+\\]"
+  "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
+  "(test result: FAILED|assertion .*failed|panicked at)"
+  "No such file or directory"
+)
+FIXES=(
+  "Feature-gate the C dep in Cargo.toml (optional=true; #[cfg(feature)]); verify: cargo check --no-default-features"
+  "Not a code fix — GitLab branch-protection/push rules; check MR settings and gate-push."
+  "Optimise the job or raise the .timeout-* template; suspect resource starvation before code."
+  "Fix the version constraint in Cargo.toml / regenerate Cargo.lock."
+  "Install the tool in before_script (prefer cargo-binstall) or fix the runner image."
+  "Read the rustc diagnostic; fix the source. Reproduce with cargo check -p <crate>."
+  "Run the matching just check/lint locally and fix the source (never suppress — CC-21)."
+  "Read the failing assertion; fix code or test. Never retry without a root-cause fix (CC-18)."
+  "Downstream job missing an artifact: widen artifacts.paths / add needs in .gitlab-ci.yml."
+)
+
+emit() { # category, escalate, signature, fix
+  jq -nc --arg c "$1" --argjson e "$2" --arg s "$3" --arg f "$4" \
+    '{category:$c, escalate:$e, signature:$s, fix:$f}'
+}
+
+for i in "${!CATS[@]}"; do
+  cat="${CATS[$i]}"
+  pat="${PATS[$i]}"
+  fix="${FIXES[$i]}"
+  line=$(printf '%s\n' "$TRACE" | grep -m1 -E "$pat" 2>/dev/null || true)
+  if [[ -n "$line" ]]; then
+    # Trim leading whitespace and cap length for the signature field.
+    sig=$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//' | head -c 200)
+    emit "$cat" false "$sig" "$fix"
+    exit 0
+  fi
+done
+
+emit "unknown" true "" "No known signature matched — hand to the model for classification and fix."
+exit 0
