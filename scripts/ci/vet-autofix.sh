@@ -355,9 +355,10 @@ git push origin "$BRANCH"
 echo "Pushed branch ${BRANCH}"
 
 # Create MR via GitLab API and enable merge-when-pipeline-succeeds
-MR_BODY="Automated cargo-vet exemption sync triggered by CI on \`${CI_DEFAULT_BRANCH}\`."
-MR_BODY="${MR_BODY}\n\nSource: ${SYNC_FROM:+project ${SYNC_FROM} (core) + }local regeneration."
-MR_BODY="${MR_BODY}\n\nThis MR was created automatically and set to merge when pipeline succeeds."
+printf -v MR_BODY '%s\n\n%s\n\n%s' \
+    "Automated cargo-vet exemption sync triggered by CI on \`${CI_DEFAULT_BRANCH}\`." \
+    "Source: ${SYNC_FROM:+project ${SYNC_FROM} (core) + }local regeneration." \
+    "This MR was created automatically and set to merge when pipeline succeeds."
 
 # G2 of `2026-05-03-vet-autosync-stale-snapshots`: if the lockfile
 # also bumped vauchi-core to a rev that touched UI code, append a
