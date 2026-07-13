@@ -67,29 +67,29 @@ WORKSPACE_ROOT="$(cd "$WORKSPACE_ROOT" && pwd)"
 # render methods; they stay on the list. `can_go_back` joined 2026-05-27
 # as the CoreScreenIdMap-rework prerequisite (genuine Humble query).
 PAE_ALLOWLIST="$(cat <<'EOF'
+advance_qr_frame_json
 boot
 can_go_back
 current_screen_json
-handle_action_json
-handle_hardware_event
-advance_qr_frame_json
-navigate_back_json
-nav_items
-handle_deep_link_uri
 current_tab_id
+dispatch_domain_command
+handle_action_json
+handle_app_backgrounded
+handle_hardware_event
+has_identity
 invalidate_all
 invalidate_screen_json
-has_identity
+nav_items
+navigate_back_json
+new
+on_wakeup
 periodic_sync_tick
+poll_notifications
+set_device_capabilities_json
+set_event_listener
 set_network_online
 set_platform_keychain
-handle_app_backgrounded
-poll_notifications
-set_event_listener
-set_device_capabilities_json
 set_render_context_json
-dispatch_domain_command
-new
 EOF
 )"
 
