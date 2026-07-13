@@ -208,8 +208,13 @@ def do_query(db, question, k=8):
     if not os.path.exists(db) or index_count(db) == 0:
         sys.exit("Index empty — run: just semindex")
     preflight()
+    boiler = ("//", "#", "<!--", "/*", "*", "///", "//!")
     for h in query_index(db, question, embed_ollama, k):
-        first = next((l for l in h["text"].split("\n") if l.strip()), "")
+        # Prefer the first meaningful line for the preview — skip license
+        # headers and comment boilerplate that every file opens with.
+        lines = [l for l in h["text"].split("\n") if l.strip()]
+        first = next((l for l in lines
+                      if not l.lstrip().startswith(boiler)), lines[0] if lines else "")
         print(f"{h['path']}:{h['line']}  [{h['score']}]  {first.strip()[:100]}")
 
 
