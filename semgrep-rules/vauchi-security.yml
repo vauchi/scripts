@@ -60,6 +60,21 @@ rules:
       category: security
       confidence: HIGH
 
+  - id: vauchi-no-manual-zeroize-on-drop
+    pattern-regex: '(?m)^\s*impl\s+(?:zeroize::)?ZeroizeOnDrop\s+for\b'
+    message: >
+      A manual `ZeroizeOnDrop` marker implementation generates no drop
+      behavior. Derive `ZeroizeOnDrop` or implement `Drop` explicitly so
+      secret material is actually cleared. See VRS01.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - "**/vauchi-core/**"
+    metadata:
+      category: security
+      confidence: HIGH
+
   # ============================================================
   # Information leak prevention
   #
