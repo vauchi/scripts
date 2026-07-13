@@ -97,14 +97,28 @@ def index_count(db):
     return n
 
 
-def query_index(db, question, embed_fn, k=8):
-    """Return top-k chunks by cosine to the embedded question."""
+def is_doc(path):
+    """A prose/documentation chunk (vs. code). Markdown is the whole docs
+    corpus (ADRs, problem records, plans) — the noise that buries code hits
+    for code-locating queries."""
+    return path.endswith(".md")
+
+
+def query_index(db, question, embed_fn, k=8, code_only=False):
+    """Return top-k chunks by cosine to the embedded question.
+
+    code_only=True drops documentation (markdown) chunks *before* taking the
+    top k, so a code-locating query isn't diluted by verbose prose that
+    embeds well against natural-language queries.
+    """
     qv = embed_fn([question])[0]
     con = _connect(db)
     rows = con.execute("SELECT path,start_line,text,vec FROM chunks").fetchall()
     con.close()
     scored = []
     for path, ln, tx, vec in rows:
+        if code_only and is_doc(path):
+            continue
         scored.append((cosine(qv, json.loads(vec)), path, ln, tx))
     scored.sort(key=lambda r: -r[0])
     return [{"path": p, "line": ln, "score": round(s, 4), "text": tx}
@@ -204,12 +218,12 @@ def do_index(db, root):
           f"{index_count(db)} chunks total", file=sys.stderr)
 
 
-def do_query(db, question, k=8):
+def do_query(db, question, k=8, code_only=False):
     if not os.path.exists(db) or index_count(db) == 0:
         sys.exit("Index empty — run: just semindex")
     preflight()
     boiler = ("//", "#", "<!--", "/*", "*", "///", "//!")
-    for h in query_index(db, question, embed_ollama, k):
+    for h in query_index(db, question, embed_ollama, k, code_only=code_only):
         # Prefer the first meaningful line for the preview — skip license
         # headers and comment boilerplate that every file opens with.
         lines = [l for l in h["text"].split("\n") if l.strip()]
@@ -227,10 +241,22 @@ def main(argv):
     if cmd == "index":
         do_index(db, argv[2] if len(argv) > 2 else os.getcwd())
     elif cmd == "query":
-        if len(argv) < 3:
-            sys.exit("usage: semsearch.py query \"<question>\" [k]")
-        k = int(argv[4]) if len(argv) > 4 and argv[4].isdigit() else 8
-        do_query(db, argv[2], k)
+        # Parse flexibly: --code flag, an optional numeric k, and the rest
+        # joined as the question (robust whether or not it was quoted).
+        code_only = False
+        k = 8
+        words = []
+        for a in argv[2:]:
+            if a == "--code":
+                code_only = True
+            elif a.isdigit():
+                k = int(a)
+            else:
+                words.append(a)
+        question = " ".join(words).strip()
+        if not question:
+            sys.exit("usage: semsearch.py query \"<question>\" [k] [--code]")
+        do_query(db, question, k, code_only=code_only)
     else:
         sys.exit(f"unknown command: {cmd}")
 

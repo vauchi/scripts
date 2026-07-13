@@ -71,16 +71,25 @@ with tempfile.TemporaryDirectory() as d:
         ("a.rs", 1, "fn derive_key() { /* crypto hkdf */ }"),
         ("b.rs", 1, "fn send_to_relay() { /* relay mailbox */ }"),
         ("c.rs", 1, "fn set_avatar() { /* avatar webp */ }"),
+        ("adr-007-crypto.md", 1, "crypto hkdf domain separation decision"),
     ]
     m.store_chunks(db, docs, stub_embed)
-    check("index persisted 3 rows", m.index_count(db) == 3)
+    check("index persisted 4 rows", m.index_count(db) == 4)
 
     hits = m.query_index(db, "crypto key derivation", stub_embed, k=2)
-    check("top hit is the crypto chunk", hits and hits[0]["path"] == "a.rs")
+    check("top hit is a crypto chunk", hits and hits[0]["path"] in ("a.rs", "adr-007-crypto.md"))
     check("query returns <=k results", len(hits) <= 2)
 
     hits2 = m.query_index(db, "relay server mailbox", stub_embed, k=1)
     check("relay query ranks relay chunk first", hits2[0]["path"] == "b.rs")
+
+    # --code filter: markdown docs excluded, code still returned/ranked
+    hc = m.query_index(db, "crypto", stub_embed, k=5, code_only=True)
+    check("code_only drops every .md hit", all(not h["path"].endswith(".md") for h in hc))
+    check("code_only still returns the crypto code chunk", hc and hc[0]["path"] == "a.rs")
+    hd = m.query_index(db, "crypto", stub_embed, k=5)
+    check("default (no filter) still includes the .md",
+          any(h["path"].endswith(".md") for h in hd))
 
 print()
 if failed == 0:
