@@ -46,7 +46,7 @@ PATS=(
   "(command not found|: not found)"
   "error\\[E[0-9]+\\]"
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
-  "(test result: FAILED|assertion .*failed|panicked at)"
+  "(test result: FAILED|assertion .*failed|panicked at|FAILED: [0-9]+ hook self-test suite\(s\) red\.)"
   "No such file or directory"
 )
 FIXES=(
