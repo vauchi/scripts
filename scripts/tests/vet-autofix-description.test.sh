@@ -14,6 +14,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/../ci/vet-autofix-description.sh"
+AUTOFIX_SCRIPT="$SCRIPT_DIR/../ci/vet-autofix.sh"
 
 pass=0
 fail=0
@@ -28,6 +29,23 @@ assert_eq() {
         fail=$((fail + 1))
     fi
 }
+
+# ── Base MR description uses real Markdown paragraphs ──────────
+# Exercise the assignments from the integration script itself so this
+# catches shell-escaping regressions before malformed text reaches GitLab.
+export CI_DEFAULT_BRANCH=main
+export SYNC_FROM=upstream
+description_builder=$(sed -n '/^\(MR_BODY=\|printf -v MR_BODY\)/,/^$/p' "$AUTOFIX_SCRIPT")
+eval "$description_builder"
+want=$(cat <<'EOF'
+Automated cargo-vet exemption sync triggered by CI on `main`.
+
+Source: project upstream (core) + local regeneration.
+
+This MR was created automatically and set to merge when pipeline succeeds.
+EOF
+)
+assert_eq "base description uses real newlines" "$want" "$MR_BODY"
 
 # ── No rev pair → empty (caller didn't detect a bump) ──────────
 assert_eq "missing both revs → empty" \
