@@ -892,6 +892,33 @@ elif [[ -f "$REPO_ROOT/Package.swift" ]] || [[ "$REPO_DIR" == "ios" ]]; then
 elif [[ "$REPO_DIR" == "android" ]]; then
     cd "$REPO_ROOT"
 
+    # JDK 26 emits java.base.jmod files that its own jlink rejects when AGP
+    # builds androidJdkImage (missing build signature). Prefer an explicit
+    # project override; on this workstation fall back to the installed full
+    # JDK 25 and keep its transform cache separate from JDK 26 artifacts.
+    ANDROID_JAVA_HOME="${VAUCHI_ANDROID_JAVA_HOME:-}"
+    CURRENT_JAVA_MAJOR=$(java -version 2>&1 \
+        | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' \
+        | head -1)
+    if [[ -z "$ANDROID_JAVA_HOME" \
+        && "${CURRENT_JAVA_MAJOR:-0}" -ge 26 \
+        && -x /usr/lib/jvm/liberica-jdk-25-full/bin/java ]]; then
+        ANDROID_JAVA_HOME=/usr/lib/jvm/liberica-jdk-25-full
+    fi
+    if [[ -n "$ANDROID_JAVA_HOME" ]]; then
+        if [[ ! -x "$ANDROID_JAVA_HOME/bin/java" ]]; then
+            echo "FAILED: Android JAVA_HOME has no executable java: $ANDROID_JAVA_HOME"
+            exit 1
+        fi
+        export JAVA_HOME="$ANDROID_JAVA_HOME"
+        export PATH="$JAVA_HOME/bin:$PATH"
+        ANDROID_JAVA_MAJOR=$(java -version 2>&1 \
+            | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' \
+            | head -1)
+        export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$HOME/.gradle-vauchi-jdk${ANDROID_JAVA_MAJOR}}"
+        echo "  Android checks: JDK $ANDROID_JAVA_MAJOR, cache $GRADLE_USER_HOME"
+    fi
+
     run_kotlin_compile() {
         echo ""
         echo "[1/2] Compiling Kotlin..."
