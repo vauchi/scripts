@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# check-no-allow-direct.sh — Forbid new `allow_direct: true` (and
-# `allow_direct = true`) introductions outside an approved allow-list.
+# check-no-allow-direct.sh — Forbid new `allow_direct: true` and retired
+# `VAUCHI_ALLOW_DIRECT=1` introductions outside an approved allow-list.
 #
 # Usage: check-no-allow-direct.sh <repo_root> [<repo_root> ...]
-# Example: check-no-allow-direct.sh core cli tui
+# Example: check-no-allow-direct.sh core cli tui e2e
 #
 # Background: `HttpTransportConfig::allow_direct` controls whether the HTTP
 # transport falls back to direct (non-OHTTP) HTTP when no OHTTP gateway key
@@ -31,7 +31,7 @@ set -euo pipefail
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <repo_root> [<repo_root> ...]"
-    echo "Example: $0 core cli tui"
+    echo "Example: $0 core cli tui e2e"
     exit 2
 fi
 
@@ -55,6 +55,12 @@ for ROOT in "$@"; do
         [ -z "$HIT" ] && continue
         FILE=$(echo "$HIT" | awk -F: '{print $1}')
         LINE=$(echo "$HIT" | awk -F: '{print $2}')
+
+        case "$FILE" in
+            */tests/*|*/tests.rs|*.test.rs)
+                continue
+                ;;
+        esac
 
         # Extract the file content of the matching line without the
         # "file:line:" prefix that rg prepends.
@@ -108,16 +114,51 @@ for ROOT in "$@"; do
   $FILE:$LINE  $CONTENT"
         VIOLATIONS=$((VIOLATIONS + 1))
     done <<< "$HITS"
+
+    # The retired CLI environment hatch is as dangerous as setting the
+    # transport field directly. Detect Rust command/map injection and shell
+    # assignment. Explicit `env_remove` calls do not match these patterns.
+    ENV_HITS=$(
+        rg --no-messages --with-filename --line-number --no-heading \
+            --type rust \
+            '"VAUCHI_ALLOW_DIRECT"[^,]*,[[:space:]]*"1"' \
+            "$ROOT" 2>/dev/null || true
+        rg --no-messages --with-filename --line-number --no-heading \
+            --glob '*.sh' --glob '*.bash' --glob '*.yml' --glob '*.yaml' \
+            "VAUCHI_ALLOW_DIRECT[[:space:]]*=[[:space:]]*['\"]?1['\"]?" \
+            "$ROOT" 2>/dev/null || true
+    )
+
+    while IFS= read -r HIT; do
+        [ -z "$HIT" ] && continue
+        FILE=$(echo "$HIT" | awk -F: '{print $1}')
+        LINE=$(echo "$HIT" | awk -F: '{print $2}')
+        CONTENT=$(sed -n "${LINE}p" "$FILE")
+
+        case "$FILE" in
+            */tests/*|*/tests.rs|*.test.rs|*.test.sh)
+                continue
+                ;;
+        esac
+
+        if echo "$CONTENT" | grep -Eq '^[[:space:]]*(//|#)'; then
+            continue
+        fi
+
+        REPORTED="$REPORTED
+  $FILE:$LINE  $CONTENT"
+        VIOLATIONS=$((VIOLATIONS + 1))
+    done <<< "$ENV_HITS"
 done
 
 if [ "$VIOLATIONS" -gt 0 ]; then
     cat >&2 <<EOF
-check-no-allow-direct: found $VIOLATIONS disallowed allow_direct:true site(s):
+check-no-allow-direct: found $VIOLATIONS disallowed direct-transport bypass site(s):
 $REPORTED
 
-Every unapproved allow_direct: true is a privacy regression (ADR-037):
-it lets HttpTransport fall back to direct HTTP and expose the caller's
-source IP to the relay.
+Every unapproved allow_direct:true or VAUCHI_ALLOW_DIRECT=1 is a
+privacy regression (ADR-037): it lets HttpTransport fall back to direct HTTP
+and expose the caller's source IP to the relay.
 
 To silence a NEW legitimate use:
   1. Gate the call inside #[cfg(test)], #[cfg(feature = "testing")],
