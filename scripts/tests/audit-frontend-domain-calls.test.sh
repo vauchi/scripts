@@ -68,6 +68,8 @@ test_empty_workspace() {
 #   .list_groups()        — read query
 #   let save_path = …     — local binding, no leading `.`
 #   .get_card()           — read query
+#   .save_exchanged_contact() — atomic core API, not frontend mutation logic
+#   .save_key() — SecureStorage adapter operation
 test_rust_sentinel() {
     root=$(mktemp -d)
     dir="$root/tui/src/handlers"
@@ -82,6 +84,8 @@ fn handle() {
     let groups = wb.list_groups();
     let save_path = format!("/tmp/x");
     let card = wb.get_card();
+    wb.save_exchanged_contact(&contact, &ratchet, true)?;
+    keyring.save_key("probe", bytes)?;
 }
 RS
     out=$("$SCRIPT" "$root")
@@ -91,19 +95,20 @@ RS
 }
 
 # ── 3. C++ sentinel (linux-qt) — verb call, word-start guarded ────────
-# 1 true positive: saveBackupToFile(
+# 1 true positive: validateContact(
 # False positives: autosaveTimer( (word-start guard), loadConfig( (read),
-# a local `int save_count = 0;` (no call paren adjacency to a verb).
+# saveBackupToFile( (native file adapter), and a local `int save_count = 0;`.
 test_cpp_sentinel() {
     root=$(mktemp -d)
     dir="$root/linux-qt/src/coreui"
     mkdir -p "$dir"
     cat >"$dir/screenrenderer.cpp" <<'CPP'
 void Renderer::run() {
-    saveBackupToFile(path);
+    validateContact(payload);
     // false positives below must NOT count
     autosaveTimer(1000);
     loadConfig();
+    saveBackupToFile(path);
     int save_count = 0;
 }
 CPP
@@ -113,19 +118,46 @@ CPP
     rm -rf "$root"
 }
 
+# ── 3b. Native image export is renderer I/O, not a domain mutation ───
+# Render-fixture tools exercise the real native renderer and persist its
+# pixels for visual comparison. Rust GDK and Qt image APIs happen to use
+# the broad `save*` spelling, but neither call changes Vauchi domain state.
+test_native_image_export_not_counted() {
+    root=$(mktemp -d)
+    mkdir -p "$root/linux-gtk/src/bin" "$root/linux-qt/src"
+    cat >"$root/linux-gtk/src/bin/render_fixture.rs" <<'RS'
+fn render(texture: Texture) {
+    let png = texture.save_to_png_bytes();
+}
+RS
+    cat >"$root/linux-qt/src/main.cpp" <<'CPP'
+void render(const QPixmap &pixmap, const QString &path) {
+    pixmap.save(path);
+}
+CPP
+    out=$("$SCRIPT" "$root")
+    assert_eq "native image export: gtk == 0" \
+        "0" "$(extract_counter "$out" domain_calls_linux_gtk)"
+    assert_eq "native image export: qt == 0" \
+        "0" "$(extract_counter "$out" domain_calls_linux_qt)"
+    rm -rf "$root"
+}
+
 # ── 4. C# sentinel (windows) — PascalCase verb call, guarded ──────────
-# 1 true positive: SaveWindowState(
-# False positives: AutoSaveState( (word-start guard), LoadState( (read).
+# 1 true positive: ConfigureEmergency(
+# False positives: AutoSaveState( (word-start guard), LoadState( (read),
+# SaveWindowState( (presentation persistence).
 test_cs_sentinel() {
     root=$(mktemp -d)
     dir="$root/windows/Vauchi"
     mkdir -p "$dir"
     cat >"$dir/MainWindow.xaml.cs" <<'CS'
 public void Run() {
-    SaveWindowState();
+    ConfigureEmergency();
     // false positives below must NOT count
     AutoSaveState();
     LoadState();
+    SaveWindowState();
 }
 CS
     out=$("$SCRIPT" "$root")
@@ -163,7 +195,7 @@ test_excluded_paths() {
     tdir="$root/tui/src/tests"
     mkdir -p "$real" "$targ" "$tdir"
     cat >"$real/main.rs" <<'RS'
-fn h() { wb.save_key(&k, v)?; }
+fn h() { wb.save_duress_settings(&settings)?; }
 RS
     cat >"$targ/gen.rs" <<'RS'
 fn g() { wb.configure_emergency_broadcast(a, b, c)?; }
@@ -183,12 +215,12 @@ test_total_sums() {
     mkdir -p "$root/tui/src" "$root/windows/Vauchi"
     cat >"$root/tui/src/main.rs" <<'RS'
 fn h() {
-    wb.save_key(&k, v)?;
+    wb.configure_emergency_broadcast(a, b, c)?;
     wb.setup_app_password(p)?;
 }
 RS
     cat >"$root/windows/Vauchi/Win.xaml.cs" <<'CS'
-void R() { SaveWindowState(); }
+void R() { ValidateContact(); }
 CS
     out=$("$SCRIPT" "$root")
     assert_eq "total: 2 tui + 1 windows == 3" \
@@ -202,7 +234,7 @@ test_check_above_baseline_fails() {
     mkdir -p "$root/tui/src"
     cat >"$root/tui/src/main.rs" <<'RS'
 fn h() {
-    wb.save_key(&k, v)?;
+    wb.configure_emergency_broadcast(a, b, c)?;
     wb.setup_app_password(p)?;
 }
 RS
@@ -229,7 +261,7 @@ test_check_at_or_below_baseline_passes() {
     mkdir -p "$root/tui/src"
     cat >"$root/tui/src/main.rs" <<'RS'
 fn h() {
-    wb.save_key(&k, v)?;
+    wb.configure_emergency_broadcast(a, b, c)?;
     wb.setup_app_password(p)?;
 }
 RS
@@ -355,6 +387,7 @@ JSON
 test_empty_workspace
 test_rust_sentinel
 test_cpp_sentinel
+test_native_image_export_not_counted
 test_cs_sentinel
 test_wrong_extension
 test_excluded_paths

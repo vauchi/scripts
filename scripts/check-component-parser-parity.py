@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Check that every frontend's ScreenModel parser handles every Component
-variant that core's canonical enum declares.
+"""Check that every frontend's ScreenModel parser handles every current
+Component variant and does not retain known retired wire variants.
 
 Source of truth: `core/vauchi-app/src/ui/component/mod.rs` — the
 `Component` enum (split out of the former single-file `component.rs` by
@@ -17,6 +17,8 @@ Why: each frontend deserializes the externally-tagged
 hand-rolled `enum Component: Decodable`) with its own dispatch table.
 Drift is silent — a new core variant rendered as a warning placeholder
 (or, on Swift, simply un-decodable) ships without anyone noticing.
+The inverse drift is dangerous too: a retired parser arm can keep dead UI and
+frontend-invented actions alive after core has removed that wire contract.
 
 Naming conventions differ per frontend, so each entry carries a
 `transform` that maps the canonical PascalCase variant onto the form
@@ -106,6 +108,30 @@ HAND_ROLLED_PARSERS = {
     ),
 }
 
+# These tags were removed from the canonical Component enum before the first
+# public release. Confirmation is represented by InlineConfirm, toast is an
+# ActionResult, and web's old domain-shaped variants were replaced by the
+# generic Preview/List variants. They must not return in core or any parser.
+RETIRED_VARIANTS = (
+    "CardPreview",
+    "ConfirmationDialog",
+    "ContactList",
+    "ShowToast",
+)
+
+# Some retired component names are still valid in another wire enum living in
+# the same large parser file. `ShowToast` is an ActionResult, so Android and
+# Swift need a component-specific marker instead of their generic variant
+# marker to avoid a false positive.
+RETIRED_MARKER_OVERRIDES = {
+    "android": {
+        "ShowToast": r"\bdata class ShowToast\s*\([^)]*\)\s*:\s*Component\s*\(\s*\)",
+    },
+    "swift": {
+        "ShowToast": r"\bcase showToast\s*\(\s*ShowToastComponent\b",
+    },
+}
+
 # Post-Tier-0 layout is preferred; the pre-Tier-0 single-file layout is
 # checked second when both are absent (default workspace lookup only).
 ENUM_FILE_CANDIDATES = (
@@ -152,6 +178,28 @@ def check_parser(
     return missing
 
 
+def present_variants(
+    frontend: str,
+    parser_path: Path,
+    marker_template: str,
+    transform_key: str,
+    variants: tuple[str, ...],
+) -> list[str]:
+    """Return retired variants whose dispatch marker is present."""
+    if not parser_path.exists():
+        return []
+    text = parser_path.read_text()
+    transform = TRANSFORMS[transform_key]
+    present = []
+    for variant in variants:
+        pattern = RETIRED_MARKER_OVERRIDES.get(frontend, {}).get(variant)
+        if pattern is None:
+            pattern = marker_template.replace("{V}", re.escape(transform(variant)))
+        if re.search(pattern, text):
+            present.append(variant)
+    return present
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -196,6 +244,14 @@ def main() -> int:
     print(f"Canonical {ENUM_NAME} variants ({len(variants)}): {', '.join(variants)}")
     print()
 
+    reintroduced = sorted(set(variants).intersection(RETIRED_VARIANTS))
+    if reintroduced:
+        print(
+            "FAIL: canonical Component reintroduced retired variant(s): "
+            + ", ".join(reintroduced)
+        )
+        return 1
+
     targets = (
         {args.frontend: HAND_ROLLED_PARSERS[args.frontend]}
         if args.frontend
@@ -206,18 +262,26 @@ def main() -> int:
     for frontend, (rel_path, marker, transform_key) in targets.items():
         parser_path = args.parser_file if args.parser_file else (args.workspace / rel_path)
         missing = check_parser(parser_path, marker, transform_key, variants)
+        retired = present_variants(
+            frontend, parser_path, marker, transform_key, RETIRED_VARIANTS
+        )
         display_path = str(parser_path) if args.parser_file else rel_path
         if missing:
             drift = True
             print(f"DRIFT  {frontend}: missing {len(missing)} variant(s) in {display_path}")
             for v in missing:
                 print(f"         - {v}")
-        else:
+        if retired:
+            drift = True
+            print(f"DRIFT  {frontend}: retains {len(retired)} retired variant(s) in {display_path}")
+            for v in retired:
+                print(f"         - {v}")
+        if not missing and not retired:
             print(f"OK     {frontend}: all {len(variants)} variants present in {display_path}")
 
     print()
     if drift:
-        print("FAIL: parser drift detected. Add missing variants or update this gate.")
+        print("FAIL: parser drift detected. Add missing variants or remove retired variants.")
         return 1
     print("PASS: all hand-rolled parsers cover every Component variant.")
     return 0

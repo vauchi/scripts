@@ -21,10 +21,9 @@
 #      occurrence inside `#[cfg(test)]`, `#[cfg(feature = "testing")]`,
 #      `#[cfg(debug_assertions)]`, `#[test]`, or a `mod tests { ... }` block.
 #   2. The bootstrap path in `core/vauchi-core/src/api/vauchi/sync_http.rs`
-#      (`create_bootstrap_transport_direct`) — OHTTP cannot fetch its own
-#      gateway key. Covered by the threat-model "Bootstrap Exceptions".
-#   3. Lines tagged with the inline sentinel `ALLOW-DIRECT-REACHABILITY-PROBE`
-#      (currently the TUI setup-wizard reachability probe).
+#      (`create_bootstrap_transport_direct`) targets the distinct outer OHTTP
+#      relay, never the application relay. It fetches only public bootstrap
+#      material and carries no application-user identifier.
 #
 # Any OTHER occurrence is a privacy regression and this script exits non-zero.
 
@@ -74,13 +73,7 @@ for ROOT in "$@"; do
             continue
         fi
 
-        # (3) Inline sentinel override (used by lines that are the documented
-        # production exception — see the TUI reachability probe).
-        if echo "$CONTENT" | grep -q 'ALLOW-DIRECT-REACHABILITY-PROBE'; then
-            continue
-        fi
-
-        # (4) File-specific production exceptions.
+        # (3) File-specific production exceptions.
         case "$FILE" in
             */vauchi-core/src/api/vauchi/sync_http.rs)
                 START=$((LINE > 40 ? LINE - 40 : 1))
@@ -91,7 +84,7 @@ for ROOT in "$@"; do
                 ;;
         esac
 
-        # (5) Test/debug-context heuristic: look 60 lines back for a
+        # (4) Test/debug-context heuristic: look 60 lines back for a
         # cfg attribute or a `mod tests { ... }` opening that would
         # scope this match to non-production code. Any of the sentinels
         # below in the preceding context is sufficient — false negatives
@@ -130,9 +123,7 @@ To silence a NEW legitimate use:
   1. Gate the call inside #[cfg(test)], #[cfg(feature = "testing")],
      or #[cfg(debug_assertions)] — OR
   2. Construct via HttpTransportConfig::for_testing(...) — OR
-  3. Tag the line with the inline sentinel ALLOW-DIRECT-REACHABILITY-PROBE
-     and add the rationale to the threat model — OR
-  4. Add a file-specific entry to this script's allow-list (only after
+  3. Add a file-specific entry to this script's allow-list (only after
      updating the threat-model addendum and obtaining review).
 
 See problem record

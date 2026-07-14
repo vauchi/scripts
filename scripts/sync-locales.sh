@@ -58,8 +58,8 @@ ERRORS=0
 for locale_file in "$LOCALES_DIR"/*.json; do
     locale_name=$(basename "$locale_file" .json)
 
-    # Skip source locale
-    if [[ "$locale_name" == "$SOURCE_LOCALE" ]]; then
+    # Skip the source locale and the JSON Schema stored beside the locales.
+    if [[ "$locale_name" == "$SOURCE_LOCALE" || "$locale_name" == "locales.schema" ]]; then
         continue
     fi
 
@@ -103,6 +103,9 @@ echo ""
 EMPTY_VALUES=0
 for locale_file in "$LOCALES_DIR"/*.json; do
     locale_name=$(basename "$locale_file" .json)
+    if [[ "$locale_name" == "locales.schema" ]]; then
+        continue
+    fi
     EMPTY=$(jq -r 'to_entries[] | select(.key != "_meta" and (.value | type) == "string" and .value == "") | .key' "$locale_file")
     if [[ -n "$EMPTY" ]]; then
         echo "  $locale_name.json: Empty values:"

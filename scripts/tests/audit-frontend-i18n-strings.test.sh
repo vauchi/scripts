@@ -79,6 +79,13 @@ fun Screen() {
     Text("snackbar.title")        // locale key: contains '.'
 }
 KT
+    test_dir="$root/android/app/src/androidTest/kotlin/app/vauchi"
+    mkdir -p "$test_dir"
+    cat >"$test_dir/ProbeTest.kt" <<'KT'
+fun probe() {
+    Text("Instrumentation probe copy")
+}
+KT
     out=$("$SCRIPT" "$root")
     assert_eq "android: counts 2 English Text literals" \
         "2" "$(extract_counter "$out" android)"
@@ -135,6 +142,7 @@ void setup() {
     button->setText("Click me");
     window->setWindowTitle("Vauchi Wallet");
     input->setPlaceholderText("Type seed words");
+    widget->setObjectName(QStringLiteral("image-edit-affordance"));
     // Not counted:
     const char* key = "settings.general";   // locale key
     QLabel* l = new QLabel(tr("already_localized"));  // not in grep pattern

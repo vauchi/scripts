@@ -87,8 +87,9 @@ is_linux_qt_infrastructure_string() {
         # CSS font-family templates that get truncated by the line matcher
         font-family*|*\\) return 0 ;;
     esac
-    # Object-name identifiers: lowercase letters/digits/underscores, no spaces
-    if printf '%s' "$1" | grep -Eq '^[a-z_][a-z0-9_]*$'; then
+    # Object-name identifiers: lowercase letters/digits/underscores/hyphens,
+    # no spaces. Qt test/a11y handles commonly use either separator.
+    if printf '%s' "$1" | grep -Eq '^[a-z_][a-z0-9_-]*$'; then
         return 0
     fi
     return 1
@@ -131,6 +132,9 @@ count_android() {
     tmp_list=$(mktemp)
     find "$dir" -name '*.kt' -type f -print > "$tmp_list"
     while IFS= read -r f; do
+        # Instrumentation/unit fixtures intentionally carry literal probe copy;
+        # they are not shipped render paths.
+        case "$f" in */src/test/*|*/src/androidTest/*) continue ;; esac
         # Match Text("...") or Text(text = "..."), excluding stringResource.
         t=$(count_english_strings "$f" 'Text\((text[[:space:]]*=[[:space:]]*)?"[^"]*"\)')
         n=$((n + t))

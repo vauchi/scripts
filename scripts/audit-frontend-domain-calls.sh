@@ -117,6 +117,22 @@ strip_excluded() {
         || true
 }
 
+# Native renderer artifact export is platform I/O, while
+# `save_exchanged_contact` is an atomic core-owned domain operation. Neither
+# contains frontend domain logic. SecureStorage writes, user-selected backup
+# file writes, and window-geometry persistence are also platform adapters
+# explicitly owned by the frontend under ADR-043. Keep exclusions API-specific:
+# a blanket `save` exclusion would hide the mutations this audit exists to catch.
+strip_sanctioned_boundary_calls() {
+    grep -vE '\.save_to_png_bytes\(' \
+        | grep -vE '(^|[^A-Za-z0-9_])pixmap\.save\(' \
+        | grep -vE '\.save_exchanged_contact\(' \
+        | grep -vE '\.save_key\(' \
+        | grep -vE '(^|[^A-Za-z0-9_])saveBackupToFile\(' \
+        | grep -vE '(^|[^A-Za-z0-9_])SaveWindowState\(' \
+        || true
+}
+
 # ── core counter ──────────────────────────────────────────────────────
 # count_calls <src_root> <ext_path_re> <content_re>
 # Recursively grep <content_re>, keep only lines whose path matches
@@ -128,6 +144,7 @@ count_calls() {
     n=$(grep -rsnE "$content_re" "$root" 2>/dev/null \
         | grep -E "$ext_re" \
         | strip_excluded \
+        | strip_sanctioned_boundary_calls \
         | wc -l | tr -d '[:space:]')
     printf '%s' "${n:-0}"
 }
