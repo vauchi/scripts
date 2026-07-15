@@ -40,6 +40,7 @@
         local src_path="$1" dest="$2"
         local encoded_path
         encoded_path=$(printf '%s' "$src_path" | sed 's|/|%2F|g')
+        mkdir -p "$(dirname "$dest")"
         curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
           "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=${VAUCHI_SCRIPTS_REF}" \
           -o "$dest"
@@ -59,8 +60,9 @@
   variables:
     GIT_STRATEGY: none
   script:
-    - fetch_vauchi_script scripts/ci/generate-badges.sh generate-badges.sh
-    - ./generate-badges.sh public/badges
+    - fetch_vauchi_script scripts/ci/generate-badges.sh scripts/ci/generate-badges.sh
+    - fetch_vauchi_script scripts/lib/common.sh scripts/lib/common.sh
+    - scripts/ci/generate-badges.sh public/badges
   artifacts:
     paths:
       - public
