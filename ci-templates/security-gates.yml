@@ -15,24 +15,35 @@
 #       file: '/ci-templates/security-gates.yml'
 #
 #   semgrep-sast:
-#     extends: .security-gate-sast
 #     stage: security
+#     tags: !reference [.security-gate-sast-tags, tags]
+#     interruptible: !reference [.security-gate-sast-flags, interruptible]
+#     allow_failure: !reference [.security-gate-sast-flags, allow_failure]
+#     retry: !reference [.security-gate-sast-retry, retry]
+#     rules: !reference [.security-gate-sast-rules, rules]
 #     # Optional: gate on lint jobs
 #     needs:
 #       - job: lint:format
 #         optional: true
 #
 #   secret_detection:
-#     extends: .security-gate-secret
 #     stage: security
+#     tags: !reference [.security-gate-secret-tags, tags]
+#     interruptible: !reference [.security-gate-secret-flags, interruptible]
+#     allow_failure: !reference [.security-gate-secret-flags, allow_failure]
+#     rules: !reference [.security-gate-secret-rules, rules]
 #
 #   container_scanning:
 #     extends: .security-gate-container
 
-.security-gate-sast:
+.security-gate-sast-tags:
   tags: [docker]
+
+.security-gate-sast-flags:
   interruptible: false
   allow_failure: false
+
+.security-gate-sast-retry:
   retry:
     max: 2
     when:
@@ -40,6 +51,8 @@
       - runner_system_failure
       - stuck_or_timeout_failure
       - unknown_failure
+
+.security-gate-sast-rules:
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
       when: never
@@ -47,10 +60,14 @@
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "schedule"
 
-.security-gate-secret:
+.security-gate-secret-tags:
   tags: [docker]
+
+.security-gate-secret-flags:
   interruptible: false
   allow_failure: false
+
+.security-gate-secret-rules:
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
       when: never
