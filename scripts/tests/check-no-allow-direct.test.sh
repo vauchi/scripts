@@ -76,6 +76,12 @@ assert_exit "dynamic production direct fallback is rejected" 1 "$result"
 run_fixture 'config.allow_direct = permit_direct;'
 assert_exit "dynamic production direct assignment is rejected" 1 "$result"
 
+run_fixture 'let config = HttpTransportConfig { allow_direct: false || permit_direct };'
+assert_exit "false-prefixed production initializer is rejected" 1 "$result"
+
+run_fixture 'config.allow_direct = false || permit_direct;'
+assert_exit "false-prefixed production assignment is rejected" 1 "$result"
+
 run_fixture 'let config = HttpTransportConfig { allow_direct };'
 assert_exit "shorthand production direct initializer is rejected" 1 "$result"
 
