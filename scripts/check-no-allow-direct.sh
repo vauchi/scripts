@@ -50,7 +50,7 @@ for ROOT in "$@"; do
     # are not initializers, so the pattern excludes them.
     HITS=$(rg --no-messages --with-filename --line-number --no-heading \
         --type rust --pcre2 \
-        '(allow_direct\s*:(?!\s*(bool|false)\b))|(allow_direct\s*=(?!=)(?!\s*false\b))|((^|[{,])\s*allow_direct\s*[,}])|(HttpTransportConfig::for_testing\s*\()' \
+        '(allow_direct\s*:(?!\s*bool\b)(?!\s*false\s*([,}]|//|$)))|(allow_direct\s*=(?!=)(?!\s*false\s*(;|//|$)))|((^|[{,])\s*allow_direct\s*[,}])|(HttpTransportConfig::for_testing\s*\()' \
         "$ROOT" 2>/dev/null || true)
 
     while IFS= read -r HIT; do
