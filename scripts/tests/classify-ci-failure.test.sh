@@ -108,6 +108,14 @@ expect_escalate "YAML syntax does NOT escalate" \
 expect_fix "YAML syntax preserves the lint gate" \
     "could not find expected ':'" \
     "Fix the invalid YAML indentation or syntax, then rerun the CI lint; never suppress the lint."
+expect_category "required CI template variable" \
+    "/usr/bin/bash: line 222: FETCH_SCRIPT_PATH: FETCH_SCRIPT_PATH must be set" \
+    "template-contract"
+expect_escalate "required CI template variable does NOT escalate" \
+    "FETCH_SCRIPT_PATH: FETCH_SCRIPT_PATH must be set" "false"
+expect_fix "required CI template variable preserves execution order" \
+    "FETCH_SCRIPT_PATH: FETCH_SCRIPT_PATH must be set" \
+    "Bind the required CI-template variable before the shared step; flatten nested !reference chains if ordering was lost."
 
 # Unknown → escalate to the model
 expect_category "unknown signature" \
