@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Consistent security gate rules for GitLab Ultimate analyzers.
+#
+# Usage:
+#   include:
+#     - template: Security/SAST.gitlab-ci.yml
+#     - template: Security/Secret-Detection.gitlab-ci.yml
+#     # For repos that build Docker images:
+#     - template: Security/Container-Scanning.gitlab-ci.yml
+#     - project: 'vauchi/scripts'
+#       ref: ci-templates-v2026.07.2
+#       file: '/ci-templates/security-gates.yml'
+#
+#   semgrep-sast:
+#     extends: .security-gate-sast
+#     stage: security
+#     # Optional: gate on lint jobs
+#     needs:
+#       - job: lint:format
+#         optional: true
+#
+#   secret_detection:
+#     extends: .security-gate-secret
+#     stage: security
+#
+#   container_scanning:
+#     extends: .security-gate-container
+
+.security-gate-sast:
+  tags: [docker]
+  interruptible: false
+  allow_failure: false
+  retry:
+    max: 2
+    when:
+      - script_failure
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+.security-gate-secret:
+  tags: [docker]
+  interruptible: false
+  allow_failure: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+.security-gate-container:
+  stage: scan
+  tags: [docker]
+  interruptible: false
+  allow_failure: false
+  needs: ["build:docker"]
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CONTAINER_SCANNING_ALLOW_FAILURE == "true"'
+      allow_failure: true
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      allow_failure: false

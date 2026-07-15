@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Shared helpers for CI-recorded snapshot / screenshot baselines.
+#
+# These are not a single turnkey job because the actual recording step
+# (xcodebuild, gradle, cargo test, etc.) is platform-specific. Use the
+# hidden jobs below to avoid duplicating the git commit/push plumbing.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: ci-templates-v2026.07.2
+#       file: '/ci-templates/snapshot-record.yml'
+#
+#   test:snapshots:record:
+#     variables:
+#       SNAPSHOT_DIR: "VauchiSnapshotTests/__Snapshots__"
+#       BASELINE_BRANCH: "${CI_COMMIT_REF_NAME}"
+#     script:
+#       - # <platform-specific recording>
+#       - cp -r "${SNAPSHOT_DIR}" "/tmp/snapshot-record-${CI_JOB_ID}/"
+#       - !reference [.snapshot-record-checkout, script]
+#       - cp -r "/tmp/snapshot-record-${CI_JOB_ID}/" "${SNAPSHOT_DIR}/"
+#       - !reference [.snapshot-record-commit, script]
+
+.snapshot-record-vars:
+  variables:
+    SNAPSHOT_DIR: ""
+    BASELINE_BRANCH: "${CI_COMMIT_REF_NAME}"
+    BASELINE_SHA: ""
+    RECORD_COMMIT_MESSAGE: "chore: record snapshot baselines [ci]"
+    RECORD_TOKEN: "${PROJECT_ACCESS_TOKEN}"
+
+# Switch from a detached merge-ref HEAD to the target branch so the baseline
+# commit lands on the MR/source branch, not on the ephemeral merge ref.
+.snapshot-record-checkout:
+  extends: .snapshot-record-vars
+  script:
+    - |
+      set -euo pipefail
+      : "${BASELINE_BRANCH:?BASELINE_BRANCH must be set}"
+      git fetch origin "+refs/heads/${BASELINE_BRANCH}:refs/heads/${BASELINE_BRANCH}"
+      if [ -n "${BASELINE_SHA}" ]; then
+        git checkout -B "${BASELINE_BRANCH}" "${BASELINE_SHA}"
+      else
+        git checkout -B "${BASELINE_BRANCH}" FETCH_HEAD
+      fi
+
+# Commit recorded baselines and push them back to the branch. Skips cleanly
+# when no files changed. Uses PROJECT_ACCESS_TOKEN by default.
+.snapshot-record-commit:
+  extends: .snapshot-record-vars
+  script:
+    - |
+      set -euo pipefail
+      : "${SNAPSHOT_DIR:?SNAPSHOT_DIR must be set}"
+      : "${BASELINE_BRANCH:?BASELINE_BRANCH must be set}"
+      : "${RECORD_TOKEN:?RECORD_TOKEN must be set}"
+      git config user.name "${GITLAB_USER_NAME}"
+      git config user.email "${GITLAB_USER_EMAIL}"
+      git add "${SNAPSHOT_DIR}"
+      if git diff --cached --quiet; then
+        echo "✅ No baseline changes — nothing to commit"
+        exit 0
+      fi
+      CHANGED=$(git diff --cached --stat | tail -1)
+      git commit -m "${RECORD_COMMIT_MESSAGE}
+
+${CHANGED}
+
+Recorded-By: CI job #${CI_JOB_ID}"
+      GIT_TERMINAL_PROMPT=0 \
+        git push "https://vauchi-gitlab-runner:${RECORD_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git" "HEAD:${BASELINE_BRANCH}"
+      echo "✅ Baselines committed and pushed to ${BASELINE_BRANCH}"
+      echo "   NOTE: token pushes do not trigger new pipelines."
