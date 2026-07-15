@@ -17,6 +17,12 @@ set -euo pipefail
 # where the user had `source`d this file from their interactive zsh.
 _find_workspace_root() {
     local d="$PWD"
+    # Vauchi worktrees keep the full repo set under .worktrees/<name>/.
+    # Detect that first so we don't walk up to the main workspace root.
+    if [[ "$d" =~ /\.worktrees/[^/]+ ]]; then
+        printf '%s\n' "$d" | sed -E 's#(/.worktrees/[^/]+).*#\1#'
+        return 0
+    fi
     while [[ "$d" != "/" && -n "$d" ]]; do
         if [[ -f "$d/CLAUDE.md" && -f "$d/scripts/scripts/resolve-repo.sh" ]]; then
             echo "$d"
@@ -45,8 +51,10 @@ _load_repo_registry() {
     if [[ ! -x "$registry_helper" ]]; then
         registry_helper="$WORKSPACE_ROOT/root/scripts/scripts/lib/repo-registry.py"
     fi
-    if [[ -x "$registry_helper" && -f "$WORKSPACE_ROOT/root/repos.toml" ]]; then
-        (cd "$WORKSPACE_ROOT/root" && python3 "$registry_helper" list) 2>/dev/null
+    local repos_toml="$WORKSPACE_ROOT/repos.toml"
+    [[ -f "$repos_toml" ]] || repos_toml="$WORKSPACE_ROOT/root/repos.toml"
+    if [[ -x "$registry_helper" && -f "$repos_toml" ]]; then
+        (cd "$(dirname "$repos_toml")" && python3 "$registry_helper" list) 2>/dev/null
         return 0
     fi
     return 1
