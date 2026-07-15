@@ -46,9 +46,9 @@ run_fetch() {
     PATH="$WORK/bin:$PATH" \
         CURL_ARGS="$WORK/curl-args" \
         CI_API_V4_URL="https://gitlab.example/api/v4" \
+        CI_JOB_TOKEN="test-token" \
         FETCH_SCRIPT_PATH="$path" \
         FETCH_SCRIPT_OUTPUT="$WORK/fetched-script.sh" \
-        GITLAB_TOKEN="test-token" \
         VAUCHI_SCRIPTS_REF="ci-templates-v2026.07.3" \
         bash -c "$fetch_step" >/dev/null 2>&1
     rc=$?
@@ -61,6 +61,9 @@ assert_eq "nested repository path succeeds" "0" "$rc"
 assert_eq "nested repository path is percent-encoded" \
     "https://gitlab.example/api/v4/projects/vauchi%2Fscripts/repository/files/scripts%2Fci%2Fvet-autofix.sh/raw?ref=ci-templates-v2026.07.3" \
     "$fetched_url"
+assert_eq "CI job token uses GitLab job-token authentication" \
+    "JOB-TOKEN: test-token" \
+    "$(grep '^JOB-TOKEN: ' "$WORK/curl-args" || true)"
 
 run_fetch "scripts/ci/not allowed.sh"
 assert_eq "unsupported repository path fails closed" "2" "$rc"
