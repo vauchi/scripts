@@ -25,25 +25,28 @@
 
 # Fetch humble_check.py and its data files with SHA-256 verification.
 .fetch-humble-check:
-  extends: .verified-fetch-script
-  variables:
-    FETCH_SCRIPT_PATH: "scripts/humble_check.py"
-    FETCH_SCRIPT_OUTPUT: ".ratchet-scripts/humble_check.py"
-    FETCH_SCRIPT_SHA256: "85583235803f081a5a2cfb01a49b5434dd2c141008e0f53cd6f356f3e9d0cc62"
+  before_script:
+    - |
+      export FETCH_SCRIPT_PATH="scripts/humble_check.py"
+      export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check.py"
+      export FETCH_SCRIPT_SHA256="85583235803f081a5a2cfb01a49b5434dd2c141008e0f53cd6f356f3e9d0cc62"
+    - !reference [.verified-fetch-script, before_script]
 
 .fetch-humble-rules:
-  extends: .verified-fetch-script
-  variables:
-    FETCH_SCRIPT_PATH: "scripts/humble_check_rules.json"
-    FETCH_SCRIPT_OUTPUT: ".ratchet-scripts/humble_check_rules.json"
-    FETCH_SCRIPT_SHA256: "61914156cb2630494bfc860981d7e7189af2fee7b7deb3bd207392ff8b518ca5"
+  before_script:
+    - |
+      export FETCH_SCRIPT_PATH="scripts/humble_check_rules.json"
+      export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check_rules.json"
+      export FETCH_SCRIPT_SHA256="61914156cb2630494bfc860981d7e7189af2fee7b7deb3bd207392ff8b518ca5"
+    - !reference [.verified-fetch-script, before_script]
 
 .fetch-humble-baseline:
-  extends: .verified-fetch-script
-  variables:
-    FETCH_SCRIPT_PATH: "scripts/humble_check.baseline.json"
-    FETCH_SCRIPT_OUTPUT: ".ratchet-scripts/humble_check.baseline.json"
-    FETCH_SCRIPT_SHA256: "b54146a225a0269b2026ccbce5fb8257010e341c4de97693ceae88487cc656dd"
+  before_script:
+    - |
+      export FETCH_SCRIPT_PATH="scripts/humble_check.baseline.json"
+      export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check.baseline.json"
+      export FETCH_SCRIPT_SHA256="b54146a225a0269b2026ccbce5fb8257010e341c4de97693ceae88487cc656dd"
+    - !reference [.verified-fetch-script, before_script]
 
 .cross-cutting-lint:
   stage: lint
@@ -60,6 +63,7 @@
       set -euo pipefail
       apt-get update -qq
       apt-get install -y --no-install-recommends curl coreutils
+      mkdir -p .ratchet-scripts
     - !reference [.fetch-humble-check, before_script]
     - !reference [.fetch-humble-rules, before_script]
     - !reference [.fetch-humble-baseline, before_script]
