@@ -306,9 +306,17 @@ gitlab_repo_dir() {
     local arg="${1:-}"
 
     if [[ -n "$arg" ]]; then
-        # Map to first matching directory
+        # Map to first matching directory. In a worktree the root repo is a
+        # sibling of the other repos (workspace-root/root/), whereas in the
+        # main workspace it lives at the workspace root.
         case "$arg" in
-            root|vauchi)  echo "$WORKSPACE_ROOT" ;;
+            root|vauchi)
+                if [[ -e "$WORKSPACE_ROOT/.git" ]]; then
+                    echo "$WORKSPACE_ROOT"
+                else
+                    echo "$WORKSPACE_ROOT/root"
+                fi
+                ;;
             *)            echo "$WORKSPACE_ROOT/$arg" ;;
         esac
         return 0
