@@ -34,6 +34,7 @@
 include:
   - template: Security/SAST.gitlab-ci.yml
   - template: Security/Secret-Detection.gitlab-ci.yml
+  - local: '/ci-templates/verified-fetch.yml'
 
 variables:
   # SAST Configuration
@@ -82,6 +83,35 @@ secret_detection:
   allow_failure: false
   rules:
     # Skip on triggered pipelines (downstream verification checks compatibility, not security)
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+# GitLab analyzers report vulnerabilities without failing their process.
+# Consumers opt in after clearing existing Critical debt, then inherit a
+# blocking policy decision from this job rather than analyzer exit status.
+.security-sast-severity-gate:
+  extends: .verified-fetch-script
+  stage: security
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  interruptible: false
+  allow_failure: false
+  needs:
+    - job: semgrep-sast
+      artifacts: true
+  variables:
+    FETCH_SCRIPT_PATH: "scripts/ci/check-sast-severity.py"
+    FETCH_SCRIPT_OUTPUT: "check-sast-severity.py"
+    FETCH_SCRIPT_SHA256: "15643ebfa4cd367afef9a50734e0b5889524c79fad0d8a1c510bd2e8dca8382c"
+  before_script:
+    - apk add --no-cache curl python3 >/dev/null
+    - !reference [.verified-fetch-script, before_script]
+  script:
+    - python3 check-sast-severity.py gl-sast-report.json
+  rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
