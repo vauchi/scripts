@@ -75,6 +75,8 @@ expect_category "clippy/lint" \
     "error: this \`if\` has identical blocks (clippy::if_same_then_else)" "lint"
 expect_category "artifact gap" \
     "cp: cannot stat 'target/release/libvauchi.a': No such file or directory" "artifact-gap"
+expect_category "remote scripts ref artifact gap" \
+    'curl: (22) The requested URL returned error: 404' "artifact-gap"
 
 # Unknown → escalate to the model
 expect_category "unknown signature" \
