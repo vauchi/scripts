@@ -18,6 +18,9 @@
 
 set -euo pipefail
 
+# shellcheck source=../../lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+
 # ─── Pushgateway SSH target ─────────────────────────────────────
 # Override via group-level CI variables to change the VPS
 PUSHGATEWAY_SSH_HOST="${PUSHGATEWAY_SSH_HOST:-bold-hopper-vps}"
@@ -41,13 +44,11 @@ for arg in "$@"; do
 done
 
 if [ -z "$COBERTURA_XML" ] || [ -z "$REPO_NAME" ]; then
-    echo "ERROR: Usage: push-coverage.sh <cobertura-xml> <repo-name> [--dry-run]" >&2
-    exit 1
+    die "Usage: push-coverage.sh <cobertura-xml> <repo-name> [--dry-run]"
 fi
 
 if [ ! -f "$COBERTURA_XML" ]; then
-    echo "ERROR: Cobertura XML not found: $COBERTURA_XML" >&2
-    exit 1
+    die "Cobertura XML not found: $COBERTURA_XML"
 fi
 
 # ─── Parse Cobertura XML ─────────────────────────────────────────
@@ -68,7 +69,7 @@ except Exception as e:
 
 COVERAGE_PERCENT=$(awk "BEGIN { printf \"%.2f\", $LINE_RATE * 100 }")
 
-echo "push-coverage: ${REPO_NAME} — ${COVERAGE_PERCENT}% (${LINES_COVERED}/${LINES_VALID} lines)" >&2
+log_info "push-coverage: ${REPO_NAME} — ${COVERAGE_PERCENT}% (${LINES_COVERED}/${LINES_VALID} lines)"
 # Print to stdout so GitLab coverage regex can capture it
 echo "Line Coverage: ${COVERAGE_PERCENT}%"
 
@@ -91,7 +92,7 @@ source "$(dirname "$0")/setup-ssh-pushgateway.sh"
 setup_ssh_pushgateway
 
 if pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_coverage/repo/${REPO_NAME}"; then
-    echo "push-coverage: metrics pushed for ${REPO_NAME}" >&2
+    log_success "push-coverage: metrics pushed for ${REPO_NAME}"
 else
-    echo "push-coverage: push failed for ${REPO_NAME} (non-fatal)" >&2
+    log_warn "push-coverage: push failed for ${REPO_NAME} (non-fatal)"
 fi

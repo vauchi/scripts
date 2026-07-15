@@ -7,6 +7,8 @@
 # Run: bash scripts/scripts/ci/test-setup-ssh-pushgateway.sh
 # All assertions use plain bash — no external test framework needed.
 
+set -euo pipefail
+
 set -uo pipefail
 # Note: not using -e because we need to track pass/fail counts and
 # (( 0 )) returns exit code 1 which would abort the script.

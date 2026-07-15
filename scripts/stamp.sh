@@ -14,6 +14,8 @@
 #   stamp_valid "core"      # returns 0 if stamp matches HEAD
 
 # Workspace root (parent of scripts/)
+set -euo pipefail
+
 _STAMP_WS_ROOT="${_STAMP_WS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
 # Returns the stamp file path for a repo name.

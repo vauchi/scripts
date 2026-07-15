@@ -36,6 +36,8 @@
 # Disable colors if stdout is not a terminal (piped, redirected).
 # All variables are used externally by recipes that source this file.
 # shellcheck disable=SC2034
+set -euo pipefail
+
 if [[ -t 1 ]]; then
     GREEN=$'\033[0;32m'
     RED=$'\033[0;31m'

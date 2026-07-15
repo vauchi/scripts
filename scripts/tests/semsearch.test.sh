@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
@@ -12,6 +12,8 @@
 # and not exercised here.
 #
 # Run: bash scripts/scripts/tests/semsearch.test.sh
+
+set -euo pipefail
 
 set -uo pipefail
 

@@ -12,6 +12,8 @@
 # throwaway origin+clone so assertions can actually fail (non-tautological
 # per CC-21).
 
+set -euo pipefail
+
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

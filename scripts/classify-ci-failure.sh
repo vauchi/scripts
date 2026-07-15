@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
@@ -21,6 +21,8 @@
 # Usage:
 #   glab api ".../jobs/<id>/trace" | scripts/scripts/classify-ci-failure.sh
 #   scripts/scripts/classify-ci-failure.sh trace.txt
+
+set -euo pipefail
 
 set -uo pipefail
 

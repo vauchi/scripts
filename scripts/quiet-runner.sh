@@ -17,6 +17,8 @@
 #   print_summary <operation>  — print results table (or write to shared dir)
 #   qr_print_shared_summary <operation> — aggregate shared dir results into one table
 
+set -euo pipefail
+
 _QR_TMPDIR=""
 _QR_STEP_COUNT=0
 _QR_TOTAL_START=""

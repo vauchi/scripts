@@ -1,9 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Validate that Claude, Codex, and Kimi route through one canonical hook set.
 # Informational by default; --strict makes configuration drift fail the check.
+
+set -euo pipefail
 
 set -uo pipefail
 

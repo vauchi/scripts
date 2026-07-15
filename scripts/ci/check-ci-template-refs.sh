@@ -10,6 +10,9 @@
 
 set -euo pipefail
 
+# shellcheck source=../../lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
@@ -23,15 +26,14 @@ while IFS= read -r file; do
 
     bad_refs=$(grep -nE "ref:\s*ci-templates-" "$file" | grep -v "ref: ${declared_ref}" || true)
     if [ -n "$bad_refs" ]; then
-        echo "ERROR: $file declares VAUCHI_SCRIPTS_REF=${declared_ref} but contains mismatched include refs:"
-        echo "$bad_refs"
+        log_error "$file declares VAUCHI_SCRIPTS_REF=${declared_ref} but contains mismatched include refs:"
+        echo "$bad_refs" >&2
         FAIL=1
     fi
 done < <(find "$WORKSPACE_ROOT" -maxdepth 2 -name '.gitlab-ci.yml' -not -path '*/.worktrees/*' | sort)
 
 if [ "$FAIL" -ne 0 ]; then
-    echo "Template reference drift detected. Run the bump recipe to align all refs."
-    exit 1
+    die "Template reference drift detected. Run the bump recipe to align all refs."
 fi
 
-echo "All .gitlab-ci.yml template refs match their VAUCHI_SCRIPTS_REF."
+log_success "All .gitlab-ci.yml template refs match their VAUCHI_SCRIPTS_REF."

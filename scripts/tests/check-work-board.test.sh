@@ -7,6 +7,8 @@
 # Progress item carries a session id + expiry; required sections exist.
 # Rule page: _private/docs/lint-errors/vgt05-work-board-claims.md
 
+set -euo pipefail
+
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

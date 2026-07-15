@@ -7,6 +7,8 @@
 # Skips when markdownlint is not installed (CI selftests job has it).
 # Rule page: _private/docs/lint-errors/vdc01-absolute-paths.md
 
+set -euo pipefail
+
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

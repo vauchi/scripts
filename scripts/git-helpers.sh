@@ -15,6 +15,8 @@
 # Check if a single branch is merged into origin/main.
 # Uses git ancestry first, falls back to diff-based content check
 # (catches rebased/squashed branches that are content-equivalent).
+set -euo pipefail
+
 is_branch_in_main() {
     local dir="$1" branch="$2"
     # Fast path: git ancestry check
