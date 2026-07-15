@@ -116,6 +116,14 @@ expect_escalate "required CI template variable does NOT escalate" \
 expect_fix "required CI template variable preserves execution order" \
     "FETCH_SCRIPT_PATH: FETCH_SCRIPT_PATH must be set" \
     "Bind the required CI-template variable before the shared step; flatten nested !reference chains if ordering was lost."
+expect_category "minimum just syntax compatibility" \
+    'error: Recipe `create` has both shebang line and `[script]` attribute' \
+    "just-syntax"
+expect_escalate "minimum just syntax compatibility does NOT escalate" \
+    'has both shebang line and `[script]` attribute' "false"
+expect_fix "minimum just syntax chooses one interpreter contract" \
+    'has both shebang line and `[script]` attribute' \
+    "Use a shebang recipe or the [script] attribute, not both; verify with the minimum supported just version."
 
 # Unknown → escalate to the model
 expect_category "unknown signature" \
