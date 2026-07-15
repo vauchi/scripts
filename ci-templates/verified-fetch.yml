@@ -30,7 +30,7 @@
       set -euo pipefail
       : "${FETCH_SCRIPT_PATH:?FETCH_SCRIPT_PATH must be set}"
       : "${FETCH_SCRIPT_SHA256:?FETCH_SCRIPT_SHA256 must be set}"
-      for cmd in curl sha256sum; do
+      for cmd in curl sed sha256sum; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
           echo "Required command not found: $cmd" >&2
           exit 1
@@ -38,7 +38,14 @@
       done
     - |
       set -euo pipefail
-      URL="${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/${FETCH_SCRIPT_PATH}/raw?ref=${VAUCHI_SCRIPTS_REF}"
+      case "$FETCH_SCRIPT_PATH" in
+        *[!A-Za-z0-9._/-]*)
+          echo "FETCH_SCRIPT_PATH contains unsupported characters: ${FETCH_SCRIPT_PATH}" >&2
+          exit 2
+          ;;
+      esac
+      ENCODED_PATH=$(printf '%s' "$FETCH_SCRIPT_PATH" | sed 's|/|%2F|g')
+      URL="${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/${ENCODED_PATH}/raw?ref=${VAUCHI_SCRIPTS_REF}"
       curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "$URL" -o "${FETCH_SCRIPT_OUTPUT}"
     - |
       set -euo pipefail
