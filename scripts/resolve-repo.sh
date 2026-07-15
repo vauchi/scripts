@@ -36,36 +36,57 @@ WORKSPACE_ROOT="$(_find_workspace_root)" || {
 }
 
 # ── Registry ────────────────────────────────────────────────────────
-# Format: name:dir:toolchain
-# "dir" is relative to WORKSPACE_ROOT
-REPO_REGISTRY=(
-    "root:.:none"
-    "core:core:rust"
-    "cli:cli:rust"
-    "relay:relay:rust"
-    "ohttp-relay:ohttp-relay:rust"
-    "tui:tui:rust"
-    "e2e:e2e:rust"
-    "android:android:gradle"
-    "ios:ios:xcode"
-    "docs:docs:mkdocs"
-    "locales:locales:python"
-    "themes:themes:python"
-    "features:features:gherkin"
-    "website:website:html"
-    "scripts:scripts:shell"
-    "_private:_private:none"
-    "gitlab-profile:gitlab-profile:none"
-    "github-profile:github-profile:none"
-    "macos:macos:xcode"
-    "windows:windows:dotnet"
-    "linux-gtk:linux-gtk:rust"
-    "linux-qt:linux-qt:cmake"
-    "web-demo:web-demo:npm"
-    "assets:assets:none"
-    "vauchi-platform-swift:vauchi-platform-swift:swift"
-    "vauchi-platform-kotlin:vauchi-platform-kotlin:gradle"
-)
+# The canonical registry is root/repos.toml. Load it at runtime so just,
+# CI, and shell helpers share a single source of truth. Falls back to the
+# hardcoded array below if repos.toml or repo-registry.py is missing.
+# Format: name:dir:toolchain ("dir" is relative to WORKSPACE_ROOT).
+_load_repo_registry() {
+    local registry_helper="$WORKSPACE_ROOT/scripts/scripts/lib/repo-registry.py"
+    if [[ ! -x "$registry_helper" ]]; then
+        registry_helper="$WORKSPACE_ROOT/root/scripts/scripts/lib/repo-registry.py"
+    fi
+    if [[ -x "$registry_helper" && -f "$WORKSPACE_ROOT/root/repos.toml" ]]; then
+        (cd "$WORKSPACE_ROOT/root" && python3 "$registry_helper" list) 2>/dev/null
+        return 0
+    fi
+    return 1
+}
+
+REPO_REGISTRY=()
+while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    REPO_REGISTRY+=("$line")
+done < <(_load_repo_registry)
+if [[ ${#REPO_REGISTRY[@]} -eq 0 ]]; then
+    REPO_REGISTRY=(
+        "root:.:none"
+        "core:core:rust"
+        "cli:cli:rust"
+        "relay:relay:rust"
+        "ohttp-relay:ohttp-relay:rust"
+        "tui:tui:rust"
+        "e2e:e2e:rust"
+        "android:android:gradle"
+        "ios:ios:xcode"
+        "docs:docs:mkdocs"
+        "locales:locales:python"
+        "themes:themes:python"
+        "features:features:gherkin"
+        "website:website:html"
+        "scripts:scripts:shell"
+        "_private:_private:none"
+        "gitlab-profile:gitlab-profile:none"
+        "github-profile:github-profile:none"
+        "macos:macos:xcode"
+        "windows:windows:dotnet"
+        "linux-gtk:linux-gtk:rust"
+        "linux-qt:linux-qt:cmake"
+        "web-demo:web-demo:npm"
+        "assets:assets:none"
+        "vauchi-platform-swift:vauchi-platform-swift:swift"
+        "vauchi-platform-kotlin:vauchi-platform-kotlin:gradle"
+    )
+fi
 
 # ── Which repos support which operations ────────────────────────────
 REPOS_BUILD="core cli relay ohttp-relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo"
