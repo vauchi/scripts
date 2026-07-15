@@ -182,3 +182,95 @@ rules:
     metadata:
       category: security
       confidence: MEDIUM
+
+  # ============================================================
+  # Randomness policy
+  # ============================================================
+
+  - id: vauchi-no-thread-rng
+    patterns:
+      - pattern: rand::thread_rng()
+    message: >
+      Do not use rand::thread_rng() for security-sensitive code.
+      Use rand::rngs::OsRng instead. Tests and deterministic simulations
+      may disable this rule locally.
+    severity: ERROR
+    languages: [rust]
+    paths:
+      exclude:
+        - "**/tests/**"
+        - "**/*_test.rs"
+        - "**/ benches/**"
+    metadata:
+      category: security
+      confidence: HIGH
+
+  # ============================================================
+  # Test isolation / temp file policy
+  # ============================================================
+
+  - id: vauchi-no-env-temp-dir
+    patterns:
+      - pattern: std::env::temp_dir().join(...)
+    message: >
+      Do not build paths under std::env::temp_dir() manually.
+      Use tempfile::tempdir() or tempfile::NamedTempFile for race-free,
+      isolated temporary directories.
+    severity: ERROR
+    languages: [rust]
+    paths:
+      include:
+        - "**/tests/**"
+        - "**/src/**"
+    metadata:
+      category: security
+      confidence: HIGH
+
+  - id: vauchi-no-fixed-tmp-path
+    pattern-regex: '"/tmp/[^"]*"'
+    message: >
+      Do not hardcode /tmp/ paths. They are predictable, shared, and
+      race-prone. Use tempfile::tempdir() or tempfile::NamedTempFile.
+    severity: ERROR
+    languages: [rust]
+    paths:
+      include:
+        - "**/src/**"
+    metadata:
+      category: security
+      confidence: HIGH
+
+  # ============================================================
+  # Shell / CI supply-chain policy
+  # ============================================================
+
+  - id: vauchi-no-curl-pipe-shell
+    pattern-regex: 'curl\s+[^|]*\|\s*(?:bash|sh|zsh)\b'
+    message: >
+      Do not pipe curl output directly into a shell. Download, verify
+      checksums/signatures, and inspect the script before execution.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - "**/*.sh"
+        - "**/*.md"
+    metadata:
+      category: security
+      confidence: HIGH
+
+  - id: vauchi-no-unverified-script-fetch
+    pattern-regex: 'curl\s+[^\n]*\.sh[^\n]*\n\s*chmod\s+\+x[^\n]*\n\s*\.?/.*\.sh'
+    message: >
+      Fetching a script with curl, chmod +x, and running it without
+      integrity verification is a supply-chain risk. Use the
+      verified-fetch CI template or verify a SHA-256 / signature first.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - "**/.gitlab-ci.yml"
+        - "**/*.yml"
+    metadata:
+      category: security
+      confidence: HIGH
