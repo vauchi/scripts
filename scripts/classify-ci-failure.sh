@@ -47,7 +47,7 @@ PATS=(
   "error\\[E[0-9]+\\]"
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
   "(test result: FAILED|assertion .*failed|panicked at|FAILED: [0-9]+ hook self-test suite\(s\) red\.)"
-  "No such file or directory"
+  "(No such file or directory|curl: \(22\) The requested URL returned error: 404)"
 )
 FIXES=(
   "Feature-gate the C dep in Cargo.toml (optional=true; #[cfg(feature)]); verify: cargo check --no-default-features"
@@ -58,7 +58,7 @@ FIXES=(
   "Read the rustc diagnostic; fix the source. Reproduce with cargo check -p <crate>."
   "Run the matching just check/lint locally and fix the source (never suppress — CC-21)."
   "Read the failing assertion; fix code or test. Never retry without a root-cause fix (CC-18)."
-  "Downstream job missing an artifact: widen artifacts.paths / add needs in .gitlab-ci.yml."
+  "Downstream artifact is unavailable: publish/fix the pinned remote ref, or widen artifacts.paths / add needs."
 )
 
 emit() { # category, escalate, signature, fix
