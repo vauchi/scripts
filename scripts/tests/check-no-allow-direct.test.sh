@@ -58,5 +58,43 @@ run_fixture 'let config = HttpTransportConfig { allow_direct: true };' \
     'tests/it/transport_isolation.rs'
 assert_exit "explicit transport-isolation test is allowed" 0 "$result"
 
+run_fixture 'pub allow_direct: bool,'
+assert_exit "boolean field declaration is allowed" 0 "$result"
+
+run_fixture 'let config = HttpTransportConfig { allow_direct: false };'
+assert_exit "fail-closed production initializer is allowed" 0 "$result"
+
+run_fixture 'config.allow_direct = false;'
+assert_exit "fail-closed production assignment is allowed" 0 "$result"
+
+run_fixture 'if config.allow_direct == false { return; }'
+assert_exit "direct-mode comparison is allowed" 0 "$result"
+
+run_fixture 'let config = HttpTransportConfig { allow_direct: key.is_none() };'
+assert_exit "dynamic production direct fallback is rejected" 1 "$result"
+
+run_fixture 'config.allow_direct = permit_direct;'
+assert_exit "dynamic production direct assignment is rejected" 1 "$result"
+
+run_fixture 'let config = HttpTransportConfig { allow_direct };'
+assert_exit "shorthand production direct initializer is rejected" 1 "$result"
+
+run_fixture 'let transport = HttpTransportConfig::for_testing(url, 1000);'
+assert_exit "production test constructor call is rejected" 1 "$result"
+
+run_fixture 'let transport = HttpTransportConfig::for_testing(url, 1000);' \
+    'tests/it/transport_isolation.rs'
+assert_exit "test constructor call is allowed" 0 "$result"
+
+run_fixture 'fn create_bootstrap_transport_direct() {
+    let config = HttpTransportConfig { allow_direct: true };
+}' 'vauchi-core/src/api/vauchi/sync_http.rs'
+assert_exit "documented bootstrap initializer is allowed" 0 "$result"
+
+run_fixture 'pub fn for_testing() {
+    let config = HttpTransportConfig { allow_direct: true };
+}' 'vauchi-core/src/network/http_transport.rs'
+assert_exit "test constructor definition is allowed" 0 "$result"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
