@@ -30,21 +30,29 @@ assert_eq() {
     fi
 }
 
+set_want() {
+    IFS= read -r -d '' want || true
+    want="${want%$'\n'}"
+}
+
 # ── Base MR description uses real Markdown paragraphs ──────────
 # Exercise the assignments from the integration script itself so this
 # catches shell-escaping regressions before malformed text reaches GitLab.
 export CI_DEFAULT_BRANCH=main
 export SYNC_FROM=upstream
-description_builder=$(sed -n '/^\(MR_BODY=\|printf -v MR_BODY\)/,/^$/p' "$AUTOFIX_SCRIPT")
+description_builder=$(awk '
+    /^(MR_BODY=|printf -v MR_BODY)/ { capture = 1 }
+    capture { print }
+    capture && /^$/ { exit }
+' "$AUTOFIX_SCRIPT")
 eval "$description_builder"
-want=$(cat <<'EOF'
+set_want <<'EOF'
 Automated cargo-vet exemption sync triggered by CI on `main`.
 
 Source: project upstream (core) + local regeneration.
 
 This MR was created automatically and set to merge when pipeline succeeds.
 EOF
-)
 assert_eq "base description uses real newlines" "$want" "$MR_BODY"
 
 # ── No rev pair → empty (caller didn't detect a bump) ──────────
@@ -73,7 +81,7 @@ assert_eq "different revs, no UI files → empty" \
 # ── Different revs + one UI file → formatted block ─────────────
 got=$(printf 'core/vauchi-app/src/ui/settings.rs\n' \
     | "$SCRIPT" 'abcd1234567890' 'feed567890abcd')
-want=$(cat <<'EOF'
+set_want <<'EOF'
 
 ---
 
@@ -88,13 +96,12 @@ Snapshot regen may be required if any of the above changed
 (e.g. `cargo insta test --accept`) before merging if CI flags
 snapshot drift.
 EOF
-)
 assert_eq "diff revs, one UI file → block" "$want" "$got"
 
 # ── Multiple UI files preserved in order ───────────────────────
 got=$(printf 'core/vauchi-app/src/ui/settings.rs\ncore/vauchi-app/src/ui/components.rs\n' \
     | "$SCRIPT" 'abcd1234567890' 'feed567890abcd')
-want=$(cat <<'EOF'
+set_want <<'EOF'
 
 ---
 
@@ -110,14 +117,13 @@ Snapshot regen may be required if any of the above changed
 (e.g. `cargo insta test --accept`) before merging if CI flags
 snapshot drift.
 EOF
-)
 assert_eq "diff revs, two UI files → block" "$want" "$got"
 
 # ── Stdin filtering: helper trusts caller. Non-UI paths still
 # render — the caller is responsible for filtering before piping.
 # This pins the contract: the helper does not silently drop rows.
 got=$(printf 'README.md\n' | "$SCRIPT" 'abcd1234567890' 'feed567890abcd')
-want=$(cat <<'EOF'
+set_want <<'EOF'
 
 ---
 
@@ -132,12 +138,11 @@ Snapshot regen may be required if any of the above changed
 (e.g. `cargo insta test --accept`) before merging if CI flags
 snapshot drift.
 EOF
-)
 assert_eq "helper trusts caller-filtered list" "$want" "$got"
 
 # ── Short revs (< 8 chars) pass through unchanged ──────────────
 got=$(printf 'core/vauchi-app/src/ui/settings.rs\n' | "$SCRIPT" 'abc' 'def')
-want=$(cat <<'EOF'
+set_want <<'EOF'
 
 ---
 
@@ -152,7 +157,6 @@ Snapshot regen may be required if any of the above changed
 (e.g. `cargo insta test --accept`) before merging if CI flags
 snapshot drift.
 EOF
-)
 assert_eq "short revs pass through" "$want" "$got"
 
 echo ""
