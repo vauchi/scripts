@@ -16,6 +16,12 @@
 
 set -e
 
+# Guard arrays used under nounset (stamp.sh sources this hook with set -u).
+# Bash 3.2 treats an empty array as unbound when expanding ${arr[@]}.
+CLIPPY_EXTRA=()
+TEST_CMD=()
+MD_ARGS=()
+
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 REPO_DIR="$(basename "$REPO_ROOT")"
 BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
@@ -514,7 +520,7 @@ if command -v markdownlint &> /dev/null; then
         MD_COUNT=$(echo "$MD_FILES" | wc -l | tr -d ' ')
         echo ""
         echo "[markdownlint] Linting $MD_COUNT changed .md file(s) ($REPO_DIR)..."
-        if ! echo "$MD_FILES" | xargs markdownlint "${MD_ARGS[@]}"; then
+        if ! echo "$MD_FILES" | xargs markdownlint ${MD_ARGS[@]+"${MD_ARGS[@]}"}; then
             echo ""
             echo "FAILED: markdownlint found issues. Run 'just lint-markdown fix' to auto-fix."
             exit 1
@@ -718,7 +724,7 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
         run_clippy() {
             echo ""
             echo "[2/3] Running clippy..."
-            if ! cargo clippy --all-targets "${CLIPPY_EXTRA[@]}" -- -D warnings; then
+            if ! cargo clippy --all-targets ${CLIPPY_EXTRA[@]+"${CLIPPY_EXTRA[@]}"} -- -D warnings; then
                 echo ""
                 echo "FAILED: Clippy check failed. Fix warnings before pushing."
                 exit 1
@@ -776,7 +782,7 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
         else
             echo ""
             echo "[3/3] Running tests... (set SKIP_TESTS=1 to skip)"
-            if ! "${TEST_CMD[@]}"; then
+            if ! ${TEST_CMD[@]+"${TEST_CMD[@]}"}; then
                 echo ""
                 echo "FAILED: Tests failed. Fix before pushing."
                 exit 1
@@ -1009,7 +1015,7 @@ elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
 
                 MD_COUNT=$(echo "$MD_FILES" | wc -l | tr -d ' ')
                 echo "  Linting $MD_COUNT changed .md file(s)..."
-                if ! echo "$MD_FILES" | xargs markdownlint "${MD_ARGS[@]}"; then
+                if ! echo "$MD_FILES" | xargs markdownlint ${MD_ARGS[@]+"${MD_ARGS[@]}"}; then
                     echo ""
                     echo "FAILED: markdownlint found issues. Run 'just lint-markdown fix' to auto-fix."
                     exit 1
