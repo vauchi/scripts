@@ -45,7 +45,7 @@
       esac
       ENCODED_PATH=$(printf '%s' "$FETCH_SCRIPT_PATH" | sed 's|/|%2F|g')
       URL="${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/${ENCODED_PATH}/raw?ref=${VAUCHI_SCRIPTS_REF}"
-      curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" "$URL" -o "${FETCH_SCRIPT_OUTPUT}"
+      curl -sf "$URL" -o "${FETCH_SCRIPT_OUTPUT}"
     - |
       set -euo pipefail
       printf '%s  %s\n' "${FETCH_SCRIPT_SHA256}" "${FETCH_SCRIPT_OUTPUT}" | sha256sum -c -
