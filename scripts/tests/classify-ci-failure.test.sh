@@ -98,6 +98,14 @@ expect_escalate "semver API compatibility does NOT escalate" \
 expect_fix "semver API compatibility preserves the gate" \
     'Summary semver requires new major version: 1 major and 0 minor checks failed' \
     "Restore the public API compatibility or intentionally bump the major version; never suppress the semver lint."
+expect_category "YAML syntax" \
+    "yaml.scanner.ScannerError: could not find expected ':'" \
+    "yaml-syntax"
+expect_escalate "YAML syntax does NOT escalate" \
+    "could not find expected ':'" "false"
+expect_fix "YAML syntax preserves the lint gate" \
+    "could not find expected ':'" \
+    "Fix the invalid YAML indentation or syntax, then rerun the CI lint; never suppress the lint."
 
 # Unknown → escalate to the model
 expect_category "unknown signature" \
