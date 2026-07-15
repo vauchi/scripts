@@ -8,8 +8,6 @@
 # (non-tautological per CC-21). Builds throwaway core/vauchi-core/src
 # fixtures; no dependency on the live tree.
 
-set -euo pipefail
-
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
