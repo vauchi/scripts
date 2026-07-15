@@ -34,6 +34,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 REGEN_LOCKFILE=false
 SYNC_FROM=""
 for arg in "$@"; do
@@ -236,7 +238,7 @@ else
     # specific unvetted crate lines for a cleaner summary.
     echo "--- Unvetted dependencies ---"
     cargo vet ${VET_FLAGS[@]+"${VET_FLAGS[@]}"} 2>&1 \
-        | grep -E '^\s+(recommended|missing)' || true
+        | grep -E '^[[:space:]]+(recommended|missing)' || true
     echo ""
 
     # Auto-fix only on default branch
@@ -326,8 +328,7 @@ NEW_CORE_SHA=$(extract_core_sha Cargo.lock 2>/dev/null || true)
 # non-fatal — the MR still ships with the Phase 1 warning block in
 # its description.
 if [[ -n "$OLD_CORE_SHA" && -n "$NEW_CORE_SHA" && "$OLD_CORE_SHA" != "$NEW_CORE_SHA" ]]; then
-    REGEN_SCRIPT_DIR="$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")"
-    if "${REGEN_SCRIPT_DIR}/regen-snapshots.sh" "$OLD_CORE_SHA" "$NEW_CORE_SHA"; then
+    if "${SCRIPT_DIR}/regen-snapshots.sh" "$OLD_CORE_SHA" "$NEW_CORE_SHA"; then
         if ! git diff --quiet HEAD 2>/dev/null; then
             git add -A
             REGEN_MSG="tidy: regenerate snapshots after core ${OLD_CORE_SHA:0:8}→${NEW_CORE_SHA:0:8}
@@ -393,7 +394,6 @@ except Exception:
     pass
 " 2>/dev/null || true)
     if [[ -n "$UI_FILES" ]]; then
-        SCRIPT_DIR="$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")"
         WARNING_BLOCK=$(printf '%s\n' "$UI_FILES" \
             | "${SCRIPT_DIR}/vet-autofix-description.sh" "$OLD_CORE_SHA" "$NEW_CORE_SHA" \
             2>/dev/null || true)
