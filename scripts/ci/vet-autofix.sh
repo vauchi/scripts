@@ -196,7 +196,13 @@ if [[ -n "$SYNC_FROM" ]]; then
         echo "Sync: ${ADDED} exemptions added, ${SKIPPED} already present or skipped"
 
         if [[ "$ADDED" -gt 0 ]]; then
-            cargo vet fmt 2>&1 || true
+            echo "--- Pruning source-only exemptions ---"
+            if ! cargo vet regenerate exemptions 2>&1; then
+                echo "FATAL: could not normalize synced exemptions"
+                echo "  Refusing to persist an unpruned source exemption set."
+                exit 1
+            fi
+            cargo vet fmt 2>&1
         fi
     fi
 fi
