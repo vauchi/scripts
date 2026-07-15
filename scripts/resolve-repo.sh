@@ -53,10 +53,14 @@ _load_repo_registry() {
 }
 
 REPO_REGISTRY=()
-while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    REPO_REGISTRY+=("$line")
-done < <(_load_repo_registry)
+_repo_registry_tmp=$(mktemp)
+if _load_repo_registry > "$_repo_registry_tmp"; then
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        REPO_REGISTRY+=("$line")
+    done < "$_repo_registry_tmp"
+fi
+rm -f "$_repo_registry_tmp"
 if [[ ${#REPO_REGISTRY[@]} -eq 0 ]]; then
     REPO_REGISTRY=(
         "root:.:none"
