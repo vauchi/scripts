@@ -4,9 +4,10 @@
 
 # Allow-Direct Lint Guard Template
 #
-# Forbids new `allow_direct: true` (or `= true`) introductions outside the
-# documented allow-list (see `scripts/check-no-allow-direct.sh` for the
-# full rationale and the exempt call sites).
+# Forbids production `allow_direct` initializers or assignments unless the
+# value is literal `false`. It also rejects production calls to
+# `HttpTransportConfig::for_testing` outside the documented allow-list (see
+# `scripts/check-no-allow-direct.sh` for the full rationale and exemptions).
 #
 # Background: `HttpTransportConfig::allow_direct = true` silently falls
 # back to direct (non-OHTTP) HTTP when no gateway key is wired, exposing
@@ -23,7 +24,7 @@
 #
 # Provides:
 #   - allow-direct:check — fails the pipeline on any unapproved
-#     `allow_direct: true` in the current repo.
+#     direct-transport opt-in in the current repo.
 
 allow-direct:check:
   extends: .linux-runner-nocache

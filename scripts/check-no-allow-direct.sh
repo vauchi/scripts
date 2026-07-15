@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# check-no-allow-direct.sh — Forbid new `allow_direct: true` and retired
-# `VAUCHI_ALLOW_DIRECT=1` introductions outside an approved allow-list.
+# check-no-allow-direct.sh — Forbid production direct-transport opt-ins and
+# retired `VAUCHI_ALLOW_DIRECT=1` outside an approved allow-list.
 #
 # Usage: check-no-allow-direct.sh <repo_root> [<repo_root> ...]
 # Example: check-no-allow-direct.sh core cli tui e2e
@@ -44,11 +44,13 @@ for ROOT in "$@"; do
         continue
     fi
 
-    # Match `allow_direct` followed by `:` or `=`, whitespace, then `true`.
-    # Ripgrep's --type rust filters to *.rs. We intentionally accept matches
-    # anywhere on the line and filter comments in post-processing below.
+    # A production config is safe only when allow_direct is the literal false.
+    # Reject dynamic expressions, shorthand field initializers, and calls to
+    # the test-only constructor. Boolean field declarations and comparisons
+    # are not initializers, so the pattern excludes them.
     HITS=$(rg --no-messages --with-filename --line-number --no-heading \
-        --type rust 'allow_direct[[:space:]]*[:=][[:space:]]*true' \
+        --type rust --pcre2 \
+        '(allow_direct\s*:(?!\s*(bool|false)\b))|(allow_direct\s*=(?!=)(?!\s*false\b))|((^|[{,])\s*allow_direct\s*[,}])|(HttpTransportConfig::for_testing\s*\()' \
         "$ROOT" 2>/dev/null || true)
 
     while IFS= read -r HIT; do
@@ -84,7 +86,19 @@ for ROOT in "$@"; do
             */vauchi-core/src/api/vauchi/sync_http.rs)
                 START=$((LINE > 40 ? LINE - 40 : 1))
                 CONTEXT=$(sed -n "${START},${LINE}p" "$FILE")
-                if echo "$CONTEXT" | grep -q 'fn create_bootstrap_transport_direct'; then
+                if echo "$CONTENT" | grep -qE \
+                    'allow_direct[[:space:]]*:[[:space:]]*true' \
+                    && echo "$CONTEXT" | grep -q \
+                        'fn create_bootstrap_transport_direct'; then
+                    continue
+                fi
+                ;;
+            */vauchi-core/src/network/http_transport.rs)
+                START=$((LINE > 20 ? LINE - 20 : 1))
+                CONTEXT=$(sed -n "${START},${LINE}p" "$FILE")
+                if echo "$CONTENT" | grep -qE \
+                    'allow_direct[[:space:]]*:[[:space:]]*true' \
+                    && echo "$CONTEXT" | grep -q 'pub fn for_testing'; then
                     continue
                 fi
                 ;;
@@ -104,8 +118,7 @@ for ROOT in "$@"; do
             -e '#\[cfg\(test\)\]' \
             -e '#\[cfg\(any\(test' \
             -e 'feature[[:space:]]*=[[:space:]]*"testing"' \
-            -e '^[[:space:]]*mod[[:space:]]+tests[[:space:]]*\{' \
-            -e 'pub fn for_testing'; then
+            -e '^[[:space:]]*mod[[:space:]]+tests[[:space:]]*\{'; then
             continue
         fi
 
@@ -156,14 +169,15 @@ if [ "$VIOLATIONS" -gt 0 ]; then
 check-no-allow-direct: found $VIOLATIONS disallowed direct-transport bypass site(s):
 $REPORTED
 
-Every unapproved allow_direct:true or VAUCHI_ALLOW_DIRECT=1 is a
+Every production allow_direct value other than literal false, every production
+HttpTransportConfig::for_testing call, and every VAUCHI_ALLOW_DIRECT=1 is a
 privacy regression (ADR-037): it lets HttpTransport fall back to direct HTTP
 and expose the caller's source IP to the relay.
 
 To silence a NEW legitimate use:
   1. Gate the call inside #[cfg(test)], #[cfg(feature = "testing")],
      or #[cfg(debug_assertions)] — OR
-  2. Construct via HttpTransportConfig::for_testing(...) — OR
+  2. Put HttpTransportConfig::for_testing(...) in a test-only path — OR
   3. Add a file-specific entry to this script's allow-list (only after
      updating the threat-model addendum and obtaining review).
 
