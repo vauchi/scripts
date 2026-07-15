@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 TEMPLATE="$SCRIPT_DIR/ci-templates/verified-fetch.yml"
+CROSS_CUTTING_TEMPLATE="$SCRIPT_DIR/ci-templates/cross-cutting-lint.yml"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -67,6 +68,17 @@ assert_eq "public verified fetch sends no authentication token" \
 run_fetch "scripts/ci/not allowed.sh"
 assert_eq "unsupported repository path fails closed" "2" "$rc"
 assert_eq "unsupported repository path is not fetched" "" "$fetched_url"
+
+cross_cutting=$(awk '/^\.cross-cutting-lint:/ { capture = 1 } capture' "$CROSS_CUTTING_TEMPLATE")
+assert_eq "cross-cutting lint has no nested fetch references" \
+    "0" \
+    "$(grep -c '!reference \[\.fetch-humble-' "$CROSS_CUTTING_TEMPLATE" || true)"
+assert_eq "cross-cutting lint binds all verified fetch paths directly" \
+    "3" \
+    "$(printf '%s\n' "$cross_cutting" | grep -c 'export FETCH_SCRIPT_PATH=' || true)"
+assert_eq "cross-cutting lint expands each verifier directly" \
+    "3" \
+    "$(printf '%s\n' "$cross_cutting" | grep -c '!reference \[\.verified-fetch-script, before_script\]' || true)"
 
 printf '\nverified-fetch.test: %d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
