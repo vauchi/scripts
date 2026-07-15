@@ -1,0 +1,93 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Verified tool-install anchors for external binaries downloaded in CI.
+# Every download is pinned by version and SHA-256.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: ci-templates-v2026.07.2
+#       file: '/ci-templates/tool-install.yml'
+#
+#   my_job:
+#     before_script:
+#       - !reference [.install-k6, before_script]
+#     script:
+#       - k6 run ...
+
+.install-k6:
+  before_script:
+    - |
+      set -euo pipefail
+      K6_VERSION="0.56.0"
+      K6_SHA256="f90877b2721dbc607853ff785433c9a471e5aafdee788e78f6c833413541d649"
+      if command -v k6 >/dev/null 2>&1; then
+        echo "k6 already installed"
+        exit 0
+      fi
+      TMP_DIR=$(mktemp -d)
+      trap 'rm -rf "$TMP_DIR"' EXIT
+      curl -fsSL "https://github.com/grafana/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-linux-amd64.tar.gz" \
+        -o "$TMP_DIR/k6.tar.gz"
+      printf '%s  %s\n' "$K6_SHA256" "$TMP_DIR/k6.tar.gz" | sha256sum -c -
+      tar xz --strip-components=1 -C /usr/local/bin "k6-v${K6_VERSION}-linux-amd64/k6" -f "$TMP_DIR/k6.tar.gz"
+      command -v k6 >/dev/null 2>&1
+
+.install-bitwarden-cli:
+  before_script:
+    - |
+      set -euo pipefail
+      BW_VERSION="2025.12.0"
+      BW_SHA256="0a5ea0c81aedae91f29a5a316d01c73af4a7275db4fad56d069eb90e28b1c55f"
+      if command -v bw >/dev/null 2>&1; then
+        echo "bw already installed"
+        exit 0
+      fi
+      TMP_DIR=$(mktemp -d)
+      trap 'rm -rf "$TMP_DIR"' EXIT
+      curl -fsSL "https://github.com/bitwarden/clients/releases/download/cli-v${BW_VERSION}/bw-linux-${BW_VERSION}.zip" \
+        -o "$TMP_DIR/bw.zip"
+      printf '%s  %s\n' "$BW_SHA256" "$TMP_DIR/bw.zip" | sha256sum -c -
+      unzip -q "$TMP_DIR/bw.zip" -d /usr/local/bin
+      chmod +x /usr/local/bin/bw
+      command -v bw >/dev/null 2>&1
+
+.install-infisical-cli:
+  before_script:
+    - |
+      set -euo pipefail
+      INFISICAL_VERSION="0.43.100"
+      INFISICAL_SHA256="aeec395676ae8fe51fd00368a79da58e5a1aa3b21d50da65fdf445834be702ef"
+      if command -v infisical >/dev/null 2>&1; then
+        echo "infisical already installed"
+        exit 0
+      fi
+      TMP_DIR=$(mktemp -d)
+      trap 'rm -rf "$TMP_DIR"' EXIT
+      curl -fsSL "https://github.com/Infisical/cli/releases/download/v${INFISICAL_VERSION}/cli_${INFISICAL_VERSION}_linux_amd64.tar.gz" \
+        -o "$TMP_DIR/infisical.tar.gz"
+      printf '%s  %s\n' "$INFISICAL_SHA256" "$TMP_DIR/infisical.tar.gz" | sha256sum -c -
+      tar -xzf "$TMP_DIR/infisical.tar.gz" -C /usr/local/bin infisical
+      chmod +x /usr/local/bin/infisical
+      command -v infisical >/dev/null 2>&1
+
+.install-cosign-windows:
+  before_script:
+    - |
+      set -euo pipefail
+      $COSIGN_VERSION = "v3.0.5"
+      $COSIGN_SHA256 = "44e9e44202b67ddfaaf5ea1234f5a265417960c4ae98c5b57c35bc40ba9dd714"
+      $TMP_DIR = New-Item -ItemType Directory -Path "$env:TEMP\cosign-install-$([Guid]::NewGuid())"
+      try {
+        curl.exe -fSL -o "$TMP_DIR\cosign.exe" "https://github.com/sigstore/cosign/releases/download/$COSIGN_VERSION/cosign-windows-amd64.exe"
+        $Actual = (Get-FileHash "$TMP_DIR\cosign.exe" -Algorithm SHA256).Hash
+        if ($Actual -ne $COSIGN_SHA256) {
+          Write-Error "cosign SHA-256 mismatch: expected $COSIGN_SHA256, got $Actual"
+          exit 1
+        }
+        Move-Item -Force "$TMP_DIR\cosign.exe" "cosign.exe"
+      } finally {
+        Remove-Item -Recurse -Force $TMP_DIR
+      }

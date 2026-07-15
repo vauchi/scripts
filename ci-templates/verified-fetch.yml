@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Verified fetch templates for scripts fetched from vauchi/scripts at runtime.
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: ci-templates-v2026.07.2
+#       file: '/ci-templates/verified-fetch.yml'
+#
+#   my_job:
+#     extends: .verified-fetch-script
+#     variables:
+#       FETCH_SCRIPT_PATH: "scripts/ci/vet-autofix.sh"
+#       FETCH_SCRIPT_OUTPUT: "vet-autofix.sh"
+#       FETCH_SCRIPT_SHA256: "<sha256>"
+#     script:
+#       - ./vet-autofix.sh
+
+.verified-fetch-script:
+  variables:
+    FETCH_SCRIPT_PATH: ""
+    FETCH_SCRIPT_OUTPUT: "fetched-script.sh"
+    FETCH_SCRIPT_SHA256: ""
+    GITLAB_TOKEN: "${CI_JOB_TOKEN}"
+  before_script:
+    - |
+      set -euo pipefail
+      : "${FETCH_SCRIPT_PATH:?FETCH_SCRIPT_PATH must be set}"
+      : "${FETCH_SCRIPT_SHA256:?FETCH_SCRIPT_SHA256 must be set}"
+      for cmd in curl sha256sum; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+          echo "Required command not found: $cmd" >&2
+          exit 1
+        fi
+      done
+    - |
+      set -euo pipefail
+      URL="${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/${FETCH_SCRIPT_PATH}/raw?ref=${VAUCHI_SCRIPTS_REF}"
+      curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "$URL" -o "${FETCH_SCRIPT_OUTPUT}"
+    - |
+      set -euo pipefail
+      printf '%s  %s\n' "${FETCH_SCRIPT_SHA256}" "${FETCH_SCRIPT_OUTPUT}" | sha256sum -c -
+      chmod +x "${FETCH_SCRIPT_OUTPUT}"
