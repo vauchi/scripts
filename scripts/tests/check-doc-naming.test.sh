@@ -6,6 +6,8 @@
 # Sentinel suite for ci-templates/check-doc-naming.sh (VDC05) — the
 # canonical (single-copy) doc-naming check.
 
+set -euo pipefail
+
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

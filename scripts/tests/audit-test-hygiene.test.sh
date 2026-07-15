@@ -8,6 +8,8 @@
 # count BELOW baseline still passes (ratchet-down). Non-tautological
 # (CC-21). Builds throwaway core/vauchi-core/tests fixtures.
 
+set -euo pipefail
+
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -13,6 +13,8 @@
 #   - APK built
 
 # Source common utilities if not already loaded
+set -euo pipefail
+
 if [ -z "$E2E_LIB_DIR" ]; then
     # shellcheck source=/dev/null
     source "$(dirname "${BASH_SOURCE[0]}")/common.sh"

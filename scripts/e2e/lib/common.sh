@@ -8,7 +8,7 @@
 # Source this file at the beginning of e2e scripts:
 #   source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-set -e
+set -euo pipefail
 
 # ═══════════════════════════════════════════════════════════════
 # Path Setup

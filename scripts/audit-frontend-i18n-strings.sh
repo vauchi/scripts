@@ -27,7 +27,7 @@
 #
 # Portability: POSIX shell + BSD/GNU/BusyBox-portable utilities.
 
-set -eu
+set -euo pipefail
 
 MODE=snapshot
 BASELINE=""

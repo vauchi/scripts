@@ -19,6 +19,8 @@
 # Uses cargo-public-api if installed (authoritative), else falls back to a
 # grep-based count. The fallback is honest about its limitations.
 
+set -euo pipefail
+
 set -uo pipefail
 
 CRATE="${1:-all}"

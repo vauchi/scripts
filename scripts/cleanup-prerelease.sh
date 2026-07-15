@@ -18,6 +18,9 @@
 
 set -euo pipefail
 
+# shellcheck source=lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
 : "${GITLAB_API:=https://gitlab.com/api/v4}"
 : "${GITLAB_GROUP:=vauchi}"
 : "${RETENTION_DAYS:=14}"
@@ -25,8 +28,7 @@ set -euo pipefail
 
 TOKEN="${GITLAB_TOKEN:-${CI_JOB_TOKEN:-}}"
 if [ -z "$TOKEN" ]; then
-  echo "ERROR: GITLAB_TOKEN or CI_JOB_TOKEN required" >&2
-  exit 1
+  die "GITLAB_TOKEN or CI_JOB_TOKEN required"
 fi
 
 # macOS vs GNU date
@@ -43,10 +45,9 @@ api() {
     "${GITLAB_API}/${path}"
 }
 
-echo "=== Prerelease Cleanup ==="
-echo "Retention: ${RETENTION_DAYS} days (cutoff: ${CUTOFF})"
-echo "Dry run: ${DRY_RUN}"
-echo ""
+log_info "=== Prerelease Cleanup ==="
+log_info "Retention: ${RETENTION_DAYS} days (cutoff: ${CUTOFF})"
+log_info "Dry run: ${DRY_RUN}"
 
 # Get all projects in group
 PROJECTS=$(api GET "groups/${GITLAB_GROUP}/projects?per_page=100&include_subgroups=false" \

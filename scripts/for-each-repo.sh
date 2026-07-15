@@ -15,6 +15,8 @@
 #   for_each_repo --no-root my_callback   # excludes root
 #   for_each_repo_parallel my_callback    # includes root, parallel (& + wait)
 
+set -euo pipefail
+
 for_each_repo() {
     local include_root=true
     if [[ "${1:-}" == "--no-root" ]]; then

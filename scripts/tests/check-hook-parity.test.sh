@@ -1,8 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Test runner for the cross-agent hook routing validator.
+
+set -euo pipefail
 
 set -uo pipefail
 

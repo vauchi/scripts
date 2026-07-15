@@ -34,22 +34,23 @@
 
 set -euo pipefail
 
+# shellcheck source=../../lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+
 GROUP="vauchi"
 DRY_RUN=false
 
 if [[ "${1:-}" == "--dry-run" ]]; then
     DRY_RUN=true
-    echo "[DRY RUN] No changes will be made"
+    log_warn "[DRY RUN] No changes will be made"
     echo ""
 fi
 
 # Verify glab is authenticated
 if ! glab auth status &>/dev/null; then
-    echo "ERROR: glab is not authenticated"
-    echo "  Run: glab auth login"
-    exit 1
+    die "glab is not authenticated — run: glab auth login"
 fi
-echo "✓ glab authenticated"
+log_success "glab authenticated"
 echo ""
 
 # Get project ID by path
@@ -79,11 +80,11 @@ add_to_allowlist() {
         --raw-field "target_project_id=${allowed_id}" 2>&1) || true
 
     if echo "$response" | grep -q 'project_id'; then
-        echo "    ✓ Added"
+        log_success "    Added"
     elif echo "$response" | grep -qi "already"; then
-        echo "    ✓ Already in allowlist"
+        log_success "    Already in allowlist"
     else
-        echo "    ✗ Failed: $response"
+        log_error "    Failed: $response"
     fi
 }
 

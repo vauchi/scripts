@@ -12,6 +12,8 @@
 #
 # Run: scripts/tests/check-file-size-test.sh   (exit 0 = all pass)
 
+set -euo pipefail
+
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

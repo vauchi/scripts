@@ -7,6 +7,8 @@
 # Run: bash scripts/scripts/test-justfile-consistency.sh
 # Fails if hardcoded values exist where variables should be used.
 
+set -euo pipefail
+
 set -uo pipefail
 
 PASS=0

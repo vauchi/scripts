@@ -22,7 +22,10 @@
 
 set -euo pipefail
 
-command -v jq >/dev/null 2>&1 || { echo "ERROR: jq required but not found" >&2; exit 1; }
+# shellcheck source=../../lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+
+require_cmd jq
 
 OUTPUT_DIR="${1:?Usage: generate-badges.sh <output_dir>}"
 mkdir -p "$OUTPUT_DIR"
@@ -93,7 +96,7 @@ case "$PIPELINE_STATUS" in
   *)        STATUS_COLOR="#9f9f9f";  STATUS_LABEL="unknown" ;;
 esac
 
-echo "Pipeline status: ${STATUS_LABEL}"
+log_info "Pipeline status: ${STATUS_LABEL}"
 generate_badge "pipeline" "$STATUS_LABEL" "$STATUS_COLOR" "${OUTPUT_DIR}/pipeline.svg"
 case "$PIPELINE_STATUS" in
   success) EP_COLOR="brightgreen" ;; failed) EP_COLOR="red" ;; *) EP_COLOR="lightgrey" ;;
@@ -136,7 +139,7 @@ if [ -n "$COVERAGE" ]; then
     COV_COLOR="#e05d44"
   fi
 
-  echo "Coverage: ${COVERAGE}%"
+  log_info "Coverage: ${COVERAGE}%"
   generate_badge "coverage" "${COVERAGE}%" "$COV_COLOR" "${OUTPUT_DIR}/coverage.svg"
   if [ "$COV_INT" -ge 90 ]; then EP_COV="brightgreen"
   elif [ "$COV_INT" -ge 75 ]; then EP_COV="green"
@@ -145,7 +148,7 @@ if [ -n "$COVERAGE" ]; then
   else EP_COV="red"; fi
   generate_endpoint "coverage" "${COVERAGE}%" "$EP_COV" "${OUTPUT_DIR}/coverage.json"
 else
-  echo "No coverage data — generating fallback badge"
+  log_warn "No coverage data — generating fallback badge"
   generate_badge "coverage" "N/A" "#9f9f9f" "${OUTPUT_DIR}/coverage.svg"
   generate_endpoint "coverage" "N/A" "lightgrey" "${OUTPUT_DIR}/coverage.json"
 fi
@@ -166,7 +169,7 @@ if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
     2>/dev/null || echo "")
 
   if [ -n "$PROD_TAG" ]; then
-    echo "Latest release: ${PROD_TAG}"
+    log_info "Latest release: ${PROD_TAG}"
     generate_badge "release" "$PROD_TAG" "#0e80c0" "${OUTPUT_DIR}/release.svg"
     generate_endpoint "release" "$PROD_TAG" "blue" "${OUTPUT_DIR}/release.json"
   else
@@ -175,7 +178,7 @@ if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
   fi
 
   if [ -n "$DEV_TAG" ]; then
-    echo "Latest dev: ${DEV_TAG}"
+    log_info "Latest dev: ${DEV_TAG}"
     generate_badge "dev" "$DEV_TAG" "#6e5494" "${OUTPUT_DIR}/dev.svg"
     generate_endpoint "dev" "$DEV_TAG" "blueviolet" "${OUTPUT_DIR}/dev.json"
   else
@@ -192,5 +195,5 @@ else
   generate_endpoint "dev" "N/A" "lightgrey" "${OUTPUT_DIR}/dev.json"
 fi
 
-echo "Badges written to ${OUTPUT_DIR}/"
+log_success "Badges written to ${OUTPUT_DIR}/"
 ls -la "${OUTPUT_DIR}/"

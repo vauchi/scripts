@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
@@ -22,6 +22,8 @@
 # The generated hook is a STARTER. Always review thresholds, escape
 # hatches, and the block message before merging — defaults are
 # conservative but each pattern needs its own escape logic.
+
+set -euo pipefail
 
 set -uo pipefail
 

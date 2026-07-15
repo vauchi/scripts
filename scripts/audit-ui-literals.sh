@@ -42,7 +42,7 @@
 # Portability: POSIX shell + BSD/GNU/BusyBox-portable utilities only.
 # No grep -P, no bash arrays, no GNU --include/--exclude, no mapfile.
 
-set -eu
+set -euo pipefail
 
 MODE=snapshot
 BASELINE=""

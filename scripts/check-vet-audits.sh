@@ -14,6 +14,9 @@
 
 set -euo pipefail
 
+# shellcheck source=lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
 if [[ "${VAUCHI_HUMAN_AUDIT:-0}" == "1" ]]; then
     exit 0
 fi
@@ -26,8 +29,7 @@ fi
 
 if printf '%s\n' "$DIFF_CONTENT" | grep -qE '^\+\[\[audits\.'; then
     added="$(printf '%s\n' "$DIFF_CONTENT" | grep -E '^\+\[\[audits\.' | head -3)"
-    echo "$added"
-    echo "  VSC01: staged diff adds a cargo-vet [[audits]] entry (a human attestation an AI cannot make) — fix: add [[exemptions.<crate>]] in supply-chain/config.toml instead; humans commit real audits with VAUCHI_HUMAN_AUDIT=1. [_private/docs/lint-errors/vsc01-no-ai-audits.md]"
-    exit 1
+    log_error "$added"
+    die "VSC01: staged diff adds a cargo-vet [[audits]] entry (a human attestation an AI cannot make) — fix: add [[exemptions.<crate>]] in supply-chain/config.toml instead; humans commit real audits with VAUCHI_HUMAN_AUDIT=1. [_private/docs/lint-errors/vsc01-no-ai-audits.md]"
 fi
 exit 0

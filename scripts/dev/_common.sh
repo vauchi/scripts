@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -9,6 +9,8 @@
 
 # Determine workspace root and code directory
 # This file is in _dev-tools/scripts/dev/
+set -euo pipefail
+
 _COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$_COMMON_DIR/../../.." && pwd)"
 export PROJECT_ROOT

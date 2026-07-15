@@ -17,6 +17,8 @@
 # Registers cleanup trap to remove key on exit.
 
 # Which SSH mode was loaded: "full", "restricted", or ""
+set -euo pipefail
+
 PUSHGATEWAY_SSH_MODE=""
 
 PUSHGATEWAY_SSH_HOST="${PUSHGATEWAY_SSH_HOST:-bold-hopper-vps}"
