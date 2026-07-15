@@ -10,8 +10,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-HOOKS_DIR="$SCRIPT_DIR/hooks"
+COMMON_GIT_DIR="$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir)"
+case "$COMMON_GIT_DIR" in
+    /*) ;;
+    *) COMMON_GIT_DIR="$SCRIPT_DIR/$COMMON_GIT_DIR" ;;
+esac
+CANONICAL_SCRIPTS_DIR="$(cd "$(dirname "$COMMON_GIT_DIR")" && pwd)"
+REPO_ROOT="$(dirname "$CANONICAL_SCRIPTS_DIR")"
+HOOKS_DIR="$CANONICAL_SCRIPTS_DIR/hooks"
 
 if [[ ! -d "$HOOKS_DIR" ]]; then
     echo "No hooks directory found at $HOOKS_DIR"
