@@ -38,7 +38,15 @@
       done
     - |
       set -euo pipefail
-      URL="${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/${FETCH_SCRIPT_PATH}/raw?ref=${VAUCHI_SCRIPTS_REF}"
+      # GitLab expects the file path segment to be URL-encoded (%2F for /).
+      # Prefer python3 for full encoding; fall back to sed for paths that only
+      # contain slashes (the normal case for scripts/ci/...).
+      if command -v python3 >/dev/null 2>&1; then
+        ENCODED_PATH=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$FETCH_SCRIPT_PATH")
+      else
+        ENCODED_PATH=$(printf '%s' "$FETCH_SCRIPT_PATH" | sed 's|/|%2F|g')
+      fi
+      URL="${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/${ENCODED_PATH}/raw?ref=${VAUCHI_SCRIPTS_REF}"
       curl -sf -H "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "$URL" -o "${FETCH_SCRIPT_OUTPUT}"
     - |
       set -euo pipefail
