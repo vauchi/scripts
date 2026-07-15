@@ -53,6 +53,18 @@ expect_escalate() {
     fi
 }
 
+expect_fix() {
+    local name="$1" trace="$2" want="$3"
+    local got
+    got=$(classify "$trace" | jq -r '.fix' 2>/dev/null)
+    if [[ "$got" == "$want" ]]; then
+        printf '  PASS  %s\n' "$name"; PASS=$((PASS + 1))
+    else
+        printf '  FAIL  %s\n    want fix=%s, got=%s\n' "$name" "$want" "$got"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
 expect_category "C FFI cross-compile" \
     "  = note: fatal error: 'openssl/ssl.h' file not found" "c-ffi-cross"
 expect_category "dependency resolution" \
@@ -77,6 +89,15 @@ expect_category "artifact gap" \
     "cp: cannot stat 'target/release/libvauchi.a': No such file or directory" "artifact-gap"
 expect_category "remote scripts ref artifact gap" \
     'curl: (22) The requested URL returned error: 404' "artifact-gap"
+expect_category "semver API compatibility" \
+    '--- failure method_parameter_count_changed: pub method parameter count changed ---' \
+    "semver-api-compatibility"
+expect_escalate "semver API compatibility does NOT escalate" \
+    'Summary semver requires new major version: 1 major and 0 minor checks failed' \
+    "false"
+expect_fix "semver API compatibility preserves the gate" \
+    'Summary semver requires new major version: 1 major and 0 minor checks failed' \
+    "Restore the public API compatibility or intentionally bump the major version; never suppress the semver lint."
 
 # Unknown → escalate to the model
 expect_category "unknown signature" \
