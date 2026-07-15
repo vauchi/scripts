@@ -7,8 +7,6 @@
 # [[audits]] entry is a human attestation; AI-staged additions are
 # blocked. Rule page: _private/docs/lint-errors/vsc01-no-ai-audits.md
 
-set -euo pipefail
-
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

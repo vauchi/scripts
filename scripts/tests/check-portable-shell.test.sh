@@ -10,8 +10,6 @@
 # detector exempts */tests/*.test.sh for exactly this reason.
 # Rule pages: _private/docs/lint-errors/vsh*.md
 
-set -euo pipefail
-
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

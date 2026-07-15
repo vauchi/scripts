@@ -4,8 +4,6 @@
 
 # Test runner for the cross-agent hook routing validator.
 
-set -euo pipefail
-
 set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"

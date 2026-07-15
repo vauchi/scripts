@@ -8,8 +8,6 @@
 # and VCI03 (`|| true` swallowing state-changing git in CI). Fixtures
 # are intentionally-bad yml. Rule pages: _private/docs/lint-errors/vci*.md
 
-set -euo pipefail
-
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
