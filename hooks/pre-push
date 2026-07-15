@@ -437,10 +437,10 @@ fi
 # Run typos on files changed vs origin/main. If typos found, auto-fix
 # them, print what changed, and abort push so user can commit the fixes.
 
+TYPO_CONFIG=()
 if command -v typos &> /dev/null; then
     CHANGED=$(git diff --name-only origin/main...HEAD 2>/dev/null || echo "")
     if [[ -n "$CHANGED" ]]; then
-        TYPO_CONFIG=()
         if [[ -f "$REPO_ROOT/_typos.toml" ]]; then
             TYPO_CONFIG=(--config "$REPO_ROOT/_typos.toml")
         elif [[ -f "$REPO_ROOT/../_typos.toml" ]]; then
@@ -451,7 +451,7 @@ if command -v typos &> /dev/null; then
         TYPO_OUTPUT=""
         while IFS= read -r f; do
             [[ -f "$REPO_ROOT/$f" ]] || continue
-            result=$(typos "${TYPO_CONFIG[@]}" --force-exclude "$REPO_ROOT/$f" 2>&1) || TYPO_OUTPUT="${TYPO_OUTPUT}${result}"$'\n'
+            result=$(typos ${TYPO_CONFIG[@]+"${TYPO_CONFIG[@]}"} --force-exclude "$REPO_ROOT/$f" 2>&1) || TYPO_OUTPUT="${TYPO_OUTPUT}${result}"$'\n'
         done <<< "$CHANGED"
 
         if [[ -n "$TYPO_OUTPUT" ]]; then
@@ -459,7 +459,7 @@ if command -v typos &> /dev/null; then
             echo "[typos] Found typos — auto-fixing..."
             while IFS= read -r f; do
                 [[ -f "$REPO_ROOT/$f" ]] || continue
-                typos "${TYPO_CONFIG[@]}" --force-exclude --write-changes "$REPO_ROOT/$f" 2>/dev/null || true
+                typos ${TYPO_CONFIG[@]+"${TYPO_CONFIG[@]}"} --force-exclude --write-changes "$REPO_ROOT/$f" 2>/dev/null || true
             done <<< "$CHANGED"
             echo ""
             echo "$TYPO_OUTPUT"
