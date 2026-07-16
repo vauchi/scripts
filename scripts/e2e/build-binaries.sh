@@ -44,7 +44,9 @@ build_if_changed() {
     local extra_args=("$@")
 
     local sha
-    sha="$(repo_sha "$repo_dir")"
+    # Build flags are part of the binary identity: a cached production CLI
+    # must never be reused when E2E needs its feature-gated test clock.
+    sha="$(repo_sha "$repo_dir"):$(printf '%s ' "${extra_args[@]}")"
     local sha_file="$BIN_DIR/.${binary_name}.sha"
 
     if [[ -f "$sha_file" ]] && [[ -f "$BIN_DIR/$binary_name" ]]; then
@@ -106,8 +108,10 @@ echo "═══ E2E Binary Build (SHA cache) ═══"
 echo "  Cache dir: $BIN_DIR"
 echo ""
 
-# Build CLI (no secure-storage for e2e — keys don't persist between invocations)
-build_if_changed "$WORKSPACE_ROOT/cli" "vauchi" --no-default-features
+# Build the dedicated E2E CLI: no secure storage (subprocesses need durable
+# file keys) and the compile-time-only test clock seam. Release builds omit
+# this feature, so their destructive-operation grace period stays unforgeable.
+build_if_changed "$WORKSPACE_ROOT/cli" "vauchi" --no-default-features --features e2e-test-clock
 
 build_if_changed "$WORKSPACE_ROOT/relay" "vauchi-relay"
 
