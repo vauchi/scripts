@@ -329,6 +329,25 @@ KT
     rm -rf "$root"
 }
 
+# test_visibility_labels_are_unsuppressible_boundary_debt — labels decide
+# domain visibility and cannot be grandfathered in a display-only shell.
+test_visibility_labels_are_unsuppressible_boundary_debt() {
+    root=$(mktemp -d)
+    dir="$root/ios/Vauchi/CoreUI"
+    mkdir -p "$dir"
+    cat >"$dir/Visibility.swift" <<'SW'
+struct Visibility {
+    // TODO(HUMBLE): legacy label is still domain policy.
+    let visibility_label: String
+    let visibilityLabel: String
+}
+SW
+    out=$(python3 "$SCRIPT" --repo ios --workspace-root "$root" --config "$CONFIG")
+    assert_eq "boundary: visibility labels are unsuppressible" "2" \
+        "$(extract_counter "$out" retired_domain_components)"
+    rm -rf "$root"
+}
+
 # test_app_screen_enum_branch_exception — TODO(HUMBLE) suppresses a branch site
 test_app_screen_enum_branch_exception() {
     root=$(mktemp -d)
@@ -527,6 +546,7 @@ test_json_validity
 test_app_screen_enum_branch_rust
 test_app_screen_enum_branch_kotlin
 test_app_screen_enum_branch_true_negatives
+test_visibility_labels_are_unsuppressible_boundary_debt
 test_app_screen_enum_branch_exception
 test_bad_repo
 test_baseline_transition_cannot_increase_or_remove

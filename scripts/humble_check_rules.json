@@ -34,7 +34,9 @@
       "patterns": [
         "\\bComponent\\b",
         "\\bUiFieldVisibility\\b",
-        "\\bVisibilityMode\\b"
+        "\\bVisibilityMode\\b",
+        "\\bvisibility_label\\b",
+        "\\bvisibilityLabel\\b"
       ]
     },
     "split_dispatch_api": {
