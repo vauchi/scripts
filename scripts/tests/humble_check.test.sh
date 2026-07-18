@@ -407,6 +407,26 @@ JSON
     rm -rf "$root"
 }
 
+# test_schema_two_bootstrap_accepts_corrected_measurement — one-time scanner fix
+test_schema_two_bootstrap_accepts_corrected_measurement() {
+    root=$(mktemp -d)
+    previous="$root/previous.json"
+    current="$root/current.json"
+    cat >"$previous" <<'JSON'
+{"schema_version":1,"repos":{"android":{"notification_category_mapping":2}}}
+JSON
+    cat >"$current" <<'JSON'
+{"schema_version":2,"repos":{"android":{"notification_category_mapping":8}}}
+JSON
+    set +e
+    python3 "$SCRIPT" --validate-baseline "$current" --against "$previous" \
+        --config "$CONFIG" >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "baseline transition: schema-two bootstrap passes once" "0" "$rc"
+    rm -rf "$root"
+}
+
 # test_release_zero_requires_live_and_baseline_zero — release cannot stagnate
 test_release_zero_requires_live_and_baseline_zero() {
     root=$(mktemp -d)
@@ -510,6 +530,7 @@ test_app_screen_enum_branch_true_negatives
 test_app_screen_enum_branch_exception
 test_bad_repo
 test_baseline_transition_cannot_increase_or_remove
+test_schema_two_bootstrap_accepts_corrected_measurement
 test_release_zero_requires_live_and_baseline_zero
 test_enforcement_wiring
 test_verified_fetch_hashes_match
