@@ -469,11 +469,9 @@ JSON
 test_enforcement_wiring() {
     pre_push_calls=$(grep -c 'humble_check.py.*--repo' "$PRE_PUSH" || true)
     ci_transition_calls=$(grep -c -- '--validate-baseline' "$SCRIPTS_CI" || true)
-    ci_transition_git=$(grep -c 'apt-get install.*git' "$SCRIPTS_CI" || true)
     assert_eq "wiring: pre-push invokes repository ratchet" "1" "$pre_push_calls"
     assert_eq "wiring: scripts CI validates baseline transition" "1" \
         "$ci_transition_calls"
-    assert_eq "wiring: baseline job installs git" "1" "$ci_transition_git"
 }
 
 # test_verified_fetch_hashes_match — consumers execute exactly these gates

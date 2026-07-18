@@ -70,22 +70,17 @@ test:selftests: # vci02-ok: .mr-or-main is rules-only, no before_script to prese
         echo "FAILED: $FAILED self-test suite(s) red."
         exit 1
       fi
-
-lint:humble-baseline-transition: # vci02-ok: .mr-or-main is rules-only
-  extends: .mr-or-main
-  stage: lint
-  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/python:3.11-slim
-  tags: [docker]
-  needs: []
-  before_script:
-    - git fetch origin main --depth 20
-  script:
-    - git show origin/main:scripts/humble_check.baseline.json > /tmp/humble-previous.json
-    - >-
-      python3 scripts/humble_check.py
-      --validate-baseline scripts/humble_check.baseline.json
-      --against /tmp/humble-previous.json
-      --config scripts/humble_check_rules.json
+      BASE_SHA="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}"
+      if [ -n "$BASE_SHA" ] \
+          && git diff --name-only "$BASE_SHA"...HEAD \
+              | grep -q '^scripts/humble_check.baseline.json$'; then
+        git show "$BASE_SHA:scripts/humble_check.baseline.json" \
+          > /tmp/humble-previous.json
+        python3 scripts/humble_check.py \
+          --validate-baseline scripts/humble_check.baseline.json \
+          --against /tmp/humble-previous.json \
+          --config scripts/humble_check_rules.json
+      fi
 
 # Lint shell scripts with shellcheck
 lint:shellcheck: # vci02-ok: .mr-or-main is rules-only, no before_script to preserve
