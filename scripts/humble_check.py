@@ -15,6 +15,8 @@ Usage:
     humble_check.py --repo ios --workspace-root /path/to/workspace --check baseline.json
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re
@@ -65,7 +67,13 @@ def has_humble_exception(lines: list[str], match_line_index: int, lookback: int,
     return False
 
 
-def scan_file(path: Path, rules: dict[str, dict], lookback: int, lookahead: int) -> dict[str, list[tuple[int, str]]]:
+def scan_file(
+    path: Path,
+    rules: dict[str, dict],
+    lookback: int,
+    lookahead: int,
+    ignore_exceptions: bool,
+) -> dict[str, list[tuple[int, str]]]:
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             lines = f.read().splitlines()
@@ -82,7 +90,10 @@ def scan_file(path: Path, rules: dict[str, dict], lookback: int, lookahead: int)
         for name, regex in compiled.items():
             if not regex.search(line):
                 continue
-            if has_humble_exception(lines, idx, lookback, lookahead):
+            allow_exceptions = rules[name].get("allow_exceptions", True)
+            if allow_exceptions and not ignore_exceptions and has_humble_exception(
+                lines, idx, lookback, lookahead
+            ):
                 continue
             findings[name].append((idx + 1, line.strip()))
     return findings
@@ -92,30 +103,60 @@ def rule_message(rules: dict[str, dict], name: str) -> str:
     return rules[name].get("message", name)
 
 
-def scan_repo(workspace_root: Path, repo: str, repo_path: Path | None, config: dict, lookback: int, lookahead: int) -> dict:
+def repo_rules(config: dict, repo: str) -> dict[str, dict]:
+    rules = dict(config.get("boundary_rules", {}))
+    rules.update(config["repos"][repo]["rules"])
+    return rules
+
+
+def resolve_source_root(repo_path: Path, repo: str, rel: str) -> Path:
+    parts = Path(rel).parts
+    if parts and parts[0] == repo:
+        parts = parts[1:]
+    return repo_path.joinpath(*parts)
+
+
+def scan_repo(
+    workspace_root: Path,
+    repo: str,
+    repo_path: Path | None,
+    config: dict,
+    lookback: int,
+    lookahead: int,
+    ignore_exceptions: bool = False,
+) -> dict:
     repo_config = config["repos"][repo]
     source_roots = repo_config["source_roots"]
     extensions = set(repo_config.get("extensions", []))
     exclude_dirs = set(repo_config.get("exclude_dirs", []))
-    rules = repo_config["rules"]
+    rules = repo_rules(config, repo)
 
     counts = {name: 0 for name in rules}
     examples: dict[str, list[tuple[str, int, str]]] = {name: [] for name in rules}
+    missing_roots = []
 
     for rel in source_roots:
         if repo_path is not None:
-            root = repo_path / rel
+            root = resolve_source_root(repo_path, repo, rel)
         else:
             root = workspace_root / rel
+        if not root.exists():
+            missing_roots.append(str(root))
+            continue
         for file in find_files(root, extensions, exclude_dirs):
             display = file.relative_to(repo_path or workspace_root)
-            findings = scan_file(file, rules, lookback, lookahead)
+            findings = scan_file(file, rules, lookback, lookahead, ignore_exceptions)
             for name, matches in findings.items():
                 counts[name] += len(matches)
                 for line_no, line_text in matches:
                     if len(examples[name]) < 5:
                         examples[name].append((str(display), line_no, line_text))
-    return {"counts": counts, "examples": examples, "rules": rules}
+    return {
+        "counts": counts,
+        "examples": examples,
+        "rules": rules,
+        "missing_roots": missing_roots,
+    }
 
 
 def emit_snapshot(repo: str, result: dict) -> str:
@@ -151,12 +192,109 @@ def check_baseline(repo: str, result: dict, baseline: dict) -> int:
     return 1
 
 
-def run(workspace_root: Path, repo: str, repo_path: Path | None, config: dict, lookback: int, lookahead: int, baseline: dict | None) -> int:
+def check_source_roots(repo: str, result: dict) -> int:
+    if not result["missing_roots"]:
+        return 0
+    print(
+        f"humble_check ({repo}): configured source roots are missing; refusing a zero-file pass",
+        file=sys.stderr,
+    )
+    for root in result["missing_roots"]:
+        print(f"  {root}", file=sys.stderr)
+    return 2
+
+
+def validate_baseline_transition(current: dict, previous: dict) -> int:
+    regressions = []
+    for repo, previous_rules in previous.get("repos", {}).items():
+        current_rules = current.get("repos", {}).get(repo)
+        if current_rules is None:
+            regressions.append((repo, "*", "removed", "repo"))
+            continue
+        for name, previous_count in previous_rules.items():
+            if name not in current_rules:
+                regressions.append((repo, name, "removed", previous_count))
+            elif current_rules[name] > previous_count:
+                regressions.append(
+                    (repo, name, current_rules[name], previous_count)
+                )
+
+    if not regressions:
+        print("humble_check: baseline transition only adds rules or decreases counts")
+        return 0
+
+    print(
+        "humble_check: baseline transition increased or removed protected counters",
+        file=sys.stderr,
+    )
+    for repo, name, current_value, previous_value in regressions:
+        print(
+            f"  {repo}.{name}: previous={previous_value}, current={current_value}",
+            file=sys.stderr,
+        )
+    return 1
+
+
+def check_release_zero(
+    workspace_root: Path,
+    config: dict,
+    baseline: dict,
+    lookback: int,
+    lookahead: int,
+) -> int:
+    failures = 0
+    for repo in config["repos"]:
+        result = scan_repo(
+            workspace_root,
+            repo,
+            None,
+            config,
+            lookback,
+            lookahead,
+            ignore_exceptions=True,
+        )
+        if check_source_roots(repo, result):
+            failures += 1
+            continue
+
+        repo_baseline = baseline.get("repos", {}).get(repo, {})
+        for name, count in result["counts"].items():
+            baseline_count = repo_baseline.get(name, 0)
+            if count == 0 and baseline_count == 0:
+                continue
+            failures += 1
+            print(
+                f"  {repo}.{name}: live={count}, baseline={baseline_count}",
+                file=sys.stderr,
+            )
+
+    if failures:
+        print(
+            f"humble_check: release blocked by {failures} nonzero presentation-boundary counters",
+            file=sys.stderr,
+        )
+        return 1
+
+    print("humble_check: release-zero gate passed")
+    return 0
+
+
+def run(
+    workspace_root: Path,
+    repo: str,
+    repo_path: Path | None,
+    config: dict,
+    lookback: int,
+    lookahead: int,
+    baseline: dict | None,
+) -> int:
     if repo not in config["repos"]:
         print(f"humble_check: no rules configured for repo '{repo}'", file=sys.stderr)
         return 2
 
     result = scan_repo(workspace_root, repo, repo_path, config, lookback, lookahead)
+    if repo_path is not None and check_source_roots(repo, result):
+        return 2
     if baseline is None:
         print(emit_snapshot(repo, result))
         return 0
@@ -165,11 +303,28 @@ def run(workspace_root: Path, repo: str, repo_path: Path | None, config: dict, l
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Cross-language Humble UI ratchet")
-    parser.add_argument("--repo", required=True, help="Frontend repo name (e.g. ios, android)")
+    parser.add_argument("--repo", help="Frontend repo name (e.g. ios, android)")
     parser.add_argument("--workspace-root", type=Path, help="Workspace root containing all repos")
     parser.add_argument("--repo-path", type=Path, help="Path to the repo itself (overrides workspace-root)")
     parser.add_argument("--config", type=Path, help="Path to humble_check_rules.json")
     parser.add_argument("--check", type=Path, metavar="BASELINE", help="Baseline JSON to ratchet against")
+    parser.add_argument(
+        "--validate-baseline",
+        type=Path,
+        metavar="CURRENT",
+        help="Validate that a baseline only adds rules or decreases existing counters",
+    )
+    parser.add_argument(
+        "--against",
+        type=Path,
+        metavar="PREVIOUS",
+        help="Previous baseline for --validate-baseline",
+    )
+    parser.add_argument(
+        "--release-zero",
+        action="store_true",
+        help="Require every configured live and baseline counter to be zero",
+    )
     parser.add_argument("--lookback", type=int, default=DEFAULT_LOOKBACK, help="Lines before a match to search for TODO(HUMBLE)")
     parser.add_argument("--lookahead", type=int, default=DEFAULT_LOOKAHEAD, help="Lines after a match to search for TODO(HUMBLE)")
     args = parser.parse_args(argv)
@@ -182,6 +337,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"humble_check: config not found: {config_path}", file=sys.stderr)
         return 2
 
+    if args.validate_baseline:
+        if not args.against:
+            parser.error("--validate-baseline requires --against")
+        if not args.validate_baseline.exists() or not args.against.exists():
+            print("humble_check: baseline transition file not found", file=sys.stderr)
+            return 2
+        return validate_baseline_transition(
+            load_baseline(args.validate_baseline),
+            load_baseline(args.against),
+        )
+
     baseline = None
     if args.check:
         if not args.check.exists():
@@ -190,6 +356,18 @@ def main(argv: list[str] | None = None) -> int:
         baseline = load_baseline(args.check)
 
     config = load_config(config_path)
+    if args.release_zero:
+        if baseline is None:
+            parser.error("--release-zero requires --check BASELINE")
+        return check_release_zero(
+            workspace_root,
+            config,
+            baseline,
+            args.lookback,
+            args.lookahead,
+        )
+    if not args.repo:
+        parser.error("--repo is required unless a standalone validation mode is used")
     return run(workspace_root, args.repo, args.repo_path, config, args.lookback, args.lookahead, baseline)
 
 

@@ -1,5 +1,81 @@
 {
+  "boundary_rules": {
+    "retired_screen_model": {
+      "message": "ADR-066 retires ScreenModel from frontends and bindings; consume generic Command values.",
+      "allow_exceptions": false,
+      "patterns": [
+        "\\bScreenModel\\b"
+      ]
+    },
+    "retired_workflow_engine": {
+      "message": "ADR-066 retires WorkflowEngine from frontends and bindings; Core owns workflows.",
+      "allow_exceptions": false,
+      "patterns": [
+        "\\bWorkflowEngine\\b"
+      ]
+    },
+    "retired_user_action": {
+      "message": "ADR-066 retires UserAction from frontends and bindings; emit opaque Event values.",
+      "allow_exceptions": false,
+      "patterns": [
+        "\\bUserAction\\b"
+      ]
+    },
+    "retired_action_result": {
+      "message": "ADR-066 retires ActionResult from frontends and bindings; consume generic Command values.",
+      "allow_exceptions": false,
+      "patterns": [
+        "\\bActionResult\\b"
+      ]
+    },
+    "retired_domain_components": {
+      "message": "ADR-066 forbids domain-bearing component and visibility types in shells.",
+      "allow_exceptions": false,
+      "patterns": [
+        "\\bComponent\\b",
+        "\\bUiFieldVisibility\\b",
+        "\\bVisibilityMode\\b"
+      ]
+    },
+    "split_dispatch_api": {
+      "message": "ADR-066 requires one Event input and Command[] output; retire action/result/screen dispatch APIs.",
+      "allow_exceptions": false,
+      "patterns": [
+        "\\b(?:handleAction|handle_action|handleActionJson|handle_action_json)\\b",
+        "\\b(?:handleHardwareEvent|handle_hardware_event)\\b",
+        "\\b(?:currentScreen|current_screen|processActionResult|applyResult)\\b",
+        "\\b(?:workflow_handle_action|app_handle_action|app_current_screen)\\b"
+      ]
+    }
+  },
   "repos": {
+    "core": {
+      "source_roots": [
+        "core/vauchi-platform/src",
+        "core/vauchi-cabi/src"
+      ],
+      "extensions": [
+        ".rs"
+      ],
+      "exclude_dirs": [
+        "target",
+        "tests"
+      ],
+      "rules": {}
+    },
+    "cli": {
+      "source_roots": [
+        "cli/src"
+      ],
+      "extensions": [
+        ".rs"
+      ],
+      "exclude_dirs": [
+        "target",
+        "tests"
+      ],
+      "rules": {}
+    },
     "ios": {
       "source_roots": [
         "ios/Vauchi"
@@ -55,7 +131,7 @@
           ]
         },
         "field_visibility_interpretation": {
-          "message": "Core must emit visibility_controls and icon_token; frontend must not interpret domain strings.",
+          "message": "Core must emit prepared copy, state, and tokens; frontend must not interpret domain strings.",
           "patterns": [
             "\\bfunc\\s+iconForFieldType",
             "\\bVisibilityMode\\b",
@@ -63,7 +139,7 @@
           ]
         },
         "app_screen_enum_branch": {
-          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "message": "Frontend must not branch on domain screens; render generic Command values and emit opaque Event values.",
           "patterns": [
             "case\\s+AppScreen\\.",
             "[=!]=\\s*AppScreen\\."
@@ -119,7 +195,7 @@
           ]
         },
         "field_visibility_interpretation": {
-          "message": "Core must emit visibility_controls and icon_token; frontend must not interpret domain strings.",
+          "message": "Core must emit prepared copy, state, and tokens; frontend must not interpret domain strings.",
           "patterns": [
             "\\bfun\\s+iconForFieldType",
             "\\bVisibilityMode\\b",
@@ -127,7 +203,7 @@
           ]
         },
         "app_screen_enum_branch": {
-          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "message": "Frontend must not branch on domain screens; render generic Command values and emit opaque Event values.",
           "patterns": [
             "enum class Screen\\b",
             "\\bScreen\\.\\w+\\s*->",
@@ -179,7 +255,7 @@
           ]
         },
         "field_visibility_interpretation": {
-          "message": "Core must emit visibility_controls and icon_token; frontend must not interpret domain strings.",
+          "message": "Core must emit prepared copy, state, and tokens; frontend must not interpret domain strings.",
           "patterns": [
             "\\bfunc\\s+iconForFieldType",
             "\\bVisibilityMode\\b",
@@ -187,7 +263,7 @@
           ]
         },
         "app_screen_enum_branch": {
-          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "message": "Frontend must not branch on domain screens; render generic Command values and emit opaque Event values.",
           "patterns": [
             "case\\s+AppScreen\\.",
             "[=!]=\\s*AppScreen\\."
@@ -232,7 +308,7 @@
           ]
         },
         "app_screen_enum_branch": {
-          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "message": "Frontend must not branch on domain screens; render generic Command values and emit opaque Event values.",
           "patterns": [
             "case\\s+AppScreen\\.",
             "[=!]=\\s*AppScreen\\."
@@ -267,7 +343,7 @@
           ]
         },
         "app_screen_enum_branch": {
-          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "message": "Frontend must not branch on domain screens; render generic Command values and emit opaque Event values.",
           "patterns": [
             "[=!]=\\s*AppScreen::",
             "matches!\\s*\\([^;]*AppScreen::",
@@ -308,7 +384,7 @@
           ]
         },
         "app_screen_enum_branch": {
-          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "message": "Frontend must not branch on domain screens; render generic Command values and emit opaque Event values.",
           "patterns": [
             "[=!]=\\s*AppScreen::",
             "case\\s+AppScreen::",
@@ -354,7 +430,7 @@
           ]
         },
         "app_screen_enum_branch": {
-          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "message": "Frontend must not branch on domain screens; render generic Command values and emit opaque Event values.",
           "patterns": [
             "[=!]=\\s*AppScreen::",
             "matches!\\s*\\([^;]*AppScreen::",
@@ -398,7 +474,7 @@
           ]
         },
         "app_screen_enum_branch": {
-          "message": "Frontend must not branch on core's AppScreen/local Screen enum; core owns navigation. Render ScreenModel opaquely and drive navigation through opaque screen_id/action_id handles.",
+          "message": "Frontend must not branch on domain screens; render generic Command values and emit opaque Event values.",
           "patterns": [
             "case\\s+AppScreen\\.",
             "[=!]=\\s*AppScreen\\."
