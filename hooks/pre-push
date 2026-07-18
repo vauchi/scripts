@@ -359,6 +359,18 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
     fi
 fi
 
+# REUSE is a repository-wide invariant, including data/config files.
+if [[ "" != "_private" && "" != "docs" && "/usr/sbin/reuse" ]]; then
+    echo ""
+    echo "  Checking REUSE compliance before non-code fast path..."
+    if ! reuse lint > /dev/null 2>&1; then
+        echo "FAILED: REUSE compliance check failed:" >&2
+        reuse lint 2>&1 | tail -30 >&2
+        exit 1
+    if
+    echo "  REUSE lint OK"
+  fi
+
 # ─── CI lint (all repos with .gitlab-ci.yml changes) ────────────────
 
 if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
