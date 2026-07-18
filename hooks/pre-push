@@ -55,7 +55,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     else
         DELETE_ONLY=false
     fi
-done <<< "$PUSH_SPECS"
+done <<<"$PUSH_SPECS"
 
 if [[ -n "$PUSH_SPECS" && "$DELETE_ONLY" == "true" ]]; then
     echo "  Delete-only push — no content to check, skipping."
@@ -94,7 +94,7 @@ if [[ "$BRANCH" == "main" ]]; then
             TAG_ONLY=false
             break
         fi
-    done <<< "$PUSH_SPECS"
+    done <<<"$PUSH_SPECS"
     if [[ "$TAG_ONLY" == "false" ]]; then
         echo ""
         echo "BLOCKED: Direct push to main. Use a branch + MR:"
@@ -115,7 +115,7 @@ fi
 # Extracted to a tested helper; the pushed-ref specs are piped in so the
 # guard can tell a branch push from a tag-only push.
 # See tests/stale-base-guard.test.sh.
-"$HOOK_DIR/lib/stale-base-guard.sh" "$REPO_ROOT" <<< "$PUSH_SPECS" || exit 1
+"$HOOK_DIR/lib/stale-base-guard.sh" "$REPO_ROOT" <<<"$PUSH_SPECS" || exit 1
 
 # ─── Git dependency branch ref guard ──────────────────────────────────
 # Checks Cargo.toml for non-main branch refs in git dependencies.
@@ -123,8 +123,8 @@ fi
 # Live non-main refs get a WARNING (active cross-repo development).
 
 if [[ -f "$REPO_ROOT/Cargo.toml" ]]; then
-    BAD_REFS=$(grep -E 'git\s*=.*branch\s*=' "$REPO_ROOT/Cargo.toml" \
-        | grep -v 'branch = "main"' || true)
+    BAD_REFS=$(grep -E 'git\s*=.*branch\s*=' "$REPO_ROOT/Cargo.toml" |
+        grep -v 'branch = "main"' || true)
     if [[ -n "$BAD_REFS" ]]; then
         _BRANCH_BLOCK=0
         _BRANCH_WARN=0
@@ -133,9 +133,12 @@ if [[ -f "$REPO_ROOT/Cargo.toml" ]]; then
             _dep_branch=$(echo "$line" | sed -n 's/.*branch = "\([^"]*\)".*/\1/p')
             [[ -z "$_dep_url" || -z "$_dep_branch" ]] && continue
             # Check if branch exists on remote (5s timeout, portable)
-            _ls_out=$(git ls-remote "$_dep_url" "refs/heads/$_dep_branch" 2>/dev/null &
-                _pid=$!; (sleep 5 && kill "$_pid" 2>/dev/null) &
-                wait "$_pid" 2>/dev/null) || true
+            _ls_out=$(
+                git ls-remote "$_dep_url" "refs/heads/$_dep_branch" 2>/dev/null &
+                _pid=$!
+                (sleep 5 && kill "$_pid" 2>/dev/null) &
+                wait "$_pid" 2>/dev/null
+            ) || true
             if echo "$_ls_out" | grep -q .; then
                 _BRANCH_WARN=1
                 echo "  WARNING: Cargo.toml points to non-main branch '$_dep_branch'"
@@ -145,7 +148,7 @@ if [[ -f "$REPO_ROOT/Cargo.toml" ]]; then
                 echo "  BLOCKED: Branch '$_dep_branch' no longer exists on remote"
                 echo "    ($_dep_url)"
             fi
-        done <<< "$BAD_REFS"
+        done <<<"$BAD_REFS"
         if [[ $_BRANCH_BLOCK -eq 1 ]]; then
             echo ""
             echo "  Dead branch ref(s) in Cargo.toml. Fix:"
@@ -202,7 +205,7 @@ if [[ -f "$REPO_ROOT/Cargo.toml" && -f "$REPO_ROOT/Cargo.lock" ]]; then
             if [[ -n "$_pkg_block" ]] && ! echo "$_pkg_block" | grep -q "^source = \"git+"; then
                 _LOCK_MISSING="${_LOCK_MISSING}  ${_name} (Cargo.toml: ${_url})\n"
             fi
-        done <<< "$_GIT_DEPS"
+        done <<<"$_GIT_DEPS"
 
         if [[ -n "$_LOCK_MISSING" ]]; then
             echo ""
@@ -360,16 +363,15 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
 fi
 
 # REUSE is a repository-wide invariant, including data/config files.
-if [[ "" != "_private" && "" != "docs" && "/usr/sbin/reuse" ]]; then
+if [[ "$REPO_DIR" != "_private" && "$REPO_DIR" != "docs" && -n "$(command -v reuse 2>/dev/null || true)" ]]; then
     echo ""
     echo "  Checking REUSE compliance before non-code fast path..."
-    if ! reuse lint > /dev/null 2>&1; then
+    if ! reuse lint >/dev/null 2>&1; then
         echo "FAILED: REUSE compliance check failed:" >&2
         reuse lint 2>&1 | tail -30 >&2
         exit 1
-    if
+    fi
     echo "  REUSE lint OK"
-  fi
 fi
 # ─── CI lint (all repos with .gitlab-ci.yml changes) ────────────────
 
@@ -377,7 +379,7 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
     if git diff --name-only origin/main...HEAD 2>/dev/null | grep -q '^\.gitlab-ci\.yml$'; then
         echo ""
         echo "[0] Validating .gitlab-ci.yml..."
-        if command -v glab &> /dev/null; then
+        if command -v glab &>/dev/null; then
             # `glab ci lint` POSTs only the top-level file to the server —
             # it cannot resolve `local:` includes (the file path is relative
             # to the repo root on the server, not the client FS). If the
@@ -388,8 +390,8 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
                 echo "  (server lint skipped — local: includes present)"
                 local_missing=0
                 while read -r inc; do
-                    inc_path=$(printf '%s' "$inc" \
-                        | sed -E 's/^[[:space:]]*-[[:space:]]*local:[[:space:]]*//; s/^["'\'']//; s/["'\'']$//')
+                    inc_path=$(printf '%s' "$inc" |
+                        sed -E 's/^[[:space:]]*-[[:space:]]*local:[[:space:]]*//; s/^["'\'']//; s/["'\'']$//')
                     [ -z "$inc_path" ] && continue
                     # local: paths are relative to the repo root (with optional leading slash)
                     resolved="${REPO_ROOT}/${inc_path#/}"
@@ -404,7 +406,7 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
                     exit 1
                 fi
                 echo "  All local: includes resolve on disk"
-            elif ! glab ci lint "$REPO_ROOT/.gitlab-ci.yml" > /dev/null 2>&1; then
+            elif ! glab ci lint "$REPO_ROOT/.gitlab-ci.yml" >/dev/null 2>&1; then
                 echo ""
                 echo "FAILED: CI config is invalid:"
                 glab ci lint "$REPO_ROOT/.gitlab-ci.yml" 2>&1
@@ -456,7 +458,7 @@ fi
 # them, print what changed, and abort push so user can commit the fixes.
 
 TYPO_CONFIG=()
-if command -v typos &> /dev/null; then
+if command -v typos &>/dev/null; then
     CHANGED=$(git diff --name-only origin/main...HEAD 2>/dev/null || echo "")
     if [[ -n "$CHANGED" ]]; then
         if [[ -f "$REPO_ROOT/_typos.toml" ]]; then
@@ -470,7 +472,7 @@ if command -v typos &> /dev/null; then
         while IFS= read -r f; do
             [[ -f "$REPO_ROOT/$f" ]] || continue
             result=$(typos ${TYPO_CONFIG[@]+"${TYPO_CONFIG[@]}"} --force-exclude "$REPO_ROOT/$f" 2>&1) || TYPO_OUTPUT="${TYPO_OUTPUT}${result}"$'\n'
-        done <<< "$CHANGED"
+        done <<<"$CHANGED"
 
         if [[ -n "$TYPO_OUTPUT" ]]; then
             echo ""
@@ -478,7 +480,7 @@ if command -v typos &> /dev/null; then
             while IFS= read -r f; do
                 [[ -f "$REPO_ROOT/$f" ]] || continue
                 typos ${TYPO_CONFIG[@]+"${TYPO_CONFIG[@]}"} --force-exclude --write-changes "$REPO_ROOT/$f" 2>/dev/null || true
-            done <<< "$CHANGED"
+            done <<<"$CHANGED"
             echo ""
             echo "$TYPO_OUTPUT"
             echo ""
@@ -492,7 +494,7 @@ fi
 # Lint changed .md files vs origin/main. Runs for every repo, not just
 # doc repos — READMEs, CONTRIBUTING.md, etc. deserve lint too.
 
-if command -v markdownlint &> /dev/null; then
+if command -v markdownlint &>/dev/null; then
     MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
     if [[ -n "$MD_BASE" ]]; then
         # --diff-filter=d: deleted files can't be linted. Without it a
@@ -570,53 +572,53 @@ fi
 
 if [[ "$_STAMP_SKIP" != "1" ]]; then
 
-# ─── Timing helpers ──────────────────────────────────────────────────
+    # ─── Timing helpers ──────────────────────────────────────────────────
 
-declare -a STEP_NAMES=()
-declare -a STEP_TIMES=()
+    declare -a STEP_NAMES=()
+    declare -a STEP_TIMES=()
 
-time_step() {
-    local step_start=$SECONDS
-    local name="$1"
-    shift
-    "$@"
-    local elapsed=$(( SECONDS - step_start ))
-    STEP_NAMES+=("$name")
-    STEP_TIMES+=("${elapsed}s")
-}
+    time_step() {
+        local step_start=$SECONDS
+        local name="$1"
+        shift
+        "$@"
+        local elapsed=$((SECONDS - step_start))
+        STEP_NAMES+=("$name")
+        STEP_TIMES+=("${elapsed}s")
+    }
 
-# ─── Check for gate-push dedup ──────────────────────────────────────
-# If gate-push.sh already ran fmt+clippy for this commit recently, skip those.
+    # ─── Check for gate-push dedup ──────────────────────────────────────
+    # If gate-push.sh already ran fmt+clippy for this commit recently, skip those.
 
-_GATE_DEDUP=0
-_GATE_DEDUP_FILE="/tmp/.vauchi-gate-${REPO_DIR}-$(git rev-parse HEAD 2>/dev/null || echo none)"
-if [[ -f "$_GATE_DEDUP_FILE" ]]; then
-    # SHA is embedded in the filename, so if HEAD changes the file won't match.
-    # No time-based expiry needed — the SHA guarantees freshness.
-    echo ""
-    echo "  gate-push already ran fmt+clippy for this commit — skipping those"
-    _GATE_DEDUP=1
-fi
-
-# ─── Rust repos ──────────────────────────────────────────────────────
-
-WORK_DIR="$REPO_ROOT"
-if [[ "$REPO_DIR" == "desktop" ]]; then
-    WORK_DIR="$REPO_ROOT/src-tauri"
-fi
-
-if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
-    cd "$WORK_DIR"
-
-    CLIPPY_EXTRA=()
-    # Use nextest if available (12x faster than cargo test)
-    if command -v cargo-nextest &> /dev/null; then
-        TEST_CMD=(cargo nextest run)
-    else
-        TEST_CMD=(cargo test)
+    _GATE_DEDUP=0
+    _GATE_DEDUP_FILE="/tmp/.vauchi-gate-${REPO_DIR}-$(git rev-parse HEAD 2>/dev/null || echo none)"
+    if [[ -f "$_GATE_DEDUP_FILE" ]]; then
+        # SHA is embedded in the filename, so if HEAD changes the file won't match.
+        # No time-based expiry needed — the SHA guarantees freshness.
+        echo ""
+        echo "  gate-push already ran fmt+clippy for this commit — skipping those"
+        _GATE_DEDUP=1
     fi
 
-    case "$REPO_DIR" in
+    # ─── Rust repos ──────────────────────────────────────────────────────
+
+    WORK_DIR="$REPO_ROOT"
+    if [[ "$REPO_DIR" == "desktop" ]]; then
+        WORK_DIR="$REPO_ROOT/src-tauri"
+    fi
+
+    if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
+        cd "$WORK_DIR"
+
+        CLIPPY_EXTRA=()
+        # Use nextest if available (12x faster than cargo test)
+        if command -v cargo-nextest &>/dev/null; then
+            TEST_CMD=(cargo nextest run)
+        else
+            TEST_CMD=(cargo test)
+        fi
+
+        case "$REPO_DIR" in
         core)
             TEST_CMD+=(--workspace)
             ;;
@@ -634,7 +636,7 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
             CLIPPY_EXTRA=(--no-default-features --features custom-protocol)
             TEST_CMD+=(--all-targets --no-default-features --features custom-protocol)
             ;;
-        linux-gtk|linux-qt)
+        linux-gtk | linux-qt)
             TEST_CMD+=(--all-targets)
             # These repos have Linux-only deps (bluer, AT-SPI). On non-Linux,
             # only check formatting — clippy/test will fail at compile time.
@@ -648,728 +650,729 @@ if [[ -f "$WORK_DIR/Cargo.toml" ]]; then
         *)
             TEST_CMD+=(--all-targets)
             ;;
-    esac
+        esac
 
-    # Skip fmt + clippy + tests when the push touches no Rust source.
-    # Prevents pre-existing workspace compile issues from blocking
-    # docs/CI/YAML/Python-only pushes that never exercise the Rust
-    # build graph. Rust-touching pushes still get fully gated.
-    UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)
-    if [[ -n "$UPSTREAM" ]]; then
-        DIFF_RANGE="$UPSTREAM..HEAD"
-    else
-        DIFF_RANGE="origin/main..HEAD"
-    fi
-    CHANGED_FILES=$(git diff --name-only "$DIFF_RANGE" 2>/dev/null || true)
-    _SKIP_FMT="${_SKIP_FMT:-0}"
-    if [[ -n "$CHANGED_FILES" ]] && ! echo "$CHANGED_FILES" \
-            | grep -qE '\.(rs|toml)$|(^|/)rust-toolchain\b|(^|/)\.cargo/'; then
-        echo ""
-        echo "  No Rust changes in $DIFF_RANGE — skipping fmt + clippy + tests."
-        _SKIP_FMT=1
-        _SKIP_CLIPPY_TEST=1
-    fi
+        # Skip fmt + clippy + tests when the push touches no Rust source.
+        # Prevents pre-existing workspace compile issues from blocking
+        # docs/CI/YAML/Python-only pushes that never exercise the Rust
+        # build graph. Rust-touching pushes still get fully gated.
+        UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)
+        if [[ -n "$UPSTREAM" ]]; then
+            DIFF_RANGE="$UPSTREAM..HEAD"
+        else
+            DIFF_RANGE="origin/main..HEAD"
+        fi
+        CHANGED_FILES=$(git diff --name-only "$DIFF_RANGE" 2>/dev/null || true)
+        _SKIP_FMT="${_SKIP_FMT:-0}"
+        if [[ -n "$CHANGED_FILES" ]] && ! echo "$CHANGED_FILES" |
+            grep -qE '\.(rs|toml)$|(^|/)rust-toolchain\b|(^|/)\.cargo/'; then
+            echo ""
+            echo "  No Rust changes in $DIFF_RANGE — skipping fmt + clippy + tests."
+            _SKIP_FMT=1
+            _SKIP_CLIPPY_TEST=1
+        fi
 
-    # ── Path-override source freshness (advisory) ──────────────────────
-    # Mirror of the session-init + gate-push.sh check: surface stale
-    # local core/ before clippy validates against it. Fires here for
-    # interactive `git push` (no Claude → no gate-push.sh) so the
-    # WARN reaches developers regardless of how they push. Skipped
-    # when gate-push already ran the check (dedup) or when this is a
-    # docs-only push (no Rust files touched).
-    if [[ "$_GATE_DEDUP" != "1" && "$_SKIP_FMT" != "1" ]]; then
-        _WORKSPACE_ROOT=$(cd "$REPO_ROOT/.." 2>/dev/null && pwd)
-        _FRESHNESS_SCRIPT="$_WORKSPACE_ROOT/scripts/scripts/path-overrides.sh"
-        if [[ -n "$_WORKSPACE_ROOT" && -x "$_FRESHNESS_SCRIPT" ]]; then
-            _FRESHNESS_OUT=$(cd "$_WORKSPACE_ROOT" && bash "$_FRESHNESS_SCRIPT" freshness 2>/dev/null || true)
-            if echo "$_FRESHNESS_OUT" | grep -q '^  WARN:'; then
-                echo ""
-                echo "⚠ Path-override source drift detected — local clippy/tests below"
-                echo "  may pass on stale APIs that CI will reject:"
-                echo "$_FRESHNESS_OUT" | sed 's/^/  /'
-                echo "  (advisory — not blocking; checks continue)"
-                echo ""
+        # ── Path-override source freshness (advisory) ──────────────────────
+        # Mirror of the session-init + gate-push.sh check: surface stale
+        # local core/ before clippy validates against it. Fires here for
+        # interactive `git push` (no Claude → no gate-push.sh) so the
+        # WARN reaches developers regardless of how they push. Skipped
+        # when gate-push already ran the check (dedup) or when this is a
+        # docs-only push (no Rust files touched).
+        if [[ "$_GATE_DEDUP" != "1" && "$_SKIP_FMT" != "1" ]]; then
+            _WORKSPACE_ROOT=$(cd "$REPO_ROOT/.." 2>/dev/null && pwd)
+            _FRESHNESS_SCRIPT="$_WORKSPACE_ROOT/scripts/scripts/path-overrides.sh"
+            if [[ -n "$_WORKSPACE_ROOT" && -x "$_FRESHNESS_SCRIPT" ]]; then
+                _FRESHNESS_OUT=$(cd "$_WORKSPACE_ROOT" && bash "$_FRESHNESS_SCRIPT" freshness 2>/dev/null || true)
+                if echo "$_FRESHNESS_OUT" | grep -q '^  WARN:'; then
+                    echo ""
+                    echo "⚠ Path-override source drift detected — local clippy/tests below"
+                    echo "  may pass on stale APIs that CI will reject:"
+                    echo "$_FRESHNESS_OUT" | sed 's/^/  /'
+                    echo "  (advisory — not blocking; checks continue)"
+                    echo ""
+                fi
             fi
         fi
-    fi
 
-    if [[ "$_GATE_DEDUP" != "1" ]]; then
-        run_fmt() {
-            echo ""
-            echo "[1/3] Checking formatting..."
-            if ! cargo fmt --all -- --check 2>/dev/null; then
-                # On Windows, cargo fmt --all may fail with "filename too long"
-                # (os error 206). Fall back to per-package checks.
-                PACKAGES=$(cargo metadata --no-deps --format-version=1 2>/dev/null \
-                    | jq -r '.packages[].name' 2>/dev/null || true)
-                if [[ -n "$PACKAGES" ]]; then
-                    FMT_FAIL=0
-                    for pkg in $PACKAGES; do
-                        if ! cargo fmt -p "$pkg" -- --check 2>/dev/null; then
-                            FMT_FAIL=1
+        if [[ "$_GATE_DEDUP" != "1" ]]; then
+            run_fmt() {
+                echo ""
+                echo "[1/3] Checking formatting..."
+                if ! cargo fmt --all -- --check 2>/dev/null; then
+                    # On Windows, cargo fmt --all may fail with "filename too long"
+                    # (os error 206). Fall back to per-package checks.
+                    PACKAGES=$(cargo metadata --no-deps --format-version=1 2>/dev/null |
+                        jq -r '.packages[].name' 2>/dev/null || true)
+                    if [[ -n "$PACKAGES" ]]; then
+                        FMT_FAIL=0
+                        for pkg in $PACKAGES; do
+                            if ! cargo fmt -p "$pkg" -- --check 2>/dev/null; then
+                                FMT_FAIL=1
+                            fi
+                        done
+                        if [[ $FMT_FAIL -ne 0 ]]; then
+                            echo ""
+                            echo "FAILED: Format check failed. Run 'cargo fmt --all' to fix."
+                            exit 1
                         fi
-                    done
-                    if [[ $FMT_FAIL -ne 0 ]]; then
+                    else
                         echo ""
                         echo "FAILED: Format check failed. Run 'cargo fmt --all' to fix."
                         exit 1
                     fi
-                else
-                    echo ""
-                    echo "FAILED: Format check failed. Run 'cargo fmt --all' to fix."
-                    exit 1
                 fi
-            fi
-            echo "  Format OK"
-        }
-        if [[ "${_SKIP_FMT:-}" == "1" ]]; then
-            echo ""
-            echo "[1/3] Skipping format check (no Rust changes in diff range)"
-        else
-            time_step "Format" run_fmt
-        fi
-
-        if [[ "${_SKIP_CLIPPY_TEST:-}" == "1" ]]; then
-            echo ""
-            echo "[2/3] Skipping clippy (platform-limited repo on $(uname))"
-        else
-        run_clippy() {
-            echo ""
-            echo "[2/3] Running clippy..."
-            if ! cargo clippy --all-targets ${CLIPPY_EXTRA[@]+"${CLIPPY_EXTRA[@]}"} -- -D warnings; then
+                echo "  Format OK"
+            }
+            if [[ "${_SKIP_FMT:-}" == "1" ]]; then
                 echo ""
-                echo "FAILED: Clippy check failed. Fix warnings before pushing."
-                exit 1
+                echo "[1/3] Skipping format check (no Rust changes in diff range)"
+            else
+                time_step "Format" run_fmt
             fi
-            echo "  Clippy OK"
-        }
-        time_step "Clippy" run_clippy
 
-        # K-H1/K-L4 lint: detect dangerous Clone + manual zeroizing Drop on the SAME type.
-        # Safe: #[derive(Clone, Zeroize, ZeroizeOnDrop)] — both copies auto-zeroized.
-        # Dangerous: #[derive(Clone)] + manual impl Drop { zeroize() } — clone escapes zeroization.
-        run_zeroize_lint() {
-            echo ""
-            echo "[2.5/3] Checking for dangerous Clone+Zeroize anti-pattern..."
-            ZEROIZE_VIOLATIONS=""
-            # Use rg (ripgrep) if available — handles binary files safely and avoids
-            # Bus errors from BSD grep/sed on large vendored .rs files (e.g. aws-lc-sys).
-            if command -v rg &>/dev/null; then
-                while IFS=: read -r rs_file type_name; do
-                    [[ -z "$type_name" || -z "$rs_file" ]] && continue
-                    type_name=$(echo "$type_name" | sed 's/.*impl[[:space:]]*Drop[[:space:]]*for[[:space:]]*//' | sed 's/[[:space:]]*{.*//' | sed 's/[<(].*//')
-                    [[ -z "$type_name" ]] && continue
-                    if rg -q "derive\(.*Clone" "$rs_file" \
-                        && rg -B5 "struct ${type_name}\b|enum ${type_name}\b" "$rs_file" \
-                            | rg -q "derive\(.*Clone" \
-                        && ! rg -B5 "struct ${type_name}\b|enum ${type_name}\b" "$rs_file" \
-                            | rg -q "ZeroizeOnDrop"; then
-                        ZEROIZE_VIOLATIONS="$ZEROIZE_VIOLATIONS  $rs_file ($type_name)\n"
+            if [[ "${_SKIP_CLIPPY_TEST:-}" == "1" ]]; then
+                echo ""
+                echo "[2/3] Skipping clippy (platform-limited repo on $(uname))"
+            else
+                run_clippy() {
+                    echo ""
+                    echo "[2/3] Running clippy..."
+                    if ! cargo clippy --all-targets ${CLIPPY_EXTRA[@]+"${CLIPPY_EXTRA[@]}"} -- -D warnings; then
+                        echo ""
+                        echo "FAILED: Clippy check failed. Fix warnings before pushing."
+                        exit 1
                     fi
-                done < <(rg -n 'impl Drop for' --type rust --glob '!target/' . 2>/dev/null || true)
-            else
-                echo "  (rg not found, skipping zeroize lint)"
-            fi
-            if [[ -n "$ZEROIZE_VIOLATIONS" ]]; then
-                echo ""
-                echo "FAILED: Found derive(Clone) + manual impl Drop with zeroize() on same type:"
-                echo -e "$ZEROIZE_VIOLATIONS"
-                echo "Use #[derive(Clone, Zeroize, ZeroizeOnDrop)] instead of manual Drop."
-                echo "See: _private/docs/problems/2026-03-02-core-zeroization-gaps/README.md"
-                exit 1
-            fi
-            echo "  Zeroize lint OK"
-        }
-        time_step "ZeroizeLint" run_zeroize_lint
-        fi  # end _SKIP_CLIPPY_TEST guard
-    fi
+                    echo "  Clippy OK"
+                }
+                time_step "Clippy" run_clippy
 
-    run_tests() {
-        if [[ "${_SKIP_CLIPPY_TEST:-}" == "1" ]]; then
-            echo ""
-            echo "[3/3] Skipping tests (platform-limited repo on $(uname))"
-        elif [[ "${SKIP_TESTS:-}" == "1" ]]; then
-            echo ""
-            echo "[3/3] Skipping tests (SKIP_TESTS=1)"
-        else
-            echo ""
-            echo "[3/3] Running tests... (set SKIP_TESTS=1 to skip)"
-            if ! ${TEST_CMD[@]+"${TEST_CMD[@]}"}; then
-                echo ""
-                echo "FAILED: Tests failed. Fix before pushing."
-                exit 1
-            fi
-            echo "  Tests OK"
-        fi
-    }
-    time_step "Tests" run_tests
-
-    # ─── Supply chain verification (cargo vet) ────────────────────────
-    # For repos with supply-chain/, verify all deps are audited/trusted.
-    # Must temporarily remove .cargo/config.toml if it contains [patch]
-    # overrides — path-resolved lockfiles can't be verified with --locked
-    # because cargo-vet internally uses --locked for cargo metadata.
-
-    if [[ -d "$REPO_ROOT/supply-chain" ]] && ! command -v cargo-vet &>/dev/null; then
-        echo ""
-        echo "  [WARN] cargo-vet not installed — skipping supply chain check."
-        echo "         Install: cargo binstall cargo-vet"
-        echo "         CI will still enforce it on MR."
-    fi
-
-    if [[ -d "$REPO_ROOT/supply-chain" ]] && command -v cargo-vet &>/dev/null; then
-        run_vet() {
-            echo ""
-            echo "[4] Checking supply chain (cargo vet)..."
-
-            _VET_CONFIG_MOVED=0
-            if [[ -f "$REPO_ROOT/.cargo/config.toml" ]] \
-                && grep -q '\[patch' "$REPO_ROOT/.cargo/config.toml" 2>/dev/null; then
-                mv "$REPO_ROOT/.cargo/config.toml" "$REPO_ROOT/.cargo/config.toml.vet-bak"
-                _VET_CONFIG_MOVED=1
-                # Re-resolve git source (path override recorded wrong source in lockfile)
-                cargo update 2>/dev/null || true
-            fi
-
-            VET_EXIT=0
-            cargo vet --locked 2>&1 || VET_EXIT=$?
-
-            if [[ $_VET_CONFIG_MOVED -eq 1 ]]; then
-                mv "$REPO_ROOT/.cargo/config.toml.vet-bak" "$REPO_ROOT/.cargo/config.toml"
-                # Discard lockfile changes from git source resolution
-                git -C "$REPO_ROOT" checkout -- Cargo.lock 2>/dev/null || true
-            fi
-
-            if [[ $VET_EXIT -ne 0 ]]; then
-                echo ""
-                echo "FAILED: Supply chain verification failed."
-                echo "  Run 'cargo vet' to see details, 'cargo vet suggest' for fix suggestions."
-                exit 1
-            fi
-            echo "  Supply chain OK"
-        }
-        time_step "SupplyChain" run_vet
-    fi
-
-
-# ─── Swift/iOS repo ──────────────────────────────────────────────────
-
-elif [[ -f "$REPO_ROOT/Package.swift" ]] || [[ "$REPO_DIR" == "ios" ]]; then
-    cd "$REPO_ROOT"
-
-    run_xcodegen() {
-        if [[ "$REPO_DIR" == "ios" ]] && command -v xcodegen &>/dev/null; then
-            echo ""
-            echo "[0] Regenerating Xcode project..."
-            xcodegen generate 2>&1
-            if ! git diff --quiet Vauchi.xcodeproj/; then
-                echo ""
-                echo "FAILED: Xcode project is out of date. Run 'xcodegen generate' and commit."
-                exit 1
-            fi
-            echo "  Xcode project up to date"
-        fi
-    }
-    time_step "XcodeGen" run_xcodegen
-
-    run_swiftformat() {
-        echo ""
-        echo "[1/2] Checking Swift formatting..."
-        if command -v swiftformat &> /dev/null; then
-            if ! swiftformat --lint . 2>&1; then
-                echo ""
-                echo "FAILED: SwiftFormat check failed. Run 'swiftformat .' to fix."
-                exit 1
-            fi
-            echo "  SwiftFormat OK"
-        else
-            echo "  (swiftformat not found, skipping)"
-        fi
-    }
-    time_step "SwiftFormat" run_swiftformat
-
-    run_swiftlint() {
-        echo ""
-        echo "[2/2] Running SwiftLint..."
-        if command -v swiftlint &> /dev/null; then
-            LINT_OUTPUT=$(swiftlint lint --strict --quiet 2>&1) || LINT_EXIT=$?
-            LINT_EXIT=${LINT_EXIT:-0}
-            if [[ $LINT_EXIT -gt 128 ]]; then
-                # Tool crashed (signal), not a real lint failure — skip gracefully
-                SIGNAL=$((LINT_EXIT - 128))
-                echo "  (swiftlint crashed with signal $SIGNAL, skipping — fix your swiftlint installation)"
-            elif [[ $LINT_EXIT -ne 0 ]]; then
-                echo "$LINT_OUTPUT"
-                echo ""
-                echo "FAILED: SwiftLint found violations. Fix before pushing."
-                exit 1
-            else
-                echo "  SwiftLint OK"
-            fi
-        else
-            echo "  (swiftlint not found, skipping)"
-        fi
-    }
-    time_step "SwiftLint" run_swiftlint
-
-# ─── Android/Kotlin repo ─────────────────────────────────────────────
-
-elif [[ "$REPO_DIR" == "android" ]]; then
-    cd "$REPO_ROOT"
-
-    # JDK 26 emits java.base.jmod files that its own jlink rejects when AGP
-    # builds androidJdkImage (missing build signature). Prefer an explicit
-    # project override; on this workstation fall back to the installed full
-    # JDK 25 and keep its transform cache separate from JDK 26 artifacts.
-    ANDROID_JAVA_HOME="${VAUCHI_ANDROID_JAVA_HOME:-}"
-    CURRENT_JAVA_MAJOR=$(java -version 2>&1 \
-        | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' \
-        | head -1)
-    if [[ -z "$ANDROID_JAVA_HOME" \
-        && "${CURRENT_JAVA_MAJOR:-0}" -ge 26 \
-        && -x /usr/lib/jvm/liberica-jdk-25-full/bin/java ]]; then
-        ANDROID_JAVA_HOME=/usr/lib/jvm/liberica-jdk-25-full
-    fi
-    if [[ -n "$ANDROID_JAVA_HOME" ]]; then
-        if [[ ! -x "$ANDROID_JAVA_HOME/bin/java" ]]; then
-            echo "FAILED: Android JAVA_HOME has no executable java: $ANDROID_JAVA_HOME"
-            exit 1
-        fi
-        export JAVA_HOME="$ANDROID_JAVA_HOME"
-        export PATH="$JAVA_HOME/bin:$PATH"
-        ANDROID_JAVA_MAJOR=$(java -version 2>&1 \
-            | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' \
-            | head -1)
-        export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$HOME/.gradle-vauchi-jdk${ANDROID_JAVA_MAJOR}}"
-        echo "  Android checks: JDK $ANDROID_JAVA_MAJOR, cache $GRADLE_USER_HOME"
-    fi
-
-    run_kotlin_compile() {
-        echo ""
-        echo "[1/2] Compiling Kotlin..."
-        if [[ -x "$REPO_ROOT/gradlew" ]]; then
-            # Use -PlocalBindings when local bindings are present (new types not yet in Maven AAR)
-            GRADLE_ARGS=""
-            if [[ -d "$REPO_ROOT/app/src/local-bindings/kotlin/uniffi" ]]; then
-                GRADLE_ARGS="-PlocalBindings"
-                echo "  Local bindings detected, using -PlocalBindings"
-            fi
-            if ! ./gradlew compileDebugKotlin $GRADLE_ARGS --quiet 2>&1; then
-                echo ""
-                echo "FAILED: Kotlin compilation failed. Fix errors before pushing."
-                exit 1
-            fi
-            echo "  Compilation OK"
-        else
-            echo "  (gradlew not found, skipping)"
-        fi
-    }
-    time_step "Kotlin compile" run_kotlin_compile
-
-    run_android_lint() {
-        echo ""
-        echo "[2/2] Running Android lint..."
-        if [[ -x "$REPO_ROOT/gradlew" ]]; then
-            if ! ./gradlew lint $GRADLE_ARGS --quiet 2>&1; then
-                echo ""
-                echo "FAILED: Android lint failed. Fix before pushing."
-                exit 1
-            fi
-            echo "  Lint OK"
-        else
-            echo "  (gradlew not found, skipping)"
-        fi
-    }
-    time_step "Android lint" run_android_lint
-
-# ─── Docs/markdown repos (_private, docs) ───────────────────────────
-
-elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
-    cd "$REPO_ROOT"
-
-    run_markdownlint_check() {
-        echo ""
-        echo "[1/9] Linting markdown..."
-        if command -v markdownlint &> /dev/null; then
-            # Lint only .md files changed on this branch vs origin/main
-            MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
-            if [[ -n "$MD_BASE" ]]; then
-                MD_FILES=$(git diff --name-only --diff-filter=d "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' || true)
-            else
-                MD_FILES=$(git ls-files '*.md' 2>/dev/null || true)
-            fi
-
-            if [[ -n "$MD_FILES" ]]; then
-                WS_ROOT="$REPO_ROOT/.."
-
-                # Resolve config: repo-local > _private > workspace root
-                MD_CONFIG=""
-                if [[ -f "$REPO_ROOT/.markdownlint.json" ]]; then
-                    MD_CONFIG="$REPO_ROOT/.markdownlint.json"
-                elif [[ -f "$REPO_ROOT/.markdownlint.jsonc" ]]; then
-                    MD_CONFIG="$REPO_ROOT/.markdownlint.jsonc"
-                elif [[ -f "$WS_ROOT/_private/.markdownlint.json" ]]; then
-                    MD_CONFIG="$WS_ROOT/_private/.markdownlint.json"
-                elif [[ -f "$WS_ROOT/.markdownlint.json" ]]; then
-                    MD_CONFIG="$WS_ROOT/.markdownlint.json"
-                fi
-
-                MD_ARGS=()
-                if [[ -n "$MD_CONFIG" ]]; then
-                    MD_ARGS+=(-c "$MD_CONFIG")
-                fi
-
-                # Use custom line-length rule if available
-                CUSTOM_RULE="$WS_ROOT/_private/scripts/markdownlint-rule-line-length.js"
-                if [[ -f "$CUSTOM_RULE" ]]; then
-                    MD_ARGS+=(-r "$CUSTOM_RULE")
-                fi
-
-                MD_COUNT=$(echo "$MD_FILES" | wc -l | tr -d ' ')
-                echo "  Linting $MD_COUNT changed .md file(s)..."
-                if ! echo "$MD_FILES" | xargs markdownlint ${MD_ARGS[@]+"${MD_ARGS[@]}"}; then
+                # K-H1/K-L4 lint: detect dangerous Clone + manual zeroizing Drop on the SAME type.
+                # Safe: #[derive(Clone, Zeroize, ZeroizeOnDrop)] — both copies auto-zeroized.
+                # Dangerous: #[derive(Clone)] + manual impl Drop { zeroize() } — clone escapes zeroization.
+                run_zeroize_lint() {
                     echo ""
-                    echo "FAILED: markdownlint found issues. Run 'just lint-markdown fix' to auto-fix."
+                    echo "[2.5/3] Checking for dangerous Clone+Zeroize anti-pattern..."
+                    ZEROIZE_VIOLATIONS=""
+                    # Use rg (ripgrep) if available — handles binary files safely and avoids
+                    # Bus errors from BSD grep/sed on large vendored .rs files (e.g. aws-lc-sys).
+                    if command -v rg &>/dev/null; then
+                        while IFS=: read -r rs_file type_name; do
+                            [[ -z "$type_name" || -z "$rs_file" ]] && continue
+                            type_name=$(echo "$type_name" | sed 's/.*impl[[:space:]]*Drop[[:space:]]*for[[:space:]]*//' | sed 's/[[:space:]]*{.*//' | sed 's/[<(].*//')
+                            [[ -z "$type_name" ]] && continue
+                            if rg -q "derive\(.*Clone" "$rs_file" &&
+                                rg -B5 "struct ${type_name}\b|enum ${type_name}\b" "$rs_file" |
+                                rg -q "derive\(.*Clone" &&
+                                ! rg -B5 "struct ${type_name}\b|enum ${type_name}\b" "$rs_file" |
+                                rg -q "ZeroizeOnDrop"; then
+                                ZEROIZE_VIOLATIONS="$ZEROIZE_VIOLATIONS  $rs_file ($type_name)\n"
+                            fi
+                        done < <(rg -n 'impl Drop for' --type rust --glob '!target/' . 2>/dev/null || true)
+                    else
+                        echo "  (rg not found, skipping zeroize lint)"
+                    fi
+                    if [[ -n "$ZEROIZE_VIOLATIONS" ]]; then
+                        echo ""
+                        echo "FAILED: Found derive(Clone) + manual impl Drop with zeroize() on same type:"
+                        echo -e "$ZEROIZE_VIOLATIONS"
+                        echo "Use #[derive(Clone, Zeroize, ZeroizeOnDrop)] instead of manual Drop."
+                        echo "See: _private/docs/problems/2026-03-02-core-zeroization-gaps/README.md"
+                        exit 1
+                    fi
+                    echo "  Zeroize lint OK"
+                }
+                time_step "ZeroizeLint" run_zeroize_lint
+            fi # end _SKIP_CLIPPY_TEST guard
+        fi
+
+        run_tests() {
+            if [[ "${_SKIP_CLIPPY_TEST:-}" == "1" ]]; then
+                echo ""
+                echo "[3/3] Skipping tests (platform-limited repo on $(uname))"
+            elif [[ "${SKIP_TESTS:-}" == "1" ]]; then
+                echo ""
+                echo "[3/3] Skipping tests (SKIP_TESTS=1)"
+            else
+                echo ""
+                echo "[3/3] Running tests... (set SKIP_TESTS=1 to skip)"
+                if ! ${TEST_CMD[@]+"${TEST_CMD[@]}"}; then
+                    echo ""
+                    echo "FAILED: Tests failed. Fix before pushing."
                     exit 1
                 fi
-                echo "  Markdown lint OK"
-            else
-                echo "  No .md files changed, skipping"
+                echo "  Tests OK"
             fi
-        else
-            echo "  (markdownlint not found, skipping — install with: npm install -g markdownlint-cli)"
-        fi
-    }
-    time_step "Markdown lint" run_markdownlint_check
+        }
+        time_step "Tests" run_tests
 
-    run_reuse_check() {
-        echo ""
-        echo "[2/9] Checking REUSE compliance..."
-        if command -v reuse &> /dev/null; then
-            if ! reuse lint > /dev/null 2>&1; then
+        # ─── Supply chain verification (cargo vet) ────────────────────────
+        # For repos with supply-chain/, verify all deps are audited/trusted.
+        # Must temporarily remove .cargo/config.toml if it contains [patch]
+        # overrides — path-resolved lockfiles can't be verified with --locked
+        # because cargo-vet internally uses --locked for cargo metadata.
+
+        if [[ -d "$REPO_ROOT/supply-chain" ]] && ! command -v cargo-vet &>/dev/null; then
+            echo ""
+            echo "  [WARN] cargo-vet not installed — skipping supply chain check."
+            echo "         Install: cargo binstall cargo-vet"
+            echo "         CI will still enforce it on MR."
+        fi
+
+        if [[ -d "$REPO_ROOT/supply-chain" ]] && command -v cargo-vet &>/dev/null; then
+            run_vet() {
                 echo ""
-                echo "FAILED: REUSE compliance check failed:"
-                reuse lint 2>&1 | tail -30
-                exit 1
-            fi
-            echo "  REUSE lint OK"
-        else
-            # Fallback: basic SPDX header check on new markdown files
-            MISSING=0
-            for file in $(git diff --name-only --diff-filter=A origin/main...HEAD -- '*.md' 2>/dev/null); do
-                if ! head -2 "$file" | grep -q 'SPDX-'; then
-                    echo "  MISSING SPDX header: $file"
-                    MISSING=$((MISSING + 1))
+                echo "[4] Checking supply chain (cargo vet)..."
+
+                _VET_CONFIG_MOVED=0
+                if [[ -f "$REPO_ROOT/.cargo/config.toml" ]] &&
+                    grep -q '\[patch' "$REPO_ROOT/.cargo/config.toml" 2>/dev/null; then
+                    mv "$REPO_ROOT/.cargo/config.toml" "$REPO_ROOT/.cargo/config.toml.vet-bak"
+                    _VET_CONFIG_MOVED=1
+                    # Re-resolve git source (path override recorded wrong source in lockfile)
+                    cargo update 2>/dev/null || true
                 fi
-            done
-            if [[ $MISSING -gt 0 ]]; then
-                echo ""
-                echo "FAILED: $MISSING new file(s) missing SPDX headers. Install 'reuse' for full check."
-                exit 1
-            fi
-            echo "  SPDX headers OK (basic check — install 'reuse' for full compliance check)"
-        fi
-    }
-    time_step "REUSE" run_reuse_check
 
-    run_doc_naming_check() {
-        echo ""
-        echo "[3/9] Checking doc naming convention..."
-        ERRORS=0
-        EXEMPT_NAMES="README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|INDEX.md"
-        EXEMPT_COMPANION="investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md"
-        EXEMPT_DIRS="diagrams|guides|reference|knowledge|testing|audit-review-frameworks|legal|decisions|lint-errors|archive|runbooks|audits"
-        for file in $(git diff --name-only --diff-filter=A origin/main...HEAD -- 'docs/**/*.md' 2>/dev/null); do
-            filename=$(basename "$file")
-            dirname=$(dirname "$file")
-            # Skip exempt filenames
-            if echo "$filename" | grep -qE "^($EXEMPT_NAMES)$"; then continue; fi
-            if echo "$filename" | grep -qE "^($EXEMPT_COMPANION)$"; then continue; fi
-            if echo "$filename" | grep -qE '\.plan\.md$'; then continue; fi
-            if echo "$dirname" | grep -qE "($EXEMPT_DIRS)"; then continue; fi
-            if [[ "$dirname" == "docs" ]]; then continue; fi
-            if ! echo "$filename" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}-'; then
-                echo "  ERROR: $file does not follow YYYY-MM-DD-name.md convention"
-                ERRORS=$((ERRORS + 1))
-            fi
-        done
-        if [[ $ERRORS -gt 0 ]]; then
-            echo ""
-            echo "FAILED: $ERRORS file(s) not following naming convention."
-            exit 1
-        fi
-        echo "  Doc naming OK"
-    }
-    time_step "Doc naming" run_doc_naming_check
+                VET_EXIT=0
+                cargo vet --locked 2>&1 || VET_EXIT=$?
 
-    run_plan_presence_check() {
-        echo ""
-        echo "[4/9] Checking plan.md companions..."
-        ERRORS=0
-        # 1. Problem records in planning/implementing status with implementation-plan.md
-        # should have plan.md (task DAG). Skip intake/investigating (too early),
-        # done/ (historical), and records where implementation-plan.md has tasks.
-        for impl in $(find docs/problems -not -path "*/done/*" -name "implementation-plan.md" 2>/dev/null); do
-            dir=$(dirname "$impl")
-            [ -f "$dir/plan.md" ] && continue
-            # Accept implementation-plan.md as the plan if it contains task checkboxes
-            if grep -q '^\- \[' "$impl" 2>/dev/null; then continue; fi
-            # Skip intake/investigating — too early for a plan requirement
-            if [ -f "$dir/README.md" ]; then
-                status=$(grep -oE 'Status.*`(intake|investigating)`' "$dir/README.md" 2>/dev/null)
-                if [ -n "$status" ]; then continue; fi
-            fi
-            echo "  MISSING: $dir/plan.md (has implementation-plan.md with no task checkboxes)"
-            ERRORS=$((ERRORS + 1))
-        done
+                if [[ $_VET_CONFIG_MOVED -eq 1 ]]; then
+                    mv "$REPO_ROOT/.cargo/config.toml.vet-bak" "$REPO_ROOT/.cargo/config.toml"
+                    # Discard lockfile changes from git source resolution
+                    git -C "$REPO_ROOT" checkout -- Cargo.lock 2>/dev/null || true
+                fi
 
-        # 2. Planning todo docs must have companion .plan.md (task DAG)
-        # Skip: .plan.md files (ARE task DAGs), -plan.md files (ARE narrative plans)
-        # Search: sibling, then planning/todo/, designs/, planning/ by slug match
-        for doc in docs/planning/todo/20*.md; do
-            [ -f "$doc" ] || continue
-            case "$doc" in *.plan.md) continue ;; *-plan.md) continue ;; esac
-            # Check for opt-out marker (standalone plans without task DAGs)
-            grep -q '<!-- no-plan-companion -->' "$doc" 2>/dev/null && continue
-            plan="${doc%.md}.plan.md"
-            [ -f "$plan" ] && continue
-            # Extract slug (strip YYYY-MM-DD- prefix)
-            base=$(basename "$doc" .md)
-            slug="${base#[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-}"
-            found=0
-            for p in docs/planning/todo/*"${slug}"*.plan.md docs/designs/*"${slug}"*.plan.md docs/planning/*"${slug}"*.plan.md; do
-                if [ -f "$p" ]; then found=1; break; fi
-            done
-            if [ "$found" -eq 0 ]; then
-                echo "  MISSING: $plan"
-                ERRORS=$((ERRORS + 1))
-            fi
-        done
-
-        if [[ $ERRORS -gt 0 ]]; then
-            echo ""
-            echo "FAILED: $ERRORS missing companion plan(s)."
-            exit 1
-        fi
-        echo "  Plan companions OK"
-    }
-    time_step "Plan check" run_plan_presence_check
-
-    run_local_link_check() {
-        echo ""
-        echo "[5/9] Checking local file links..."
-        if command -v lychee &> /dev/null; then
-            MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
-            if [[ -n "$MD_BASE" ]]; then
-                LINK_FILES=$(git diff --name-only --diff-filter=d "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' || true)
-            else
-                LINK_FILES=""
-            fi
-            if [[ -n "$LINK_FILES" ]]; then
-                LINK_ERRORS=""
-                while IFS= read -r f; do
-                    [[ -f "$f" ]] || continue
-                    result=$(lychee --offline --no-progress --format compact "$f" 2>&1) || LINK_ERRORS="${LINK_ERRORS}${result}"$'\n'
-                done <<< "$LINK_FILES"
-                if [[ -n "$LINK_ERRORS" ]]; then
+                if [[ $VET_EXIT -ne 0 ]]; then
                     echo ""
-                    echo "$LINK_ERRORS"
-                    echo ""
-                    echo "FAILED: Broken local links found."
-                    echo "  Fix the file paths, then push again."
+                    echo "FAILED: Supply chain verification failed."
+                    echo "  Run 'cargo vet' to see details, 'cargo vet suggest' for fix suggestions."
                     exit 1
                 fi
-                echo "  Local links OK"
-            else
-                echo "  No .md files changed, skipping"
-            fi
-        else
-            echo "  (lychee not found, skipping — install with: cargo install lychee)"
+                echo "  Supply chain OK"
+            }
+            time_step "SupplyChain" run_vet
         fi
-    }
-    time_step "Link check" run_local_link_check
 
-    run_stale_ref_check() {
-        echo ""
-        echo "[6/9] Checking stale references (ADR-027 + RC-3)..."
+    # ─── Swift/iOS repo ──────────────────────────────────────────────────
 
-        # If the authoritative checker exists, delegate to it in MR-diff mode.
-        # Same script CI runs — keeps pre-push and CI in sync, and catches
-        # RC-3 (vauchi-core/src/ui/ → vauchi-app/src/ui/ rename) which the
-        # inline grep below does not cover.
-        local checker="$REPO_DIR/scripts/check-adr-references.sh"
-        if [[ -x "$checker" ]]; then
-            local base
-            base=$(git -C "$REPO_DIR" merge-base origin/main HEAD 2>/dev/null || echo "")
-            if [[ -n "$base" ]] && (cd "$REPO_DIR" && bash "$checker" --diff "$base" 2>&1); then
-                echo "  ADR refs OK (delegated to $checker)"
+    elif [[ -f "$REPO_ROOT/Package.swift" ]] || [[ "$REPO_DIR" == "ios" ]]; then
+        cd "$REPO_ROOT"
+
+        run_xcodegen() {
+            if [[ "$REPO_DIR" == "ios" ]] && command -v xcodegen &>/dev/null; then
+                echo ""
+                echo "[0] Regenerating Xcode project..."
+                xcodegen generate 2>&1
+                if ! git diff --quiet Vauchi.xcodeproj/; then
+                    echo ""
+                    echo "FAILED: Xcode project is out of date. Run 'xcodegen generate' and commit."
+                    exit 1
+                fi
+                echo "  Xcode project up to date"
+            fi
+        }
+        time_step "XcodeGen" run_xcodegen
+
+        run_swiftformat() {
+            echo ""
+            echo "[1/2] Checking Swift formatting..."
+            if command -v swiftformat &>/dev/null; then
+                if ! swiftformat --lint . 2>&1; then
+                    echo ""
+                    echo "FAILED: SwiftFormat check failed. Run 'swiftformat .' to fix."
+                    exit 1
+                fi
+                echo "  SwiftFormat OK"
+            else
+                echo "  (swiftformat not found, skipping)"
+            fi
+        }
+        time_step "SwiftFormat" run_swiftformat
+
+        run_swiftlint() {
+            echo ""
+            echo "[2/2] Running SwiftLint..."
+            if command -v swiftlint &>/dev/null; then
+                LINT_OUTPUT=$(swiftlint lint --strict --quiet 2>&1) || LINT_EXIT=$?
+                LINT_EXIT=${LINT_EXIT:-0}
+                if [[ $LINT_EXIT -gt 128 ]]; then
+                    # Tool crashed (signal), not a real lint failure — skip gracefully
+                    SIGNAL=$((LINT_EXIT - 128))
+                    echo "  (swiftlint crashed with signal $SIGNAL, skipping — fix your swiftlint installation)"
+                elif [[ $LINT_EXIT -ne 0 ]]; then
+                    echo "$LINT_OUTPUT"
+                    echo ""
+                    echo "FAILED: SwiftLint found violations. Fix before pushing."
+                    exit 1
+                else
+                    echo "  SwiftLint OK"
+                fi
+            else
+                echo "  (swiftlint not found, skipping)"
+            fi
+        }
+        time_step "SwiftLint" run_swiftlint
+
+    # ─── Android/Kotlin repo ─────────────────────────────────────────────
+
+    elif [[ "$REPO_DIR" == "android" ]]; then
+        cd "$REPO_ROOT"
+
+        # JDK 26 emits java.base.jmod files that its own jlink rejects when AGP
+        # builds androidJdkImage (missing build signature). Prefer an explicit
+        # project override; on this workstation fall back to the installed full
+        # JDK 25 and keep its transform cache separate from JDK 26 artifacts.
+        ANDROID_JAVA_HOME="${VAUCHI_ANDROID_JAVA_HOME:-}"
+        CURRENT_JAVA_MAJOR=$(java -version 2>&1 |
+            sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' |
+            head -1)
+        if [[ -z "$ANDROID_JAVA_HOME" &&
+            "${CURRENT_JAVA_MAJOR:-0}" -ge 26 &&
+            -x /usr/lib/jvm/liberica-jdk-25-full/bin/java ]]; then
+            ANDROID_JAVA_HOME=/usr/lib/jvm/liberica-jdk-25-full
+        fi
+        if [[ -n "$ANDROID_JAVA_HOME" ]]; then
+            if [[ ! -x "$ANDROID_JAVA_HOME/bin/java" ]]; then
+                echo "FAILED: Android JAVA_HOME has no executable java: $ANDROID_JAVA_HOME"
+                exit 1
+            fi
+            export JAVA_HOME="$ANDROID_JAVA_HOME"
+            export PATH="$JAVA_HOME/bin:$PATH"
+            ANDROID_JAVA_MAJOR=$(java -version 2>&1 |
+                sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' |
+                head -1)
+            export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$HOME/.gradle-vauchi-jdk${ANDROID_JAVA_MAJOR}}"
+            echo "  Android checks: JDK $ANDROID_JAVA_MAJOR, cache $GRADLE_USER_HOME"
+        fi
+
+        run_kotlin_compile() {
+            echo ""
+            echo "[1/2] Compiling Kotlin..."
+            if [[ -x "$REPO_ROOT/gradlew" ]]; then
+                # Use -PlocalBindings when local bindings are present (new types not yet in Maven AAR)
+                GRADLE_ARGS=""
+                if [[ -d "$REPO_ROOT/app/src/local-bindings/kotlin/uniffi" ]]; then
+                    GRADLE_ARGS="-PlocalBindings"
+                    echo "  Local bindings detected, using -PlocalBindings"
+                fi
+                if ! ./gradlew compileDebugKotlin $GRADLE_ARGS --quiet 2>&1; then
+                    echo ""
+                    echo "FAILED: Kotlin compilation failed. Fix errors before pushing."
+                    exit 1
+                fi
+                echo "  Compilation OK"
+            else
+                echo "  (gradlew not found, skipping)"
+            fi
+        }
+        time_step "Kotlin compile" run_kotlin_compile
+
+        run_android_lint() {
+            echo ""
+            echo "[2/2] Running Android lint..."
+            if [[ -x "$REPO_ROOT/gradlew" ]]; then
+                if ! ./gradlew lint $GRADLE_ARGS --quiet 2>&1; then
+                    echo ""
+                    echo "FAILED: Android lint failed. Fix before pushing."
+                    exit 1
+                fi
+                echo "  Lint OK"
+            else
+                echo "  (gradlew not found, skipping)"
+            fi
+        }
+        time_step "Android lint" run_android_lint
+
+    # ─── Docs/markdown repos (_private, docs) ───────────────────────────
+
+    elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
+        cd "$REPO_ROOT"
+
+        run_markdownlint_check() {
+            echo ""
+            echo "[1/9] Linting markdown..."
+            if command -v markdownlint &>/dev/null; then
+                # Lint only .md files changed on this branch vs origin/main
+                MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+                if [[ -n "$MD_BASE" ]]; then
+                    MD_FILES=$(git diff --name-only --diff-filter=d "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' || true)
+                else
+                    MD_FILES=$(git ls-files '*.md' 2>/dev/null || true)
+                fi
+
+                if [[ -n "$MD_FILES" ]]; then
+                    WS_ROOT="$REPO_ROOT/.."
+
+                    # Resolve config: repo-local > _private > workspace root
+                    MD_CONFIG=""
+                    if [[ -f "$REPO_ROOT/.markdownlint.json" ]]; then
+                        MD_CONFIG="$REPO_ROOT/.markdownlint.json"
+                    elif [[ -f "$REPO_ROOT/.markdownlint.jsonc" ]]; then
+                        MD_CONFIG="$REPO_ROOT/.markdownlint.jsonc"
+                    elif [[ -f "$WS_ROOT/_private/.markdownlint.json" ]]; then
+                        MD_CONFIG="$WS_ROOT/_private/.markdownlint.json"
+                    elif [[ -f "$WS_ROOT/.markdownlint.json" ]]; then
+                        MD_CONFIG="$WS_ROOT/.markdownlint.json"
+                    fi
+
+                    MD_ARGS=()
+                    if [[ -n "$MD_CONFIG" ]]; then
+                        MD_ARGS+=(-c "$MD_CONFIG")
+                    fi
+
+                    # Use custom line-length rule if available
+                    CUSTOM_RULE="$WS_ROOT/_private/scripts/markdownlint-rule-line-length.js"
+                    if [[ -f "$CUSTOM_RULE" ]]; then
+                        MD_ARGS+=(-r "$CUSTOM_RULE")
+                    fi
+
+                    MD_COUNT=$(echo "$MD_FILES" | wc -l | tr -d ' ')
+                    echo "  Linting $MD_COUNT changed .md file(s)..."
+                    if ! echo "$MD_FILES" | xargs markdownlint ${MD_ARGS[@]+"${MD_ARGS[@]}"}; then
+                        echo ""
+                        echo "FAILED: markdownlint found issues. Run 'just lint-markdown fix' to auto-fix."
+                        exit 1
+                    fi
+                    echo "  Markdown lint OK"
+                else
+                    echo "  No .md files changed, skipping"
+                fi
+            else
+                echo "  (markdownlint not found, skipping — install with: npm install -g markdownlint-cli)"
+            fi
+        }
+        time_step "Markdown lint" run_markdownlint_check
+
+        run_reuse_check() {
+            echo ""
+            echo "[2/9] Checking REUSE compliance..."
+            if command -v reuse &>/dev/null; then
+                if ! reuse lint >/dev/null 2>&1; then
+                    echo ""
+                    echo "FAILED: REUSE compliance check failed:"
+                    reuse lint 2>&1 | tail -30
+                    exit 1
+                fi
+                echo "  REUSE lint OK"
+            else
+                # Fallback: basic SPDX header check on new markdown files
+                MISSING=0
+                for file in $(git diff --name-only --diff-filter=A origin/main...HEAD -- '*.md' 2>/dev/null); do
+                    if ! head -2 "$file" | grep -q 'SPDX-'; then
+                        echo "  MISSING SPDX header: $file"
+                        MISSING=$((MISSING + 1))
+                    fi
+                done
+                if [[ $MISSING -gt 0 ]]; then
+                    echo ""
+                    echo "FAILED: $MISSING new file(s) missing SPDX headers. Install 'reuse' for full check."
+                    exit 1
+                fi
+                echo "  SPDX headers OK (basic check — install 'reuse' for full compliance check)"
+            fi
+        }
+        time_step "REUSE" run_reuse_check
+
+        run_doc_naming_check() {
+            echo ""
+            echo "[3/9] Checking doc naming convention..."
+            ERRORS=0
+            EXEMPT_NAMES="README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|INDEX.md"
+            EXEMPT_COMPANION="investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md"
+            EXEMPT_DIRS="diagrams|guides|reference|knowledge|testing|audit-review-frameworks|legal|decisions|lint-errors|archive|runbooks|audits"
+            for file in $(git diff --name-only --diff-filter=A origin/main...HEAD -- 'docs/**/*.md' 2>/dev/null); do
+                filename=$(basename "$file")
+                dirname=$(dirname "$file")
+                # Skip exempt filenames
+                if echo "$filename" | grep -qE "^($EXEMPT_NAMES)$"; then continue; fi
+                if echo "$filename" | grep -qE "^($EXEMPT_COMPANION)$"; then continue; fi
+                if echo "$filename" | grep -qE '\.plan\.md$'; then continue; fi
+                if echo "$dirname" | grep -qE "($EXEMPT_DIRS)"; then continue; fi
+                if [[ "$dirname" == "docs" ]]; then continue; fi
+                if ! echo "$filename" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}-'; then
+                    echo "  ERROR: $file does not follow YYYY-MM-DD-name.md convention"
+                    ERRORS=$((ERRORS + 1))
+                fi
+            done
+            if [[ $ERRORS -gt 0 ]]; then
+                echo ""
+                echo "FAILED: $ERRORS file(s) not following naming convention."
+                exit 1
+            fi
+            echo "  Doc naming OK"
+        }
+        time_step "Doc naming" run_doc_naming_check
+
+        run_plan_presence_check() {
+            echo ""
+            echo "[4/9] Checking plan.md companions..."
+            ERRORS=0
+            # 1. Problem records in planning/implementing status with implementation-plan.md
+            # should have plan.md (task DAG). Skip intake/investigating (too early),
+            # done/ (historical), and records where implementation-plan.md has tasks.
+            for impl in $(find docs/problems -not -path "*/done/*" -name "implementation-plan.md" 2>/dev/null); do
+                dir=$(dirname "$impl")
+                [ -f "$dir/plan.md" ] && continue
+                # Accept implementation-plan.md as the plan if it contains task checkboxes
+                if grep -q '^\- \[' "$impl" 2>/dev/null; then continue; fi
+                # Skip intake/investigating — too early for a plan requirement
+                if [ -f "$dir/README.md" ]; then
+                    status=$(grep -oE 'Status.*`(intake|investigating)`' "$dir/README.md" 2>/dev/null)
+                    if [ -n "$status" ]; then continue; fi
+                fi
+                echo "  MISSING: $dir/plan.md (has implementation-plan.md with no task checkboxes)"
+                ERRORS=$((ERRORS + 1))
+            done
+
+            # 2. Planning todo docs must have companion .plan.md (task DAG)
+            # Skip: .plan.md files (ARE task DAGs), -plan.md files (ARE narrative plans)
+            # Search: sibling, then planning/todo/, designs/, planning/ by slug match
+            for doc in docs/planning/todo/20*.md; do
+                [ -f "$doc" ] || continue
+                case "$doc" in *.plan.md) continue ;; *-plan.md) continue ;; esac
+                # Check for opt-out marker (standalone plans without task DAGs)
+                grep -q '<!-- no-plan-companion -->' "$doc" 2>/dev/null && continue
+                plan="${doc%.md}.plan.md"
+                [ -f "$plan" ] && continue
+                # Extract slug (strip YYYY-MM-DD- prefix)
+                base=$(basename "$doc" .md)
+                slug="${base#[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-}"
+                found=0
+                for p in docs/planning/todo/*"${slug}"*.plan.md docs/designs/*"${slug}"*.plan.md docs/planning/*"${slug}"*.plan.md; do
+                    if [ -f "$p" ]; then
+                        found=1
+                        break
+                    fi
+                done
+                if [ "$found" -eq 0 ]; then
+                    echo "  MISSING: $plan"
+                    ERRORS=$((ERRORS + 1))
+                fi
+            done
+
+            if [[ $ERRORS -gt 0 ]]; then
+                echo ""
+                echo "FAILED: $ERRORS missing companion plan(s)."
+                exit 1
+            fi
+            echo "  Plan companions OK"
+        }
+        time_step "Plan check" run_plan_presence_check
+
+        run_local_link_check() {
+            echo ""
+            echo "[5/9] Checking local file links..."
+            if command -v lychee &>/dev/null; then
+                MD_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+                if [[ -n "$MD_BASE" ]]; then
+                    LINK_FILES=$(git diff --name-only --diff-filter=d "$MD_BASE"...HEAD -- '*.md' 2>/dev/null | grep -v '^$' || true)
+                else
+                    LINK_FILES=""
+                fi
+                if [[ -n "$LINK_FILES" ]]; then
+                    LINK_ERRORS=""
+                    while IFS= read -r f; do
+                        [[ -f "$f" ]] || continue
+                        result=$(lychee --offline --no-progress --format compact "$f" 2>&1) || LINK_ERRORS="${LINK_ERRORS}${result}"$'\n'
+                    done <<<"$LINK_FILES"
+                    if [[ -n "$LINK_ERRORS" ]]; then
+                        echo ""
+                        echo "$LINK_ERRORS"
+                        echo ""
+                        echo "FAILED: Broken local links found."
+                        echo "  Fix the file paths, then push again."
+                        exit 1
+                    fi
+                    echo "  Local links OK"
+                else
+                    echo "  No .md files changed, skipping"
+                fi
+            else
+                echo "  (lychee not found, skipping — install with: cargo install lychee)"
+            fi
+        }
+        time_step "Link check" run_local_link_check
+
+        run_stale_ref_check() {
+            echo ""
+            echo "[6/9] Checking stale references (ADR-027 + RC-3)..."
+
+            # If the authoritative checker exists, delegate to it in MR-diff mode.
+            # Same script CI runs — keeps pre-push and CI in sync, and catches
+            # RC-3 (vauchi-core/src/ui/ → vauchi-app/src/ui/ rename) which the
+            # inline grep below does not cover.
+            local checker="$REPO_DIR/scripts/check-adr-references.sh"
+            if [[ -x "$checker" ]]; then
+                local base
+                base=$(git -C "$REPO_DIR" merge-base origin/main HEAD 2>/dev/null || echo "")
+                if [[ -n "$base" ]] && (cd "$REPO_DIR" && bash "$checker" --diff "$base" 2>&1); then
+                    echo "  ADR refs OK (delegated to $checker)"
+                    return 0
+                elif [[ -n "$base" ]]; then
+                    # Script printed its own error context; block push.
+                    echo "" >&2
+                    echo "Push blocked: stale ADR references introduced in this branch." >&2
+                    echo "  Fix the paths above (see $checker) before pushing." >&2
+                    exit 2
+                fi
+                # No merge-base: fall through to inline heuristic.
+            fi
+
+            # Fallback inline heuristic (warning only — does not block push)
+            #
+            # Exclusions:
+            #   done/archived  — resolved records
+            #   deferred/      — parked work, low-signal noise
+            #   ~~             — strikethrough (including multiline opening)
+            #   ADR-027        — explicit archival annotations
+            #   changelog/evidence — historical records
+            #   web-demo       — SolidJS in web-demo is live, not archived desktop
+            #   grep -rn       — code blocks containing the checker's own patterns
+            #   stale_refs=    — shell variable assignments in code blocks
+            #   - [x]          — checked-off plan items
+            # ADR-027: the archived Tauri desktop lived at desktop/src-tauri/ and
+            # desktop/ui/src/. Flag references to those *paths* — the concrete stale
+            # signal — not the bare word "desktop", which is legitimate shorthand for
+            # the native desktop frontends (linux-gtk/linux-qt/macos/windows) and was
+            # false-positiving on category labels ("desktop/TUI/web"), commit-message
+            # quotes, and the rot-audit that documents the Tauri removal. SolidJS
+            # under desktop/ui/src is caught by the path; live web-demo SolidJS is
+            # not (correct). Mirrors _private/scripts/check-adr-references.sh, which
+            # is already path-based. (Tightened 2026-07-12 from a broad `desktop/` +
+            # bare `Tauri|SolidJS` grep that required an ever-growing exclusion list.)
+            stale_refs=$(grep -rnE 'desktop/src-tauri/|desktop/ui/src/' --include='*.md' \
+                docs/problems/ docs/planning/todo/ 2>/dev/null |
+                grep -v 'done/' |
+                grep -v 'archived' |
+                grep -v 'deferred/' |
+                grep -v '~~' |
+                grep -v 'ADR-027' |
+                grep -v 'grep -rnE' |
+                grep -v 'stale_refs=' || true)
+
+            combined="${stale_refs}"
+            if [[ -n "$combined" ]]; then
+                echo "  WARNING: Stale references to archived desktop/Tauri/SolidJS:"
+                echo "$combined" | head -10
+                echo "  Per ADR-027: desktop = linux-gtk + linux-qt + macos + windows"
+                echo "  Update or strike through these references."
+            else
+                echo "  ADR-027 stale refs OK"
+            fi
+        }
+        time_step "Stale refs" run_stale_ref_check
+
+        run_problem_records_check() {
+            if [[ "$REPO_DIR" == "_private" ]]; then
+                echo ""
+                echo "[7/9] Validating problem records..."
+                if [[ -f "scripts/check-problem-records.py" ]]; then
+                    if ! python3 scripts/check-problem-records.py; then
+                        echo ""
+                        echo "FAILED: Problem records validation failed."
+                        exit 1
+                    fi
+                    echo "  Problem records OK"
+                fi
+            fi
+        }
+        time_step "Problem records" run_problem_records_check
+
+        run_adr_index_check() {
+            # ADR index gate (mirrors CI `check:adr-index`) — only fires
+            # in `_private` when an ADR file or the index README changes,
+            # matching the CI rule's `docs/decisions/**/*` change-trigger.
+            # Adding a new ADR without regenerating the index would
+            # otherwise pass pre-push and fail CI a few minutes later;
+            # this lights up the same gate before the push leaves the
+            # working tree.
+            if [[ "$REPO_DIR" != "_private" ]]; then
                 return 0
-            elif [[ -n "$base" ]]; then
-                # Script printed its own error context; block push.
-                echo "" >&2
-                echo "Push blocked: stale ADR references introduced in this branch." >&2
-                echo "  Fix the paths above (see $checker) before pushing." >&2
-                exit 2
             fi
-            # No merge-base: fall through to inline heuristic.
-        fi
-
-        # Fallback inline heuristic (warning only — does not block push)
-        #
-        # Exclusions:
-        #   done/archived  — resolved records
-        #   deferred/      — parked work, low-signal noise
-        #   ~~             — strikethrough (including multiline opening)
-        #   ADR-027        — explicit archival annotations
-        #   changelog/evidence — historical records
-        #   web-demo       — SolidJS in web-demo is live, not archived desktop
-        #   grep -rn       — code blocks containing the checker's own patterns
-        #   stale_refs=    — shell variable assignments in code blocks
-        #   - [x]          — checked-off plan items
-        # ADR-027: the archived Tauri desktop lived at desktop/src-tauri/ and
-        # desktop/ui/src/. Flag references to those *paths* — the concrete stale
-        # signal — not the bare word "desktop", which is legitimate shorthand for
-        # the native desktop frontends (linux-gtk/linux-qt/macos/windows) and was
-        # false-positiving on category labels ("desktop/TUI/web"), commit-message
-        # quotes, and the rot-audit that documents the Tauri removal. SolidJS
-        # under desktop/ui/src is caught by the path; live web-demo SolidJS is
-        # not (correct). Mirrors _private/scripts/check-adr-references.sh, which
-        # is already path-based. (Tightened 2026-07-12 from a broad `desktop/` +
-        # bare `Tauri|SolidJS` grep that required an ever-growing exclusion list.)
-        stale_refs=$(grep -rnE 'desktop/src-tauri/|desktop/ui/src/' --include='*.md' \
-            docs/problems/ docs/planning/todo/ 2>/dev/null \
-            | grep -v 'done/' \
-            | grep -v 'archived' \
-            | grep -v 'deferred/' \
-            | grep -v '~~' \
-            | grep -v 'ADR-027' \
-            | grep -v 'grep -rnE' \
-            | grep -v 'stale_refs=' || true)
-
-        combined="${stale_refs}"
-        if [[ -n "$combined" ]]; then
-            echo "  WARNING: Stale references to archived desktop/Tauri/SolidJS:"
-            echo "$combined" | head -10
-            echo "  Per ADR-027: desktop = linux-gtk + linux-qt + macos + windows"
-            echo "  Update or strike through these references."
-        else
-            echo "  ADR-027 stale refs OK"
-        fi
-    }
-    time_step "Stale refs" run_stale_ref_check
-
-    run_problem_records_check() {
-        if [[ "$REPO_DIR" == "_private" ]]; then
+            local generator="docs/decisions/generate-index.sh"
+            local index_md="docs/decisions/README.md"
+            if [[ ! -x "$generator" ]] || [[ ! -f "$index_md" ]]; then
+                return 0
+            fi
+            # Match the CI change rule: only run when an ADR file or the
+            # index itself is part of this branch's diff vs origin/main.
+            if ! git diff --name-only origin/main...HEAD 2>/dev/null |
+                grep -qE '^docs/decisions/'; then
+                return 0
+            fi
             echo ""
-            echo "[7/9] Validating problem records..."
-            if [[ -f "scripts/check-problem-records.py" ]]; then
-                if ! python3 scripts/check-problem-records.py; then
-                    echo ""
-                    echo "FAILED: Problem records validation failed."
-                    exit 1
-                fi
-                echo "  Problem records OK"
+            echo "[8/9] Checking ADR index freshness..."
+            local before_snapshot
+            before_snapshot=$(mktemp)
+            cp "$index_md" "$before_snapshot"
+            # Run generator; on failure, restore + abort. Generator writes
+            # to $index_md in-place, so we save & restore around the diff
+            # to keep the working tree untouched on a clean pass.
+            if ! bash "$generator" docs/decisions >/dev/null 2>&1; then
+                cp "$before_snapshot" "$index_md"
+                rm -f "$before_snapshot"
+                echo "FAILED: $generator exited non-zero. Run it manually to see the error."
+                exit 1
             fi
-        fi
-    }
-    time_step "Problem records" run_problem_records_check
-
-    run_adr_index_check() {
-        # ADR index gate (mirrors CI `check:adr-index`) — only fires
-        # in `_private` when an ADR file or the index README changes,
-        # matching the CI rule's `docs/decisions/**/*` change-trigger.
-        # Adding a new ADR without regenerating the index would
-        # otherwise pass pre-push and fail CI a few minutes later;
-        # this lights up the same gate before the push leaves the
-        # working tree.
-        if [[ "$REPO_DIR" != "_private" ]]; then
-            return 0
-        fi
-        local generator="docs/decisions/generate-index.sh"
-        local index_md="docs/decisions/README.md"
-        if [[ ! -x "$generator" ]] || [[ ! -f "$index_md" ]]; then
-            return 0
-        fi
-        # Match the CI change rule: only run when an ADR file or the
-        # index itself is part of this branch's diff vs origin/main.
-        if ! git diff --name-only origin/main...HEAD 2>/dev/null \
-            | grep -qE '^docs/decisions/'; then
-            return 0
-        fi
-        echo ""
-        echo "[8/9] Checking ADR index freshness..."
-        local before_snapshot
-        before_snapshot=$(mktemp)
-        cp "$index_md" "$before_snapshot"
-        # Run generator; on failure, restore + abort. Generator writes
-        # to $index_md in-place, so we save & restore around the diff
-        # to keep the working tree untouched on a clean pass.
-        if ! bash "$generator" docs/decisions >/dev/null 2>&1; then
-            cp "$before_snapshot" "$index_md"
+            if ! diff -q "$index_md" "$before_snapshot" >/dev/null 2>&1; then
+                # Stale — restore the working tree so the user's diff
+                # stays clean, then point at the fix.
+                cp "$before_snapshot" "$index_md"
+                rm -f "$before_snapshot"
+                echo "FAILED: ADR index ($index_md) is stale."
+                echo "  Fix: bash $generator docs/decisions && git add $index_md"
+                exit 1
+            fi
             rm -f "$before_snapshot"
-            echo "FAILED: $generator exited non-zero. Run it manually to see the error."
-            exit 1
-        fi
-        if ! diff -q "$index_md" "$before_snapshot" >/dev/null 2>&1; then
-            # Stale — restore the working tree so the user's diff
-            # stays clean, then point at the fix.
-            cp "$before_snapshot" "$index_md"
-            rm -f "$before_snapshot"
-            echo "FAILED: ADR index ($index_md) is stale."
-            echo "  Fix: bash $generator docs/decisions && git add $index_md"
-            exit 1
-        fi
-        rm -f "$before_snapshot"
-        echo "  ADR index OK"
-    }
-    time_step "ADR index" run_adr_index_check
+            echo "  ADR index OK"
+        }
+        time_step "ADR index" run_adr_index_check
 
-    run_adr_paths_check() {
-        # ADR source-path freshness (lint-adr-paths.sh pass 2). Only
-        # _private carries ADRs; docs/ shares this block but has none.
-        if [[ "$REPO_DIR" != "_private" ]]; then
-            return 0
-        fi
-        local linter="docs/decisions/lint-adr-paths.sh"
-        if [[ ! -x "$linter" ]]; then
-            return 0
-        fi
-        # Only when this push touches ADRs (mirrors the index gate).
-        if ! git diff --name-only origin/main...HEAD 2>/dev/null \
-            | grep -qE '^docs/decisions/'; then
-            return 0
-        fi
-        echo ""
-        echo "[9/9] Checking ADR source-path freshness..."
-        # Pass 2 needs the sibling repos (core/, ios/, etc.) at the
-        # workspace root -- the parent of this _private checkout. In a
-        # standalone or CI checkout they are absent and the linter
-        # announces a skip rather than failing, so this is a no-op there.
-        local ws_root
-        ws_root="$(dirname "$REPO_ROOT")"
-        if bash "$linter" docs/decisions "$ws_root"; then
-            echo "  ADR paths OK"
-        else
-            echo "FAILED: an ADR cites a source path that does not exist."
-            echo "  - Stale ADR ref: fix the path in the ADR."
-            echo "  - File intentionally removed by that ADR: mark the line"
-            echo "    with  \`path\` <!-- adr-lint:ignore-path <reason> -->"
-            echo "  - Stale local sibling checkout: refresh it (e.g. just"
-            echo "    sync) so the cited files are present, then re-push."
-            exit 1
-        fi
-    }
-    time_step "ADR paths" run_adr_paths_check
+        run_adr_paths_check() {
+            # ADR source-path freshness (lint-adr-paths.sh pass 2). Only
+            # _private carries ADRs; docs/ shares this block but has none.
+            if [[ "$REPO_DIR" != "_private" ]]; then
+                return 0
+            fi
+            local linter="docs/decisions/lint-adr-paths.sh"
+            if [[ ! -x "$linter" ]]; then
+                return 0
+            fi
+            # Only when this push touches ADRs (mirrors the index gate).
+            if ! git diff --name-only origin/main...HEAD 2>/dev/null |
+                grep -qE '^docs/decisions/'; then
+                return 0
+            fi
+            echo ""
+            echo "[9/9] Checking ADR source-path freshness..."
+            # Pass 2 needs the sibling repos (core/, ios/, etc.) at the
+            # workspace root -- the parent of this _private checkout. In a
+            # standalone or CI checkout they are absent and the linter
+            # announces a skip rather than failing, so this is a no-op there.
+            local ws_root
+            ws_root="$(dirname "$REPO_ROOT")"
+            if bash "$linter" docs/decisions "$ws_root"; then
+                echo "  ADR paths OK"
+            else
+                echo "FAILED: an ADR cites a source path that does not exist."
+                echo "  - Stale ADR ref: fix the path in the ADR."
+                echo "  - File intentionally removed by that ADR: mark the line"
+                echo "    with  \`path\` <!-- adr-lint:ignore-path <reason> -->"
+                echo "  - Stale local sibling checkout: refresh it (e.g. just"
+                echo "    sync) so the cited files are present, then re-push."
+                exit 1
+            fi
+        }
+        time_step "ADR paths" run_adr_paths_check
 
+    # ─── Unknown repo type ───────────────────────────────────────────────
 
-# ─── Unknown repo type ───────────────────────────────────────────────
+    else
+        echo "  No recognized project type, skipping checks."
+        exit 0
+    fi
 
-else
-    echo "  No recognized project type, skipping checks."
-    exit 0
-fi
-
-fi  # end _STAMP_SKIP guard
+fi # end _STAMP_SKIP guard
 
 # ─── File size gate ───────────────────────────────────────────────────
 # Runs OUTSIDE the stamp skip guard because `just check` does not run
@@ -1381,8 +1384,8 @@ if [[ -f "$REPO_ROOT/Cargo.toml" || -f "${REPO_ROOT}/src-tauri/Cargo.toml" ]]; t
         SIZE_SCRIPT="$WORKSPACE_ROOT/scripts/scripts/check-file-size.sh"
         if [[ -x "$SIZE_SCRIPT" ]]; then
             # Collect .rs files changed on this branch
-            CHANGED_RS=$(git -C "$REPO_ROOT" diff --name-only origin/main...HEAD -- '*.rs' 2>/dev/null \
-                | grep -v '^target/' | grep -vE '(^|/)vendor/' || true)
+            CHANGED_RS=$(git -C "$REPO_ROOT" diff --name-only origin/main...HEAD -- '*.rs' 2>/dev/null |
+                grep -v '^target/' | grep -vE '(^|/)vendor/' || true)
             if [[ -n "$CHANGED_RS" ]]; then
                 echo ""
                 echo "Checking file sizes..."
@@ -1390,16 +1393,18 @@ if [[ -f "$REPO_ROOT/Cargo.toml" || -f "${REPO_ROOT}/src-tauri/Cargo.toml" ]]; t
                 while IFS= read -r rs_file; do
                     full_path="$REPO_ROOT/$rs_file"
                     [[ -f "$full_path" ]] || continue
-                    lines=$(wc -l < "$full_path" | tr -d ' ')
+                    lines=$(wc -l <"$full_path" | tr -d ' ')
 
                     # Determine thresholds based on test vs source
                     case "$rs_file" in
-                        */tests/*|*_test.rs|*_tests.rs)
-                            error_threshold=1200
-                            kind="test" ;;
-                        *)
-                            error_threshold=1000
-                            kind="src" ;;
+                    */tests/* | *_test.rs | *_tests.rs)
+                        error_threshold=1200
+                        kind="test"
+                        ;;
+                    *)
+                        error_threshold=1000
+                        kind="src"
+                        ;;
                     esac
 
                     # Check suppression (// allow(large_file) on line 1)
@@ -1411,15 +1416,15 @@ if [[ -f "$REPO_ROOT/Cargo.toml" || -f "${REPO_ROOT}/src-tauri/Cargo.toml" ]]; t
                     BASELINE_FILE="$REPO_ROOT/.file-size-baseline"
                     baseline=""
                     if [[ -f "$BASELINE_FILE" ]]; then
-                        baseline=$(grep -E "^${rs_file} " "$BASELINE_FILE" 2>/dev/null \
-                            | awk '{print $2}' || true)
+                        baseline=$(grep -E "^${rs_file} " "$BASELINE_FILE" 2>/dev/null |
+                            awk '{print $2}' || true)
                     fi
 
                     # Mirror of check-file-size.sh: `exempt` never fails;
                     # numbered baselines ratchet with 100-line slack (fail
                     # only past the next ceiling, not on every +1 line).
                     if [[ -n "$baseline" && "$baseline" != "exempt" ]]; then
-                        ceiling=$(( ( (baseline + 99) / 100 ) * 100 ))
+                        ceiling=$((((baseline + 99) / 100) * 100))
                         if [[ "$lines" -gt "$ceiling" ]]; then
                             echo "  FAIL $rs_file ($lines lines, baseline $baseline, ceiling $ceiling — grew past ceiling)"
                             SIZE_FAIL=1
@@ -1428,7 +1433,7 @@ if [[ -f "$REPO_ROOT/Cargo.toml" || -f "${REPO_ROOT}/src-tauri/Cargo.toml" ]]; t
                         echo "  FAIL $rs_file ($lines lines, $kind error threshold $error_threshold)"
                         SIZE_FAIL=1
                     fi
-                done <<< "$CHANGED_RS"
+                done <<<"$CHANGED_RS"
                 if [[ "$SIZE_FAIL" -eq 1 ]]; then
                     echo ""
                     echo "BLOCKED: File size limit exceeded."
@@ -1471,7 +1476,7 @@ fi
 
 # ─── Summary ─────────────────────────────────────────────────────────
 
-HOOK_ELAPSED=$(( SECONDS - HOOK_START ))
+HOOK_ELAPSED=$((SECONDS - HOOK_START))
 
 echo ""
 echo "=== All pre-push checks passed (${HOOK_ELAPSED}s) ==="
@@ -1485,12 +1490,12 @@ done
 cd "$REPO_ROOT"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
-if [[ "$BRANCH" != "main" ]] && command -v glab &> /dev/null; then
+if [[ "$BRANCH" != "main" ]] && command -v glab &>/dev/null; then
     echo ""
     # Timestamp from hook start minus 2 minute buffer
-    SINCE="$(date -u -v-$((HOOK_ELAPSED + 120))S '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
-          || date -u -d "$((HOOK_ELAPSED + 120)) seconds ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
-          || echo "")"
+    SINCE="$(date -u -v-$((HOOK_ELAPSED + 120))S '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null ||
+        date -u -d "$((HOOK_ELAPSED + 120)) seconds ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null ||
+        echo "")"
 
     # Open MRs for this branch
     OPEN_MRS="$(glab mr list --source-branch="$BRANCH" --state=opened 2>/dev/null)" || OPEN_MRS=""
@@ -1525,13 +1530,13 @@ if [[ "$BRANCH" != "main" ]] && command -v glab &> /dev/null; then
             while IFS= read -r line; do
                 MR_NUM="$(echo "$line" | grep -oE '![0-9]+' | head -1 | tr -d '!')"
                 if [[ -n "$MR_NUM" ]]; then
-                    MERGED_AT="$(glab api "projects/:id/merge_requests/$MR_NUM" 2>/dev/null \
-                               | jq -r '.merged_at // ""' 2>/dev/null)" || MERGED_AT=""
+                    MERGED_AT="$(glab api "projects/:id/merge_requests/$MR_NUM" 2>/dev/null |
+                        jq -r '.merged_at // ""' 2>/dev/null)" || MERGED_AT=""
                     if [[ -n "$MERGED_AT" && "$MERGED_AT" > "$SINCE" ]]; then
                         RECENT="${RECENT}${line}\n"
                     fi
                 fi
-            done <<< "$OTHER_MERGED"
+            done <<<"$OTHER_MERGED"
             if [[ -n "$RECENT" ]]; then
                 echo ""
                 echo "Recently merged MRs on branch $BRANCH:"
