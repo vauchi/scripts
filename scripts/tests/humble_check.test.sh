@@ -46,6 +46,36 @@ test_empty_workspace() {
     rm -rf "$root"
 }
 
+# test_repo_path_resolves_repo_relative_roots — per-repo CI scans real files
+test_repo_path_resolves_repo_relative_roots() {
+    root=$(mktemp -d)
+    repo="$root/ios"
+    dir="$repo/Vauchi/CoreUI"
+    mkdir -p "$dir"
+    cat >"$dir/BadView.swift" <<'SW'
+class BadView {
+    func route(screenId: String) {
+        if screenId == "multi_stage_exchange" { startTimer() }
+    }
+}
+SW
+    out=$(python3 "$SCRIPT" --repo ios --repo-path "$repo" --config "$CONFIG")
+    assert_eq "repo path: scans repo-relative source root" "1" \
+        "$(extract_counter "$out" domain_screen_id_branch)"
+    rm -rf "$root"
+}
+
+# test_repo_path_missing_source_fails — CI must not pass after scanning no files
+test_repo_path_missing_source_fails() {
+    root=$(mktemp -d)
+    set +e
+    python3 "$SCRIPT" --repo ios --repo-path "$root" --config "$CONFIG" >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "repo path: missing configured source exits 2" "2" "$rc"
+    rm -rf "$root"
+}
+
 # test_counts_violations — planted action-id minting and screen-id branch
 test_counts_violations() {
     root=$(mktemp -d)
@@ -286,7 +316,12 @@ fun render(model: ScreenModel, screen: NativeScreen) {
 }
 KT
     out=$(python3 "$SCRIPT" --repo android --workspace-root "$root" --config "$CONFIG")
-    assert_eq "app_screen kotlin: opaque nativeWrapperHint/ScreenModel/NavigateToTab ignored" "0" "$(extract_counter "$out" app_screen_enum_branch)"
+    assert_eq "app_screen kotlin: native wrapper branch ignored" "0" \
+        "$(extract_counter "$out" app_screen_enum_branch)"
+    assert_eq "boundary: ScreenModel counted" "1" \
+        "$(extract_counter "$out" retired_screen_model)"
+    assert_eq "boundary: UserAction replacement counted" "0" \
+        "$(extract_counter "$out" retired_user_action)"
     rm -rf "$root"
 }
 
@@ -317,8 +352,119 @@ test_bad_repo() {
     rm -rf "$root"
 }
 
+# test_baseline_transition_cannot_increase_or_remove — ratchets are immutable
+test_baseline_transition_cannot_increase_or_remove() {
+    root=$(mktemp -d)
+    previous="$root/previous.json"
+    current="$root/current.json"
+    cat >"$previous" <<'JSON'
+{
+  "repos": {
+    "ios": {
+      "retired_screen_model": 3,
+      "retired_user_action": 2
+    }
+  }
+}
+JSON
+    cat >"$current" <<'JSON'
+{
+  "repos": {
+    "ios": {
+      "retired_screen_model": 4
+    }
+  }
+}
+JSON
+    set +e
+    python3 "$SCRIPT" --validate-baseline "$current" --against "$previous" \
+        --config "$CONFIG" >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "baseline transition: increase/removal exits 1" "1" "$rc"
+
+    cat >"$current" <<'JSON'
+{
+  "repos": {
+    "ios": {
+      "retired_screen_model": 2,
+      "retired_user_action": 0,
+      "new_rule": 7
+    }
+  }
+}
+JSON
+    set +e
+    python3 "$SCRIPT" --validate-baseline "$current" --against "$previous" \
+        --config "$CONFIG" >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "baseline transition: decreases and new rules pass" "0" "$rc"
+    rm -rf "$root"
+}
+
+# test_release_zero_requires_live_and_baseline_zero — release cannot stagnate
+test_release_zero_requires_live_and_baseline_zero() {
+    root=$(mktemp -d)
+    dir="$root/sample/src"
+    mkdir -p "$dir"
+    config="$root/rules.json"
+    baseline="$root/baseline.json"
+    cat >"$config" <<'JSON'
+{
+  "repos": {
+    "sample": {
+      "source_roots": ["sample/src"],
+      "extensions": [".txt"],
+      "exclude_dirs": [],
+      "rules": {
+        "domain_branch": {
+          "message": "sample domain branch",
+          "patterns": ["DOMAIN"]
+        }
+      }
+    }
+  }
+}
+JSON
+    printf 'DOMAIN\n' >"$dir/source.txt"
+    cat >"$baseline" <<'JSON'
+{"repos":{"sample":{"domain_branch":0}}}
+JSON
+    set +e
+    python3 "$SCRIPT" --release-zero --workspace-root "$root" \
+        --config "$config" --check "$baseline" >/dev/null 2>&1
+    live_rc=$?
+    set -e
+    assert_eq "release zero: live finding exits 1" "1" "$live_rc"
+
+    printf 'generic\n' >"$dir/source.txt"
+    cat >"$baseline" <<'JSON'
+{"repos":{"sample":{"domain_branch":1}}}
+JSON
+    set +e
+    python3 "$SCRIPT" --release-zero --workspace-root "$root" \
+        --config "$config" --check "$baseline" >/dev/null 2>&1
+    baseline_rc=$?
+    set -e
+    assert_eq "release zero: nonzero baseline exits 1" "1" "$baseline_rc"
+
+    cat >"$baseline" <<'JSON'
+{"repos":{"sample":{"domain_branch":0}}}
+JSON
+    set +e
+    python3 "$SCRIPT" --release-zero --workspace-root "$root" \
+        --config "$config" --check "$baseline" >/dev/null 2>&1
+    zero_rc=$?
+    set -e
+    assert_eq "release zero: clean source and baseline pass" "0" "$zero_rc"
+    rm -rf "$root"
+}
+
 # run
 test_empty_workspace
+test_repo_path_resolves_repo_relative_roots
+test_repo_path_missing_source_fails
 test_counts_violations
 test_todo_suppresses
 test_exception_suppresses
@@ -331,6 +477,8 @@ test_app_screen_enum_branch_kotlin
 test_app_screen_enum_branch_true_negatives
 test_app_screen_enum_branch_exception
 test_bad_repo
+test_baseline_transition_cannot_increase_or_remove
+test_release_zero_requires_live_and_baseline_zero
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
