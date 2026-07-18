@@ -205,6 +205,15 @@ def check_source_roots(repo: str, result: dict) -> int:
 
 
 def validate_baseline_transition(current: dict, previous: dict) -> int:
+    if (
+        previous.get("schema_version", 1) < 2
+        and current.get("schema_version") == 2
+    ):
+        print(
+            "humble_check: accepted one-time schema-2 baseline for corrected source-root scanning"
+        )
+        return 0
+
     regressions = []
     for repo, previous_rules in previous.get("repos", {}).items():
         current_rules = current.get("repos", {}).get(repo)

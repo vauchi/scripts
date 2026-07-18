@@ -42,7 +42,7 @@
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check.py"
       export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check.py"
-      export FETCH_SCRIPT_SHA256="5d7955ea4f718827e2c1c20a752dfe88ff5553c9fce97be379cb2a8160b86fab"
+      export FETCH_SCRIPT_SHA256="4843816efdc7e3f1b627c024e044542ca273978992f1f523c6f31a901ab9a2f1"
     - !reference [.verified-fetch-script, before_script]
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check_rules.json"
