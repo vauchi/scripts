@@ -370,7 +370,7 @@ if [[ "" != "_private" && "" != "docs" && "/usr/sbin/reuse" ]]; then
     if
     echo "  REUSE lint OK"
   fi
-
+fi
 # ─── CI lint (all repos with .gitlab-ci.yml changes) ────────────────
 
 if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
