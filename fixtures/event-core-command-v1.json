@@ -1,0 +1,19 @@
+{
+  "schema": "event-core-command-v1",
+  "event": {
+    "kind": "activate",
+    "id": "opaque-event-id",
+    "payload": {}
+  },
+  "commands": [
+    {
+      "kind": "button",
+      "id": "opaque-command-id",
+      "text": "Prepared by core",
+      "accessibility": {"label": "Prepared by core", "hint": "Activate"},
+      "enabled": true,
+      "selected": false,
+      "tokens": {"role": "primary", "size": "medium"}
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+# Shared positive boundary contract. Consumers provide the fixture path when
+# their repository has a native decoder test; this validator is the portable
+# minimum contract run in every language pipeline.
+.boundary-contract:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/python:3.11-slim
+  tags: [docker]
+  needs: []
+  allow_failure: false
+  variables:
+    BOUNDARY_FIXTURE: "scripts/fixtures/event-core-command-v1.json"
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends curl ca-certificates
+    - mkdir -p .ratchet-scripts
+    - |
+      curl --silent --fail \
+        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fcheck-boundary-contract.py/raw?ref=${VAUCHI_SCRIPTS_REF}" \
+        -o .ratchet-scripts/check-boundary-contract.py
+      curl --silent --fail \
+        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/fixtures%2Fevent-core-command-v1.json/raw?ref=${VAUCHI_SCRIPTS_REF}" \
+        -o .ratchet-scripts/event-core-command-v1.json
+  script:
+    - python3 .ratchet-scripts/check-boundary-contract.py .ratchet-scripts/event-core-command-v1.json
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

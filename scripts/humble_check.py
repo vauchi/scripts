@@ -27,6 +27,19 @@ from pathlib import Path
 DEFAULT_LOOKBACK = 10
 DEFAULT_LOOKAHEAD = 3
 
+# Public boundary names retired by the generic Event -> Core -> Command[]
+# contract.  These are intentionally checked only by the exact-zero release
+# gate until each frontend's measured migration baseline is recorded.
+RETIRED_BOUNDARY_PATTERNS = (
+    re.compile(r"\bScreenModel\b"),
+    re.compile(r"\bUserAction\b"),
+    re.compile(r"\bActionResult\b"),
+    re.compile(r"\bWorkflowEngine\b"),
+    re.compile(r"\bAppEngine\b"),
+    re.compile(r"\b(Component|Field|InfoItem|ScreenAction)\b"),
+    re.compile(r"\b(dispatch_action|dispatch_user_action|handle_action|split_dispatch)\b"),
+)
+
 
 def load_config(config_path: Path) -> dict:
     with open(config_path, "r", encoding="utf-8") as f:
@@ -159,6 +172,33 @@ def scan_repo(
     }
 
 
+def scan_retired_boundary(result: dict, workspace_root: Path, repo_path: Path | None, repo_config: dict) -> None:
+    """Add a deterministic aggregate count for retired boundary symbols."""
+    total = 0
+    roots = repo_config["source_roots"]
+    extensions = set(repo_config.get("extensions", []))
+    excludes = set(repo_config.get("exclude_dirs", []))
+    examples = []
+    for rel in roots:
+        root = (repo_path or workspace_root) / rel
+        for file in find_files(root, extensions, excludes):
+            try:
+                lines = file.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except OSError:
+                continue
+            for line_no, line in enumerate(lines, 1):
+                hits = sum(bool(pattern.search(line)) for pattern in RETIRED_BOUNDARY_PATTERNS)
+                total += hits
+                if hits and len(examples) < 5:
+                    examples.append((str(file.relative_to(repo_path or workspace_root)), line_no, line.strip()))
+    result["counts"]["retired_boundary_types"] = total
+    result["examples"]["retired_boundary_types"] = examples
+    result["rules"]["retired_boundary_types"] = {
+        "message": "Frontend must expose only Event -> Core -> Command[]; remove retired ScreenModel/UserAction/ActionResult and split dispatch APIs.",
+        "patterns": [pattern.pattern for pattern in RETIRED_BOUNDARY_PATTERNS],
+    }
+
+
 def emit_snapshot(repo: str, result: dict) -> str:
     captured_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     snapshot = {
@@ -288,6 +328,19 @@ def check_release_zero(
     return 0
 
 
+def check_zero(repo: str, result: dict) -> int:
+    """Release gate: every measured boundary-violation counter must be zero."""
+    nonzero = [(name, count) for name, count in result["counts"].items() if count]
+    if not nonzero:
+        print(f"humble_check ({repo}): OK — all boundary counters are zero")
+        return 0
+    print(f"humble_check ({repo}): {len(nonzero)} counter(s) are not zero", file=sys.stderr)
+    for name, count in nonzero:
+        print(f"  [{name}] current {count}: {rule_message(result['rules'], name)}", file=sys.stderr)
+    print("Release blocked: retire all frontend boundary violations before publishing.", file=sys.stderr)
+    return 1
+
+
 def run(
     workspace_root: Path,
     repo: str,
@@ -296,6 +349,7 @@ def run(
     lookback: int,
     lookahead: int,
     baseline: dict | None,
+    require_zero: bool = False,
 ) -> int:
     if repo not in config["repos"]:
         print(f"humble_check: no rules configured for repo '{repo}'", file=sys.stderr)
@@ -304,6 +358,9 @@ def run(
     result = scan_repo(workspace_root, repo, repo_path, config, lookback, lookahead)
     if repo_path is not None and check_source_roots(repo, result):
         return 2
+    if require_zero:
+        scan_retired_boundary(result, workspace_root, repo_path, config["repos"][repo])
+        return check_zero(repo, result)
     if baseline is None:
         print(emit_snapshot(repo, result))
         return 0
@@ -334,6 +391,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Require every configured live and baseline counter to be zero",
     )
+    parser.add_argument("--require-zero", action="store_true", help="Release gate: require every measured counter to be zero")
     parser.add_argument("--lookback", type=int, default=DEFAULT_LOOKBACK, help="Lines before a match to search for TODO(HUMBLE)")
     parser.add_argument("--lookahead", type=int, default=DEFAULT_LOOKAHEAD, help="Lines after a match to search for TODO(HUMBLE)")
     args = parser.parse_args(argv)
@@ -377,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     if not args.repo:
         parser.error("--repo is required unless a standalone validation mode is used")
-    return run(workspace_root, args.repo, args.repo_path, config, args.lookback, args.lookahead, baseline)
+    return run(workspace_root, args.repo, args.repo_path, config, args.lookback, args.lookahead, baseline, args.require_zero)
 
 
 if __name__ == "__main__":

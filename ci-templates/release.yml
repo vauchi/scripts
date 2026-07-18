@@ -274,6 +274,42 @@
 # Release Build Templates
 # ============================================================
 
+# Exact-zero Humble UI boundary gate.  MR ratchets intentionally permit
+# existing debt to remain while it decreases; a production release may not
+# carry any remaining boundary violations.  Consumers instantiate this as
+# `release:ratchet-zero` and provide the same REPO_NAME used by lint:humble.
+.release-ratchet-zero:
+  interruptible: false
+  allow_failure: false
+  stage: build
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/python:3.11-slim
+  tags: [docker]
+  needs: []
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends curl coreutils
+    - mkdir -p .ratchet-scripts
+    - |
+      curl --silent --fail \
+        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fhumble_check.py/raw?ref=${VAUCHI_SCRIPTS_REF}" \
+        -o .ratchet-scripts/humble_check.py
+      curl --silent --fail \
+        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fhumble_check_rules.json/raw?ref=${VAUCHI_SCRIPTS_REF}" \
+        -o .ratchet-scripts/humble_check_rules.json
+  script:
+    - python3 .ratchet-scripts/humble_check.py
+        --repo "${REPO_NAME:-$CI_PROJECT_NAME}"
+        --repo-path "${CI_PROJECT_DIR}"
+        --config .ratchet-scripts/humble_check_rules.json
+        --require-zero
+  artifacts:
+    paths:
+      - .ratchet-scripts/
+    when: on_failure
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+
 # Build release binary
 .release-build:
   interruptible: false

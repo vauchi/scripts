@@ -532,6 +532,27 @@ test_verified_fetch_hashes_match() {
         "$expected_baseline"
 }
 
+# test_require_zero — release mode rejects any live violation, independently
+# of the non-increasing baseline used by merge-request ratchets.
+test_require_zero() {
+    root=$(mktemp -d)
+    dir="$root/ios/Vauchi/CoreUI"
+    mkdir -p "$dir"
+    cat >"$dir/BadView.swift" <<'SW'
+class BadView {
+    func route(screenId: String) {
+        if screenId == "multi_stage_exchange" { startTimer() }
+    }
+}
+SW
+    set +e
+    python3 "$SCRIPT" --repo ios --workspace-root "$root" --config "$CONFIG" --require-zero >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "require-zero: rejects live violation" "1" "$rc"
+    rm -rf "$root"
+}
+
 # run
 test_empty_workspace
 test_repo_path_resolves_repo_relative_roots
@@ -554,6 +575,7 @@ test_schema_two_bootstrap_accepts_corrected_measurement
 test_release_zero_requires_live_and_baseline_zero
 test_enforcement_wiring
 test_verified_fetch_hashes_match
+test_require_zero
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
