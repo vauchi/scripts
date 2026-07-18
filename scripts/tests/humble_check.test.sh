@@ -16,6 +16,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT="$SCRIPT_DIR/../humble_check.py"
 CONFIG="$SCRIPT_DIR/../humble_check_rules.json"
+BASELINE="$SCRIPT_DIR/../humble_check.baseline.json"
+CROSS_CUTTING_TEMPLATE="$SCRIPT_DIR/../../ci-templates/cross-cutting-lint.yml"
+PRE_PUSH="$SCRIPT_DIR/../../hooks/pre-push"
+SCRIPTS_CI="$SCRIPT_DIR/../../.gitlab-ci.yml"
 
 pass=0
 fail=0
@@ -461,6 +465,34 @@ JSON
     rm -rf "$root"
 }
 
+# test_enforcement_wiring — local and remote gates invoke the same checker
+test_enforcement_wiring() {
+    pre_push_calls=$(grep -c 'humble_check.py.*--repo' "$PRE_PUSH" || true)
+    ci_transition_calls=$(grep -c -- '--validate-baseline' "$SCRIPTS_CI" || true)
+    assert_eq "wiring: pre-push invokes repository ratchet" "1" "$pre_push_calls"
+    assert_eq "wiring: scripts CI validates baseline transition" "1" \
+        "$ci_transition_calls"
+}
+
+# test_verified_fetch_hashes_match — consumers execute exactly these gates
+test_verified_fetch_hashes_match() {
+    expected_script=$(grep -A3 'humble_check.py"' "$CROSS_CUTTING_TEMPLATE" \
+        | grep 'FETCH_SCRIPT_SHA256=' | head -1 | cut -d'"' -f2)
+    expected_config=$(grep -A3 'humble_check_rules.json"' "$CROSS_CUTTING_TEMPLATE" \
+        | grep 'FETCH_SCRIPT_SHA256=' | head -1 | cut -d'"' -f2)
+    expected_baseline=$(grep -A3 'humble_check.baseline.json"' "$CROSS_CUTTING_TEMPLATE" \
+        | grep 'FETCH_SCRIPT_SHA256=' | head -1 | cut -d'"' -f2)
+    actual_script=$(shasum -a 256 "$SCRIPT" | awk '{print $1}')
+    actual_config=$(shasum -a 256 "$CONFIG" | awk '{print $1}')
+    actual_baseline=$(shasum -a 256 "$BASELINE" | awk '{print $1}')
+    assert_eq "verified fetch: checker hash matches" "$actual_script" \
+        "$expected_script"
+    assert_eq "verified fetch: config hash matches" "$actual_config" \
+        "$expected_config"
+    assert_eq "verified fetch: baseline hash matches" "$actual_baseline" \
+        "$expected_baseline"
+}
+
 # run
 test_empty_workspace
 test_repo_path_resolves_repo_relative_roots
@@ -479,6 +511,8 @@ test_app_screen_enum_branch_exception
 test_bad_repo
 test_baseline_transition_cannot_increase_or_remove
 test_release_zero_requires_live_and_baseline_zero
+test_enforcement_wiring
+test_verified_fetch_hashes_match
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
