@@ -1474,6 +1474,23 @@ if [[ -f "$REPO_ROOT/Cargo.toml" || -f "${REPO_ROOT}/src-tauri/Cargo.toml" ]]; t
     fi
 fi
 
+# ─── Generic presentation boundary ratchet ───────────────────────────
+
+HUMBLE_WORKSPACE_ROOT="$(dirname "$REPO_ROOT")"
+HUMBLE_CONFIG="$HUMBLE_WORKSPACE_ROOT/scripts/scripts/humble_check_rules.json"
+HUMBLE_BASELINE="$HUMBLE_WORKSPACE_ROOT/scripts/scripts/humble_check.baseline.json"
+if command -v python3 >/dev/null 2>&1 \
+    && [[ -f "$HUMBLE_CONFIG" && -f "$HUMBLE_BASELINE" ]]; then
+    HUMBLE_REPO_CONFIGURED=$(python3 -c \
+        'import json,sys; print(sys.argv[2] in json.load(open(sys.argv[1], encoding="utf-8"))["repos"])' \
+        "$HUMBLE_CONFIG" "$REPO_DIR")
+    if [[ "$HUMBLE_REPO_CONFIGURED" == "True" ]]; then
+        echo ""
+        echo "Checking generic presentation boundary ratchet..."
+        python3 "$HUMBLE_WORKSPACE_ROOT/scripts/scripts/humble_check.py" --repo "$REPO_DIR" --repo-path "$REPO_ROOT" --config "$HUMBLE_CONFIG" --check "$HUMBLE_BASELINE"
+    fi
+fi
+
 # ─── Summary ─────────────────────────────────────────────────────────
 
 HOOK_ELAPSED=$((SECONDS - HOOK_START))
