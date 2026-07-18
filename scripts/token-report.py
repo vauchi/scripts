@@ -33,6 +33,7 @@ import glob
 import subprocess
 import collections
 import datetime
+from pathlib import Path
 
 W = dict(inp=1.0, cw5=1.25, cw1h=2.0, cr=0.1, out=5.0)
 
@@ -157,6 +158,68 @@ def kimi_token_side(project_match):
     return per, files, nested
 
 
+def codex_token_side(codex_home=None, project_match=None):
+    """Read final cumulative token counts from Codex rollout metadata.
+
+    Rollouts emit cumulative ``event_msg/token_count`` records. Only the
+    final record per rollout is counted, so intermediate snapshots cannot
+    inflate totals. Prompt and response bodies are never inspected or
+    retained.
+    """
+    base = Path(codex_home or Path.home() / ".codex") / "sessions"
+    per = collections.defaultdict(lambda: dict(
+        eff=0.0, out=0, msgs=0, sub=0.0, models=collections.Counter()))
+    files = 0
+    if not base.is_dir():
+        return per, files, 0
+
+    for rollout in base.rglob("rollout-*.jsonl"):
+        final_usage = None
+        day = None
+        session_cwd = None
+        try:
+            with rollout.open(encoding="utf-8", errors="ignore") as fh:
+                for line in fh:
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    payload = record.get("payload") or {}
+                    if record.get("type") == "session_meta":
+                        session_cwd = payload.get("cwd")
+                        continue
+                    if record.get("type") != "event_msg":
+                        continue
+                    if payload.get("type") != "token_count":
+                        continue
+                    usage = (payload.get("info") or {}).get("total_token_usage")
+                    if not isinstance(usage, dict):
+                        continue
+                    final_usage = usage
+                    timestamp = record.get("timestamp")
+                    if isinstance(timestamp, str) and len(timestamp) >= 10:
+                        day = timestamp[:10]
+        except OSError:
+            continue
+
+        if not final_usage or not day:
+            continue
+        if (project_match and session_cwd
+                and project_match not in str(session_cwd)):
+            continue
+        files += 1
+        input_tokens = final_usage.get("input_tokens", 0)
+        cached_input = final_usage.get("cached_input_tokens", 0)
+        output_tokens = final_usage.get("output_tokens", 0)
+        p = per[day]
+        uncached_input = max(0, input_tokens - cached_input)
+        p["eff"] += uncached_input + output_tokens * W["out"] + cached_input * W["cr"]
+        p["out"] += output_tokens
+        p["msgs"] += 1
+
+    return per, files, 0
+
+
 def results_side(workspace_root):
     """Return {day: (commits, lines_changed)} across all repos."""
     repos = [workspace_root] + glob.glob(os.path.join(workspace_root, "*/"))
@@ -195,17 +258,20 @@ def main():
     this_week = iso_week(datetime.date.today().isoformat())
     per_c, files_c, nested_c = token_side(match)
     per_k, files_k, nested_k = kimi_token_side(match)
+    per_x, files_x, nested_x = codex_token_side(project_match=match)
     commits, lines = results_side(root)
-    if not per_c and not per_k:
+    if not per_c and not per_k and not per_x:
         print(f"No transcripts found for match '*{match}*' under "
-              f"~/.claude/projects or ~/.kimi-code/sessions. Pass a match arg.")
+              f"~/.claude/projects, ~/.kimi-code/sessions, or ~/.codex/sessions. "
+              f"Pass a match arg.")
         return 1
 
     eff_c = sum(p["eff"] for p in per_c.values())
     eff_k = sum(p["eff"] for p in per_k.values())
+    eff_x = sum(p["eff"] for p in per_x.values())
     wk = collections.defaultdict(lambda: dict(
         eff=0.0, out=0, msgs=0, sub=0.0, com=0, lin=0))
-    for per in (per_c, per_k):
+    for per in (per_c, per_k, per_x):
         for day, p in per.items():
             w = wk[iso_week(day)]
             w["eff"] += p["eff"]
@@ -217,11 +283,12 @@ def main():
     for day, ln in lines.items():
         wk[iso_week(day)]["lin"] += ln
 
-    nested = nested_c + nested_k
+    nested = nested_c + nested_k + nested_x
     print(f"Agent cost-vs-output — project '*{match}*'  "
-          f"(Claude {files_c} + Kimi {files_k} transcripts, {nested} subagent)\n")
+          f"(Claude {files_c} + Kimi {files_k} + Codex {files_x} transcripts, "
+          f"{nested} subagent)\n")
     print("Cost = effective units (output×5, cache-read×0.1, "
-          "cache-write×1.25–2), Claude + Kimi combined. Trend matters.\n")
+          "cache-write×1.25–2), all harnesses combined. Trend matters.\n")
     hdr = ("week", "eff_M", "commits", "linesΔ", "cost/commit_k",
            "subagent%", "eff/msg_k")
     print("{:<9} {:>7} {:>8} {:>8} {:>14} {:>10} {:>10}".format(*hdr))
@@ -258,10 +325,11 @@ def main():
                   f"({delta:+.0f}%). "
                   + ("Check the subagent% column — that's usually the driver."
                      if worse else "Impression of 'more for less' not supported."))
-    total = eff_c + eff_k or 1
+    total = eff_c + eff_k + eff_x or 1
     print("\nBy harness (effective units, all weeks):")
     print(f"  Claude Code : {eff_c/1e6:8.1f}M  ({eff_c/total*100:4.0f}%)")
     print(f"  Kimi Code   : {eff_k/1e6:8.1f}M  ({eff_k/total*100:4.0f}%)")
+    print(f"  Codex       : {eff_x/1e6:8.1f}M  ({eff_x/total*100:4.0f}%)")
     print("\nNote: transcript retention is partial; raw eff_M for sparse "
           "weeks understates. cost/commit and subagent% are the signal.")
     return 0
