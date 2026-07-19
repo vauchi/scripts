@@ -78,8 +78,9 @@ build_if_changed() {
 build_ohttp_relay_if_changed() {
     local repo_dir="$1"
     local binary_name="vauchi-ohttp-relay"
+    local build_features="e2e-faults"
     local sha
-    sha="$(repo_sha "$repo_dir")"
+    sha="$(repo_sha "$repo_dir"):--release --features $build_features"
     local sha_file="$BIN_DIR/.${binary_name}.sha"
 
     if [[ -f "$sha_file" ]] && [[ -f "$BIN_DIR/$binary_name" ]]; then
@@ -92,7 +93,8 @@ build_ohttp_relay_if_changed() {
     fi
 
     echo "  [build]  $binary_name ..."
-    (cd "$repo_dir" && cargo build --release --manifest-path "$repo_dir/Cargo.toml")
+    (cd "$repo_dir" && cargo build --release --features "$build_features" \
+        --manifest-path "$repo_dir/Cargo.toml")
 
     local built_path="$repo_dir/target/release/$binary_name"
     if [[ ! -f "$built_path" ]]; then
