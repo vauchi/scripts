@@ -39,13 +39,13 @@ list_merged_branches() {
     local merged
     merged=$(git -C "$dir" branch --merged origin/main 2>/dev/null \
         | grep -vE '^\*|^[[:space:]]+main$' \
-        | sed 's/^[[:space:]]*//' || true)
+        | sed 's/^[[:space:]+]*//' || true)
 
     # Phase 2: branches whose content equals main (rebased/squashed)
     local all_local candidate
     all_local=$(git -C "$dir" branch --no-color 2>/dev/null \
         | grep -vE '^\*|^[[:space:]]+main$' \
-        | sed 's/^[[:space:]]*//' || true)
+        | sed 's/^[[:space:]+]*//' || true)
     for candidate in $all_local; do
         echo "$merged" | grep -qxF "$candidate" && continue
         if git -C "$dir" diff --quiet origin/main..."$candidate" -- 2>/dev/null; then
