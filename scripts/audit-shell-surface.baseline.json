@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-07-18T06:55:55Z",
+  "workspace_root": "<workspace-root>",
+  "totals": {
+    "ios_mobile_type_refs":          57,
+    "android_mobile_refs":           59,
+    "macos_mobile_refs":             27,
+    "hw_executor_domain_vocab":      0
+  }
+}
