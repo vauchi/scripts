@@ -34,7 +34,13 @@
       "patterns": [
         "\\bComponent\\b",
         "\\bUiFieldVisibility\\b",
-        "\\bVisibilityMode\\b",
+        "\\bVisibilityMode\\b"
+      ]
+    },
+    "retired_visibility_labels": {
+      "message": "ADR-066 forbids domain-bearing visibility labels in shells.",
+      "allow_exceptions": false,
+      "patterns": [
         "\\bvisibility_label\\b",
         "\\bvisibilityLabel\\b"
       ]

@@ -344,6 +344,8 @@ struct Visibility {
 SW
     out=$(python3 "$SCRIPT" --repo ios --workspace-root "$root" --config "$CONFIG")
     assert_eq "boundary: visibility labels are unsuppressible" "2" \
+        "$(extract_counter "$out" retired_visibility_labels)"
+    assert_eq "boundary: visibility labels do not rewrite existing counters" "0" \
         "$(extract_counter "$out" retired_domain_components)"
     rm -rf "$root"
 }

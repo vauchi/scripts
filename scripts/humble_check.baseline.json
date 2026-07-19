@@ -7,6 +7,7 @@
       "retired_user_action": 16,
       "retired_action_result": 21,
       "retired_domain_components": 3,
+      "retired_visibility_labels": 0,
       "split_dispatch_api": 24
     },
     "cli": {
@@ -15,6 +16,7 @@
       "retired_user_action": 23,
       "retired_action_result": 14,
       "retired_domain_components": 97,
+      "retired_visibility_labels": 5,
       "split_dispatch_api": 4
     },
     "ios": {
@@ -29,6 +31,7 @@
       "retired_user_action": 40,
       "retired_action_result": 11,
       "retired_domain_components": 30,
+      "retired_visibility_labels": 0,
       "split_dispatch_api": 40
     },
     "android": {
@@ -43,6 +46,7 @@
       "retired_user_action": 185,
       "retired_action_result": 116,
       "retired_domain_components": 179,
+      "retired_visibility_labels": 0,
       "split_dispatch_api": 54
     },
     "macos": {
@@ -56,6 +60,7 @@
       "retired_user_action": 42,
       "retired_action_result": 16,
       "retired_domain_components": 27,
+      "retired_visibility_labels": 0,
       "split_dispatch_api": 46
     },
     "windows": {
@@ -68,6 +73,7 @@
       "retired_user_action": 11,
       "retired_action_result": 7,
       "retired_domain_components": 3,
+      "retired_visibility_labels": 0,
       "split_dispatch_api": 1
     },
     "linux-gtk": {
@@ -79,6 +85,7 @@
       "retired_user_action": 73,
       "retired_action_result": 22,
       "retired_domain_components": 39,
+      "retired_visibility_labels": 0,
       "split_dispatch_api": 38
     },
     "linux-qt": {
@@ -90,6 +97,7 @@
       "retired_user_action": 6,
       "retired_action_result": 2,
       "retired_domain_components": 6,
+      "retired_visibility_labels": 0,
       "split_dispatch_api": 13
     },
     "tui": {
@@ -102,6 +110,7 @@
       "retired_user_action": 68,
       "retired_action_result": 34,
       "retired_domain_components": 203,
+      "retired_visibility_labels": 10,
       "split_dispatch_api": 35
     },
     "web-demo": {
@@ -113,6 +122,7 @@
       "retired_user_action": 3,
       "retired_action_result": 2,
       "retired_domain_components": 28,
+      "retired_visibility_labels": 0,
       "split_dispatch_api": 5
     }
   }
