@@ -64,6 +64,13 @@ IOS_VIEWS="$WORKSPACE_ROOT/ios/Vauchi/Views"
 IOS_COREUI="$WORKSPACE_ROOT/ios/Vauchi/CoreUI"
 ANDROID_UI="$WORKSPACE_ROOT/android/app/src/main/kotlin/app/vauchi/ui"
 
+# Layout resolution: multi-repo workspace root (ios/ + android/ subdirs)
+# or single-repo checkout root (Vauchi/ or app/ directly). Missing trees
+# are skipped by the scanners below.
+[ -d "$IOS_VIEWS" ] || IOS_VIEWS="$WORKSPACE_ROOT/Vauchi/Views"
+[ -d "$IOS_COREUI" ] || IOS_COREUI="$WORKSPACE_ROOT/Vauchi/CoreUI"
+[ -d "$ANDROID_UI" ] || ANDROID_UI="$WORKSPACE_ROOT/app/src/main/kotlin/app/vauchi/ui"
+
 VIOLATIONS=0
 REPORT=""
 

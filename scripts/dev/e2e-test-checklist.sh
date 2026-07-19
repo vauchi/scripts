@@ -17,10 +17,11 @@ SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 RESULTS_FILE="${SCRIPT_DIR}/.e2e-test-results.json"
 
-# E2E orchestration (if available)
-E2E_DIR="$PROJECT_ROOT/_dev-tools/scripts/e2e"
+# E2E orchestration (if available) — the real-device automation backend:
+# `just device-gate` (build+install+flows) plus the dt-* device recipes.
+DEVICE_GATE="$PROJECT_ROOT/scripts/scripts/device-gate.sh"
 HAS_ORCHESTRATION=false
-if [ -f "$E2E_DIR/orchestrate.sh" ]; then
+if [ -f "$DEVICE_GATE" ]; then
     HAS_ORCHESTRATION=true
 fi
 
@@ -279,34 +280,36 @@ reset_results() {
     echo "Test results reset."
 }
 
-# Deploy apps using orchestrator
+# Deploy apps using the device-gate build+install path
 deploy_apps() {
     if [ "$HAS_ORCHESTRATION" = true ]; then
         echo ""
-        echo -e "${BLUE}Deploying apps to devices...${NC}"
-        "$E2E_DIR/orchestrate.sh" deploy
+        echo -e "${BLUE}Deploying apps to devices (just rebuild-ios / rebuild-android)...${NC}"
+        (cd "$PROJECT_ROOT" && just rebuild-ios && just rebuild-android)
     else
-        echo "Orchestration not available. Deploy manually."
+        echo "Orchestration not available (scripts/scripts/device-gate.sh missing). Deploy manually."
     fi
 }
 
-# Take screenshot using orchestrator
+# Take screenshot using the dt-* device recipes
 take_screenshot() {
     # shellcheck disable=SC2034
     local step_name="${1:-screenshot}"
     if [ "$HAS_ORCHESTRATION" = true ]; then
         echo -e "${CYAN}Taking screenshots...${NC}"
-        "$E2E_DIR/orchestrate.sh" screenshot
+        (cd "$PROJECT_ROOT" && just dt-screenshot-ios || true)
+        (cd "$PROJECT_ROOT" && just dt-screenshot-android || true)
     else
         echo "Orchestration not available. Screenshots not supported."
     fi
 }
 
-# Collect logs using orchestrator
+# Collect logs using the dt-* device recipes
 collect_logs() {
     if [ "$HAS_ORCHESTRATION" = true ]; then
         echo -e "${CYAN}Collecting logs...${NC}"
-        "$E2E_DIR/orchestrate.sh" logs
+        (cd "$PROJECT_ROOT" && just dt-logs-ios || true)
+        (cd "$PROJECT_ROOT" && just dt-logs-android || true)
     else
         echo "Orchestration not available. Log collection not supported."
     fi

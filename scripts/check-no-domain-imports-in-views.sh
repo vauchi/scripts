@@ -6,7 +6,12 @@
 # check-no-domain-imports-in-views.sh — Forbid `Mobile*` domain-type
 # imports and identity/biometric conditionals in the Android view layer.
 #
-# Usage: check-no-domain-imports-in-views.sh <workspace_root> [--strict]
+# Usage: check-no-domain-imports-in-views.sh <root> [--strict]
+#
+# <root> may be the multi-repo workspace root (expects `android/app/…`)
+# or a single-repo android checkout root (expects `app/…`). Both
+# layouts are resolved; when neither tree exists the script no-ops
+# (repos without an android tree).
 #
 # Default mode is **warn-only** — violations print to stdout with a
 # WARN prefix and the script exits 0. Pass `--strict` to exit 1 on
@@ -92,8 +97,13 @@ fi
 
 ANDROID_UI="$WORKSPACE_ROOT/android/app/src/main/kotlin/app/vauchi/ui"
 
+if [ ! -d "$ANDROID_UI" ] && [ -d "$WORKSPACE_ROOT/app/src/main/kotlin/app/vauchi/ui" ]; then
+    # Single-repo (android) checkout layout — repo root passed directly.
+    ANDROID_UI="$WORKSPACE_ROOT/app/src/main/kotlin/app/vauchi/ui"
+fi
+
 if [ ! -d "$ANDROID_UI" ]; then
-    # Not all repos checkouts include android/ — silent no-op.
+    # Not all repos checkouts include the android tree — silent no-op.
     exit 0
 fi
 
