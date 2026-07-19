@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Shared positive boundary contract. Consumers provide the fixture path when
 # their repository has a native decoder test; this validator is the portable
 # minimum contract run in every language pipeline.
