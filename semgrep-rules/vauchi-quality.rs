@@ -30,7 +30,7 @@ fn cc06_cases() {
 // ── ADR-030: no Transport generic on FFI-surface types ────────────────
 // ruleid: vauchi-adr030-no-transport-generic
 pub struct Vauchi<T: Transport> {
-    sync: SyncController<'static, T>,
+    sync: SendPhase<'static, T>,
 }
 
 // ruleid: vauchi-adr030-no-transport-generic
@@ -43,9 +43,10 @@ pub struct Vauchi {
     sync: Box<dyn Transport>,
 }
 
-// inner types keep the generic — the sanctioned static-dispatch home:
+// inner types keep the generic — the sanctioned static-dispatch home
+// (SendPhase, formerly SyncController; retired by consolidation Step 3):
 // ok: vauchi-adr030-no-transport-generic
-pub struct SyncController<'a, T: Transport> {
+pub struct SendPhase<'a, T: Transport> {
     transport: &'a T,
 }
 

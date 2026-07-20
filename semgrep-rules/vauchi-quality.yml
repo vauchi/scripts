@@ -115,9 +115,10 @@ rules:
 
   # ============================================================
   # ADR-030: no Transport generic on FFI-surface types
-  # (Vauchi/AppEngine use Box<dyn Transport> inside SyncController;
-  # inner types SyncController/RelayClient/ConnectionManager keep the
-  # generic — see the ok: cases in vauchi-quality.rs)
+  # (Vauchi/AppEngine use Box<dyn Transport> inside SendPhase —
+  # formerly SyncController; inner types SendPhase/RelayClient/
+  # ConnectionManager keep the generic — see the ok: cases in
+  # vauchi-quality.rs)
   # ============================================================
 
   - id: vauchi-adr030-no-transport-generic
@@ -125,8 +126,8 @@ rules:
       - pattern-regex: '(struct|impl(<[^>]*>)?)\s+(Vauchi|AppEngine)\s*<'
     message: >
       ADR-030: Transport generic reintroduced on the FFI-surface type —
-      fix: keep Box<dyn Transport> boxed inside SyncController; only
-      inner types carry the generic.
+      fix: keep Box<dyn Transport> boxed inside SendPhase (formerly
+      SyncController); only inner types carry the generic.
       [_private/docs/lint-errors/adr030-no-transport-generic.md]
     severity: WARNING
     languages: [rust]
