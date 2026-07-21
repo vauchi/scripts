@@ -10,22 +10,28 @@
 # regeneration — only exemptions already approved in the source project
 # are propagated.
 #
-# When cargo-vet fails on the default branch (not MRs), regenerate
+# When cargo-vet fails on the default branch (not MRs), regenerate the
 # remaining exemptions (repo-specific deps), push a fix branch, and
 # create an MR with merge-when-pipeline-succeeds enabled.
 #
+# INVARIANT: this job only ever touches supply-chain/. It never bumps
+# Cargo.lock. Exemption sync is supply-chain housekeeping, not a
+# dependency upgrade — a lockfile change means a real dependency version
+# moved, which is surfaced as a loud failure for a reviewed bump MR. This
+# keeps auto-sync MRs always-mergeable (previously a smuggled dep bump
+# could break consumer tests and wedge the MR open forever; see the
+# --regenerate-lockfile note below).
+#
 # Usage (in .gitlab-ci.yml script section):
-#   - curl -sf "$CI_API_V4_URL/projects/77957857/repository/files/scripts%2Fci%2Fvet-autofix.sh/raw?ref=${VAUCHI_SCRIPTS_REF}" -o vet-autofix.sh
+#   - fetch_vauchi_script scripts/ci/vet-autofix.sh vet-autofix.sh
 #   - chmod +x vet-autofix.sh
-#   - ./vet-autofix.sh [--regenerate-lockfile] [--sync-from=PROJECT_ID]
+#   - ./vet-autofix.sh [--sync-from=PROJECT_ID]
 #
 # Options:
-#   --regenerate-lockfile  Remove .cargo/config.toml and regenerate
-#                          Cargo.lock before vetting (for repos with
-#                          path overrides, e.g. cli, tui, relay)
 #   --sync-from=ID         Fetch exemptions from source project and
 #                          merge missing entries before vetting.
 #                          Use 77874344 for vauchi-core.
+#   --regenerate-lockfile  DEPRECATED no-op (accepted for wiring compat).
 #
 # Requirements:
 #   - CI_COMMIT_BRANCH and CI_DEFAULT_BRANCH set by GitLab CI
@@ -34,57 +40,27 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-REGEN_LOCKFILE=false
 SYNC_FROM=""
 for arg in "$@"; do
     case "$arg" in
-        --regenerate-lockfile) REGEN_LOCKFILE=true ;;
+        --regenerate-lockfile)
+            # DEPRECATED no-op. This flag used to `cargo generate-lockfile`,
+            # which upgraded every registry dep and re-pinned the vauchi-core
+            # git dep to its latest tip — turning a supply-chain housekeeping
+            # run into an unreviewed dependency bump that broke consumer tests
+            # (relay 2026-07-21: core's guardian-store 400->422 change surfaced
+            # only under the regenerated lock, wedging the auto-sync MR). The
+            # committed lockfile is already git/registry-sourced in CI (the
+            # path-override fence is local-only), so cargo vet runs --locked
+            # against it directly. Accepted-and-ignored for wiring compat.
+            echo "NOTE: --regenerate-lockfile is deprecated and ignored" \
+                 "(exemption sync no longer bumps Cargo.lock)" ;;
         --sync-from=*) SYNC_FROM="${arg#--sync-from=}" ;;
     esac
 done
 
-# Snapshot the pinned vauchi-core git SHA from Cargo.lock before any
-# cargo invocations. If the auto-fix flow bumps it (very common — the
-# whole reason this script runs is upstream churn), Step 4 surfaces
-# the bump + UI-file diff in the MR description so reviewers see the
-# stealth UI churn. See _private/docs/problems/2026-05-03-vet-autosync-
-# stale-snapshots/README.md G2.
-extract_core_sha() {
-    # Match the [[package]] block for vauchi-core, then the next
-    # `source = "git+...#<sha>"` line. Robust against TOML field
-    # ordering since cargo writes them in a stable order.
-    awk '
-        /^\[\[package\]\]/ { in_pkg = 1; name = ""; src = ""; next }
-        in_pkg && /^name = "vauchi-core"/ { name = "vauchi-core"; next }
-        in_pkg && /^source = / { src = $0; next }
-        in_pkg && /^$/ {
-            if (name == "vauchi-core" && match(src, /#[0-9a-f]+"$/)) {
-                sha = substr(src, RSTART + 1, RLENGTH - 2)
-                print sha
-                exit
-            }
-            in_pkg = 0
-        }
-    ' "${1:-Cargo.lock}"
-}
-
-OLD_CORE_SHA=$(extract_core_sha Cargo.lock 2>/dev/null || true)
-echo "Pre-vet vauchi-core SHA: ${OLD_CORE_SHA:-<not pinned>}"
-
 # ============================================================
-# Step 1: Prepare lockfile
-# ============================================================
-
-if $REGEN_LOCKFILE; then
-    echo "--- Regenerating Cargo.lock (removing path overrides) ---"
-    rm -f .cargo/config.toml
-    cargo generate-lockfile 2>&1 | tail -5
-fi
-
-# ============================================================
-# Step 2: Sync exemptions from source project
+# Step 1: Sync exemptions from source project
 # ============================================================
 # Fetches config.toml from the source project via GitLab API and
 # merges any exemption entries missing from the local config.
@@ -210,17 +186,18 @@ if [[ -n "$SYNC_FROM" ]]; then
 fi
 
 # ============================================================
-# Step 3: Run cargo vet
+# Step 2: Run cargo vet
 # ============================================================
+# Always --locked: exemptions are version-specific and must match the
+# committed lockfile that consumers vet against. Never regenerate the
+# lockfile here — a version change is a reviewed dependency bump, not
+# supply-chain housekeeping (see the --regenerate-lockfile note above).
 
-VET_FLAGS=()
-if ! $REGEN_LOCKFILE; then
-    VET_FLAGS=(--locked)
-fi
+VET_FLAGS=(--locked)
 
-echo "--- Running cargo vet ${VET_FLAGS[*]+"${VET_FLAGS[*]}"} ---"
+echo "--- Running cargo vet ${VET_FLAGS[*]} ---"
 
-if cargo vet ${VET_FLAGS[@]+"${VET_FLAGS[@]}"} 2>&1; then
+if cargo vet "${VET_FLAGS[@]}" 2>&1; then
     echo "cargo vet passed"
     # If sync added exemptions that made vet pass, commit them
     if ! git diff --quiet supply-chain/ 2>/dev/null; then
@@ -237,7 +214,7 @@ else
     # The initial run's output was already shown above; this re-run extracts the
     # specific unvetted crate lines for a cleaner summary.
     echo "--- Unvetted dependencies ---"
-    cargo vet ${VET_FLAGS[@]+"${VET_FLAGS[@]}"} 2>&1 \
+    cargo vet "${VET_FLAGS[@]}" 2>&1 \
         | grep -E '^[[:space:]]+(recommended|missing)' || true
     echo ""
 
@@ -250,46 +227,57 @@ else
 
     echo "--- Auto-fixing on ${CI_DEFAULT_BRANCH} ---"
 
-    # Regenerate exemptions — never pass --locked here.
-    # --locked is only valid for the `cargo vet` check command, not for
-    # subcommands like `regenerate` or `fmt` (cargo-vet rejects it).
-    # cargo-vet's regenerate runs `cargo metadata` which may need the
-    # lockfile to be fresh. If regenerate fails (stale lockfile), refresh
-    # the lockfile first and retry.
+    # Regenerate exemptions against the committed lockfile — never pass
+    # --locked here (cargo-vet rejects it on subcommands). We deliberately
+    # do NOT `cargo generate-lockfile` on failure: refreshing the lock would
+    # bump dependencies, which is exactly the coupling this script no longer
+    # allows. If regenerate fails, a crate genuinely needs an audit (or a
+    # real dependency changed) — surface it for a human, don't paper over it.
     if ! cargo vet regenerate exemptions 2>&1; then
-        echo "Regeneration failed — refreshing Cargo.lock and retrying..."
-        cargo generate-lockfile 2>&1 | tail -5
-        if ! cargo vet regenerate exemptions 2>&1; then
-            echo "FATAL: 'cargo vet regenerate exemptions' failed after lockfile refresh"
-            echo "  This usually means a crate needs an audit, not just an exemption."
-            exit 1
-        fi
+        echo "FATAL: 'cargo vet regenerate exemptions' failed" >&2
+        echo "  A crate needs an audit, or a dependency changed and needs a" >&2
+        echo "  reviewed bump MR. Exemption auto-sync cannot resolve this." >&2
+        exit 1
     fi
     cargo vet fmt 2>&1
 
-    # Verify the fix. For repos that use --locked, the lockfile may have
-    # changed during regeneration — verify without --locked first, then
-    # re-check with --locked only if the lockfile didn't change.
-    if ! cargo vet 2>&1; then
-        echo "FATAL: cargo vet still failing after regeneration"
-        echo "  Exemption regeneration was not sufficient. Manual intervention required."
+    if ! cargo vet "${VET_FLAGS[@]}" 2>&1; then
+        echo "FATAL: cargo vet still failing after regeneration" >&2
+        echo "  Exemption regeneration was not sufficient. Manual intervention required." >&2
         exit 1
     fi
     echo "Auto-fix succeeded — cargo vet now passes"
 fi
 
 # ============================================================
+# Step 3: Guard — exemption sync must never alter Cargo.lock
+# ============================================================
+# The invariant that keeps this job's MRs always-mergeable: a tidy: auto-sync
+# only maintains supply-chain/ exemptions. If Cargo.lock drifted, a real
+# dependency version changed — that belongs in a deliberate bump MR where
+# consumer tests are reviewed, not smuggled under a housekeeping label (the
+# failure mode that wedged relay's auto-sync MRs: a bumped core changed test
+# behaviour, so test:unit failed and the MR could never auto-merge). Fail loud.
+if ! git diff --quiet Cargo.lock 2>/dev/null; then
+    echo "FATAL: Cargo.lock changed during exemption sync — refusing to commit." >&2
+    echo "  Exemption auto-sync must not bump dependencies. Route the version" >&2
+    echo "  change through a reviewed dependency-bump MR instead." >&2
+    git --no-pager diff --stat Cargo.lock >&2
+    exit 1
+fi
+
+# ============================================================
 # Step 4: Commit and create MR (default branch only)
 # ============================================================
 
-if git diff --quiet supply-chain/ Cargo.lock 2>/dev/null; then
-    echo "No exemption or lockfile changes to commit"
+if git diff --quiet supply-chain/ 2>/dev/null; then
+    echo "No exemption changes to commit"
     exit 0
 fi
 
 echo ""
 echo "--- Changes ---"
-git diff --stat supply-chain/ Cargo.lock
+git diff --stat supply-chain/
 
 if [[ "${CI_COMMIT_BRANCH:-}" != "${CI_DEFAULT_BRANCH:-main}" ]]; then
     echo "Not on default branch — skipping push (synced exemptions will be lost after this job)"
@@ -314,41 +302,8 @@ Triggered by dependency update on ${CI_DEFAULT_BRANCH}.
 Source: ${SYNC_FROM:+project ${SYNC_FROM} (core) + }local regeneration"
 
 git checkout -b "$BRANCH"
-git add supply-chain/ Cargo.lock
+git add supply-chain/
 git commit -m "$COMMIT_MSG"
-
-NEW_CORE_SHA=$(extract_core_sha Cargo.lock 2>/dev/null || true)
-
-# Phase 2 of `2026-05-03-vet-autosync-stale-snapshots`: when the
-# lockfile bump also moved vauchi-core to a different rev,
-# regenerate snapshots so consumer test fixtures stay in sync with
-# the new ScreenModel shape. Emitted as a *separate* `tidy:` commit
-# parented on the vet-sync commit (G4 invariant) so reviewers can
-# `git show` the snapshot diff in isolation. Failures are
-# non-fatal — the MR still ships with the Phase 1 warning block in
-# its description.
-if [[ -n "$OLD_CORE_SHA" && -n "$NEW_CORE_SHA" && "$OLD_CORE_SHA" != "$NEW_CORE_SHA" ]]; then
-    if "${SCRIPT_DIR}/regen-snapshots.sh" "$OLD_CORE_SHA" "$NEW_CORE_SHA"; then
-        if ! git diff --quiet HEAD 2>/dev/null; then
-            git add -A
-            REGEN_MSG="tidy: regenerate snapshots after core ${OLD_CORE_SHA:0:8}→${NEW_CORE_SHA:0:8}
-
-Auto-regenerated by vet-autofix.sh because the cargo-vet exemption
-sync also bumped vauchi-core to a rev that touched
-core/vauchi-app/src/ui/. Review the snapshot diff in this commit to
-confirm the new ScreenModel shape is intended.
-
-Generated by: cargo insta test --accept --workspace
-See: _private/docs/problems/2026-05-03-vet-autosync-stale-snapshots/"
-            git commit -m "$REGEN_MSG"
-            echo "regen-snapshots: produced changes — committed as separate tidy:"
-        else
-            echo "regen-snapshots: ran clean — no snapshot changes (UI shape unchanged or repo has no snapshots)"
-        fi
-    else
-        echo "regen-snapshots: failed — MR will ship as Phase 1 (warning only) shape"
-    fi
-fi
 
 git fetch origin "${CI_DEFAULT_BRANCH}" 2>/dev/null || true
 if ! git rebase "origin/${CI_DEFAULT_BRANCH}" 2>/dev/null; then
@@ -366,45 +321,6 @@ printf -v MR_BODY '%s\n\n%s\n\n%s' \
     "Automated cargo-vet exemption sync triggered by CI on \`${CI_DEFAULT_BRANCH}\`." \
     "Source: ${SYNC_FROM:+project ${SYNC_FROM} (core) + }local regeneration." \
     "This MR was created automatically and set to merge when pipeline succeeds."
-
-# G2 of `2026-05-03-vet-autosync-stale-snapshots`: if the lockfile
-# also bumped vauchi-core to a rev that touched UI code, append a
-# warning block so reviewers see the stealth UI churn before CI
-# flags missing snapshot regen. Failures here are non-fatal — the
-# core MR is still useful without the warning.
-NEW_CORE_SHA=$(extract_core_sha Cargo.lock 2>/dev/null || true)
-if [[ -n "$OLD_CORE_SHA" && -n "$NEW_CORE_SHA" && "$OLD_CORE_SHA" != "$NEW_CORE_SHA" ]]; then
-    echo "vauchi-core bumped: ${OLD_CORE_SHA:0:8} → ${NEW_CORE_SHA:0:8}"
-    # vauchi/core project id (numeric) is used as the API target.
-    # If unset (test runs, local invocations), skip the warning.
-    CORE_PROJECT_ID="${VAUCHI_CORE_PROJECT_ID:-77874344}"
-    UI_FILES=$(curl --silent --fail \
-        ${PROJECT_ACCESS_TOKEN:+--header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}"} \
-        "${CI_API_V4_URL}/projects/${CORE_PROJECT_ID}/repository/compare?from=${OLD_CORE_SHA}&to=${NEW_CORE_SHA}" \
-        2>/dev/null \
-        | python3 -c "
-import json, sys
-try:
-    data = json.load(sys.stdin)
-    for d in data.get('diffs', []):
-        path = d.get('new_path') or d.get('old_path') or ''
-        if path.startswith('vauchi-app/src/ui/') or path.startswith('vauchi-app/src/notification_types'):
-            print('core/' + path)
-except Exception:
-    pass
-" 2>/dev/null || true)
-    if [[ -n "$UI_FILES" ]]; then
-        WARNING_BLOCK=$(printf '%s\n' "$UI_FILES" \
-            | "${SCRIPT_DIR}/vet-autofix-description.sh" "$OLD_CORE_SHA" "$NEW_CORE_SHA" \
-            2>/dev/null || true)
-        if [[ -n "$WARNING_BLOCK" ]]; then
-            MR_BODY="${MR_BODY}${WARNING_BLOCK}"
-            echo "Appended UI-churn warning to MR description"
-        fi
-    else
-        echo "vauchi-core bumped but no vauchi-app/src/ui/ files changed — no warning needed"
-    fi
-fi
 
 MR_RESPONSE=$(curl --silent --fail --request POST \
     --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
