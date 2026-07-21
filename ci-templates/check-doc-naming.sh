@@ -21,7 +21,7 @@ set -euo pipefail
 
 # Union of the historical EXCEPTIONS lists (well-known + living docs +
 # problem-record companions + all-caps index/status files).
-EXCEPTIONS='README.md|CLAUDE.md|CONTEXT.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|VISIBILITY_POLICY.md|INDEX.md|STRUCTURE.md|ARCHITECTURE.md|SECURITY.md|CHECKLIST.md|MANIFEST.md|assumptions.md|master-plan.plan.md|work-board.md|work-board-archive.md|investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md'
+EXCEPTIONS='README.md|CLAUDE.md|CONTEXT.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|VISIBILITY_POLICY.md|INDEX.md|STRUCTURE.md|ARCHITECTURE.md|SECURITY.md|CHECKLIST.md|MANIFEST.md|assumptions.md|master-plan.plan.md|work-board.md|work-board-archive.md|intervention-ledger.md|investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md'
 EXCEPTION_SUFFIXES='-audit\.md|-report\.md|-checklist\.md|-analysis\.md|\.plan\.md'
 # Union of the historical EXEMPT_DIRS lists.
 EXEMPT_DIRS='diagrams|ideas|strategy|infra|knowledge|audit-review-frameworks|decisions|guides|reference|runbooks|testing|admin-guides|components|legal|problems|lint-errors|\.claude|\.kimi-code|\.junie|audits'
