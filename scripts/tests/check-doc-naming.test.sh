@@ -39,6 +39,12 @@ assert_eq "record companions: exit 0" "0" "$rc"
 run_files docs/lint-errors/vsh06-grep-exclude.md
 assert_eq "lint-errors ID-named page: exit 0" "0" "$rc"
 
+run_files docs/intervention-ledger.md
+assert_eq "intervention ledger (living doc): exit 0" "0" "$rc"
+
+run_files docs/random-ledger.md
+assert_eq "other undated root doc still fails: exit 1" "1" "$rc"
+
 run_files docs/decisions/adr-060-something.md
 assert_eq "decisions adr file: exit 0" "0" "$rc"
 
