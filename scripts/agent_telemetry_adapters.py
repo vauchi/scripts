@@ -85,6 +85,8 @@ def normalize_claude(
                     edited_targets.add(target_key)
             elif tool in {"Bash", "exec", "exec_command"}:
                 uncertain_mutation = True
+                if _contains_wait(tool_input):
+                    classification = "wait"
             fields: dict[str, Any] = {"tool": tool}
             if target_key:
                 fields["target_key"] = target_key
@@ -144,6 +146,12 @@ def normalize_kimi(
             record.get("type") == "context.append_loop_event"
             and loop_event.get("type") == "tool.call"
         ):
+            tool = str(loop_event.get("name") or "unknown")
+            fields: dict[str, Any] = {"tool": tool}
+            if tool in {"TaskOutput", "wait"} or _contains_wait(
+                loop_event.get("args")
+            ):
+                fields["classification"] = "wait"
             _append(
                 events,
                 "kimi",
@@ -151,8 +159,15 @@ def normalize_kimi(
                 salt,
                 timestamp,
                 "tool",
-                tool=str(loop_event.get("name") or "unknown"),
+                **fields,
             )
+            continue
+        if (
+            record.get("type") == "context.append_loop_event"
+            and loop_event.get("type") == "tool.result"
+            and _contains_retry(loop_event.get("result"))
+        ):
+            _append(events, "kimi", session_id, salt, timestamp, "retry")
     return _annotate_relationships(
         events, role=role, parent_session_id=parent_session_id, salt=salt
     )
@@ -209,6 +224,10 @@ def normalize_codex(
             "function_call",
             "custom_tool_call",
         }:
+            tool = str(payload.get("name") or "unknown")
+            fields: dict[str, Any] = {"tool": tool}
+            if tool in {"wait", "wait_agent", "write_stdin"}:
+                fields["classification"] = "wait"
             _append(
                 events,
                 "codex",
@@ -216,7 +235,7 @@ def normalize_codex(
                 salt,
                 timestamp,
                 "tool",
-                tool=str(payload.get("name") or "unknown"),
+                **fields,
             )
             continue
         if record.get("type") == "event_msg" and payload_type in {
@@ -303,6 +322,23 @@ def _target_from_input(tool_input: Any) -> str:
         if isinstance(value, str):
             return value
     return ""
+
+
+def _contains_wait(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    command = value.get("command")
+    if not isinstance(command, str):
+        return False
+    lowered = command.lower()
+    return "sleep" in lowered or "wait" in lowered
+
+
+def _contains_retry(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    output = value.get("output")
+    return isinstance(output, str) and "retry" in output.lower()
 
 
 def _integer(value: Any) -> int:
