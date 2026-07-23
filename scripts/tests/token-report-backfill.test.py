@@ -186,7 +186,7 @@ class BackfillCommandTests(unittest.TestCase):
         record = {
             "type": "assistant",
             "sessionId": "claude-session",
-            "cwd": str(workspace),
+            "cwd": "/private/agent-worktrees/vauchi-copy",
             "timestamp": "2026-07-23T08:00:00Z",
             "message": {
                 "id": "m1",
@@ -201,10 +201,14 @@ class BackfillCommandTests(unittest.TestCase):
         index = {
             "sessionId": "kimi-session",
             "sessionDir": str(session),
-            "workDir": str(workspace),
-            "createdAt": "2026-07-23T08:00:00Z",
+            "workDir": "/private/agent-worktrees/vauchi-copy",
         }
         _write_jsonl(home / "session_index.jsonl", [index])
+        (session / "state.json").parent.mkdir(parents=True, exist_ok=True)
+        (session / "state.json").write_text(
+            json.dumps({"createdAt": "2026-07-23T08:00:00Z"}),
+            encoding="utf-8",
+        )
         _write_jsonl(
             session / "agents/main/wire.jsonl",
             [{
@@ -221,7 +225,7 @@ class BackfillCommandTests(unittest.TestCase):
                 "timestamp": "2026-07-23T08:00:00Z",
                 "payload": {
                     "id": "codex-session",
-                    "cwd": str(workspace),
+                    "cwd": "/private/agent-worktrees/vauchi-copy",
                     "timestamp": "2026-07-23T08:00:00Z",
                 },
             },
