@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
@@ -182,7 +181,7 @@ def normalize_codex(
     parent_session_id: str | None = None,
 ) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
-    seen_cumulative: set[str] = set()
+    previous_cumulative: dict[str, Any] | None = None
     for record in records:
         timestamp = _iso_timestamp(record.get("timestamp"))
         payload = record.get("payload") or {}
@@ -193,12 +192,20 @@ def normalize_codex(
             usage = info.get("last_token_usage")
             if not isinstance(cumulative, dict) or not isinstance(usage, dict):
                 continue
-            fingerprint = json.dumps(cumulative, sort_keys=True)
-            if fingerprint in seen_cumulative:
+            deltas = {
+                key: _usage_delta(cumulative, previous_cumulative, usage, key)
+                for key in (
+                    "input_tokens",
+                    "cached_input_tokens",
+                    "output_tokens",
+                    "reasoning_output_tokens",
+                )
+            }
+            previous_cumulative = cumulative
+            if not any(deltas.values()):
                 continue
-            seen_cumulative.add(fingerprint)
-            cached_input = _integer(usage.get("cached_input_tokens"))
-            input_tokens = _integer(usage.get("input_tokens"))
+            cached_input = deltas["cached_input_tokens"]
+            input_tokens = deltas["input_tokens"]
             _append(
                 events,
                 "codex",
@@ -210,10 +217,8 @@ def normalize_codex(
                     "input": max(0, input_tokens - cached_input),
                     "cached_input": cached_input,
                     "cache_creation": 0,
-                    "output": _integer(usage.get("output_tokens")),
-                    "reasoning_output": _integer(
-                        usage.get("reasoning_output_tokens")
-                    ),
+                    "output": deltas["output_tokens"],
+                    "reasoning_output": deltas["reasoning_output_tokens"],
                 },
             )
             continue
@@ -339,6 +344,21 @@ def _contains_retry(value: Any) -> bool:
         return False
     output = value.get("output")
     return isinstance(output, str) and "retry" in output.lower()
+
+
+def _usage_delta(
+    cumulative: dict[str, Any],
+    previous: dict[str, Any] | None,
+    last: dict[str, Any],
+    key: str,
+) -> int:
+    current_value = _integer(cumulative.get(key))
+    if previous is None:
+        return current_value
+    previous_value = _integer(previous.get(key))
+    if current_value >= previous_value:
+        return current_value - previous_value
+    return _integer(last.get(key))
 
 
 def _integer(value: Any) -> int:

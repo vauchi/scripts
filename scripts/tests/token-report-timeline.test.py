@@ -4,6 +4,8 @@
 
 """Contract tests for privacy-preserving multi-agent session timelines."""
 
+from __future__ import annotations
+
 import json
 import os
 import stat
