@@ -123,6 +123,37 @@ class AdapterContractTests(unittest.TestCase):
         self.assertEqual(current_events[0]["usage"], legacy_events[0]["usage"])
         self.assertEqual(current_events[0]["timestamp"], "2025-07-23T08:00:00Z")
 
+    def test_kimi_emits_body_free_wait_and_retry_signals(self) -> None:
+        records = [
+            {
+                "type": "context.append_loop_event",
+                "time": 1_753_257_600_000,
+                "event": {
+                    "type": "tool.call",
+                    "name": "Bash",
+                    "args": {"command": "sleep 10; echo COMMAND-SECRET"},
+                },
+            },
+            {
+                "type": "context.append_loop_event",
+                "time": 1_753_257_601_000,
+                "event": {
+                    "type": "tool.result",
+                    "result": {"output": "retry RESULT-SECRET"},
+                },
+            },
+        ]
+
+        events = agent_telemetry_adapters.normalize_kimi(
+            records, "kimi", b"salt"
+        )
+
+        self.assertEqual(events[0]["classification"], "wait")
+        self.assertEqual(events[1]["kind"], "retry")
+        serialized = json.dumps(events)
+        self.assertNotIn("COMMAND-SECRET", serialized)
+        self.assertNotIn("RESULT-SECRET", serialized)
+
     def test_codex_deduplicates_cumulative_snapshots_and_marks_compaction(
         self,
     ) -> None:
@@ -163,6 +194,26 @@ class AdapterContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(len(compact_events), 1)
+
+    def test_codex_marks_wait_tools_without_retaining_arguments(self) -> None:
+        records = [
+            {
+                "type": "response_item",
+                "timestamp": "2026-07-23T08:00:00Z",
+                "payload": {
+                    "type": "function_call",
+                    "name": "wait_agent",
+                    "arguments": '{"secret":"ARGUMENT-SECRET"}',
+                },
+            }
+        ]
+
+        events = agent_telemetry_adapters.normalize_codex(
+            records, "codex", b"salt"
+        )
+
+        self.assertEqual(events[0]["classification"], "wait")
+        self.assertNotIn("ARGUMENT-SECRET", json.dumps(events))
 
 
 class LocalOutputTests(unittest.TestCase):
