@@ -29,7 +29,7 @@ stages:
   - metrics
   - deploy
 
-# Detector self-tests — every scripts/tests/*.test.sh sentinel suite.
+# Detector and Python contract tests under scripts/tests/.
 # This is the "lint green in CI" gate the prose-deletion MR depends
 # on: a deleted rules-file section must map to a lint whose self-test
 # ran green here. Runs on the markdownlint-tagged shell runner so the
@@ -51,7 +51,7 @@ test:selftests: # vci02-ok: .mr-or-main is rules-only, no before_script to prese
     # fail loud when it's missing — the silent-degradation variant is
     # what broke the first two runs of this job). jq: session-error
     # ledger parsing in gen-hook-from-pattern's auto-pick.
-    - apt-get update -qq >/dev/null && apt-get install -y -qq ripgrep jq >/dev/null
+    - apt-get update -qq >/dev/null && apt-get install -y -qq ripgrep jq python3 >/dev/null
     - npm install -g markdownlint-cli@0.41.0 >/dev/null 2>&1 || echo "markdownlint install failed — its suite self-skips"
   script:
     - |
@@ -62,6 +62,12 @@ test:selftests: # vci02-ok: .mr-or-main is rules-only, no before_script to prese
         # 77 = automake SKIP convention (e.g. check-binding-abi needs
         # a built Android .so this runner doesn't have)
         if [ "$rc" -ne 0 ] && [ "$rc" -ne 77 ]; then
+          FAILED=$((FAILED + 1))
+        fi
+      done
+      for t in scripts/tests/*.test.py; do
+        echo "═══ $t ═══"
+        if ! python3 "$t"; then
           FAILED=$((FAILED + 1))
         fi
       done
