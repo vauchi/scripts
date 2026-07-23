@@ -38,7 +38,12 @@ def backfill(config: BackfillConfig) -> dict[str, Any]:
     project_match = config.project_match or workspace.name
     salt = load_or_create_salt(config.salt_file)
     events: list[dict[str, Any]] = []
-    sessions = {"claude": 0, "kimi": 0, "codex": 0}
+    session_ids: dict[str, set[str]] = {
+        "claude": set(),
+        "kimi": set(),
+        "codex": set(),
+    }
+    streams = {"claude": 0, "kimi": 0, "codex": 0}
 
     for path in (config.claude_home / "projects").rglob("*.jsonl"):
         records = read_jsonl(path)
@@ -52,13 +57,24 @@ def backfill(config: BackfillConfig) -> dict[str, Any]:
         ):
             continue
         session_id = _first_string(records, "sessionId") or path.stem
-        relative_source = str(path.relative_to(config.claude_home))
+        agent_id = _first_string(records, "agentId")
+        is_subagent = "subagents" in path.parts
+        stream_id = (
+            f"{session_id}:agent:{agent_id or path.stem}"
+            if is_subagent
+            else session_id
+        )
         normalized = normalize_claude(
-            records, f"{session_id}:{relative_source}", salt
+            records,
+            stream_id,
+            salt,
+            role="subagent" if is_subagent else "main",
+            parent_session_id=session_id if is_subagent else None,
         )
         if normalized:
             events.extend(normalized)
-            sessions["claude"] += 1
+            session_ids["claude"].add(session_id)
+            streams["claude"] += 1
 
     for session in read_jsonl(config.kimi_home / "session_index.jsonl"):
         session_directory = Path(str(session.get("sessionDir") or ""))
@@ -74,13 +90,24 @@ def backfill(config: BackfillConfig) -> dict[str, Any]:
             continue
         session_id = str(session.get("sessionId") or session_directory.name)
         for wire in sorted((session_directory / "agents").glob("*/wire.jsonl")):
+            agent_name = wire.parent.name
+            is_subagent = agent_name != "main"
             normalized = normalize_kimi(
-                read_jsonl(wire), f"{session_id}:{wire.parent.name}", salt
+                read_jsonl(wire),
+                f"{session_id}:{agent_name}" if is_subagent else session_id,
+                salt,
+                role="subagent" if is_subagent else "main",
+                parent_session_id=session_id if is_subagent else None,
             )
             if normalized:
                 events.extend(normalized)
-                sessions["kimi"] += 1
+                session_ids["kimi"].add(session_id)
+                streams["kimi"] += 1
 
+    codex_streams: list[
+        tuple[Path, list[dict[str, Any]], dict[str, Any], str]
+    ] = []
+    codex_parents: dict[str, str] = {}
     for path in config.codex_home.joinpath("sessions").rglob("*.jsonl"):
         records = read_jsonl(path)
         metadata = next(
@@ -99,10 +126,26 @@ def backfill(config: BackfillConfig) -> dict[str, Any]:
         if created_at is None or created_at < config.since:
             continue
         session_id = str(metadata.get("id") or path.stem)
-        normalized = normalize_codex(records, session_id, salt)
+        parent_session_id = str(metadata.get("parent_thread_id") or "")
+        codex_streams.append((path, records, metadata, session_id))
+        if parent_session_id:
+            codex_parents[session_id] = parent_session_id
+
+    for _path, records, metadata, session_id in codex_streams:
+        parent_session_id = str(metadata.get("parent_thread_id") or "")
+        normalized = normalize_codex(
+            records,
+            session_id,
+            salt,
+            role="subagent" if parent_session_id else "main",
+            parent_session_id=parent_session_id or None,
+        )
         if normalized:
             events.extend(normalized)
-            sessions["codex"] += 1
+            session_ids["codex"].add(
+                _root_session_id(session_id, codex_parents)
+            )
+            streams["codex"] += 1
 
     events.sort(
         key=lambda event: (
@@ -115,7 +158,11 @@ def backfill(config: BackfillConfig) -> dict[str, Any]:
     write_jsonl_atomic(config.output, events)
     return {
         "schema": 1,
-        "sessions": sessions,
+        "sessions": {
+            agent: len(identifiers)
+            for agent, identifiers in session_ids.items()
+        },
+        "streams": streams,
         "events": len(events),
         "output": str(config.output),
     }
@@ -196,6 +243,15 @@ def _first_string(records: list[dict[str, Any]], key: str) -> str:
         if isinstance(value, str) and value:
             return value
     return ""
+
+
+def _root_session_id(session_id: str, parents: dict[str, str]) -> str:
+    seen: set[str] = set()
+    current = session_id
+    while current in parents and current not in seen:
+        seen.add(current)
+        current = parents[current]
+    return current
 
 
 def _parse_timestamp(value: Any) -> datetime | None:

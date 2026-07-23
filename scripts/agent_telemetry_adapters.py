@@ -14,7 +14,12 @@ from agent_telemetry import hashed_identifier, normalized_event
 
 
 def normalize_claude(
-    records: Iterable[dict[str, Any]], session_id: str, salt: bytes
+    records: Iterable[dict[str, Any]],
+    session_id: str,
+    salt: bytes,
+    *,
+    role: str = "main",
+    parent_session_id: str | None = None,
 ) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     seen_messages: set[str] = set()
@@ -94,11 +99,18 @@ def normalize_claude(
                 "tool",
                 **fields,
             )
-    return events
+    return _annotate_relationships(
+        events, role=role, parent_session_id=parent_session_id, salt=salt
+    )
 
 
 def normalize_kimi(
-    records: Iterable[dict[str, Any]], session_id: str, salt: bytes
+    records: Iterable[dict[str, Any]],
+    session_id: str,
+    salt: bytes,
+    *,
+    role: str = "main",
+    parent_session_id: str | None = None,
 ) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     for record in records:
@@ -141,11 +153,18 @@ def normalize_kimi(
                 "tool",
                 tool=str(loop_event.get("name") or "unknown"),
             )
-    return events
+    return _annotate_relationships(
+        events, role=role, parent_session_id=parent_session_id, salt=salt
+    )
 
 
 def normalize_codex(
-    records: Iterable[dict[str, Any]], session_id: str, salt: bytes
+    records: Iterable[dict[str, Any]],
+    session_id: str,
+    salt: bytes,
+    *,
+    role: str = "main",
+    parent_session_id: str | None = None,
 ) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     seen_cumulative: set[str] = set()
@@ -212,6 +231,24 @@ def normalize_codex(
                 timestamp,
                 "terminal",
                 status="completed" if payload_type == "task_complete" else "aborted",
+            )
+    return _annotate_relationships(
+        events, role=role, parent_session_id=parent_session_id, salt=salt
+    )
+
+
+def _annotate_relationships(
+    events: list[dict[str, Any]],
+    *,
+    role: str,
+    parent_session_id: str | None,
+    salt: bytes,
+) -> list[dict[str, Any]]:
+    for event in events:
+        event["role"] = role
+        if parent_session_id:
+            event["parent_session_key"] = hashed_identifier(
+                parent_session_id, salt
             )
     return events
 
