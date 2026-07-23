@@ -387,6 +387,7 @@ def backfill_main(arguments):
             claude_home=Path(options.claude_home),
             kimi_home=Path(options.kimi_home),
             codex_home=Path(options.codex_home),
+            project_match=workspace.name,
         )
     )
     print(json.dumps(result, sort_keys=True))
