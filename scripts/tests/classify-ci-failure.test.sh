@@ -85,6 +85,9 @@ expect_category "test failure" \
     "test result: FAILED. 3 passed; 1 failed" "test-failure"
 expect_category "hook self-test suite failure" \
     "FAILED: 1 hook self-test suite(s) red." "test-failure"
+expect_category "private workspace discovery failure" \
+    "ValueError: expected _private git common directory, got /builds/vauchi/private" \
+    "test-failure"
 expect_category "clippy/lint" \
     "error: this \`if\` has identical blocks (clippy::if_same_then_else)" "lint"
 expect_category "artifact gap" \
