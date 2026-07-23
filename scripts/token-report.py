@@ -30,10 +30,18 @@ import re
 import sys
 import json
 import glob
+import argparse
 import subprocess
 import collections
 import datetime
 from pathlib import Path
+
+SCRIPT_DIRECTORY = Path(__file__).resolve().parent
+if str(SCRIPT_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIRECTORY))
+
+from agent_telemetry import append_receipt
+from agent_telemetry_backfill import BackfillConfig, backfill, load_or_create_salt
 
 W = dict(inp=1.0, cw5=1.25, cw1h=2.0, cr=0.1, out=5.0)
 
@@ -43,9 +51,11 @@ def iso_week(day):
     return f"{y}-W{w:02d}"
 
 
-def token_side(project_match):
+def token_side(project_match, claude_home=None):
     """Return {day: {eff, out, msgs, subagent_eff, models:Counter}}."""
-    base = os.path.expanduser("~/.claude/projects")
+    base = os.path.join(
+        os.fspath(claude_home or os.path.expanduser("~/.claude")), "projects"
+    )
     dirs = glob.glob(os.path.join(base, f"*{project_match}*"))
     per = collections.defaultdict(lambda: dict(
         eff=0.0, out=0, msgs=0, sub=0.0, models=collections.Counter()))
@@ -64,6 +74,7 @@ def token_side(project_match):
                               errors="ignore")
                 except OSError:
                     continue
+                seen_messages = set()
                 for line in fh:
                     line = line.strip()
                     if not line:
@@ -78,6 +89,11 @@ def token_side(project_match):
                     msg = rec.get("message")
                     if not ts or not isinstance(msg, dict):
                         continue
+                    message_id = msg.get("id")
+                    if message_id and message_id in seen_messages:
+                        continue
+                    if message_id:
+                        seen_messages.add(message_id)
                     day = ts[:10]
                     u = msg.get("usage") or {}
                     inp = u.get("input_tokens", 0)
@@ -101,7 +117,7 @@ def token_side(project_match):
     return per, files, nested
 
 
-def kimi_token_side(project_match):
+def kimi_token_side(project_match, kimi_home=None):
     """Kimi Code sessions, same per-day shape as token_side().
 
     Layout: ~/.kimi-code/sessions/wd_<repo>_<hash>/session_*/agents/<name>/
@@ -109,7 +125,9 @@ def kimi_token_side(project_match):
     {inputOther, output, inputCacheRead, inputCacheCreation}. An agent dir
     named other than 'main' is a subagent.
     """
-    base = os.path.expanduser("~/.kimi-code/sessions")
+    base = os.path.join(
+        os.fspath(kimi_home or os.path.expanduser("~/.kimi-code")), "sessions"
+    )
     per = collections.defaultdict(lambda: dict(
         eff=0.0, out=0, msgs=0, sub=0.0, models=collections.Counter()))
     files = nested = 0
@@ -136,7 +154,9 @@ def kimi_token_side(project_match):
                     continue
                 ev = rec.get("event")
                 t = rec.get("time")
-                if not isinstance(ev, dict) or not t:
+                if not isinstance(ev, dict):
+                    ev = rec
+                if not t:
                     continue
                 u = ev.get("usage")
                 if not isinstance(u, dict):
@@ -249,11 +269,12 @@ def results_side(workspace_root):
     return commits, lines
 
 
-def main():
-    root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.getcwd())
+def summary_main(arguments=None):
+    arguments = list(arguments or [])
+    root = os.path.abspath(arguments[0] if arguments else os.getcwd())
     # Default match strips a trailing worktree suffix ("vauchi-1" -> "vauchi")
     # so all worktrees/checkouts of the same project are aggregated.
-    match = sys.argv[2] if len(sys.argv) > 2 else re.sub(
+    match = arguments[1] if len(arguments) > 1 else re.sub(
         r"-\d+$", "", os.path.basename(root))
     this_week = iso_week(datetime.date.today().isoformat())
     per_c, files_c, nested_c = token_side(match)
@@ -333,6 +354,78 @@ def main():
     print("\nNote: transcript retention is partial; raw eff_M for sparse "
           "weeks understates. cost/commit and subagent% are the signal.")
     return 0
+
+
+def backfill_main(arguments):
+    parser = argparse.ArgumentParser(prog="token-report backfill")
+    parser.add_argument("--since")
+    parser.add_argument("--workspace-root", default=os.getcwd())
+    parser.add_argument("--output")
+    parser.add_argument("--salt-file")
+    parser.add_argument("--claude-home", default=str(Path.home() / ".claude"))
+    parser.add_argument("--kimi-home", default=str(Path.home() / ".kimi-code"))
+    parser.add_argument("--codex-home", default=str(Path.home() / ".codex"))
+    options = parser.parse_args(arguments)
+    workspace = Path(options.workspace_root).resolve()
+    local_directory = workspace / "tmp/session-telemetry"
+    output = Path(options.output or local_directory / "timeline-v1.jsonl")
+    salt_file = Path(options.salt_file or local_directory / ".salt")
+    since = (
+        datetime.datetime.fromisoformat(options.since.replace("Z", "+00:00"))
+        if options.since
+        else datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(weeks=4)
+    )
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=datetime.timezone.utc)
+    result = backfill(
+        BackfillConfig(
+            workspace_root=workspace,
+            since=since,
+            output=output,
+            salt_file=salt_file,
+            claude_home=Path(options.claude_home),
+            kimi_home=Path(options.kimi_home),
+            codex_home=Path(options.codex_home),
+        )
+    )
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+def receipt_main(arguments):
+    parser = argparse.ArgumentParser(prog="token-report receipt")
+    parser.add_argument("--session", required=True)
+    parser.add_argument("--type", required=True)
+    parser.add_argument("--outcome", required=True)
+    parser.add_argument("--corrections", required=True, type=int)
+    parser.add_argument(
+        "--output", default="tmp/session-telemetry/receipts.jsonl"
+    )
+    parser.add_argument("--salt-file", default="tmp/session-telemetry/.salt")
+    options = parser.parse_args(arguments)
+    salt = load_or_create_salt(Path(options.salt_file))
+    receipt = append_receipt(
+        Path(options.output),
+        session_id=options.session,
+        session_type=options.type,
+        outcome=options.outcome,
+        corrections=options.corrections,
+        salt=salt,
+    )
+    print(json.dumps(receipt, sort_keys=True))
+    return 0
+
+
+def main(arguments=None):
+    arguments = list(sys.argv[1:] if arguments is None else arguments)
+    if arguments and arguments[0] == "backfill":
+        return backfill_main(arguments[1:])
+    if arguments and arguments[0] == "receipt":
+        return receipt_main(arguments[1:])
+    if arguments and arguments[0] == "summary":
+        return summary_main(arguments[1:])
+    return summary_main(arguments)
 
 
 if __name__ == "__main__":
