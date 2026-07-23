@@ -195,6 +195,52 @@ class AdapterContractTests(unittest.TestCase):
         )
         self.assertEqual(len(compact_events), 1)
 
+    def test_codex_uses_cumulative_deltas_as_usage_ledger(self) -> None:
+        first = {
+            "input_tokens": 100,
+            "cached_input_tokens": 70,
+            "output_tokens": 20,
+            "reasoning_output_tokens": 5,
+            "total_tokens": 120,
+        }
+        second_total = {
+            "input_tokens": 150,
+            "cached_input_tokens": 110,
+            "output_tokens": 30,
+            "reasoning_output_tokens": 7,
+            "total_tokens": 180,
+        }
+        inflated_last = {
+            "input_tokens": 100,
+            "cached_input_tokens": 80,
+            "output_tokens": 20,
+            "reasoning_output_tokens": 5,
+            "total_tokens": 120,
+        }
+        records = [
+            _codex_usage("2026-07-23T08:00:00Z", first),
+            _codex_usage(
+                "2026-07-23T08:00:01Z",
+                second_total,
+                last=inflated_last,
+            ),
+        ]
+
+        events = agent_telemetry_adapters.normalize_codex(
+            records, "codex", b"salt"
+        )
+
+        self.assertEqual(
+            events[1]["usage"],
+            {
+                "input": 10,
+                "cached_input": 40,
+                "cache_creation": 0,
+                "output": 10,
+                "reasoning_output": 2,
+            },
+        )
+
     def test_codex_marks_wait_tools_without_retaining_arguments(self) -> None:
         records = [
             {
@@ -295,7 +341,12 @@ def _claude_assistant(
     }
 
 
-def _codex_usage(timestamp: str, usage: dict[str, int]) -> dict:
+def _codex_usage(
+    timestamp: str,
+    usage: dict[str, int],
+    *,
+    last: dict[str, int] | None = None,
+) -> dict:
     return {
         "type": "event_msg",
         "timestamp": timestamp,
@@ -303,7 +354,7 @@ def _codex_usage(timestamp: str, usage: dict[str, int]) -> dict:
             "type": "token_count",
             "info": {
                 "total_token_usage": usage,
-                "last_token_usage": usage,
+                "last_token_usage": last or usage,
             },
         },
     }
