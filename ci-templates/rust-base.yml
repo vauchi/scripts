@@ -31,8 +31,11 @@ variables:
   # Release/verify jobs override with deeper depth where needed.
   GIT_DEPTH: "1"
   # Keep sccache daemon alive between jobs (avoids restart overhead).
-  # SCCACHE_DIR is set in each runner's shell profile (not here) because
-  # the persistent daemon only reads env vars at startup, not per-job.
+  # SCCACHE_DIR/SCCACHE_CACHE_SIZE are runner-owned, not set here: the
+  # persistent daemon reads env only at startup, so per-job CI variables
+  # are silently ignored. Linux runners inherit them from the
+  # gitlab-runner systemd unit (ansible `runner` role); nell (macOS)
+  # sets them in config.toml `environment`.
   SCCACHE_IDLE_TIMEOUT: "0"
   # Use faster zstd compression for CI artifacts/cache
   ARTIFACT_COMPRESSION_LEVEL: fastest
@@ -48,12 +51,18 @@ variables:
 default:
   # Auto-cancel jobs when new commits are pushed (saves runner resources)
   interruptible: true
-  # Retry on runner system failures (not script failures)
+  # Retry on runner system failures (not script failures).
+  # job_execution_timeout is its own failure_reason — NOT covered by
+  # stuck_or_timeout_failure — so timed-out jobs never retried before
+  # (core job 15493965238 died at the ceiling with no retry). The retry
+  # is warm-biased: the killed attempt's on-disk slot target/ and
+  # sccache deposits make the second attempt much faster.
   retry:
     max: 1
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
+      - job_execution_timeout
       - unknown_failure
 
 # ============================================================
@@ -218,9 +227,12 @@ workflow:
     # improving cache upload/download times on CI where builds are rarely incremental.
     CARGO_INCREMENTAL: "0"
     # sccache: shared compilation cache across jobs (30-50% faster recompilation).
-    # SCCACHE_DIR and SCCACHE_CACHE_SIZE are set in each runner's shell profile,
-    # not here — the persistent daemon (SCCACHE_IDLE_TIMEOUT=0) only reads env
-    # vars at startup, so per-job CI variables are silently ignored.
+    # SCCACHE_DIR and SCCACHE_CACHE_SIZE come from the runner, not from here —
+    # the persistent daemon (SCCACHE_IDLE_TIMEOUT=0) only reads env vars at
+    # startup, so per-job CI variables are silently ignored. Linux runners get
+    # them from the gitlab-runner systemd unit (ansible `runner` role, which
+    # also runs a health-check timer that kills a stats-dead daemon); nell
+    # (macOS) sets them in config.toml `environment`.
     #
     # KNOWN LIMITATION: On shared shell runners (allyson, nell), concurrent jobs
     # share the same sccache daemon. If Job A compiles while Job B's git clean
@@ -384,12 +396,30 @@ workflow:
   after_script:
     # Clean up build artifacts to save disk space (keep cache intact)
     - rm -rf target/debug/deps/*.d target/debug/incremental 2>/dev/null || true
-    # Show sccache hit/miss stats for debugging cache effectiveness
-    - sccache --show-stats 2>/dev/null || true
+    # sccache telemetry: cross-job compile reuse is load-bearing on shell
+    # runners, and a dead daemon is invisible when stats errors are
+    # swallowed (a stats-dead zombie served allyson for days unnoticed).
+    # Warn loudly instead so every job log across every repo asserts the
+    # cache layer's health.
+    - |
+      if command -v sccache >/dev/null 2>&1; then
+        if _sccache_stats=$(sccache --show-stats 2>&1); then
+          printf '%s\n' "$_sccache_stats"
+          _sccache_requests=$(printf '%s\n' "$_sccache_stats" | awk '/^Compile requests[[:space:]]/ {print $NF; exit}')
+          if [ "${_sccache_requests:-0}" = "0" ]; then
+            echo "NOTICE: sccache saw 0 compile requests — expected only for jobs that compile nothing"
+          fi
+        else
+          printf '%s\n' "$_sccache_stats"
+          echo "WARNING: sccache stats unavailable — daemon dead or protocol-broken; cross-job compile caching is NOT working on this runner"
+        fi
+      else
+        echo "WARNING: sccache not installed — cross-job compile caching is NOT working on this runner"
+      fi
 
 # Linux self-hosted runner (allyson)
 # Tags: linux, self-hosted
-# Resources: 16 CPU, 20GB RAM, Arch Linux
+# Resources: 16 CPU, 20GB RAM, Debian 13 (reinstalled 2026-07-20, was Arch)
 # Use for: Rust builds, Android NDK, Node.js
 .linux-runner:
   extends: .self-hosted
@@ -403,13 +433,20 @@ workflow:
     # Ensure mold linker is available (required by .cargo/config.toml for faster linking)
     - command -v mold >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq mold)
   cache:
+    # One shared registry cache per project, not per job: the archived
+    # content is a pure function of Cargo.lock, so the old per-job prefix
+    # stored the same registry archive once per compiling job (13x in
+    # core) and cold-downloaded all 13 copies. Concurrent uploads are
+    # last-write-wins with identical content (benign); a torn extract
+    # self-heals on the next pull. Same key across all self-hosted
+    # runner templates below.
     key:
       files:
         - Cargo.lock
-      prefix: rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}
+      prefix: rust-${CI_PROJECT_NAME}-registry
     fallback_keys:
-      - rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
-      - rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}
+      - rust-${CI_PROJECT_NAME}-registry-${CI_DEFAULT_BRANCH}
+      - rust-${CI_PROJECT_NAME}-registry
     paths:
       # Note: target/ is NOT cached here — shell runners persist it on disk
       # via GIT_STRATEGY:none. sccache handles compiled artifact reuse.
@@ -436,10 +473,10 @@ workflow:
     key:
       files:
         - Cargo.lock
-      prefix: rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}
+      prefix: rust-${CI_PROJECT_NAME}-registry
     fallback_keys:
-      - rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
-      - rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}
+      - rust-${CI_PROJECT_NAME}-registry-${CI_DEFAULT_BRANCH}
+      - rust-${CI_PROJECT_NAME}-registry
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
@@ -512,10 +549,10 @@ workflow:
     key:
       files:
         - Cargo.lock
-      prefix: rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}
+      prefix: rust-${CI_PROJECT_NAME}-registry
     fallback_keys:
-      - rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
-      - rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}
+      - rust-${CI_PROJECT_NAME}-registry-${CI_DEFAULT_BRANCH}
+      - rust-${CI_PROJECT_NAME}-registry
     paths:
       - .cargo/bin/
       - .cargo/registry/index/
@@ -539,10 +576,10 @@ workflow:
     key:
       files:
         - Cargo.lock
-      prefix: rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}
+      prefix: rust-${CI_PROJECT_NAME}-registry
     fallback_keys:
-      - rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
-      - rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}
+      - rust-${CI_PROJECT_NAME}-registry-${CI_DEFAULT_BRANCH}
+      - rust-${CI_PROJECT_NAME}-registry
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
@@ -576,10 +613,10 @@ workflow:
     key:
       files:
         - Cargo.lock
-      prefix: rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}
+      prefix: rust-${CI_PROJECT_NAME}-registry
     fallback_keys:
-      - rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}-${CI_DEFAULT_BRANCH}
-      - rust-${CI_PROJECT_NAME}-${CI_JOB_NAME}
+      - rust-${CI_PROJECT_NAME}-registry-${CI_DEFAULT_BRANCH}
+      - rust-${CI_PROJECT_NAME}-registry
     paths:
       - .cargo/bin/
       - .cargo/registry/index/
@@ -730,6 +767,27 @@ workflow:
 # Very long jobs — 45 minutes for Rust repos.
 # Reduced from 2h: real builds take 15-20 min (post-mortem 2026-03-28).
 # Note: timeouts.yml defines 90min for iOS/macOS SPM cold-cache builds.
-# This is intentionally shorter — Rust builds never need >30min.
+# This is intentionally shorter — WARM Rust builds never need >30min;
+# jobs that cold-build the whole dependency tree use
+# .timeout-cold-rebuild below instead.
 .timeout-extended:
   timeout: 45 minutes
+
+# Jobs that compile the FULL dependency tree (clippy --all-targets,
+# semver-checks, workspace tests, cabi builds, ...). On a fresh or
+# reinstalled shell runner these jobs have zero warm state and
+# cold-build the whole tree; measured 57-60m+ under 3-way CPU contention
+# on allyson (core pipelines 2699547003/2699666347, post-reinstall) vs
+# ~25m solo. Warm runs finish in minutes and never feel the ceiling.
+#
+# resource_group serializes these jobs per project: on one shared
+# 16-core box, concurrent CPU-bound cargo builds burn the same aggregate
+# CPU-seconds as serial ones, so the "lost" parallelism is largely
+# illusory — while each serialized job warms the next via the on-disk
+# slot target/ and sccache. A cold runner recovers as a chain of solo
+# builds, green with zero human intervention, instead of a herd of
+# timeouts. Stale locks (rare, after hard kills): `just gitlab
+# resource-group-reset <repo> cold-rebuild-tree`.
+.timeout-cold-rebuild:
+  timeout: 2 hours
+  resource_group: cold-rebuild-tree
