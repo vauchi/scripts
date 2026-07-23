@@ -126,6 +126,7 @@ class BackfillCommandTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             summary = json.loads(result.stdout)
             self.assertEqual(summary["sessions"], {"claude": 1, "codex": 1, "kimi": 1})
+            self.assertEqual(summary["streams"], {"claude": 1, "codex": 1, "kimi": 2})
             records = [
                 json.loads(line) for line in output.read_text().splitlines()
             ]
@@ -138,6 +139,20 @@ class BackfillCommandTests(unittest.TestCase):
             self.assertNotIn("PROMPT-SECRET", serialized)
             self.assertNotIn("RESULT-SECRET", serialized)
             self.assertNotIn(str(workspace), serialized)
+            kimi_records = [
+                record for record in records if record["agent"] == "kimi"
+            ]
+            main_key = next(
+                record["session_key"]
+                for record in kimi_records
+                if record["role"] == "main"
+            )
+            subagent = next(
+                record
+                for record in kimi_records
+                if record["role"] == "subagent"
+            )
+            self.assertEqual(subagent["parent_session_key"], main_key)
 
             first = output.read_bytes()
             repeated = subprocess.run(
@@ -209,14 +224,13 @@ class BackfillCommandTests(unittest.TestCase):
             json.dumps({"createdAt": "2026-07-23T08:00:00Z"}),
             encoding="utf-8",
         )
-        _write_jsonl(
-            session / "agents/main/wire.jsonl",
-            [{
+        records = [{
                 "type": "usage.record",
                 "time": 1_753_257_600_000,
                 "usage": {"inputOther": 1, "output": 2},
-            }],
-        )
+        }]
+        _write_jsonl(session / "agents/main/wire.jsonl", records)
+        _write_jsonl(session / "agents/reviewer/wire.jsonl", records)
 
     def _write_codex(self, home: Path, workspace: Path) -> None:
         records = [
