@@ -50,7 +50,7 @@ PATS=(
   "(exceeded maximum timeout|Job exceeded)"
   "failed to select a version"
   "(command not found|: not found)"
-  "error\\[E[0-9]+\\]"
+  "(error\\[E[0-9]+\\]|error: missing argument for parameter|No value passed for parameter)"
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
   "(test result: FAILED|assertion .*failed|panicked at|FAILED: [0-9]+ hook self-test suite\(s\) red\.|ValueError: expected (_private|private) git common directory)"
   "(No such file or directory|curl: \(22\) The requested URL returned error: 404)"

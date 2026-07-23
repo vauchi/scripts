@@ -81,6 +81,12 @@ expect_category "branch protection" \
     "remote: GitLab: pre-receive hook declined" "branch-protection"
 expect_category "rust compile error" \
     "error[E0433]: failed to resolve: use of undeclared crate" "compile-error"
+expect_category "Swift missing argument compile error" \
+    "BleExchangeService.swift:209:80: error: missing argument for parameter 'direction' in call" \
+    "compile-error"
+expect_category "Kotlin missing argument compile error" \
+    "CoreAppViewModel.kt:397:52 No value passed for parameter 'direction'." \
+    "compile-error"
 expect_category "test failure" \
     "test result: FAILED. 3 passed; 1 failed" "test-failure"
 expect_category "hook self-test suite failure" \
