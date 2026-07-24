@@ -16,6 +16,11 @@ cp scripts/resolve-repo.sh "$target/scripts/resolve-repo.sh"
 ln -s "$target" "$workspace/scripts"
 
 for shell in bash zsh; do
+    if ! command -v "$shell" >/dev/null 2>&1; then
+        echo "SKIP ($shell): not installed"
+        continue
+    fi
+
     resolved="$(
         "$shell" -c '
             cd "$1"
