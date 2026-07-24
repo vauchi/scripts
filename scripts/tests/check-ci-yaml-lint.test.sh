@@ -5,7 +5,8 @@
 #
 # Sentinel suite for scripts/check-ci-yaml-lint.sh — VCI02 (extends +
 # own before_script without !reference silently drops template steps)
-# and VCI03 (`|| true` swallowing state-changing git in CI). Fixtures
+# VCI03 (`|| true` swallowing state-changing git in CI), and VCI04
+# (side-effect jobs matching scheduled main refs). Fixtures
 # are intentionally-bad yml. Rule pages: _private/docs/lint-errors/vci*.md
 
 set -u
@@ -106,6 +107,51 @@ run_yml vci03ok 'myjob:
   script:
     - git fetch origin main --depth=1 || true  # vci03-ok: degraded-mode fallback below'
 assert_eq "VCI03 suppressed: exit 0" "0" "$rc"
+
+# ── VCI04: a side-effect template must exclude schedules first ────────
+run_yml vci04 '.auto-tag:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+assert_eq "VCI04: exit 1" "1" "$rc"
+assert_eq "VCI04: message carries ID" "1" \
+    "$(printf '%s' "$out" | grep -q 'VCI04:' && echo 1 || echo 0)"
+
+# ── VCI04: a late schedule guard cannot undo the first branch match ───
+run_yml vci04order '.trigger-on-merge:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never'
+assert_eq "VCI04 late guard: exit 1" "1" "$rc"
+
+# ── VCI04: conditional schedule rejection does not fail closed ───────
+run_yml vci04conditional '.main-only:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SPECIAL_MODE == "true"
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+assert_eq "VCI04 conditional guard: exit 1" "1" "$rc"
+
+# ── VCI04: literal main branch checks have the same schedule hazard ───
+run_yml vci04main 'auto-tag:version:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"'
+assert_eq "VCI04 literal main: exit 1" "1" "$rc"
+
+# ── VCI04: schedule-never before the branch match passes ──────────────
+run_yml vci04safe 'deploy:trigger:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_TAG =~ /^v/
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+assert_eq "VCI04 guarded: exit 0" "0" "$rc"
+
+# ── VCI04: ordinary read-only branch jobs are outside this rule ───────
+run_yml vci04scope 'test:unit:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+assert_eq "VCI04 scoped: exit 0" "0" "$rc"
 
 # ── two jobs: only the violating one is reported ───────────────────────
 run_yml multi 'good:

@@ -75,6 +75,8 @@
 # Use for benchmark, e2e-full, downstream triggers
 .main-only:
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # Scheduled pipelines only
@@ -87,6 +89,8 @@
 # Use when you need validation on both
 .mr-or-main:
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
