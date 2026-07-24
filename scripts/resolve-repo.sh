@@ -309,25 +309,25 @@ gitlab_repo_dir() {
         # Map to first matching directory. In a worktree the root repo is a
         # sibling of the other repos (workspace-root/root/), whereas in the
         # main workspace it lives at the workspace root.
-        local path
+        local repo_path
         case "$arg" in
             root|vauchi)
                 if [[ -e "$WORKSPACE_ROOT/.git" ]]; then
-                    path="$WORKSPACE_ROOT"
+                    repo_path="$WORKSPACE_ROOT"
                 else
-                    path="$WORKSPACE_ROOT/root"
+                    repo_path="$WORKSPACE_ROOT/root"
                 fi
                 ;;
-            *)            path="$WORKSPACE_ROOT/$arg" ;;
+            *)            repo_path="$WORKSPACE_ROOT/$arg" ;;
         esac
         # Worktree groups use sibling symlinks. Passing a logical symlink path
         # to `git -C` makes hooks inherit the coordinator worktree as their
         # repository context, so stale-base checks can inspect the wrong tree.
         # Resolve existing directories physically before any Git operation.
-        if [[ -d "$path" ]]; then
-            (cd "$path" && pwd -P)
+        if [[ -d "$repo_path" ]]; then
+            (cd "$repo_path" && pwd -P)
         else
-            echo "$path"
+            echo "$repo_path"
         fi
         return 0
     fi

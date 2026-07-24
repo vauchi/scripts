@@ -15,16 +15,19 @@ touch "$workspace/CLAUDE.md"
 cp scripts/resolve-repo.sh "$target/scripts/resolve-repo.sh"
 ln -s "$target" "$workspace/scripts"
 
-resolved="$(
-    cd "$workspace"
-    # shellcheck disable=SC1091
-    source "$workspace/scripts/scripts/resolve-repo.sh"
-    gitlab_repo_dir scripts
-)"
+for shell in bash zsh; do
+    resolved="$(
+        "$shell" -c '
+            cd "$1"
+            source "$1/scripts/scripts/resolve-repo.sh"
+            gitlab_repo_dir scripts
+        ' _ "$workspace"
+    )"
 
-if [[ "$resolved" != "$target" ]]; then
-    echo "FAIL: expected canonical repo path '$target', got '$resolved'"
-    exit 1
-fi
+    if [[ "$resolved" != "$target" ]]; then
+        echo "FAIL ($shell): expected canonical repo path '$target', got '$resolved'"
+        exit 1
+    fi
 
-echo "PASS: gitlab_repo_dir canonicalizes symlinked worktree paths"
+    echo "PASS ($shell): gitlab_repo_dir canonicalizes symlinked worktree paths"
+done
