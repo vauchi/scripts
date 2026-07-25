@@ -100,6 +100,13 @@ expect_category "artifact gap" \
     "cp: cannot stat 'target/release/libvauchi.a': No such file or directory" "artifact-gap"
 expect_category "remote scripts ref artifact gap" \
     'curl: (22) The requested URL returned error: 404' "artifact-gap"
+expect_category "duplicate package publish" \
+    'curl: (22) The requested URL returned error: 400' "duplicate-publish"
+expect_escalate "duplicate package publish does NOT escalate" \
+    'curl: (22) The requested URL returned error: 400' "false"
+expect_fix "duplicate package publish forbids registry deletion" \
+    'curl: (22) The requested URL returned error: 400' \
+    "Registry rejected the upload — usually a rerun at an already-published version (triggered/scheduled pipeline missing a source guard). Exclude that source from the publish job; never delete the published package to let a rerun pass."
 expect_category "semver API compatibility" \
     '--- failure method_parameter_count_changed: pub method parameter count changed ---' \
     "semver-api-compatibility"
