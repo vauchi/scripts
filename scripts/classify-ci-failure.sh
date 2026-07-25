@@ -38,7 +38,7 @@ fi
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
   "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "c-ffi-cross" "branch-protection" "timeout" "dep-resolution"
-  "missing-tool" "compile-error" "lint" "test-failure" "artifact-gap"
+  "missing-tool" "compile-error" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
   "(failure method_parameter_count_changed:|Summary semver requires new major version:)"
@@ -53,6 +53,7 @@ PATS=(
   "(error\\[E[0-9]+\\]|error: missing argument for parameter|No value passed for parameter)"
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
   "(test result: FAILED|assertion .*failed|panicked at|FAILED: [0-9]+ hook self-test suite\(s\) red\.|ValueError: expected (_private|private) git common directory)"
+  "curl: \\(22\\) The requested URL returned error: 400"
   "(No such file or directory|curl: \(22\) The requested URL returned error: 404)"
 )
 FIXES=(
@@ -68,6 +69,7 @@ FIXES=(
   "Read the rustc diagnostic; fix the source. Reproduce with cargo check -p <crate>."
   "Run the matching just check/lint locally and fix the source (never suppress — CC-21)."
   "Read the failing assertion; fix code or test. Never retry without a root-cause fix (CC-18)."
+  "Registry rejected the upload — usually a rerun at an already-published version (triggered/scheduled pipeline missing a source guard). Exclude that source from the publish job; never delete the published package to let a rerun pass."
   "Downstream artifact is unavailable: publish/fix the pinned remote ref, or widen artifacts.paths / add needs."
 )
 
