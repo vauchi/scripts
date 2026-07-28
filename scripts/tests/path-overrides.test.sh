@@ -78,7 +78,7 @@ test_apply_writes_fence() {
     set -e
 
     assert_exit "apply exit 0" 0 "$rc"
-    for d in cli tui linux-gtk web-demo/wasm relay e2e; do
+    for d in cli tui linux-gtk relay e2e; do
         local cargo
         cargo=$(cat "$root/$d/Cargo.toml")
         assert_contains "$d has BEGIN fence" "# >>> setup-path-overrides BEGIN" "$cargo"
@@ -87,8 +87,13 @@ test_apply_writes_fence() {
     # Patches should reference the right relative paths
     assert_contains "cli patches vauchi-app to ../core" \
         '../core/vauchi-app' "$(cat "$root/cli/Cargo.toml")"
-    assert_contains "web-demo/wasm uses ../../core (nested)" \
-        '../../core/vauchi-core' "$(cat "$root/web-demo/wasm/Cargo.toml")"
+    # web-demo pins its core deps to an exact released version, which a
+    # [patch] can never satisfy — cargo would discard the block and warn
+    # "patch was not used in the crate graph" on every build. Guards
+    # against re-adding it to CONSUMERS.
+    assert_not_contains "web-demo/wasm is NOT patched (exact version pin)" \
+        "# >>> setup-path-overrides BEGIN" \
+        "$(cat "$root/web-demo/wasm/Cargo.toml")"
     assert_contains "e2e patches vauchi-relay" \
         'vauchi-relay = { path = "../relay" }' "$(cat "$root/e2e/Cargo.toml")"
     assert_contains "relay patches only vauchi-protocol" \
@@ -127,7 +132,7 @@ test_clean_removes_fence() {
     set -e
 
     assert_exit "clean exit 0" 0 "$rc"
-    for d in cli tui linux-gtk web-demo/wasm relay e2e; do
+    for d in cli tui linux-gtk relay e2e; do
         assert_not_contains "$d fence stripped" \
             "# >>> setup-path-overrides BEGIN" \
             "$(cat "$root/$d/Cargo.toml")"
@@ -238,7 +243,33 @@ test_apply_preserves_non_patch_config() {
     fi
 }
 
-# ── 8. Unknown subcommand exits 2 (usage error) ──────────────────────
+# ── 8. Status reports whether any consumer carries the fence ─────────
+# `just git sync` branches on this exit code to decide whether to
+# restore overrides it stripped for the pull, so the 1-when-absent case
+# matters as much as the 0-when-present one.
+test_status_tracks_fence() {
+    local root
+    root="$(mktemp -d)"
+    trap 'rm -rf "$root"' RETURN
+    mk_workspace "$root"
+
+    set +e
+    (cd "$root" && bash ./path-overrides.sh status)
+    local rc_clean=$?
+    (cd "$root" && bash ./path-overrides.sh apply >/dev/null 2>&1)
+    (cd "$root" && bash ./path-overrides.sh status)
+    local rc_applied=$?
+    (cd "$root" && bash ./path-overrides.sh clean >/dev/null 2>&1)
+    (cd "$root" && bash ./path-overrides.sh status)
+    local rc_stripped=$?
+    set -e
+
+    assert_exit "status exit 1 before apply" 1 "$rc_clean"
+    assert_exit "status exit 0 after apply" 0 "$rc_applied"
+    assert_exit "status exit 1 after clean" 1 "$rc_stripped"
+}
+
+# ── 9. Unknown subcommand exits 2 (usage error) ──────────────────────
 test_unknown_subcommand() {
     set +e
     out="$(bash "$SCRIPT" frobnicate 2>&1)"
@@ -258,6 +289,7 @@ test_clean_preserves_user_content
 test_clean_idempotent
 test_apply_removes_legacy_config
 test_apply_preserves_non_patch_config
+test_status_tracks_fence
 test_unknown_subcommand
 
 echo ""
