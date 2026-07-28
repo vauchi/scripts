@@ -279,6 +279,40 @@ test_unknown_subcommand() {
     assert_contains "usage hint shown" "Usage:" "$out"
 }
 
+# ── 10. clean --restore-lock reverts apply's Cargo.lock churn ────────
+# Stripping the fence alone leaves Cargo.lock rewritten to local paths,
+# which is enough to make `pull --rebase --autostash` fail to pop once
+# main moves the lock. Plain `clean` must keep its narrower contract.
+test_clean_restore_lock() {
+    local root
+    root="$(mktemp -d)"
+    trap 'rm -rf "$root"' RETURN
+    mk_workspace "$root"
+
+    local repo="$root/cli"
+    git -C "$repo" init -q
+    printf 'committed-lock\n' > "$repo/Cargo.lock"
+    git -C "$repo" add Cargo.toml Cargo.lock
+    git -C "$repo" -c user.email=t@t -c user.name=t commit -qm init
+
+    # Simulate apply: fence in Cargo.toml + rewritten Cargo.lock.
+    (cd "$root" && bash ./path-overrides.sh apply >/dev/null 2>&1)
+    printf 'rewritten-by-apply\n' > "$repo/Cargo.lock"
+
+    (cd "$root" && bash ./path-overrides.sh clean >/dev/null 2>&1)
+    assert_contains "plain clean leaves Cargo.lock churn" \
+        'rewritten-by-apply' "$(cat "$repo/Cargo.lock")"
+
+    (cd "$root" && bash ./path-overrides.sh apply >/dev/null 2>&1)
+    printf 'rewritten-by-apply\n' > "$repo/Cargo.lock"
+
+    (cd "$root" && bash ./path-overrides.sh clean --restore-lock >/dev/null 2>&1)
+    assert_contains "clean --restore-lock reverts Cargo.lock" \
+        'committed-lock' "$(cat "$repo/Cargo.lock")"
+    assert_not_contains "clean --restore-lock still strips fence" \
+        "# >>> setup-path-overrides BEGIN" "$(cat "$repo/Cargo.toml")"
+}
+
 # ── Run all ───────────────────────────────────────────────────────────
 
 echo "── path-overrides.sh tests ──"
@@ -290,6 +324,7 @@ test_clean_idempotent
 test_apply_removes_legacy_config
 test_apply_preserves_non_patch_config
 test_status_tracks_fence
+test_clean_restore_lock
 test_unknown_subcommand
 
 echo ""

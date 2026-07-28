@@ -202,6 +202,8 @@ cmd_apply() {
 # ── clean ──────────────────────────────────────────────────────────────────
 
 cmd_clean() {
+    local restore_lock=0
+    [[ "${1:-}" == "--restore-lock" ]] && restore_lock=1
     echo "── Stripping local Cargo path overrides ──"
     echo ""
     local stripped=0
@@ -213,6 +215,16 @@ cmd_clean() {
             strip_block "$cargo"
             echo "  $cargo (stripped)"
             stripped=$((stripped + 1))
+            # Stripping the fence is not enough to make the tree pullable:
+            # `apply` also rewrote Cargo.lock to point at local paths, and
+            # `pull --rebase --autostash` cannot pop a stashed lock over a
+            # lock that main just moved. Restoring it is safe because the
+            # churn is purely apply's byproduct and apply regenerates it.
+            # Opt-in so plain `clean` keeps its narrower contract.
+            if [[ "$restore_lock" == 1 && -f "$dir/Cargo.lock" ]] \
+               && git -C "$dir" checkout HEAD -- Cargo.lock 2>/dev/null; then
+                echo "  $dir/Cargo.lock (restored)"
+            fi
         fi
     done
     if [[ "$stripped" == "0" ]]; then
@@ -402,12 +414,12 @@ cmd_freshness() {
 
 case "${1:-}" in
     apply)     cmd_apply ;;
-    clean)     cmd_clean ;;
+    clean)     cmd_clean "${2:-}" ;;
     check)     cmd_check ;;
     status)    cmd_status ;;
     freshness) cmd_freshness ;;
     *)
-        echo "Usage: $0 {apply|clean|check|status|freshness}" >&2
+        echo "Usage: $0 {apply|clean [--restore-lock]|check|status|freshness}" >&2
         exit 2
         ;;
 esac
