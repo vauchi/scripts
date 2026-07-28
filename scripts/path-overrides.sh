@@ -40,11 +40,18 @@ END_MARKER="# <<< setup-path-overrides END"
 #   <relay-relative>   same, for ../relay/ (empty if consumer doesn't patch relay)
 #   <deps-csv>         comma-separated set of `vauchi-core,vauchi-app,vauchi-protocol`
 #                      (whichever ones this consumer depends on)
+#
+# web-demo/wasm is deliberately absent. It pins its core deps with an
+# exact requirement (`version = "=0.55.4"`, tracking a released tag)
+# rather than branch=main like the others. Cargo silently ignores a
+# `[patch]` whose replacement cannot satisfy that requirement, so
+# patching web-demo injected a no-op block and then reported it as a
+# permanent `check` failure. Re-add it only if the exact pin is ever
+# relaxed.
 CONSUMERS=(
     "cli|../core||vauchi-core,vauchi-app"
     "tui|../core||vauchi-core,vauchi-app"
     "linux-gtk|../core||vauchi-core,vauchi-app"
-    "web-demo/wasm|../../core||vauchi-core,vauchi-app"
     "relay|../core||vauchi-protocol"
     "e2e|../core|../relay|vauchi-core,vauchi-app"
 )
@@ -215,6 +222,22 @@ cmd_clean() {
     echo "Done."
 }
 
+# ── status ─────────────────────────────────────────────────────────────────
+
+# Exit 0 if any consumer currently carries the fence, 1 if none do.
+# Silent by design: callers branch on the exit code. `just git sync` uses
+# it to decide whether to restore overrides it stripped for the pull.
+cmd_status() {
+    for entry in "${CONSUMERS[@]}"; do
+        IFS='|' read -r dir _ _ _ <<< "$entry"
+        [[ -f "$dir/Cargo.toml" ]] || continue
+        if grep -qF "$BEGIN_MARKER" "$dir/Cargo.toml"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # ── check ──────────────────────────────────────────────────────────────────
 
 cmd_check() {
@@ -381,9 +404,10 @@ case "${1:-}" in
     apply)     cmd_apply ;;
     clean)     cmd_clean ;;
     check)     cmd_check ;;
+    status)    cmd_status ;;
     freshness) cmd_freshness ;;
     *)
-        echo "Usage: $0 {apply|clean|check|freshness}" >&2
+        echo "Usage: $0 {apply|clean|check|status|freshness}" >&2
         exit 2
         ;;
 esac
