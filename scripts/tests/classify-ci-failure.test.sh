@@ -107,6 +107,13 @@ expect_escalate "duplicate package publish does NOT escalate" \
 expect_fix "duplicate package publish forbids registry deletion" \
     'curl: (22) The requested URL returned error: 400' \
     "Registry rejected the upload — usually a rerun at an already-published version (triggered/scheduled pipeline missing a source guard). Exclude that source from the publish job; never delete the published package to let a rerun pass."
+expect_category "CI secret file decoded as inline data" \
+    'base64: truncated input' "secret-decoding"
+expect_escalate "CI secret decode failure does NOT escalate" \
+    'base64: truncated input' "false"
+expect_fix "CI secret decode failure preserves file-variable semantics" \
+    'base64: truncated input' \
+    "Treat GitLab file variables as paths and decode the referenced file; never pipe the path string into base64."
 expect_category "semver API compatibility" \
     '--- failure method_parameter_count_changed: pub method parameter count changed ---' \
     "semver-api-compatibility"
