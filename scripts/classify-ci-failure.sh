@@ -37,7 +37,7 @@ fi
 # Order matters — a compile error line can also contain the word "failed",
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
-  "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "c-ffi-cross" "branch-protection" "timeout" "dep-resolution"
+  "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "timeout" "dep-resolution"
   "missing-tool" "compile-error" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
@@ -45,6 +45,7 @@ PATS=(
   "could not find expected ':'[[:space:]]*$"
   "has both shebang line and .*\\[script\\].* attribute"
   ":[[:space:]][A-Z][A-Z0-9_]* must be set([[:space:]]|$)"
+  "base64: truncated input"
   "fatal error: '[^']+\\.h' file not found"
   "pre-receive hook declined"
   "(exceeded maximum timeout|Job exceeded)"
@@ -61,6 +62,7 @@ FIXES=(
   "Fix the invalid YAML indentation or syntax, then rerun the CI lint; never suppress the lint."
   "Use a shebang recipe or the [script] attribute, not both; verify with the minimum supported just version."
   "Bind the required CI-template variable before the shared step; flatten nested !reference chains if ordering was lost."
+  "Treat GitLab file variables as paths and decode the referenced file; never pipe the path string into base64."
   "Feature-gate the C dep in Cargo.toml (optional=true; #[cfg(feature)]); verify: cargo check --no-default-features"
   "Not a code fix — GitLab branch-protection/push rules; check MR settings and gate-push."
   "Optimise the job or raise the .timeout-* template; suspect resource starvation before code."
