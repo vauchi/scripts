@@ -59,8 +59,8 @@ WORKSPACE_ROOT="$(cd "$WORKSPACE_ROOT" && pwd)"
 # pub fn under `impl PlatformAppEngine { … }` whose name is NOT on this
 # list counts as legacy debt and is retired in Phase 3.
 #
-# MUST mirror HUMBLE_ALLOWLIST in
-# core/vauchi-app/tests/it/humble_surface_contract_tests.rs (23 entries)
+# MUST mirror the exported-method subset of HUMBLE_ALLOWLIST in
+# core/vauchi-app/tests/it/humble_surface_contract_tests.rs
 # — test and audit must agree on the counted set or the ratchet floor
 # and the contract gate talk past each other. `dispatch_domain_command`
 # and `new` are permanent binding surface (ADR-043 Amendment 3), not
@@ -78,8 +78,6 @@ handle_action_json
 handle_app_backgrounded
 handle_hardware_event
 has_identity
-invalidate_all
-invalidate_screen_json
 initial_commands_json
 nav_items
 navigate_back_json
