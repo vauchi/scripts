@@ -129,6 +129,8 @@ test_pae_non_humble() {
     cat >"$src/platform_app_engine.rs" <<'RS'
 impl PlatformAppEngine {
     pub fn boot(&self) -> () { () }
+    pub fn dispatch_json(&self) -> () { () }
+    pub fn initial_commands_json(&self) -> () { () }
     pub fn create_recovery_claim(&self) -> () { () }
 }
 
@@ -137,8 +139,8 @@ impl SomethingElse {
 }
 RS
     out=$("$SCRIPT" "$root")
-    assert_eq "pae: pub_fns_total == 2" \
-        "2" "$(extract_counter "$out" platform_app_engine_pub_fns_total)"
+    assert_eq "pae: pub_fns_total == 4" \
+        "4" "$(extract_counter "$out" platform_app_engine_pub_fns_total)"
     assert_eq "pae: non_humble == 1" \
         "1" "$(extract_counter "$out" platform_app_engine_non_humble)"
     rm -rf "$root"

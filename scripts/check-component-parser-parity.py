@@ -108,6 +108,34 @@ HAND_ROLLED_PARSERS = {
     ),
 }
 
+PRESENTATION_PARSERS = {
+    "linux-gtk": (
+        "linux-gtk/src/core_ui/generic_surface",
+        r"PresentationNode::{V}\b",
+        "identity",
+    ),
+    "linux-qt": (
+        "linux-qt/src/coreui",
+        r'"{V}"',
+        "identity",
+    ),
+    "windows": (
+        "windows/Vauchi/CoreUI/PresentationSurface.cs",
+        r'"{V}"',
+        "identity",
+    ),
+    "android": (
+        "android/app/src/main/kotlin/app/vauchi/ui/presentation/PresentationParser.kt",
+        r'"{V}"',
+        "identity",
+    ),
+    "tui": (
+        "tui/src/ui/presentation_renderer",
+        r"PresentationNode::{V}\b",
+        "identity",
+    ),
+}
+
 # These tags were removed from the canonical Component enum before the first
 # public release. Confirmation is represented by InlineConfirm, toast is an
 # ActionResult, and web's old domain-shaped variants were replaced by the
@@ -139,6 +167,9 @@ ENUM_FILE_CANDIDATES = (
     "core/vauchi-app/src/ui/component.rs",
 )
 ENUM_NAME = "Component"
+PRESENTATION_ENUM_FILE_CANDIDATES = (
+    "core/vauchi-core/src/platform/presentation/surface/nodes.rs",
+)
 
 
 def extract_variants(enum_path: Path, enum_name: str) -> list[str]:
@@ -168,7 +199,7 @@ def check_parser(
     """Return the variants whose marker pattern is missing from `parser_path`."""
     if not parser_path.exists():
         return variants  # everything missing
-    text = parser_path.read_text()
+    text = parser_text(parser_path)
     transform = TRANSFORMS[transform_key]
     missing = []
     for v in variants:
@@ -188,7 +219,7 @@ def present_variants(
     """Return retired variants whose dispatch marker is present."""
     if not parser_path.exists():
         return []
-    text = parser_path.read_text()
+    text = parser_text(parser_path)
     transform = TRANSFORMS[transform_key]
     present = []
     for variant in variants:
@@ -200,8 +231,25 @@ def present_variants(
     return present
 
 
+def parser_text(parser_path: Path) -> str:
+    """Read one parser file or concatenate a split parser directory."""
+    if parser_path.is_dir():
+        return "\n".join(
+            path.read_text()
+            for path in sorted(parser_path.rglob("*"))
+            if path.is_file() and path.suffix in {".rs", ".cpp", ".cs", ".kt", ".swift", ".tsx"}
+        )
+    return parser_path.read_text()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--protocol",
+        choices=("component", "presentation"),
+        default="component",
+        help="Canonical wire protocol to audit.",
+    )
     parser.add_argument(
         "--workspace",
         type=Path,
@@ -215,7 +263,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--frontend",
-        choices=sorted(HAND_ROLLED_PARSERS.keys()),
+        choices=sorted(set(HAND_ROLLED_PARSERS) | set(PRESENTATION_PARSERS)),
         help="Check only one frontend (CI per-repo mode).",
     )
     parser.add_argument(
@@ -225,26 +273,39 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    enum_candidates = (
+        PRESENTATION_ENUM_FILE_CANDIDATES
+        if args.protocol == "presentation"
+        else ENUM_FILE_CANDIDATES
+    )
+    enum_name = "PresentationNode" if args.protocol == "presentation" else ENUM_NAME
+    parser_map = (
+        PRESENTATION_PARSERS if args.protocol == "presentation" else HAND_ROLLED_PARSERS
+    )
+    if args.frontend and args.frontend not in parser_map:
+        parser.error(f"{args.frontend} has no {args.protocol} parser configuration")
+
     if args.enum_file is not None:
         enum_path = args.enum_file
     else:
         enum_path = next(
-            (args.workspace / c for c in ENUM_FILE_CANDIDATES if (args.workspace / c).exists()),
-            args.workspace / ENUM_FILE_CANDIDATES[0],
+            (args.workspace / c for c in enum_candidates if (args.workspace / c).exists()),
+            args.workspace / enum_candidates[0],
         )
     if not enum_path.exists():
-        candidates = ", ".join(ENUM_FILE_CANDIDATES)
+        candidates = ", ".join(enum_candidates)
         print(
             f"error: missing canonical enum file (looked for: {candidates})",
             file=sys.stderr,
         )
         return 2
 
-    variants = extract_variants(enum_path, ENUM_NAME)
-    print(f"Canonical {ENUM_NAME} variants ({len(variants)}): {', '.join(variants)}")
+    variants = extract_variants(enum_path, enum_name)
+    print(f"Canonical {enum_name} variants ({len(variants)}): {', '.join(variants)}")
     print()
 
-    reintroduced = sorted(set(variants).intersection(RETIRED_VARIANTS))
+    retired_variants = RETIRED_VARIANTS if args.protocol == "component" else ()
+    reintroduced = sorted(set(variants).intersection(retired_variants))
     if reintroduced:
         print(
             "FAIL: canonical Component reintroduced retired variant(s): "
@@ -253,9 +314,9 @@ def main() -> int:
         return 1
 
     targets = (
-        {args.frontend: HAND_ROLLED_PARSERS[args.frontend]}
+        {args.frontend: parser_map[args.frontend]}
         if args.frontend
-        else HAND_ROLLED_PARSERS
+        else parser_map
     )
 
     drift = False
@@ -263,7 +324,7 @@ def main() -> int:
         parser_path = args.parser_file if args.parser_file else (args.workspace / rel_path)
         missing = check_parser(parser_path, marker, transform_key, variants)
         retired = present_variants(
-            frontend, parser_path, marker, transform_key, RETIRED_VARIANTS
+            frontend, parser_path, marker, transform_key, retired_variants
         )
         display_path = str(parser_path) if args.parser_file else rel_path
         if missing:
@@ -283,7 +344,7 @@ def main() -> int:
     if drift:
         print("FAIL: parser drift detected. Add missing variants or remove retired variants.")
         return 1
-    print("PASS: all hand-rolled parsers cover every Component variant.")
+    print(f"PASS: all hand-rolled parsers cover every {enum_name} variant.")
     return 0
 
 

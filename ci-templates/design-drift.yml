@@ -23,6 +23,8 @@
 #   DESIGN_DRIFT_CASE:           Filename case: "kebab", "snake" (default), "pascal", "lower"
 #   DESIGN_DRIFT_MATCH_MODE:     "file" (default) = one file per component, "grep" = grep in renderer file
 #   DESIGN_DRIFT_GREP_FILE:      Path to renderer file (required when MATCH_MODE=grep)
+#   DESIGN_DRIFT_PROTOCOL:       "component" (design specs) or "presentation"
+#   CORE_REF:                    Core ref used in presentation mode
 #
 # Match modes:
 #   file  — Looks for a file per component in DESIGN_DRIFT_COMPONENT_DIR.
@@ -124,6 +126,8 @@
     DESIGN_DRIFT_CASE: "snake"
     DESIGN_DRIFT_MATCH_MODE: "file"
     DESIGN_DRIFT_GREP_FILE: ""
+    DESIGN_DRIFT_PROTOCOL: "component"
+    CORE_REF: "main"
   before_script:
     - apk add --no-cache curl openssh-client bash grep git
   script:
@@ -141,38 +145,56 @@
 
       REPO_LABEL="${DESIGN_DRIFT_REPO_LABEL:-${CI_PROJECT_NAME}}"
 
-      # ── Fetch canonical component list from _private designs ──
+      # ── Fetch canonical variant list ──
       # CI_JOB_TOKEN does not support the Repository Tree API, so we use
       # a sparse git clone instead (CI_JOB_TOKEN supports git operations).
-      PRIVATE_REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/private.git"
-      COMPONENTS_DIR="/tmp/private-designs"
-      git clone --depth=1 --filter=blob:none --sparse \
-        "$PRIVATE_REPO_URL" "$COMPONENTS_DIR" 2>/dev/null \
-        && git -C "$COMPONENTS_DIR" sparse-checkout set designs/components 2>/dev/null \
-        || true
-
-      if [ ! -d "${COMPONENTS_DIR}/designs/components" ]; then
-        echo "WARNING: Could not clone component list from vauchi/private — skipping check"
-        echo "  FIX: Verify CI_JOB_TOKEN has access to vauchi/private"
-        echo "       (Settings → CI/CD → Job token permissions → Allowlist)"
-        exit 0
-      fi
-
-      # Extract component names from .md filenames (kebab-case, strip .md)
       PLANNED=""
       EXPECTED_COMPONENTS=""
       EXPECTED_COUNT=0
-
-      for name in $(ls "${COMPONENTS_DIR}/designs/components/"*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//' | sort); do
-        case "$name" in README|INDEX) continue ;; esac
-        SKIP=false
-        for p in $PLANNED; do
-          if [ "$name" = "$p" ]; then SKIP=true; break; fi
+      if [ "$DESIGN_DRIFT_PROTOCOL" = "presentation" ]; then
+        CORE_DIR=$(mktemp -d)
+        git -C "$CORE_DIR" init -q
+        git -C "$CORE_DIR" remote add origin https://gitlab.com/vauchi/core.git
+        git -C "$CORE_DIR" sparse-checkout init --no-cone
+        git -C "$CORE_DIR" sparse-checkout set vauchi-core/src/platform/presentation/surface/nodes.rs
+        git -C "$CORE_DIR" fetch -q --depth 1 origin "$CORE_REF"
+        git -C "$CORE_DIR" checkout -q FETCH_HEAD
+        ENUM_FILE="$CORE_DIR/vauchi-core/src/platform/presentation/surface/nodes.rs"
+        for name in $(awk '
+          /^pub enum PresentationNode / { in_enum=1; next }
+          in_enum && /^}/ { exit }
+          in_enum && /^    [A-Z][A-Za-z0-9_]*[ {(,]/ {
+            name=$1
+            sub(/[ {(,].*$/, "", name)
+            print name
+          }
+        ' "$ENUM_FILE" | sed -E 's/([a-z0-9])([A-Z])/\1-\2/g' | tr 'A-Z' 'a-z' | sort -u); do
+          EXPECTED_COMPONENTS="${EXPECTED_COMPONENTS} ${name}"
+          EXPECTED_COUNT=$((EXPECTED_COUNT + 1))
         done
-        if $SKIP; then continue; fi
-        EXPECTED_COMPONENTS="${EXPECTED_COMPONENTS} ${name}"
-        EXPECTED_COUNT=$((EXPECTED_COUNT + 1))
-      done
+      else
+        PRIVATE_REPO_URL="https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/private.git"
+        COMPONENTS_DIR="/tmp/private-designs"
+        git clone --depth=1 --filter=blob:none --sparse \
+          "$PRIVATE_REPO_URL" "$COMPONENTS_DIR" 2>/dev/null \
+          && git -C "$COMPONENTS_DIR" sparse-checkout set designs/components 2>/dev/null \
+          || true
+
+        if [ ! -d "${COMPONENTS_DIR}/designs/components" ]; then
+          echo "WARNING: Could not clone component list from vauchi/private — skipping check"
+          exit 0
+        fi
+        for name in $(ls "${COMPONENTS_DIR}/designs/components/"*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//' | sort); do
+          case "$name" in README|INDEX) continue ;; esac
+          SKIP=false
+          for p in $PLANNED; do
+            if [ "$name" = "$p" ]; then SKIP=true; break; fi
+          done
+          if $SKIP; then continue; fi
+          EXPECTED_COMPONENTS="${EXPECTED_COMPONENTS} ${name}"
+          EXPECTED_COUNT=$((EXPECTED_COUNT + 1))
+        done
+      fi
 
       echo "Design spec components (${EXPECTED_COUNT}):"
       for c in $EXPECTED_COMPONENTS; do echo "  - $c"; done
@@ -200,7 +222,7 @@
 
         if [ "$DESIGN_DRIFT_MATCH_MODE" = "grep" ]; then
           # Grep mode: search for Component::Variant or .variant pattern in renderer
-          if grep -q "Component::${pascal}\b\|\.${pascal}\b\|is ${pascal}\b\|case.*${pascal}" "$DESIGN_DRIFT_GREP_FILE" 2>/dev/null; then
+          if grep -rq "PresentationNode::${pascal}\b\|Component::${pascal}\b\|\.${pascal}\b\|is ${pascal}\b\|case.*${pascal}\|\"${pascal}\"" "$DESIGN_DRIFT_GREP_FILE" 2>/dev/null; then
             echo "  OK: $component → found in $DESIGN_DRIFT_GREP_FILE"
             FOUND=true
           fi

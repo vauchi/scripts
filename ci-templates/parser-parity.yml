@@ -25,6 +25,7 @@
 #   CORE_REF:       Git ref of vauchi/core to check against (default:
 #                   main). Pin to a specific tag/commit for reproducible
 #                   runs.
+#   PARSER_PROTOCOL: "component" (legacy) or "presentation".
 
 .parser-parity-job:
   stage: lint
@@ -40,6 +41,8 @@
     FRONTEND_NAME: ""
     PARSER_FILE: ""
     CORE_REF: "main"
+    PARSER_PROTOCOL: "component"
+    PARSER_SCRIPT_REF: "main"
   before_script:
     - apk add --no-cache git python3
   script:
@@ -51,7 +54,7 @@
         exit 2
       fi
 
-      if [ ! -f "$PARSER_FILE" ]; then
+      if [ ! -e "$PARSER_FILE" ]; then
         echo "ERROR: PARSER_FILE not found: $PARSER_FILE"
         exit 2
       fi
@@ -71,13 +74,16 @@
       git -C .core-parity sparse-checkout init --no-cone
       git -C .core-parity sparse-checkout set \
         vauchi-app/src/ui/component.rs \
-        vauchi-app/src/ui/component
+        vauchi-app/src/ui/component \
+        vauchi-core/src/platform/presentation/surface/nodes.rs
       git -C .core-parity fetch -q --depth 1 origin "$CORE_REF"
       git -C .core-parity checkout -q FETCH_HEAD
 
       # Prefer the post-Tier-0 layout; fall back to the pre-Tier-0
       # single-file layout for older refs.
-      if [ -f .core-parity/vauchi-app/src/ui/component/mod.rs ]; then
+      if [ "$PARSER_PROTOCOL" = "presentation" ]; then
+        ENUM_FILE=".core-parity/vauchi-core/src/platform/presentation/surface/nodes.rs"
+      elif [ -f .core-parity/vauchi-app/src/ui/component/mod.rs ]; then
         ENUM_FILE=".core-parity/vauchi-app/src/ui/component/mod.rs"
       elif [ -f .core-parity/vauchi-app/src/ui/component.rs ]; then
         ENUM_FILE=".core-parity/vauchi-app/src/ui/component.rs"
@@ -90,10 +96,11 @@
       # Fetch the parity script. CI_PROJECT_PATH-aware: use the same
       # dependency proxy / mirror the runner already trusts. Falls back
       # to raw HTTPS for non-GitLab environments.
-      SCRIPT_URL="https://gitlab.com/vauchi/scripts/-/raw/main/scripts/check-component-parser-parity.py"
+      SCRIPT_URL="https://gitlab.com/vauchi/scripts/-/raw/${PARSER_SCRIPT_REF}/scripts/check-component-parser-parity.py"
       wget -q -O check-parser-parity.py "$SCRIPT_URL"
 
       python3 check-parser-parity.py \
+        --protocol "$PARSER_PROTOCOL" \
         --enum-file "$ENUM_FILE" \
         --frontend "$FRONTEND_NAME" \
         --parser-file "$PARSER_FILE"

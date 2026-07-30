@@ -73,12 +73,14 @@ can_go_back
 current_screen_json
 current_tab_id
 dispatch_domain_command
+dispatch_json
 handle_action_json
 handle_app_backgrounded
 handle_hardware_event
 has_identity
 invalidate_all
 invalidate_screen_json
+initial_commands_json
 nav_items
 navigate_back_json
 new

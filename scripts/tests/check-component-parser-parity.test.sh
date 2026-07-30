@@ -37,7 +37,8 @@ write_parser() {
 }
 
 run_check() {
-    python3 "$SCRIPT" --frontend windows --enum-file "$enum" --parser-file "$parser" \
+    protocol="${1:-component}"
+    python3 "$SCRIPT" --protocol "$protocol" --frontend windows --enum-file "$enum" --parser-file "$parser" \
         >/dev/null 2>&1
 }
 
@@ -47,8 +48,9 @@ fail=0
 expect_rc() {
     name="$1"
     want="$2"
+    protocol="${3:-component}"
     set +e
-    run_check
+    run_check "$protocol"
     got=$?
     set -e
     if [ "$got" -eq "$want" ]; then
@@ -76,6 +78,11 @@ expect_rc 'retired parser variant fails' 1
 write_enum ShowToast
 write_parser ShowToast
 expect_rc 'retired core variant fails' 1
+
+printf '%s\n' 'pub enum PresentationNode {' '    Text { value: String },' \
+    '    Divider,' '}' >"$enum"
+write_parser
+expect_rc 'presentation protocol parser passes' 0 presentation
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
