@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT="$SCRIPT_DIR/../check-component-parser-parity.py"
+TEMPLATE="$SCRIPT_DIR/../../ci-templates/parser-parity.yml"
 ROOT=$(mktemp -d)
 trap 'rm -rf "$ROOT"' EXIT
 
@@ -83,6 +84,14 @@ printf '%s\n' 'pub enum PresentationNode {' '    Text { value: String },' \
     '    Divider,' '}' >"$enum"
 write_parser
 expect_rc 'presentation protocol parser passes' 0 presentation
+
+if grep -Fq -- '- "${PARSER_FILE}"' "$TEMPLATE"; then
+    printf '  FAIL parser-parity MR job is skipped for parser directories\n' >&2
+    fail=$((fail + 1))
+else
+    printf '  PASS parser-parity MR job runs for parser directories\n'
+    pass=$((pass + 1))
+fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

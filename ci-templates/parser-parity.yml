@@ -19,8 +19,7 @@
 #
 # Variables (set by consumer jobs that extend `.parser-parity-job`):
 #   FRONTEND_NAME:  Frontend identifier — must match a key in the
-#                   script's HAND_ROLLED_PARSERS map: linux-gtk,
-#                   linux-qt, windows, android.
+#                   script's parser map.
 #   PARSER_FILE:    Path to the consumer's parser file (repo-relative).
 #   CORE_REF:       Git ref of vauchi/core to check against (default:
 #                   main). Pin to a specific tag/commit for reproducible
@@ -34,8 +33,6 @@
   needs: []
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - "${PARSER_FILE}"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   variables:
     FRONTEND_NAME: ""

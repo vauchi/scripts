@@ -129,9 +129,24 @@ PRESENTATION_PARSERS = {
         r'"{V}"',
         "identity",
     ),
+    "ios": (
+        "ios/Vauchi/CoreUI/PresentationNodes.swift",
+        r'"{V}"',
+        "identity",
+    ),
+    "macos": (
+        "macos/Vauchi/CoreUI/PresentationNodes.swift",
+        r'"{V}"',
+        "identity",
+    ),
     "tui": (
         "tui/src/ui/presentation_renderer",
         r"PresentationNode::{V}\b",
+        "identity",
+    ),
+    "web-demo": (
+        "web-demo/src/presentation/PresentationNodeRenderer.tsx",
+        r'"{V}"',
         "identity",
     ),
 }
