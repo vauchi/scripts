@@ -42,16 +42,27 @@ git -C "$WORK/repo" add a.txt
 git -C "$WORK/repo" commit -q -m "feat: add a second line"
 
 # --- stub reviewers: record the prompt, emit a marker ------------------
-for tool in codex kimi; do
-    cat > "$WORK/bin/$tool" <<EOF
+# Stubs mirror the real contracts: `codex exec -o <file> <prompt>` writes
+# its answer to the -o file, `kimi -p <prompt>` writes to stdout.
+cat > "$WORK/bin/codex" <<EOF
 #!/bin/sh
-# codex takes "exec <prompt>", kimi takes "-p <prompt>" — last arg is the brief.
-for a in "\$@"; do last="\$a"; done
-printf '%s' "\$last" > "$WORK/$tool.prompt"
-echo "1. $tool question?"
-EOF
-    chmod +x "$WORK/bin/$tool"
+outfile=""
+prev=""
+for a in "\$@"; do
+    if [ "\$prev" = "-o" ]; then outfile="\$a"; fi
+    prev="\$a"
+    last="\$a"
 done
+printf '%s' "\$last" > "$WORK/codex.prompt"
+echo "1. codex question?" > "\$outfile"
+EOF
+cat > "$WORK/bin/kimi" <<EOF
+#!/bin/sh
+for a in "\$@"; do last="\$a"; done
+printf '%s' "\$last" > "$WORK/kimi.prompt"
+echo "1. kimi question?"
+EOF
+chmod +x "$WORK/bin/codex" "$WORK/bin/kimi"
 
 run() { out="$(PATH="$WORK/bin:$PATH" "$SCRIPT" "$@" 2>&1)"; rc=$?; }
 
@@ -103,6 +114,39 @@ assert_eq "truncated: warns the reader" "1" \
     "$(printf '%s' "$out" | grep -qF 'TRUNCATED' && echo 1 || echo 0)"
 assert_eq "truncated: tells the reviewer too" "1" \
     "$(grep -qF 'truncated at 50' "$WORK/codex.prompt" && echo 1 || echo 0)"
+
+# --- truncation of a diff larger than the 64K pipe buffer --------------
+# The small-diff case above cannot catch SIGPIPE: it fits the pipe buffer,
+# so the writer finishes before the reader exits. Only a diff past 64K
+# exercises the abort that `pipefail` turns a closed pipe into.
+git -C "$WORK/repo" checkout -q feature/x
+awk 'BEGIN { for (i = 0; i < 20000; i++) print "padding line " i }' \
+    > "$WORK/repo/big.txt"
+git -C "$WORK/repo" add big.txt
+git -C "$WORK/repo" commit -q -m "feat: add a diff larger than the pipe buffer"
+run() { out="$(PATH="$WORK/bin:$PATH" SOCRATIC_MAX_DIFF_BYTES=100000 "$SCRIPT" "$@" 2>&1)"; rc=$?; }
+run "$WORK/repo"
+assert_eq "big diff truncation: exit 0 (not SIGPIPE)" "0" "$rc"
+assert_eq "big diff truncation: reviewers still ran" "1" \
+    "$(printf '%s' "$out" | grep -qF '1. codex question?' && echo 1 || echo 0)"
+
+# --- a nonsensical cap is refused, not silently applied ----------------
+run() { out="$(PATH="$WORK/bin:$PATH" SOCRATIC_MAX_DIFF_BYTES="$1" "$SCRIPT" "$2" 2>&1)"; rc=$?; }
+run 0 "$WORK/repo"
+assert_eq "zero cap: exit 2" "2" "$rc"
+run abc "$WORK/repo"
+assert_eq "non-numeric cap: exit 2" "2" "$rc"
+
+# --- the invoker must not silently review its own work -----------------
+run() { out="$(PATH="$WORK/bin:$PATH" VAUCHI_AGENT="$1" "$SCRIPT" "$2" "$3" 2>&1)"; rc=$?; }
+run kimi "$WORK/repo" both
+assert_eq "self-review: warns the invoker is a reviewer" "1" \
+    "$(printf '%s' "$out" | grep -qF "invoker 'kimi' is also a reviewer" && echo 1 || echo 0)"
+assert_eq "self-review: names the independent alternative" "1" \
+    "$(printf '%s' "$out" | grep -qF 'socratic-review <repo> codex' && echo 1 || echo 0)"
+run claude "$WORK/repo" both
+assert_eq "claude invoker: no warning" "0" \
+    "$(printf '%s' "$out" | grep -qF 'is also a reviewer' && echo 1 || echo 0)"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

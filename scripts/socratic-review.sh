@@ -29,10 +29,18 @@ if [[ -z "$REPO_DIR" ]]; then
     echo "Usage: socratic-review.sh <repo_dir> [codex|kimi|both]" >&2
     exit 2
 fi
-if [[ ! -d "$REPO_DIR/.git" ]]; then
+# `.git` is a *file* in linked worktrees and submodules, so test for a
+# working repo rather than for a directory.
+if ! git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1; then
     echo "ERROR: not a git repo: $REPO_DIR" >&2
     exit 2
 fi
+case "$MAX_DIFF_BYTES" in
+    ''|*[!0-9]*|0)
+        echo "ERROR: SOCRATIC_MAX_DIFF_BYTES must be a positive integer (got '$MAX_DIFF_BYTES')" >&2
+        exit 2
+        ;;
+esac
 case "$WHICH" in
     codex|kimi|both) ;;
     *) echo "ERROR: reviewer must be codex, kimi, or both (got '$WHICH')" >&2; exit 2 ;;
@@ -58,11 +66,28 @@ fi
 # Bounded input, loudly. A silently truncated diff reads as "the reviewer
 # saw everything" when it did not — the reviewer's blind spot has to be
 # visible to whoever reads the questions.
+#
+# The trailing `sed '$d'` drops the final line after the byte cut. A byte
+# cap can land mid-character in a UTF-8 diff, and half a code point is
+# both an unreadable hunk and invalid input to the provider; dropping the
+# partial line is cheaper than counting characters.
+#
+# Truncation reads from a temp file, never `printf "$DIFF" | head -c`:
+# `head` exits at the cap while `printf` is still writing, and past the
+# 64K pipe buffer that SIGPIPE plus `pipefail` aborts the whole script —
+# precisely on the large diffs truncation exists to serve.
 DIFF_BYTES=$(printf '%s' "$DIFF" | wc -c | tr -d ' ')
 TRUNCATED=""
 if [[ "$DIFF_BYTES" -gt "$MAX_DIFF_BYTES" ]]; then
-    DIFF=$(printf '%s' "$DIFF" | head -c "$MAX_DIFF_BYTES")
+    TMP_DIFF=$(mktemp)
+    printf '%s' "$DIFF" > "$TMP_DIFF"
+    DIFF=$(head -c "$MAX_DIFF_BYTES" "$TMP_DIFF" | sed '$d')
+    rm -f "$TMP_DIFF"
     TRUNCATED="yes"
+    if [[ -z "$DIFF" ]]; then
+        echo "ERROR: SOCRATIC_MAX_DIFF_BYTES=$MAX_DIFF_BYTES is too small to hold one diff line." >&2
+        exit 2
+    fi
 fi
 
 SUBJECTS=$(git -C "$REPO_DIR" log origin/main..HEAD --reverse --format='- %s')
@@ -92,11 +117,32 @@ NOTE: this diff was truncated at ${MAX_DIFF_BYTES} of ${DIFF_BYTES} bytes.
 Say so if a question depends on the part you cannot see."
 fi
 
+# A hung provider must not hold the branch hostage; `timeout` is absent on
+# some BSD hosts, so it is used when present rather than required.
+TIMEOUT_SECS=${SOCRATIC_TIMEOUT:-600}
+GUARD=()
+if command -v timeout >/dev/null 2>&1; then
+    GUARD=(timeout "$TIMEOUT_SECS")
+fi
+
+# `${GUARD[@]+...}` rather than a bare `"${GUARD[@]}"`: expanding an empty
+# array under `set -u` is an error on bash 3.2, which is what macOS ships.
 run_reviewer() {
     name="$1"; out="$2"
     case "$name" in
-        codex) codex exec "$BRIEF" >"$out" 2>&1 ;;
-        kimi)  kimi -p "$BRIEF" >"$out" 2>&1 ;;
+        # `-o` writes the final message only — without it codex echoes the
+        # entire brief back and buries the questions in it.
+        codex)
+            if ${GUARD[@]+"${GUARD[@]}"} codex exec -o "$out" "$BRIEF" \
+                >/dev/null 2>"$out.err"; then
+                return 0
+            fi
+            cat "$out.err" >>"$out"
+            return 1
+            ;;
+        kimi)
+            ${GUARD[@]+"${GUARD[@]}"} kimi -p "$BRIEF" >"$out" 2>&1
+            ;;
     esac
 }
 
@@ -114,11 +160,31 @@ for r in $REVIEWERS; do
 done
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+PIDS=""
+# Killing the children matters on Ctrl-C: provider calls are long, and an
+# abandoned one keeps burning a paid request after the caller walked away.
+cleanup() {
+    for entry in $PIDS; do
+        kill "${entry%%:*}" 2>/dev/null || true
+    done
+    rm -rf "$WORK"
+}
+trap cleanup EXIT INT TERM
 
 echo "=== Socratic review: $(basename "$REPO_DIR") @ $BRANCH ==="
 echo "  diff: ${DIFF_BYTES} bytes$([ -n "$TRUNCATED" ] && printf ' (TRUNCATED to %s)' "$MAX_DIFF_BYTES")"
+echo "  scope: committed changes only — the working tree is not reviewed"
 echo "  reviewers: $REVIEWERS"
+# The whole premise is that the reviewer did not write the code. Running
+# kimi against a branch a Kimi session authored restores the echo chamber
+# without any visible sign that it happened.
+INVOKER=${VAUCHI_AGENT:-claude}
+case " $REVIEWERS " in
+    *" $INVOKER "*)
+        echo "  WARNING: invoker '$INVOKER' is also a reviewer — it is reviewing its own work."
+        echo "           Drop it (\`socratic-review <repo> $([ "$INVOKER" = kimi ] && echo codex || echo kimi)\`) for an independent read."
+        ;;
+esac
 if [[ -n "$TRUNCATED" ]]; then
     echo "  WARNING: reviewers saw only the first ${MAX_DIFF_BYTES} of ${DIFF_BYTES} bytes."
     echo "           Raise SOCRATIC_MAX_DIFF_BYTES or review in smaller branches."
@@ -126,7 +192,6 @@ fi
 echo ""
 
 # Both providers are network round-trips; run them concurrently.
-PIDS=""
 for r in $REVIEWERS; do
     ( cd "$REPO_DIR" && run_reviewer "$r" "$WORK/$r.out" ) &
     PIDS="$PIDS $!:$r"
