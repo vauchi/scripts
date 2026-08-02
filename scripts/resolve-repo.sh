@@ -80,7 +80,7 @@ if [[ ${#REPO_REGISTRY[@]} -eq 0 ]]; then
         "e2e:e2e:rust"
         "android:android:gradle"
         "ios:ios:xcode"
-        "docs:docs:mkdocs"
+        "docs:docs:mdbook"
         "locales:locales:python"
         "themes:themes:python"
         "features:features:gherkin"
