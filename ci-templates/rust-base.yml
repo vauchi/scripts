@@ -401,9 +401,24 @@ workflow:
     # swallowed (a stats-dead zombie served allyson for days unnoticed).
     # Warn loudly instead so every job log across every repo asserts the
     # cache layer's health.
+    #
+    # The `timeout` is load-bearing, not defensive dressing. This block
+    # handled a daemon that *errors*, but a daemon that *hangs* makes
+    # `sccache --show-stats` block forever: after_script then consumes the
+    # whole job timeout and GitLab fails the job — after its actual work
+    # succeeded. Observed 2026-08-02 on core's allow-direct:check, which
+    # compiles nothing and still died at the 5m ceiling, cancelling 23
+    # sibling jobs. Telemetry must never be able to fail a green job.
     - |
       if command -v sccache >/dev/null 2>&1; then
-        if _sccache_stats=$(sccache --show-stats 2>&1); then
+        _sccache_stats=$(timeout 30 sccache --show-stats 2>&1)
+        _sccache_rc=$?
+        # 124 is GNU coreutils' timeout code; BusyBox reports the SIGTERM
+        # it sent as 143. Accept both so this reads the same on a Debian
+        # shell runner and in an alpine image.
+        if [ "$_sccache_rc" -eq 124 ] || [ "$_sccache_rc" -eq 143 ]; then
+          echo "WARNING: sccache --show-stats hung past 30s — daemon wedged; cross-job compile caching is NOT working on this runner"
+        elif [ "$_sccache_rc" -eq 0 ]; then
           printf '%s\n' "$_sccache_stats"
           _sccache_requests=$(printf '%s\n' "$_sccache_stats" | awk '/^Compile requests[[:space:]]/ {print $NF; exit}')
           if [ "${_sccache_requests:-0}" = "0" ]; then
