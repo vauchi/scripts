@@ -307,37 +307,41 @@ echo "[3/4] Checking test structure..."
 # forbids adding INLINE_TEST_REQUIRED markers to them).
 STAGED_RS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^.*src/.*\.rs$' | grep -Ev '(^|/)vendor/' || true)
 
-if [[ -z "$STAGED_RS_FILES" ]]; then
-    exit 0
-fi
+# Scope the no-Rust case to THIS check only. A bare `exit 0` here ends the
+# whole hook, so every later check — secrets, shell portability, commit
+# scope — silently never ran on any commit without a staged src/**.rs file,
+# which is exactly the docs/config/.env commit most likely to carry a secret.
+if [[ -n "$STAGED_RS_FILES" ]]; then
+    VIOLATIONS=0
 
-VIOLATIONS=0
-
-for file in $STAGED_RS_FILES; do
-    if [[ ! -f "$file" ]]; then
-        continue
-    fi
-
-    # Check if file contains #[cfg(test)] without INLINE_TEST_REQUIRED marker
-    if grep -q '#\[cfg(test)\]' "$file"; then
-        if ! grep -B5 '#\[cfg(test)\]' "$file" | grep -q 'INLINE_TEST_REQUIRED:'; then
-            echo "VIOLATION: $file"
-            echo "  Found #[cfg(test)] without INLINE_TEST_REQUIRED marker"
-            echo "  Either move tests to tests/ directory or add:"
-            echo "    // INLINE_TEST_REQUIRED: <reason>"
-            VIOLATIONS=$((VIOLATIONS + 1))
+    for file in $STAGED_RS_FILES; do
+        if [[ ! -f "$file" ]]; then
+            continue
         fi
+
+        # Check if file contains #[cfg(test)] without INLINE_TEST_REQUIRED marker
+        if grep -q '#\[cfg(test)\]' "$file"; then
+            if ! grep -B5 '#\[cfg(test)\]' "$file" | grep -q 'INLINE_TEST_REQUIRED:'; then
+                echo "VIOLATION: $file"
+                echo "  Found #[cfg(test)] without INLINE_TEST_REQUIRED marker"
+                echo "  Either move tests to tests/ directory or add:"
+                echo "    // INLINE_TEST_REQUIRED: <reason>"
+                VIOLATIONS=$((VIOLATIONS + 1))
+            fi
+        fi
+    done
+
+    if [[ $VIOLATIONS -gt 0 ]]; then
+        echo ""
+        echo "Commit blocked: $VIOLATIONS file(s) have inline tests without justification."
+        echo "See CLAUDE.md: src/ = production only, tests/ = tests only"
+        exit 1
     fi
-done
 
-if [[ $VIOLATIONS -gt 0 ]]; then
-    echo ""
-    echo "Commit blocked: $VIOLATIONS file(s) have inline tests without justification."
-    echo "See CLAUDE.md: src/ = production only, tests/ = tests only"
-    exit 1
+    echo "  Test structure OK"
+else
+    echo "  No Rust sources staged, skipping"
 fi
-
-echo "  Test structure OK"
 
 # ============================================================
 # 3. Check for potential secrets
