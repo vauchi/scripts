@@ -4,6 +4,13 @@
 
 # Validate that Claude, Codex, and Kimi route through one canonical hook set.
 # Informational by default; --strict makes configuration drift fail the check.
+#
+# Codex and Claude register their hooks in-repo, so the checks below see them.
+# Kimi does not: it reads only ~/.kimi-code/config.toml and has no project-level
+# config mechanism, so the repo's .kimi-code/config.toml is inert documentation.
+# Checking only that file reported "all three use canonical shared hooks" while
+# Kimi in fact had zero registrations and ran the workspace with no guardrails
+# at all. The user-config check below is the part that can actually fail.
 
 set -euo pipefail
 
@@ -67,6 +74,30 @@ if [[ -f "$KIMI_CONFIG" ]] \
     && grep 'command = .*\.kimi-code/hooks/' "$KIMI_CONFIG" \
         | grep -v '\.kimi-code/hooks/adapter\.sh' >/dev/null 2>&1; then
     problem ".kimi-code/config.toml bypasses its adapter"
+fi
+
+# Kimi's actual wiring lives outside the repo. Verify every mode the canonical
+# adapter dispatches is registered there — a partial registration is the silent
+# failure this check exists to catch, so compare modes rather than count lines.
+KIMI_USER_CONFIG="${KIMI_CODE_HOME:-$HOME/.kimi-code}/config.toml"
+if [[ ! -f "$KIMI_USER_CONFIG" ]]; then
+    # CI and fresh checkouts have no user config; absence is not drift.
+    echo "hook-routing: note - ${KIMI_USER_CONFIG/#$HOME/\~} absent, Kimi wiring unverified"
+elif [[ -f "$CANONICAL" ]]; then
+    # `|| true`: grep exits 1 on no match, and under `set -e` that aborts the
+    # whole check silently — the same class of invisible pass being fixed here.
+    MODES=$(sed -n '/case "\$MODE" in/,/^esac/p' "$CANONICAL" \
+        | grep -oE '^[[:space:]]+[a-z-]+\)' | tr -d ' )' | sort -u || true)
+    MISSING=""
+    for mode in $MODES; do
+        grep -q "adapter\.sh\" $mode\b\|adapter\.sh $mode\b" "$KIMI_USER_CONFIG" \
+            || MISSING="$MISSING $mode"
+    done
+    if [[ -z "$MODES" ]]; then
+        problem "could not read dispatch modes from ${CANONICAL#"$ROOT/"}"
+    elif [[ -n "$MISSING" ]]; then
+        problem "${KIMI_USER_CONFIG/#$HOME/\~} does not register:${MISSING} - Kimi runs without those guardrails"
+    fi
 fi
 
 if [[ "$DRIFT" -eq 0 ]]; then
