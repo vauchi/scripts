@@ -37,7 +37,7 @@ fi
 # Order matters — a compile error line can also contain the word "failed",
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
-  "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "timeout" "dep-resolution"
+  "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "target-health" "timeout" "dep-resolution"
   "missing-tool" "compile-error" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
@@ -48,6 +48,7 @@ PATS=(
   "base64: truncated input"
   "fatal error: '[^']+\\.h' file not found"
   "pre-receive hook declined"
+  "target failed to become healthy within configured timeout"
   "(exceeded maximum timeout|Job exceeded)"
   "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities))"
   "(command not found|: not found)"
@@ -65,6 +66,7 @@ FIXES=(
   "Treat GitLab file variables as paths and decode the referenced file; never pipe the path string into base64."
   "Feature-gate the C dep in Cargo.toml (optional=true; #[cfg(feature)]); verify: cargo check --no-default-features"
   "Not a code fix — GitLab branch-protection/push rules; check MR settings and gate-push."
+  "Inspect the proxy target address, network, port, and health path; only raise the deploy timeout when a valid target genuinely starts slowly."
   "Optimise the job or raise the .timeout-* template; suspect resource starvation before code."
   "Refresh the dependency constraint or lockfile so it selects a patched compatible version."
   "Install the tool in before_script (prefer cargo-binstall) or fix the runner image."

@@ -79,6 +79,15 @@ expect_category "missing tool (busybox)" \
     "sh: mold: not found" "missing-tool"
 expect_category "timeout" \
     "ERROR: Job exceeded maximum timeout of 3600 seconds" "timeout"
+expect_category "proxy target health timeout" \
+    "Error: target failed to become healthy within configured timeout (30s)" \
+    "target-health"
+expect_escalate "proxy target health timeout does NOT escalate" \
+    "Error: target failed to become healthy within configured timeout (30s)" \
+    "false"
+expect_fix "proxy target health timeout checks reachability before duration" \
+    "Error: target failed to become healthy within configured timeout (30s)" \
+    "Inspect the proxy target address, network, port, and health path; only raise the deploy timeout when a valid target genuinely starts slowly."
 expect_category "branch protection" \
     "remote: GitLab: pre-receive hook declined" "branch-protection"
 expect_category "rust compile error" \
