@@ -17,7 +17,7 @@
 #          so a branch-only rule also matches cron pipelines.
 # Suppress per job with `# vci02-ok: <why>` / per line with
 # `# vci03-ok: <why>` / `# vci04-ok: <why>`.
-# Rule pages: _private/docs/lint-errors/vci02-*.md, vci03-*.md
+# Rule pages: _private/docs/lint-errors/vci02-*.md, vci03-*.md, vci04-*.md
 # Self-test: scripts/tests/check-ci-yaml-lint.test.sh
 # Called by: pre-commit (staged *.gitlab-ci.yml, ci-templates/*.yml)
 
@@ -46,7 +46,7 @@ check_file() {
                 bad = 1
             }
             if (top_full != "" && side_effect_job(top_full) && unsafe_main && !ok4) {
-                printf "  %s:%d: VCI04: side-effect job \"%s\" matches the default branch before excluding schedules — fix: put `if: $CI_PIPELINE_SOURCE == \"schedule\"` + `when: never` before the branch rule (or annotate # vci04-ok: <why>).\n", FILENAME, main_line, top_full
+                printf "  %s:%d: VCI04: side-effect job \"%s\" matches the default branch before excluding schedules — fix: put `if: $CI_PIPELINE_SOURCE == \"schedule\"` + `when: never` before the branch rule (or annotate # vci04-ok: <why>). [_private/docs/lint-errors/vci04-schedule-before-branch.md]\n", FILENAME, main_line, top_full
                 bad = 1
             }
         }
