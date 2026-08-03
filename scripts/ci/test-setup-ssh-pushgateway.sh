@@ -194,6 +194,82 @@ fi
 assert_file_not_exists "no key left after bad base64" "$HOME/.ssh/id_ed25519"
 teardown_test
 
+# ── Transport stamping (CC-27: prove the fallback surfaces its branch) ──
+#
+# The four-day silence in the 2026-08-01 outage was possible because a
+# delivered metric looked the same whichever transport carried it. These
+# assert the payload now says, and that a total failure says so too.
+
+setup_test "transport stamping"
+STUB_DIR=$(mktemp -d)
+CAPTURE="$STUB_DIR/payload"
+
+# Stubs record stdin instead of reaching the network.
+cat >"$STUB_DIR/curl" <<STUB
+#!/bin/sh
+cat > "$CAPTURE"
+exit \${STUB_CURL_RC:-0}
+STUB
+cat >"$STUB_DIR/ssh" <<STUB
+#!/bin/sh
+cat > "$CAPTURE"
+exit \${STUB_SSH_RC:-0}
+STUB
+chmod +x "$STUB_DIR/curl" "$STUB_DIR/ssh"
+PATH="$STUB_DIR:$PATH"
+
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/setup-ssh-pushgateway.sh"
+
+check_stamp() { # label, expected-mode
+    if grep -q "vauchi_push_transport{mode=\"$2\"} 1" "$CAPTURE"; then
+        echo "  PASS: $1"
+        PASS=$(( PASS + 1 ))
+    else
+        echo "  FAIL: $1 — payload was: $(cat "$CAPTURE")"
+        FAIL=$(( FAIL + 1 ))
+    fi
+}
+
+PUSHGATEWAY_URL="http://stub" PUSHGATEWAY_SSH_MODE="" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>/dev/null
+check_stamp "direct push is stamped mode=direct" "direct"
+
+PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="full" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>/dev/null
+check_stamp "full-key push is stamped mode=full" "full"
+
+PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="restricted" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>/dev/null
+check_stamp "restricted-key push is stamped mode=restricted" "restricted"
+
+# The original payload must survive the stamping.
+if grep -q '^vauchi_x 1$' "$CAPTURE"; then
+    echo "  PASS: the caller's metrics are preserved alongside the stamp"
+    PASS=$(( PASS + 1 ))
+else
+    echo "  FAIL: stamping dropped the caller's metrics"
+    FAIL=$(( FAIL + 1 ))
+fi
+
+# Prove it can fail: every transport rejects, so nothing is delivered and
+# the helper says so instead of returning success.
+if STUB_SSH_RC=1 STUB_CURL_RC=1 PUSHGATEWAY_URL="http://stub" \
+    PUSHGATEWAY_SSH_MODE="full" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>"$STUB_DIR/err"; then
+    echo "  FAIL: all transports failed but push returned success"
+    FAIL=$(( FAIL + 1 ))
+elif grep -q "NO transport delivered" "$STUB_DIR/err"; then
+    echo "  PASS: total delivery failure returns nonzero and is reported"
+    PASS=$(( PASS + 1 ))
+else
+    echo "  FAIL: returned nonzero but did not report why"
+    FAIL=$(( FAIL + 1 ))
+fi
+
+rm -rf "$STUB_DIR"
+teardown_test
+
 # ── Summary ──────────────────────────────────────────────────────
 
 echo ""

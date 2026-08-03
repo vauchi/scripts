@@ -95,14 +95,35 @@ setup_ssh_pushgateway() {
 # Usage: pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_foo/repo/bar"
 #
 # Returns 0 on success, 1 on failure (caller decides if fatal).
+# Stamp the payload with the transport that is about to carry it, so a
+# received metric says how it arrived.
+#
+# WHY: this helper falls back silently across three transports, and the
+# metric it delivers looked identical whichever one worked. Between
+# 2026-07-28 and 2026-08-01 the production deploy key was rejected while
+# `EngineeringMetricsStale` (a two-day threshold) stayed quiet for four
+# days — the pushes had quietly landed on the restricted key instead, and
+# nothing recorded that. Freshness proved neither credential.
+#
+# A fallback that hides which branch it took converts a credential failure
+# into silence. Emitting the branch makes `vauchi_push_transport{mode=
+# "full"}` going stale a queryable statement that the deploy key stopped
+# working, rather than something to infer.
+_pushgateway_stamp() {
+    printf '%s\nvauchi_push_transport{mode="%s"} 1\n' "$1" "$2"
+}
+
 pushgateway_push() {
     local metrics_text="$1"
     local url_path="$2"
 
-    # Direct URL (highest priority)
+    # Direct URL (highest priority). Note this exercises NO credential —
+    # a push that succeeds here says nothing about either SSH key.
     if [ -n "${PUSHGATEWAY_URL:-}" ]; then
-        if echo "$metrics_text" | curl -s --fail --connect-timeout 3 --max-time 5 \
+        if _pushgateway_stamp "$metrics_text" direct |
+            curl -s --fail --connect-timeout 3 --max-time 5 \
                 --data-binary @- "${PUSHGATEWAY_URL}${url_path}" 2>/dev/null; then
+            echo "pushgateway: delivered via direct URL (no SSH credential exercised)" >&2
             return 0
         fi
     fi
@@ -112,9 +133,11 @@ pushgateway_push() {
         full)
             # Full-access key: send the curl command to execute on the VPS
             # shellcheck disable=SC2029  # intentional client-side expansion
-            if echo "$metrics_text" | ssh -o ConnectTimeout=5 \
+            if _pushgateway_stamp "$metrics_text" full |
+                ssh -o ConnectTimeout=5 \
                     "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
                     "curl -s --fail --max-time 5 --data-binary @- http://localhost:9091${url_path}" 2>/dev/null; then
+                echo "pushgateway: delivered via the full deploy key" >&2
                 return 0
             fi
             ;;
@@ -124,13 +147,16 @@ pushgateway_push() {
             # The SSH "command" is just the URL path — push-proxy.sh reads it
             # from SSH_ORIGINAL_COMMAND.
             # shellcheck disable=SC2029
-            if echo "$metrics_text" | ssh -o ConnectTimeout=5 \
+            if _pushgateway_stamp "$metrics_text" restricted |
+                ssh -o ConnectTimeout=5 \
                     "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
                     "${url_path}" 2>/dev/null; then
+                echo "pushgateway: delivered via the restricted pushgateway key" >&2
                 return 0
             fi
             ;;
     esac
 
+    echo "pushgateway: NO transport delivered the metric" >&2
     return 1
 }
