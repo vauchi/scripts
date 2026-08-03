@@ -349,19 +349,34 @@ fi
 echo "[4/4] Checking for potential secrets..."
 
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
-SECRET_PATTERNS=(
+
+# Two tiers, split by measured false-positive rate against the tracked
+# corpus of vauchi + _private (2026-08-03).
+#
+# BLOCKING: matches literal key material or a token with a fixed shape.
+# Zero matches across both repos, so a hit is real, not prose.
+#
+# WARNING: the same words appear constantly in this project's own
+# security writing — `PRIVATE[_-]?KEY` alone hits 45 _private files
+# (ADRs, audit frameworks, backup designs), `PASSWORD[[:space:]]*=` 31.
+# Blocking on those would stop routine doc commits and train everyone to
+# reach for `--no-verify`, which costs more than the check is worth.
+SECRET_PATTERNS_BLOCKING=(
+    'BEGIN RSA PRIVATE KEY'
+    'BEGIN EC PRIVATE KEY'
+    'BEGIN OPENSSH PRIVATE KEY'
+    'ghp_[a-zA-Z0-9]{36}'  # GitHub personal access token
+)
+SECRET_PATTERNS_WARNING=(
     'PRIVATE[_-]?KEY'
     'SECRET[_-]?KEY'
     'API[_-]?KEY[[:space:]]*='
     'PASSWORD[[:space:]]*='
-    'BEGIN RSA PRIVATE KEY'
-    'BEGIN EC PRIVATE KEY'
-    'BEGIN OPENSSH PRIVATE KEY'
     'aws_secret_access_key'
-    'ghp_[a-zA-Z0-9]{36}'  # GitHub personal access token
 )
 
 SECRET_FOUND=0
+SECRET_BLOCKING=0
 for file in $STAGED_FILES; do
     if [[ ! -f "$file" ]]; then
         continue
@@ -377,7 +392,14 @@ for file in $STAGED_FILES; do
         continue
     fi
 
-    for pattern in "${SECRET_PATTERNS[@]}"; do
+    for pattern in "${SECRET_PATTERNS_BLOCKING[@]}"; do
+        if grep -iEq "$pattern" "$file" 2>/dev/null; then
+            echo "  BLOCKING: key material in $file (pattern: $pattern)"
+            SECRET_BLOCKING=1
+        fi
+    done
+
+    for pattern in "${SECRET_PATTERNS_WARNING[@]}"; do
         if grep -iEq "$pattern" "$file" 2>/dev/null; then
             echo "  WARNING: Potential secret in $file (pattern: $pattern)"
             SECRET_FOUND=1
@@ -385,12 +407,21 @@ for file in $STAGED_FILES; do
     done
 done
 
+if [[ $SECRET_BLOCKING -eq 1 ]]; then
+    echo ""
+    echo "Commit blocked: literal key material detected in staged files."
+    echo "Remove it and rotate the key — it is already in your working tree."
+    echo "If this is a fixture the skip list misses, name it *-example.* or"
+    echo "put it under tests/; bypass of last resort: git commit --no-verify"
+    exit 1
+fi
+
 if [[ $SECRET_FOUND -eq 1 ]]; then
     echo ""
     echo "WARNING: Potential secrets detected in staged files."
     echo "Please review the files above and ensure no secrets are committed."
     echo "If these are false positives, you can bypass with: git commit --no-verify"
-    # Don't exit 1 - just warn, as these might be false positives
+    # Warn only — see the tier rationale above.
 fi
 
 echo "  Secrets check OK"
