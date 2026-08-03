@@ -71,6 +71,8 @@ expect_category "C FFI cross-compile" \
     "  = note: fatal error: 'openssl/ssl.h' file not found" "c-ffi-cross"
 expect_category "dependency resolution" \
     "error: failed to select a version for \`libc\`" "dep-resolution"
+expect_category "npm dependency audit" \
+    "1 moderate severity vulnerability" "dep-resolution"
 expect_category "missing tool (bash)" \
     "/bin/sh: cargo-nextest: command not found" "missing-tool"
 expect_category "missing tool (busybox)" \
@@ -98,6 +100,9 @@ expect_category "clippy/lint" \
     "error: this \`if\` has identical blocks (clippy::if_same_then_else)" "lint"
 expect_category "artifact gap" \
     "cp: cannot stat 'target/release/libvauchi.a': No such file or directory" "artifact-gap"
+expect_category "corrupt Swift package cache" \
+    "fatal: unable to read tree (e3eee48d41822e73a7287c94998ee3b251a3000c)" \
+    "artifact-gap"
 expect_category "remote scripts ref artifact gap" \
     'curl: (22) The requested URL returned error: 404' "artifact-gap"
 expect_category "duplicate package publish" \

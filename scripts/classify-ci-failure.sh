@@ -49,13 +49,13 @@ PATS=(
   "fatal error: '[^']+\\.h' file not found"
   "pre-receive hook declined"
   "(exceeded maximum timeout|Job exceeded)"
-  "failed to select a version"
+  "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities))"
   "(command not found|: not found)"
   "(error\\[E[0-9]+\\]|error: missing argument for parameter|No value passed for parameter)"
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
   "(test result: FAILED|assertion .*failed|panicked at|FAILED: [0-9]+ hook self-test suite\(s\) red\.|ValueError: expected (_private|private) git common directory)"
   "curl: \\(22\\) The requested URL returned error: 400"
-  "(No such file or directory|curl: \(22\) The requested URL returned error: 404)"
+  "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree)"
 )
 FIXES=(
   "Restore the public API compatibility or intentionally bump the major version; never suppress the semver lint."
@@ -66,13 +66,13 @@ FIXES=(
   "Feature-gate the C dep in Cargo.toml (optional=true; #[cfg(feature)]); verify: cargo check --no-default-features"
   "Not a code fix — GitLab branch-protection/push rules; check MR settings and gate-push."
   "Optimise the job or raise the .timeout-* template; suspect resource starvation before code."
-  "Fix the version constraint in Cargo.toml / regenerate Cargo.lock."
+  "Refresh the dependency constraint or lockfile so it selects a patched compatible version."
   "Install the tool in before_script (prefer cargo-binstall) or fix the runner image."
   "Read the rustc diagnostic; fix the source. Reproduce with cargo check -p <crate>."
   "Run the matching just check/lint locally and fix the source (never suppress — CC-21)."
   "Read the failing assertion; fix code or test. Never retry without a root-cause fix (CC-18)."
   "Registry rejected the upload — usually a rerun at an already-published version (triggered/scheduled pipeline missing a source guard). Exclude that source from the publish job; never delete the published package to let a rerun pass."
-  "Downstream artifact is unavailable: publish/fix the pinned remote ref, or widen artifacts.paths / add needs."
+  "An artifact or source cache is unavailable or corrupt: fix the pinned ref/artifact flow, or clear the corrupt cache before retrying."
 )
 
 emit() { # category, escalate, signature, fix
