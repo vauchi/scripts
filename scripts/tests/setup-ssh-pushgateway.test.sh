@@ -29,6 +29,18 @@ setup_test() {
     export HOME="$TEST_HOME"
     # Clear any leftover function definition from previous source
     unset -f setup_ssh_pushgateway 2>/dev/null || true
+
+    # Isolate from ambient credentials. HOME alone is not enough: CI
+    # exports PUSHGATEWAY_SSH_KEY on every branch (it is the unprotected
+    # restricted key), so the cases that mean "no key is configured" found
+    # one, decoded it, and failed on a key file they did not expect. That
+    # only showed up once this suite was actually wired into CI — locally
+    # neither variable is set, so it passed 18/18 and proved nothing about
+    # the environment it would run in.
+    #
+    # Each test exports exactly what it needs after calling this.
+    unset DEPLOY_SSH_PRIVATE_KEY PUSHGATEWAY_SSH_KEY PUSHGATEWAY_URL
+    unset PUSHGATEWAY_SSH_MODE
 }
 
 teardown_test() {
