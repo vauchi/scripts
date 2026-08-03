@@ -13,7 +13,11 @@ set -uo pipefail
 # Note: not using -e because we need to track pass/fail counts and
 # (( 0 )) returns exit code 1 which would abort the script.
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Lives in scripts/tests/ because that is what CI globs
+# (.gitlab-ci.yml runs `scripts/tests/*.test.sh`). It previously sat in
+# scripts/ci/ as test-setup-ssh-pushgateway.sh, matched no glob, and had
+# therefore never run — with three failures in it.
+SCRIPT_DIR="$(cd "$(dirname "$0")/../ci" && pwd)"
 PASS=0
 FAIL=0
 ORIG_HOME="$HOME"
@@ -83,8 +87,26 @@ assert_file_contains() {
 assert_file_mode() {
     local label="$1" path="$2" expected_mode="$3"
     local actual_mode
-    # macOS stat vs Linux stat
-    actual_mode=$(stat -f "%Lp" "$path" 2>/dev/null || stat -c "%a" "$path" 2>/dev/null)
+    # macOS stat vs Linux stat.
+    #
+    # The BSD-first `||` chain this replaces never fell through on Linux:
+    # `stat -f` is a VALID GNU flag ("display filesystem status"), so it
+    # exits 0 and prints `  File: "..."`, which was then compared against
+    # "600" and failed on every Linux run. Same shape as the fallbacks
+    # CC-27 is about — the first branch appears to succeed and the wrong
+    # value is used silently.
+    #
+    # GNU first (BSD stat has no -c, so it genuinely errors there), and the
+    # result must look like a mode before it is trusted.
+    actual_mode=$(stat -c "%a" "$path" 2>/dev/null || true)
+    if ! [[ "$actual_mode" =~ ^[0-7]+$ ]]; then
+        actual_mode=$(stat -f "%Lp" "$path" 2>/dev/null || true)
+    fi
+    if ! [[ "$actual_mode" =~ ^[0-7]+$ ]]; then
+        echo "  FAIL: $label — could not read a file mode from stat"
+        FAIL=$(( FAIL + 1 ))
+        return
+    fi
     if [[ "$actual_mode" == "$expected_mode" ]]; then
         echo "  PASS: $label"
         PASS=$(( PASS + 1 ))

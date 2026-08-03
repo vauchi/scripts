@@ -61,7 +61,24 @@ SSHEOF
     return 0
 }
 
+# Returns 0 when a key was loaded, AND when no key variable was set at all.
+# Returns non-zero when a key variable WAS set and could not be decoded.
+#
+# That distinction is the whole contract. "No key variable is set" is
+# legitimate on an unprotected ref, where the protected variable genuinely
+# cannot exist — skipping there is correct. "A key variable is set and does
+# not decode" is a corrupt credential, and it is exactly the 2026-07-28
+# fault, where DEPLOY_SSH_PRIVATE_KEY's GitLab type was flipped from
+# Variable to File and `base64 -d` began failing. Collapsing the two into
+# `return 0` meant that fault presented as a quiet skip.
+#
+# Callers invoke this bare under `set -e`, so a corrupt credential now
+# aborts the job with the message below rather than pushing nothing and
+# reporting success. A caller that genuinely wants to tolerate it must say
+# so explicitly, which makes the choice reviewable.
 setup_ssh_pushgateway() {
+    local key_offered=0
+
     if [ -f ~/.ssh/id_ed25519 ]; then
         # Already set up (e.g. by deploy script)
         PUSHGATEWAY_SSH_MODE="full"
@@ -70,6 +87,7 @@ setup_ssh_pushgateway() {
 
     # Try full-access key first (protected — only available on main)
     if [ -n "${DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
+        key_offered=1
         if _decode_key_file "$DEPLOY_SSH_PRIVATE_KEY"; then
             PUSHGATEWAY_SSH_MODE="full"
             return 0
@@ -79,6 +97,7 @@ setup_ssh_pushgateway() {
 
     # Try restricted pushgateway key (unprotected — available on all branches)
     if [ -n "${PUSHGATEWAY_SSH_KEY:-}" ]; then
+        key_offered=1
         if _decode_key_file "$PUSHGATEWAY_SSH_KEY"; then
             PUSHGATEWAY_SSH_MODE="restricted"
             return 0
@@ -86,7 +105,14 @@ setup_ssh_pushgateway() {
         echo "setup-ssh: PUSHGATEWAY_SSH_KEY decode failed" >&2
     fi
 
-    echo "setup-ssh: no SSH key available, push will be skipped" >&2
+    if [ "$key_offered" -eq 1 ]; then
+        echo "setup-ssh: a key variable is set but NO key could be decoded —" >&2
+        echo "setup-ssh: treating this as a corrupt credential, not an absent one." >&2
+        echo "setup-ssh: check the variable's GitLab type (Variable vs File)." >&2
+        return 1
+    fi
+
+    echo "setup-ssh: no SSH key variable is set — nothing to decode, skipping" >&2
     return 0
 }
 
