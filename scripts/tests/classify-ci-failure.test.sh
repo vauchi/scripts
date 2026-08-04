@@ -129,6 +129,9 @@ expect_category "clippy/lint" \
     "error: this \`if\` has identical blocks (clippy::if_same_then_else)" "lint"
 expect_category "artifact gap" \
     "cp: cannot stat 'target/release/libvauchi.a': No such file or directory" "artifact-gap"
+expect_category "SPM mirror handoff gap" \
+    "ERROR: mirror /Users/runner/.cache/vauchi-platform-swift-mirror/v0.59.3 missing — build:debug should have built it." \
+    "artifact-gap"
 expect_category "corrupt Swift package cache" \
     "fatal: unable to read tree (e3eee48d41822e73a7287c94998ee3b251a3000c)" \
     "artifact-gap"
