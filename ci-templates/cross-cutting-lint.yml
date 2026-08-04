@@ -52,7 +52,7 @@
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check.baseline.json"
       export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check.baseline.json"
-      export FETCH_SCRIPT_SHA256="bfe1db7cdea120a8df853db9f5a2bffed55eb32082287e33962b6fb5c078d94b"
+      export FETCH_SCRIPT_SHA256="a765275a7746872cb6d1fdc8b817ddb86998d34302b8984d481b4f978d7a0718"
     - !reference [.verified-fetch-script, before_script]
     - !reference [.install-python3, before_script]
   script:
