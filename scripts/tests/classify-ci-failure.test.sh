@@ -88,6 +88,8 @@ expect_escalate "proxy target health timeout does NOT escalate" \
 expect_fix "proxy target health timeout checks reachability before duration" \
     "Error: target failed to become healthy within configured timeout (30s)" \
     "Inspect the proxy target address, network, port, and health path; only raise the deploy timeout when a valid target genuinely starts slowly."
+expect_category "GitLab execution timeout" \
+    "ERROR: Job failed: execution took longer than 10m0s seconds" "timeout"
 expect_category "branch protection" \
     "remote: GitLab: pre-receive hook declined" "branch-protection"
 expect_category "rust compile error" \
@@ -98,6 +100,18 @@ expect_category "Swift missing argument compile error" \
 expect_category "Kotlin missing argument compile error" \
     "CoreAppViewModel.kt:397:52 No value passed for parameter 'direction'." \
     "compile-error"
+expect_category "Swift missing symbol compile error" \
+    "PresentationStateTests.swift:44:17: error: cannot find 'presentationContractFixtureJson' in scope" \
+    "compile-error"
+expect_category "Rust unresolved import compile error" \
+    'error[E0432]: unresolved import `vauchi_app::ui::presentation_contract_fixture_json`' \
+    "compile-error"
+expect_category "native linker compile error" \
+    "undefined reference to vauchi_presentation_contract_fixture" \
+    "compile-error"
+expect_category "Windows native library artifact gap" \
+    "System.DllNotFoundException : Unable to load DLL 'vauchi_cabi' or one of its dependencies" \
+    "artifact-gap"
 expect_category "test failure" \
     "test result: FAILED. 3 passed; 1 failed" "test-failure"
 expect_category "hook self-test suite failure" \

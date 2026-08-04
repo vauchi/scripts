@@ -49,14 +49,14 @@ PATS=(
   "fatal error: '[^']+\\.h' file not found"
   "pre-receive hook declined"
   "target failed to become healthy within configured timeout"
-  "(exceeded maximum timeout|Job exceeded)"
+  "(exceeded maximum timeout|Job exceeded|execution took longer than [0-9]+[hms])"
   "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities))"
   "(command not found|: not found)"
-  "(error\\[E[0-9]+\\]|error: missing argument for parameter|No value passed for parameter)"
+  "(error\\[E[0-9]+\\]|error: missing argument for parameter|No value passed for parameter|cannot find '[^']+' in scope|undefined reference to)"
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
   "(test result: FAILED|assertion .*failed|panicked at|FAILED: [0-9]+ hook self-test suite\(s\) red\.|ValueError: expected (_private|private) git common directory)"
   "curl: \\(22\\) The requested URL returned error: 400"
-  "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree)"
+  "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL)"
 )
 FIXES=(
   "Restore the public API compatibility or intentionally bump the major version; never suppress the semver lint."

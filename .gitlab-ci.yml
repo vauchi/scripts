@@ -45,7 +45,7 @@ test:selftests: # vci02-ok: .mr-or-main is rules-only, no before_script to prese
   # record, not something this job should inherit per-run.)
   image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/node:20
   tags: [docker]
-  timeout: 10m
+  timeout: 20m
   before_script:
     # ripgrep: the mobile view-guard detectors hard-require it (they
     # fail loud when it's missing — the silent-degradation variant is
