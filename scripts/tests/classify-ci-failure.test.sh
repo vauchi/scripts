@@ -137,6 +137,9 @@ expect_category "Windows native library artifact gap" \
     "artifact-gap"
 expect_category "test failure" \
     "test result: FAILED. 3 passed; 1 failed" "test-failure"
+expect_category "custom runner nonzero exit" \
+    "FAIL: iPhone onboarding without Home markers must fail; got exit 127" \
+    "test-failure"
 expect_category "hook self-test suite failure" \
     "FAILED: 1 hook self-test suite(s) red." "test-failure"
 expect_category "private workspace discovery failure" \
