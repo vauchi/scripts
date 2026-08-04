@@ -57,7 +57,7 @@ PATS=(
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
   "(test result: FAILED|assertion .*failed|panicked at|FAILED: [0-9]+ hook self-test suite\(s\) red\.|ValueError: expected (_private|private) git common directory)"
   "curl: \\(22\\) The requested URL returned error: 400"
-  "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL)"
+  "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL|ERROR: mirror .* missing .* build:debug should have built it)"
 )
 FIXES=(
   "Restore the public API compatibility or intentionally bump the major version; never suppress the semver lint."
