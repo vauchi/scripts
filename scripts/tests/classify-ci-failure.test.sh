@@ -220,6 +220,9 @@ expect_category "local filesystem permission failure" \
 expect_category "external Vaultwarden contract drift" \
     "ERROR: Vaultwarden item 'Deployment Identity' does not contain the Infisical machine identity" \
     "external-config-drift"
+expect_category "Vaultwarden item absent after sync" \
+    "ERROR: Vaultwarden item 'Infisical Waitlist Deployer' not found" \
+    "external-config-drift"
 expect_category "C# compiler diagnostic" \
     "ViewModel.cs(37,18): error CS0103: The name 'EqualityComparer' does not exist in the current context" \
     "compile-error"
