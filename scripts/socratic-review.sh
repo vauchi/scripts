@@ -46,6 +46,26 @@ case "$WHICH" in
     *) echo "ERROR: reviewer must be codex, kimi, or both (got '$WHICH')" >&2; exit 2 ;;
 esac
 
+# Linux caps a SINGLE argv entry at MAX_ARG_STRLEN (32 * PAGE_SIZE = 131072
+# bytes), independently of the far larger ARG_MAX that `getconf ARG_MAX`
+# reports. The brief is one argument, so a diff near that size aborted with
+# "Argument list too long" instead of being reviewed — observed 2026-08-04 at
+# 131205 bytes, only 133 over the line. The default cap of 200000 sat ABOVE
+# the ceiling, which made the failure reachable by default and made the
+# script's own advice ("Raise SOCRATIC_MAX_DIFF_BYTES") actively wrong.
+#
+# codex reads the prompt from stdin (`codex exec … -`), so it is unaffected
+# and keeps the full cap. kimi's `-p` takes an argument and has no stdin
+# mode, so whenever kimi reviews, the brief must fit in one argument. The
+# margin below the ceiling covers the brief's own prose and the commit
+# subject list, which share that same argument.
+ARGV_CEILING=110000
+CLAMPED=""
+if [[ "$WHICH" != "codex" && "$MAX_DIFF_BYTES" -gt "$ARGV_CEILING" ]]; then
+    MAX_DIFF_BYTES=$ARGV_CEILING
+    CLAMPED="yes"
+fi
+
 BRANCH=$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)
 if [[ "$BRANCH" == "main" ]]; then
     echo "ERROR: on main — nothing to review. Switch to a feature branch." >&2
@@ -132,8 +152,12 @@ run_reviewer() {
     case "$name" in
         # `-o` writes the final message only — without it codex echoes the
         # entire brief back and buries the questions in it.
+        # The brief goes in on STDIN, not argv. `-` is codex's documented
+        # "read the prompt from stdin" form, and it is what keeps a large
+        # diff from hitting MAX_ARG_STRLEN — see the ARGV_CEILING note above.
         codex)
-            if ${GUARD[@]+"${GUARD[@]}"} codex exec -o "$out" "$BRIEF" \
+            if printf '%s' "$BRIEF" \
+                | ${GUARD[@]+"${GUARD[@]}"} codex exec -o "$out" - \
                 >/dev/null 2>"$out.err"; then
                 return 0
             fi
@@ -187,7 +211,14 @@ case " $REVIEWERS " in
 esac
 if [[ -n "$TRUNCATED" ]]; then
     echo "  WARNING: reviewers saw only the first ${MAX_DIFF_BYTES} of ${DIFF_BYTES} bytes."
-    echo "           Raise SOCRATIC_MAX_DIFF_BYTES or review in smaller branches."
+    if [[ -n "$CLAMPED" ]]; then
+        echo "           Cap clamped to ${ARGV_CEILING} because kimi is reviewing: its"
+        echo "           prompt is one argv entry, limited to 131072 bytes by the kernel."
+        echo "           Raising SOCRATIC_MAX_DIFF_BYTES will NOT help — review with"
+        echo "           \`socratic-review <repo> codex\` (stdin, no limit) or split the branch."
+    else
+        echo "           Raise SOCRATIC_MAX_DIFF_BYTES or review in smaller branches."
+    fi
 fi
 echo ""
 
