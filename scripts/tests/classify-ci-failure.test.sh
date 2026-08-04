@@ -226,6 +226,18 @@ expect_category "Vaultwarden item absent after sync" \
 expect_category "duplicate Vaultwarden item name" \
     "ERROR: Vaultwarden item name 'Infisical Waitlist Deployer' is ambiguous: 2 exact matches" \
     "external-config-drift"
+expect_category "Vaultwarden item search command failed" \
+    "ERROR: Vaultwarden item search failed" \
+    "external-config-drift"
+expect_category "Vaultwarden identity fields missing" \
+    "ERROR: could not extract INFISICAL_CLIENT_ID from Vaultwarden item 'Deployment Identity'" \
+    "external-config-drift"
+expect_category "Vaultwarden custom field missing" \
+    "ERROR: Vaultwarden item 'Cloudflare R2 Object Store' has no RESTIC_PASSWORD custom field" \
+    "external-config-drift"
+expect_category "Vaultwarden bootstrap field missing" \
+    "ERROR: 'Infisical Master Keys' has neither a KEY custom field nor a KEY= notes line" \
+    "external-config-drift"
 expect_category "C# compiler diagnostic" \
     "ViewModel.cs(37,18): error CS0103: The name 'EqualityComparer' does not exist in the current context" \
     "compile-error"
