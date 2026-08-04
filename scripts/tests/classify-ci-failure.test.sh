@@ -79,6 +79,12 @@ expect_category "missing tool (busybox)" \
     "sh: mold: not found" "missing-tool"
 expect_category "timeout" \
     "ERROR: Job exceeded maximum timeout of 3600 seconds" "timeout"
+expect_category "runner package-index DNS failure" \
+    "WARNING: fetching https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/APKINDEX.tar.gz: DNS: transient error (try again later)" \
+    "transient-network"
+expect_escalate "runner package-index DNS failure does NOT escalate" \
+    "WARNING: fetching https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/APKINDEX.tar.gz: DNS: transient error (try again later)" \
+    "false"
 expect_category "proxy target health timeout" \
     "Error: target failed to become healthy within configured timeout (30s)" \
     "target-health"

@@ -37,7 +37,7 @@ fi
 # Order matters — a compile error line can also contain the word "failed",
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
-  "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "target-health" "timeout" "dep-resolution"
+  "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "target-health" "transient-network" "timeout" "dep-resolution"
   "missing-tool" "compile-error" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
@@ -49,6 +49,7 @@ PATS=(
   "fatal error: '[^']+\\.h' file not found"
   "pre-receive hook declined"
   "target failed to become healthy within configured timeout"
+  "DNS: transient error \(try again later\)"
   "(exceeded maximum timeout|Job exceeded|execution took longer than [0-9]+[hms])"
   "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities))"
   "(command not found|: not found)"
@@ -67,6 +68,7 @@ FIXES=(
   "Feature-gate the C dep in Cargo.toml (optional=true; #[cfg(feature)]); verify: cargo check --no-default-features"
   "Not a code fix — GitLab branch-protection/push rules; check MR settings and gate-push."
   "Inspect the proxy target address, network, port, and health path; only raise the deploy timeout when a valid target genuinely starts slowly."
+  "Runner or registry DNS is unavailable; restore network resolution, then retry without changing application code."
   "Optimise the job or raise the .timeout-* template; suspect resource starvation before code."
   "Refresh the dependency constraint or lockfile so it selects a patched compatible version."
   "Install the tool in before_script (prefer cargo-binstall) or fix the runner image."
