@@ -223,6 +223,9 @@ expect_category "external Vaultwarden contract drift" \
 expect_category "Vaultwarden item absent after sync" \
     "ERROR: Vaultwarden item 'Infisical Waitlist Deployer' not found" \
     "external-config-drift"
+expect_category "duplicate Vaultwarden item name" \
+    "ERROR: Vaultwarden item name 'Infisical Waitlist Deployer' is ambiguous: 2 exact matches" \
+    "external-config-drift"
 expect_category "C# compiler diagnostic" \
     "ViewModel.cs(37,18): error CS0103: The name 'EqualityComparer' does not exist in the current context" \
     "compile-error"
