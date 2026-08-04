@@ -16,7 +16,7 @@
 #      never touches the keychain password itself; skipped with
 #      --skip-build)
 #   4. run the critical Maestro flows sequentially
-#      (`maestro test --device <udid>`), per-flow timeout, per-flow log
+#      (`maestro --device <udid> test`), per-flow timeout, per-flow log
 #      (Linux runs the real-session AT-SPI suite instead)
 #   5. evidence: per-flow logs, best-effort per-flow screenshots
 #      (`just dt-screenshot-ios/android`), and result.json under
@@ -127,7 +127,7 @@ detect_device() {
                 return 0
             fi
             {
-                echo -e "${RED}ERROR: no physical iOS device detected.${NC}"
+                printf '%b\n' "${RED}ERROR: no physical iOS device detected.${NC}"
                 echo "Probed (in order):"
                 echo "  1. IOS_DEVICE_ID env override — ${IOS_DEVICE_ID:-<unset>}"
                 echo "  2. pymobiledevice3 usbmux list"
@@ -143,7 +143,7 @@ detect_device() {
                 return 0
             fi
             {
-                echo -e "${RED}ERROR: no physical Android device detected.${NC}"
+                printf '%b\n' "${RED}ERROR: no physical Android device detected.${NC}"
                 echo "Probed (in order):"
                 echo "  1. ANDROID_SERIAL env override — ${ANDROID_SERIAL:-<unset>}"
                 echo "  2. adb devices (first entry in 'device' state)"
@@ -190,7 +190,7 @@ require_maestro() {
     elif [[ -x "$HOME/.maestro/bin/maestro" ]]; then
         MAESTRO="$HOME/.maestro/bin/maestro"
     else
-        echo -e "${RED}ERROR: Maestro CLI not found (PATH or ~/.maestro/bin/maestro).${NC}" >&2
+        printf '%b\n' "${RED}ERROR: Maestro CLI not found (PATH or ~/.maestro/bin/maestro).${NC}" >&2
         echo "Run 'just maestro-setup' for install instructions." >&2
         return 1
     fi
@@ -202,7 +202,7 @@ validate_flows() {
     for name in "${FLOWS[@]}"; do
         flow="e2e/maestro/$platform/$name.yaml"
         if [[ ! -f "$flow" ]]; then
-            echo -e "${RED}ERROR: flow not found: $flow${NC}" >&2
+            printf '%b\n' "${RED}ERROR: flow not found: $flow${NC}" >&2
             echo "Available $platform flows:" >&2
             find "e2e/maestro/$platform" -name '*.yaml' -exec basename {} .yaml \; | sort | sed 's/^/  /' >&2
             return 1
@@ -295,10 +295,10 @@ gate_mobile() {
     local evidence_dir="$EVIDENCE_BASE/$platform"
     LAST_EVIDENCE_DIR="$evidence_dir"
     mkdir -p "$evidence_dir"
-    echo -e "${YELLOW}═══ Device gate: $platform ═══${NC}"
+    printf '%b\n' "${YELLOW}═══ Device gate: $platform ═══${NC}"
 
     if ! command -v just >/dev/null 2>&1; then
-        echo -e "${RED}ERROR: 'just' not found in PATH.${NC}" >&2
+        printf '%b\n' "${RED}ERROR: 'just' not found in PATH.${NC}" >&2
         write_result_json "$platform" "" fail "$evidence_dir/result.json"
         return 1
     fi
@@ -314,14 +314,14 @@ gate_mobile() {
     # (2) + (3) ABI parity, build + install
     if [[ "$SKIP_BUILD" -eq 0 ]]; then
         if ! abi_check "$platform"; then
-            echo -e "${RED}ERROR: ABI parity check failed for $platform.${NC}" >&2
+            printf '%b\n' "${RED}ERROR: ABI parity check failed for $platform.${NC}" >&2
             write_result_json "$platform" "$device" fail "$evidence_dir/result.json"
             return 1
         fi
         local recipe="rebuild-$platform"
         echo "  Build+install: just $recipe"
         if ! just "$recipe"; then
-            echo -e "${RED}ERROR: 'just $recipe' failed — see output above.${NC}" >&2
+            printf '%b\n' "${RED}ERROR: 'just $recipe' failed — see output above.${NC}" >&2
             write_result_json "$platform" "$device" fail "$evidence_dir/result.json"
             return 1
         fi
@@ -341,7 +341,7 @@ gate_mobile() {
     # manually (documented device-test precondition).
     if [[ "$platform" == "android" ]]; then
         ensure_android_ready "$device" || {
-            echo -e "${RED}ERROR: could not wake/unlock Android device $device (PIN=$PIN).${NC}" >&2
+            printf '%b\n' "${RED}ERROR: could not wake/unlock Android device $device (PIN=$PIN).${NC}" >&2
             write_result_json "$platform" "$device" fail "$evidence_dir/result.json"
             return 1
         }
@@ -380,7 +380,7 @@ gate_mobile() {
         # gRPC UNAVAILABLE errors (found 2026-07-18 extended run).
         if [[ "$platform" == "android" ]]; then
             ensure_android_ready "$device" || {
-                echo -e "${RED}ERROR: Android device re-locked mid-run.${NC}" >&2
+                printf '%b\n' "${RED}ERROR: Android device re-locked mid-run.${NC}" >&2
                 pfail=1
                 results+=("$name|fail|0")
                 continue
@@ -400,8 +400,8 @@ gate_mobile() {
             platform_args+=(--apple-team-id "${APPLE_TEAM_ID:-L2853TNSJ4}")
             export MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-240000}"
         fi
-        run_with_timeout "$FLOW_TIMEOUT" "$MAESTRO" test \
-            --device "$device" \
+        run_with_timeout "$FLOW_TIMEOUT" "$MAESTRO" \
+            --device "$device" test \
             "${platform_args[@]}" \
             "$flow" "${maestro_env[@]}" >"$log" 2>&1 || rc=$?
         # Android driver self-heal: a dead driver (gRPC UNAVAILABLE)
@@ -412,8 +412,8 @@ gate_mobile() {
             echo "    maestro driver died — reinstalling, retrying once"
             rc=0
             start=$SECONDS
-            run_with_timeout "$FLOW_TIMEOUT" "$MAESTRO" test \
-                --device "$device" \
+            run_with_timeout "$FLOW_TIMEOUT" "$MAESTRO" \
+                --device "$device" test \
                 --reinstall-driver \
                 "${platform_args[@]}" \
                 "$flow" "${maestro_env[@]}" >"$log" 2>&1 || rc=$?
@@ -429,8 +429,8 @@ gate_mobile() {
             echo "    maestro driver died — reinstalling, retrying once"
             rc=0
             start=$SECONDS
-            run_with_timeout "$FLOW_TIMEOUT" "$MAESTRO" test \
-                --device "$device" \
+            run_with_timeout "$FLOW_TIMEOUT" "$MAESTRO" \
+                --device "$device" test \
                 --reinstall-driver \
                 "${platform_args[@]}" \
                 "$flow" "${maestro_env[@]}" >"$log" 2>&1 || rc=$?
@@ -455,10 +455,10 @@ gate_mobile() {
     write_result_json "$platform" "$device" "$overall" "$evidence_dir/result.json" "${results[@]}"
     echo "  Evidence: $evidence_dir"
     if [[ "$overall" == "pass" ]]; then
-        echo -e "  ${GREEN}Result: PASS${NC}"
+        printf '%b\n' "  ${GREEN}Result: PASS${NC}"
         return 0
     fi
-    echo -e "  ${RED}Result: FAIL${NC}"
+    printf '%b\n' "  ${RED}Result: FAIL${NC}"
     return 1
 }
 
@@ -468,13 +468,13 @@ gate_android() { gate_mobile android; }
 gate_linux() {
     local evidence_dir="$EVIDENCE_BASE/linux"
     LAST_EVIDENCE_DIR="$evidence_dir"
-    echo -e "${YELLOW}═══ Device gate: linux (real-session AT-SPI) ═══${NC}"
+    printf '%b\n' "${YELLOW}═══ Device gate: linux (real-session AT-SPI) ═══${NC}"
 
     # Real-session only: the gate proves usability in the user's actual
     # session, so it refuses the Xvfb fallback run-tests.sh would take.
     if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
         {
-            echo -e "${RED}ERROR: linux gate requires a REAL graphical session.${NC}"
+            printf '%b\n' "${RED}ERROR: linux gate requires a REAL graphical session.${NC}"
             echo "DISPLAY and WAYLAND_DISPLAY are both unset."
             echo "Run from the machine's graphical session, or export DISPLAY"
             echo "over SSH (e.g. DISPLAY=:0) pointing at the live session."
@@ -511,10 +511,10 @@ gate_linux() {
     write_result_json linux "$(hostname)" "$overall" "$evidence_dir/result.json" "atspi|$status|$dur"
     echo "  Evidence: $evidence_dir"
     if [[ "$overall" == "pass" ]]; then
-        echo -e "  ${GREEN}Result: PASS${NC}"
+        printf '%b\n' "  ${GREEN}Result: PASS${NC}"
         return 0
     fi
-    echo -e "  ${RED}Result: FAIL${NC}"
+    printf '%b\n' "  ${RED}Result: FAIL${NC}"
     return 1
 }
 
@@ -589,7 +589,7 @@ done
 
 # ── Dispatch ──────────────────────────────────────────────────────
 
-echo -e "${YELLOW}Device gate — $RUN_DATE — platform: $PLATFORM${NC}"
+printf '%b\n' "${YELLOW}Device gate — $RUN_DATE — platform: $PLATFORM${NC}"
 if [[ "$SKIP_BUILD" -eq 1 ]]; then
     echo "(--skip-build: using apps already installed on the devices)"
 fi
@@ -631,7 +631,7 @@ esac
 
 # ── Summary ───────────────────────────────────────────────────────
 
-echo -e "${YELLOW}═══ Device Gate Summary — $RUN_DATE ═══${NC}"
+printf '%b\n' "${YELLOW}═══ Device Gate Summary — $RUN_DATE ═══${NC}"
 printf '  %-8s %-4s %s\n' PLATFORM RESULT EVIDENCE
 for line in "${SUMMARY[@]}"; do
     printf '  %s\n' "$line"
@@ -639,8 +639,8 @@ done
 echo ""
 
 if [[ "$OVERALL_RC" -eq 0 ]]; then
-    echo -e "${GREEN}DEVICE GATE: PASS${NC}"
+    printf '%b\n' "${GREEN}DEVICE GATE: PASS${NC}"
 else
-    echo -e "${RED}DEVICE GATE: FAIL${NC}"
+    printf '%b\n' "${RED}DEVICE GATE: FAIL${NC}"
 fi
 exit "$OVERALL_RC"
