@@ -20,11 +20,22 @@
 #
 # Usage:
 #   glab api ".../jobs/<id>/trace" | scripts/scripts/classify-ci-failure.sh
+#   scripts/scripts/classify-ci-failure.sh --failure-reason runner_system_failure
 #   scripts/scripts/classify-ci-failure.sh trace.txt
 
 set -euo pipefail
 
 set -uo pipefail
+
+FAILURE_REASON=""
+if [[ "${1:-}" == "--failure-reason" ]]; then
+    if [[ $# -lt 2 ]]; then
+        echo "ERROR: --failure-reason requires a value" >&2
+        exit 2
+    fi
+    FAILURE_REASON="$2"
+    shift 2
+fi
 
 if [[ $# -ge 1 && -f "$1" ]]; then
     TRACE=$(cat "$1")
@@ -37,7 +48,7 @@ fi
 # Order matters — a compile error line can also contain the word "failed",
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
-  "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "target-health" "transient-network" "timeout" "dep-resolution"
+  "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "authorization" "target-health" "runner-infrastructure" "toolchain-compatibility" "filesystem-permission" "external-config-drift" "transient-network" "timeout" "dep-resolution"
   "missing-tool" "compile-error" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
@@ -48,16 +59,21 @@ PATS=(
   "base64: truncated input"
   "fatal error: '[^']+\\.h' file not found"
   "pre-receive hook declined"
+  "curl: \\(22\\) The requested URL returned error: 403"
   "target failed to become healthy within configured timeout"
-  "DNS: transient error \(try again later\)"
-  "(exceeded maximum timeout|Job exceeded|execution took longer than [0-9]+[hms])"
+  "(failed to pull image|Error response from daemon: no such image:|image pull failed)"
+  "(JdkImageTransform|androidJdkImage|Failed to transform core-for-system-modules\\.jar)"
+  "Permission denied \(os error 13\)"
+  "Vaultwarden item .* does not contain"
+  "(DNS: transient error \(try again later\)|Connection reset by peer)"
+  "(exceeded maximum timeout|Job exceeded|execution took longer than [0-9]+[hms]|context deadline exceeded)"
   "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities))"
   "(command not found|: not found)"
-  "(error\\[E[0-9]+\\]|error: missing argument for parameter|No value passed for parameter|cannot find '[^']+' in scope|undefined reference to)"
+  "(error\\[E[0-9]+\\]|error CS[0-9]{4}:|error: missing argument for parameter|No value passed for parameter|cannot find '[^']+' in scope|undefined reference to)"
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
-  "(test result: FAILED|assertion .*failed|panicked at|FAILED: [0-9]+ hook self-test suite\(s\) red\.|ValueError: expected (_private|private) git common directory)"
+  "(test result: FAILED|assertion .*failed|panicked at|[0-9]+ tests completed, [1-9][0-9]* failed|[0-9]+ mutants tested.*[1-9][0-9]* missed|FAILED: [0-9]+ (hook )?self-test suite\(s\) red\.|ValueError: expected (_private|private) git common directory)"
   "curl: \\(22\\) The requested URL returned error: 400"
-  "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL|ERROR: mirror .* missing .* build:debug should have built it)"
+  "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL|ERROR: mirror .* missing .* build:debug should have built it|Release v[^ ]+ is tagged but not consumable:)"
 )
 FIXES=(
   "Restore the public API compatibility or intentionally bump the major version; never suppress the semver lint."
@@ -67,8 +83,13 @@ FIXES=(
   "Treat GitLab file variables as paths and decode the referenced file; never pipe the path string into base64."
   "Feature-gate the C dep in Cargo.toml (optional=true; #[cfg(feature)]); verify: cargo check --no-default-features"
   "Not a code fix — GitLab branch-protection/push rules; check MR settings and gate-push."
+  "Check the token scope, project allowlist, and protected-resource permissions; do not weaken authorization to make the request pass."
   "Inspect the proxy target address, network, port, and health path; only raise the deploy timeout when a valid target genuinely starts slowly."
-  "Runner or registry DNS is unavailable; restore network resolution, then retry without changing application code."
+  "Restore the runner image or dependency-proxy path; retry only after the runner can resolve and pull the configured image."
+  "Align the build JDK and Android Gradle Plugin versions; reproduce with the repository's just build/check recipe."
+  "Repair runner workspace ownership or target-directory permissions; do not run the build with elevated application permissions."
+  "Restore the external configuration contract or update its validated schema; never hard-code the missing secret material."
+  "Runner or registry networking is unavailable; restore connectivity, then retry without changing application code."
   "Optimise the job or raise the .timeout-* template; suspect resource starvation before code."
   "Refresh the dependency constraint or lockfile so it selects a patched compatible version."
   "Install the tool in before_script (prefer cargo-binstall) or fix the runner image."
@@ -96,6 +117,17 @@ for i in "${!CATS[@]}"; do
     exit 0
   fi
 done
+
+case "$FAILURE_REASON" in
+  runner_system_failure|runner_configuration_error)
+    emit "runner-infrastructure" false "$FAILURE_REASON" "Inspect the runner configuration and system logs; restore runner health before retrying without changing application code."
+    exit 0
+    ;;
+  job_execution_timeout)
+    emit "timeout" false "$FAILURE_REASON" "Optimise the job or raise the .timeout-* template; suspect resource starvation before code."
+    exit 0
+    ;;
+esac
 
 emit "unknown" true "" "No known signature matched — hand to the model for classification and fix."
 exit 0
