@@ -400,10 +400,14 @@ gate_mobile() {
             platform_args+=(--apple-team-id "${APPLE_TEAM_ID:-L2853TNSJ4}")
             export MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-240000}"
         fi
+        # Keep the expanded array non-empty under macOS Bash 3.2 with
+        # `set -u`; expanding a declared-but-empty array aborts the Android
+        # gate before Maestro starts.
+        platform_args+=("$flow")
+        platform_args+=("${maestro_env[@]}")
         run_with_timeout "$FLOW_TIMEOUT" "$MAESTRO" \
             --device "$device" test \
-            "${platform_args[@]}" \
-            "$flow" "${maestro_env[@]}" >"$log" 2>&1 || rc=$?
+            "${platform_args[@]}" >"$log" 2>&1 || rc=$?
         # Android driver self-heal: a dead driver (gRPC UNAVAILABLE)
         # means the run is invalid, not a red flow — restart + retry once
         # with --reinstall-driver (failed sessions can uninstall the APK).
@@ -415,8 +419,7 @@ gate_mobile() {
             run_with_timeout "$FLOW_TIMEOUT" "$MAESTRO" \
                 --device "$device" test \
                 --reinstall-driver \
-                "${platform_args[@]}" \
-                "$flow" "${maestro_env[@]}" >"$log" 2>&1 || rc=$?
+                "${platform_args[@]}" >"$log" 2>&1 || rc=$?
         fi
         # iOS driver self-heal: the xctrunner dies mid-run under load
         # (signature: "Failed to connect to /127.0.0.1:7001"; launchd
@@ -432,8 +435,7 @@ gate_mobile() {
             run_with_timeout "$FLOW_TIMEOUT" "$MAESTRO" \
                 --device "$device" test \
                 --reinstall-driver \
-                "${platform_args[@]}" \
-                "$flow" "${maestro_env[@]}" >"$log" 2>&1 || rc=$?
+                "${platform_args[@]}" >"$log" 2>&1 || rc=$?
         fi
         dur=$((SECONDS - start))
         status=$(classify_rc "$rc")
