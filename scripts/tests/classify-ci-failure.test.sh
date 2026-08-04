@@ -31,6 +31,11 @@ FAIL=0
 # classify <trace-text> -> prints JSON verdict
 classify() { printf '%s\n' "$1" | bash "$SCRIPT"; }
 
+classify_with_failure_reason() {
+    local trace="$1" failure_reason="$2"
+    printf '%s\n' "$trace" | bash "$SCRIPT" --failure-reason "$failure_reason"
+}
+
 expect_category() {
     local name="$1" trace="$2" want="$3"
     local got
@@ -63,6 +68,18 @@ expect_fix() {
         printf '  PASS  %s\n' "$name"; PASS=$((PASS + 1))
     else
         printf '  FAIL  %s\n    want fix=%s, got=%s\n' "$name" "$want" "$got"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+expect_category_with_failure_reason() {
+    local name="$1" trace="$2" failure_reason="$3" want="$4"
+    local got
+    got=$(classify_with_failure_reason "$trace" "$failure_reason" | jq -r '.category' 2>/dev/null)
+    if [[ "$got" == "$want" ]]; then
+        printf '  PASS  %s\n' "$name"; PASS=$((PASS + 1))
+    else
+        printf '  FAIL  %s\n    want category=%s, got=%s\n' "$name" "$want" "$got"
         FAIL=$((FAIL + 1))
     fi
 }
@@ -184,6 +201,50 @@ expect_escalate "minimum just syntax compatibility does NOT escalate" \
 expect_fix "minimum just syntax chooses one interpreter contract" \
     'has both shebang line and `[script]` attribute' \
     "Use a shebang recipe or the [script] attribute, not both; verify with the minimum supported just version."
+
+expect_category "runner image missing" \
+    "ERROR: Job failed (system failure): Error response from daemon: no such image: registry.example/alpine@sha256:abc (image.go:116:0s)" \
+    "runner-infrastructure"
+expect_category "runner image proxy returned HTTP 404" \
+    'failed to pull image "registry.example/dependency_proxy/containers/alpine:3.21": error parsing HTTP 404 response body' \
+    "runner-infrastructure"
+expect_category "runner image pull deadline" \
+    'failed to pull image "registry.example/dependency_proxy/containers/node:20": context deadline exceeded' \
+    "runner-infrastructure"
+expect_category "Gradle JDK image transform incompatibility" \
+    "> Execution failed for JdkImageTransform: /opt/android-sdk/platforms/android-35/core-for-system-modules.jar." \
+    "toolchain-compatibility"
+expect_category "local filesystem permission failure" \
+    "error: failed to write dependencies to '/builds/vauchi/core/target/debug/deps/foo.d': Permission denied (os error 13)" \
+    "filesystem-permission"
+expect_category "external Vaultwarden contract drift" \
+    "ERROR: Vaultwarden item 'Deployment Identity' does not contain the Infisical machine identity" \
+    "external-config-drift"
+expect_category "C# compiler diagnostic" \
+    "ViewModel.cs(37,18): error CS0103: The name 'EqualityComparer' does not exist in the current context" \
+    "compile-error"
+expect_category "Gradle test failure summary" \
+    "146 tests completed, 73 failed" "test-failure"
+expect_category "mutation survivors" \
+    "139 mutants tested in 4m: 51 missed, 56 caught, 32 unviable" "test-failure"
+expect_category "generic self-test suite failure" \
+    "FAILED: 1 self-test suite(s) red." "test-failure"
+expect_category "connection reset by peer" \
+    "urllib.error.URLError: <urlopen error [Errno 54] Connection reset by peer>" \
+    "transient-network"
+expect_category "release package is not consumable" \
+    "Release v0.59.2 is tagged but not consumable: spm" "artifact-gap"
+expect_category "downstream trigger authorization" \
+    "curl: (22) The requested URL returned error: 403" "authorization"
+expect_category_with_failure_reason "runner system failure metadata fallback" \
+    "ERROR: Job failed" "runner_system_failure" "runner-infrastructure"
+expect_category_with_failure_reason "runner configuration metadata fallback" \
+    "ERROR: Job failed" "runner_configuration_error" "runner-infrastructure"
+expect_category_with_failure_reason "job timeout metadata fallback" \
+    "ERROR: Job failed" "job_execution_timeout" "timeout"
+expect_category_with_failure_reason "specific trace beats generic runner metadata" \
+    "error[E0433]: failed to resolve: use of undeclared crate" \
+    "runner_system_failure" "compile-error"
 
 # Unknown → escalate to the model
 expect_category "unknown signature" \
