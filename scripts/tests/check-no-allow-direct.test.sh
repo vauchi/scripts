@@ -102,5 +102,70 @@ run_fixture 'pub fn for_testing() {
 }' 'vauchi-core/src/network/http_transport.rs'
 assert_exit "test constructor definition is allowed" 0 "$result"
 
+# A `#[cfg(feature = "testing")]` hatch whose block CLOSES must not exempt
+# the production code that follows it. These fixtures mirror the real shape
+# of `Vauchi::build_relay_transport`, where the hatch sits 17 lines above a
+# production `HttpTransportConfig` — well inside the 60-line look-back.
+# Regression guard for the 2026-08-05 blind spot; a bare one-line fixture
+# (see "dynamic production direct fallback" above) cannot reproduce it.
+
+run_fixture 'pub fn build_relay_transport(&self, timeout_ms: u64) -> HttpTransport {
+    #[cfg(feature = "testing")]
+    if self.config.ohttp.allow_direct {
+        return HttpTransport::new(HttpTransportConfig::for_testing(
+            self.config.relay.server_url.clone(),
+            timeout_ms,
+        ));
+    }
+
+    let mut transport = HttpTransport::new(HttpTransportConfig {
+        relay_url,
+        timeout_ms,
+        proxy: self.config.relay.proxy.clone(),
+        allow_direct: self.ohttp_key.is_none(),
+        pinned_certs,
+    });
+    transport
+}' 'vauchi-core/src/api/vauchi/sync_http.rs'
+assert_exit "dynamic fallback after a closed testing hatch is rejected" 1 "$result"
+
+run_fixture 'pub fn build_relay_transport(&self, timeout_ms: u64) -> HttpTransport {
+    #[cfg(feature = "testing")]
+    if self.config.ohttp.allow_direct {
+        return HttpTransport::new(HttpTransportConfig::for_testing(
+            self.config.relay.server_url.clone(),
+            timeout_ms,
+        ));
+    }
+
+    let mut transport = HttpTransport::new(HttpTransportConfig {
+        relay_url,
+        timeout_ms,
+        proxy: self.config.relay.proxy.clone(),
+        allow_direct: false,
+        pinned_certs,
+    });
+    transport
+}' 'vauchi-core/src/api/vauchi/sync_http.rs'
+assert_exit "for_testing inside an open testing hatch stays allowed" 0 "$result"
+
+run_fixture 'mod tests {
+    #[test]
+    fn uses_direct() {
+        let config = HttpTransportConfig { allow_direct: key.is_none() };
+    }
+}'
+assert_exit "dynamic fallback inside mod tests stays allowed" 0 "$result"
+
+run_fixture '#[test]
+fn uses_direct() {
+    let config = HttpTransportConfig { allow_direct: true };
+}
+
+pub fn production_path() {
+    let config = HttpTransportConfig { allow_direct: key.is_none() };
+}'
+assert_exit "dynamic fallback after a closed test fn is rejected" 1 "$result"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
