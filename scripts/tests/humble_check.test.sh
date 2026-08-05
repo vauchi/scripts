@@ -555,6 +555,79 @@ SW
     rm -rf "$root"
 }
 
+# test_tighten_lowers_stored_counts — a baseline must be able to follow
+# counts down, or slack accumulates until the ratchet is inert
+test_tighten_lowers_stored_counts() {
+    root=$(mktemp -d)
+    dir="$root/ios/Vauchi/CoreUI"
+    mkdir -p "$dir"
+    cat >"$dir/BadView.swift" <<'SW'
+class BadView {
+    func route(screenId: String) {
+        if screenId == "multi_stage_exchange" { startTimer() }
+    }
+}
+SW
+    baseline="$root/baseline.json"
+    cat >"$baseline" <<'JSON'
+{
+  "schema_version": 2,
+  "repos": {
+    "ios": {
+      "domain_screen_id_branch": 9,
+      "action_id_minting": 4
+    }
+  }
+}
+JSON
+    python3 "$SCRIPT" --tighten "$baseline" --repo ios --workspace-root "$root" \
+        --config "$CONFIG" >/dev/null
+    assert_eq "tighten: lowers a counter to its measured value" "1" \
+        "$(python3 -c "import json;print(json.load(open('$baseline'))['repos']['ios']['domain_screen_id_branch'])")"
+    assert_eq "tighten: lowers an unviolated counter to zero" "0" \
+        "$(python3 -c "import json;print(json.load(open('$baseline'))['repos']['ios']['action_id_minting'])")"
+    rm -rf "$root"
+}
+
+# test_tighten_never_raises_stored_counts — absorbing a regression into the
+# baseline is the one thing a ratchet may never do
+test_tighten_never_raises_stored_counts() {
+    root=$(mktemp -d)
+    dir="$root/ios/Vauchi/CoreUI"
+    mkdir -p "$dir"
+    cat >"$dir/BadView.swift" <<'SW'
+class BadView {
+    func route(screenId: String) {
+        if screenId == "multi_stage_exchange" { startTimer() }
+    }
+}
+SW
+    baseline="$root/baseline.json"
+    printf '%s\n' '{"schema_version": 2, "repos": {"ios": {"domain_screen_id_branch": 0}}}' >"$baseline"
+    python3 "$SCRIPT" --tighten "$baseline" --repo ios --workspace-root "$root" \
+        --config "$CONFIG" >/dev/null
+    assert_eq "tighten: leaves a counter that is over baseline untouched" "0" \
+        "$(python3 -c "import json;print(json.load(open('$baseline'))['repos']['ios']['domain_screen_id_branch'])")"
+    rm -rf "$root"
+}
+
+# test_tighten_refuses_incomplete_checkout — an unscanned repo measures zero,
+# which would silently zero its baseline and forgive every real violation
+test_tighten_refuses_incomplete_checkout() {
+    root=$(mktemp -d)
+    baseline="$root/baseline.json"
+    printf '%s\n' '{"schema_version": 2, "repos": {"ios": {"domain_screen_id_branch": 9}}}' >"$baseline"
+    set +e
+    python3 "$SCRIPT" --tighten "$baseline" --repo ios --workspace-root "$root" \
+        --config "$CONFIG" >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "tighten: refuses an incomplete checkout" "2" "$rc"
+    assert_eq "tighten: leaves the baseline unwritten" "9" \
+        "$(python3 -c "import json;print(json.load(open('$baseline'))['repos']['ios']['domain_screen_id_branch'])")"
+    rm -rf "$root"
+}
+
 # run
 test_empty_workspace
 test_repo_path_resolves_repo_relative_roots
@@ -578,6 +651,9 @@ test_release_zero_requires_live_and_baseline_zero
 test_enforcement_wiring
 test_verified_fetch_hashes_match
 test_require_zero
+test_tighten_lowers_stored_counts
+test_tighten_never_raises_stored_counts
+test_tighten_refuses_incomplete_checkout
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

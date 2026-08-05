@@ -328,6 +328,57 @@ def check_release_zero(
     return 0
 
 
+def tighten_baseline(
+    workspace_root: Path,
+    config: dict,
+    baseline: dict,
+    baseline_path: Path,
+    lookback: int,
+    lookahead: int,
+    only_repo: str | None = None,
+) -> int:
+    """Lower stored counters to their measured value.
+
+    Without this the baseline only ever records the high-water mark: counts
+    fall as violations are retired, the stored numbers do not follow, and the
+    accumulated slack silently forgives future regressions. A counter that is
+    *above* its baseline is left alone — absorbing a regression is the one
+    thing a ratchet may never do, and `--check` exists to report it.
+
+    `only_repo` narrows the sweep to one repo; without it every configured
+    repo must be present, since a missing checkout measures zero.
+    """
+    lowered = []
+    repos = [only_repo] if only_repo else sorted(config["repos"])
+    for repo in repos:
+        result = scan_repo(workspace_root, repo, None, config, lookback, lookahead)
+        if check_source_roots(repo, result):
+            print(
+                "humble_check: refusing to tighten from an incomplete checkout — "
+                "an unscanned repo measures zero and would zero its baseline",
+                file=sys.stderr,
+            )
+            return 2
+
+        repo_baseline = baseline.setdefault("repos", {}).setdefault(repo, {})
+        for name, count in result["counts"].items():
+            stored = repo_baseline.get(name)
+            if stored is None or count >= stored:
+                continue
+            repo_baseline[name] = count
+            lowered.append((repo, name, stored, count))
+
+    if not lowered:
+        print("humble_check: baselines already match measured counts")
+        return 0
+
+    baseline_path.write_text(json.dumps(baseline, indent=2) + "\n", encoding="utf-8")
+    for repo, name, stored, count in lowered:
+        print(f"  {repo}.{name}: {stored} -> {count}")
+    print(f"humble_check: lowered {len(lowered)} counter(s) to measured counts")
+    return 0
+
+
 def check_zero(repo: str, result: dict) -> int:
     """Release gate: every measured boundary-violation counter must be zero."""
     nonzero = [(name, count) for name, count in result["counts"].items() if count]
@@ -392,6 +443,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Require every configured live and baseline counter to be zero",
     )
     parser.add_argument("--require-zero", action="store_true", help="Release gate: require every measured counter to be zero")
+    parser.add_argument("--tighten", type=Path, metavar="BASELINE", help="Lower stored counters to measured counts; never raises one")
     parser.add_argument("--lookback", type=int, default=DEFAULT_LOOKBACK, help="Lines before a match to search for TODO(HUMBLE)")
     parser.add_argument("--lookahead", type=int, default=DEFAULT_LOOKAHEAD, help="Lines after a match to search for TODO(HUMBLE)")
     args = parser.parse_args(argv)
@@ -423,6 +475,21 @@ def main(argv: list[str] | None = None) -> int:
         baseline = load_baseline(args.check)
 
     config = load_config(config_path)
+
+    if args.tighten:
+        if not args.tighten.exists():
+            print(f"humble_check: baseline not found: {args.tighten}", file=sys.stderr)
+            return 2
+        return tighten_baseline(
+            workspace_root,
+            config,
+            load_baseline(args.tighten),
+            args.tighten,
+            args.lookback,
+            args.lookahead,
+            args.repo,
+        )
+
     if args.release_zero:
         if baseline is None:
             parser.error("--release-zero requires --check BASELINE")
