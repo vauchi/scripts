@@ -75,18 +75,22 @@ def find_unescaped_mentions(text: str) -> list[str]:
 
     Skips:
       - Inline code spans (already escaped).
-      - Email addresses (`user@host.tld`).
-      - GitLab cross-repo commit refs (`<word>@<7-40 hex>`) — these
-        autolink to the commit on rendering, so wrapping them would
-        break a useful link. The escaper already preserves them
-        verbatim via its email-lead heuristic, so the validator must
-        match (otherwise the recipe would falsely abort)."""
+      - Anything with a host-y character before the `@`, which is
+        exactly `escape_mentions`' EMAIL_LEAD_RE rule. Covers emails
+        (`user@host.tld`), GitLab cross-repo commit refs
+        (`<word>@<sha>`, which autolink and must not be wrapped), and
+        bare `user@host` forms such as SSH key comments
+        (`megloff1@Token2-daily`) or account references (`agents@nell`).
+
+    The two halves MUST use the same rule. They did not until
+    2026-08-05: this validator carved out only TLD-bearing emails and
+    hex commit refs, so a `user@host` with neither was skipped by the
+    escaper and then rejected here — aborting `just gitlab mr-update`
+    on commit messages that were correct. Narrowing this pattern
+    reintroduces that class of false abort."""
     stripped = re.sub(r"`[^`]*`", "", text)
     stripped = re.sub(
-        r"[A-Za-z0-9_.+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "", stripped
-    )
-    stripped = re.sub(
-        r"[A-Za-z][A-Za-z0-9_-]*@[0-9a-f]{7,40}\b", "", stripped
+        rf"{EMAIL_LEAD_RE.pattern}+@[A-Za-z][A-Za-z0-9_-]*", "", stripped
     )
     return MENTION_RE.findall(stripped)
 
