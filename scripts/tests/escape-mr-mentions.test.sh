@@ -110,6 +110,25 @@ else
     fail=$((fail + 1))
 fi
 
+# SSH key comments and account@host references carry NEITHER a TLD nor a
+# hex sha, so neither validator carve-out matched them while the escaper's
+# email-lead heuristic left them alone. The two halves disagreed, and
+# `just gitlab mr-update` aborted on commit messages that were fine
+# (2026-08-05: megloff1@Token2-daily and agents@nell in branch bodies).
+assert_eq "user@host left alone by the escaper" \
+    'key comment megloff1@Token2-daily here' \
+    "$(run 'key comment megloff1@Token2-daily here')"
+
+for ref in 'megloff1@Token2-daily' 'agents@nell' 'megloff1@AC' 'megloff1@mgmt-a'; do
+    if printf 'ref %s here' "$ref" | "$SCRIPT" | "$SCRIPT" --check 2>/dev/null; then
+        printf '  PASS --check accepts user@host (%s)\n' "$ref"
+        pass=$((pass + 1))
+    else
+        printf '  FAIL --check false-positive on user@host (%s)\n' "$ref" >&2
+        fail=$((fail + 1))
+    fi
+done
+
 # ── Idempotence: escape twice == escape once ──────────────────
 src='Mix of @bare and `@escaped` and `@inside multi`.'
 once=$(printf '%s' "$src" | "$SCRIPT")
