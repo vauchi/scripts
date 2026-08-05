@@ -167,5 +167,50 @@ pub fn production_path() {
 }'
 assert_exit "dynamic fallback after a closed test fn is rejected" 1 "$result"
 
+# A sentinel whose block opens AND closes on one line must not exempt what
+# follows. Tracking only the line's NET brace delta misses this: the depth
+# returns to zero before the block ever registers as opened, so the sentinel
+# stays in scope forever. Found by adversarial review of the first fix.
+
+run_fixture '#[cfg(test)]
+fn helper() {}
+
+pub fn production_path() {
+    let config = HttpTransportConfig { allow_direct: key.is_none() };
+}'
+assert_exit "dynamic fallback after a same-line cfg(test) block is rejected" 1 "$result"
+
+run_fixture '#[test]
+fn helper() {}
+
+pub fn production_path() {
+    let config = HttpTransportConfig { allow_direct: key.is_none() };
+}'
+assert_exit "dynamic fallback after a same-line test fn is rejected" 1 "$result"
+
+# A sentinel on a `;`-terminated item guards that item only. Letting it
+# exempt the rest of the file is a deliberate bypass anyone can write.
+
+run_fixture '#[cfg(feature = "testing")]
+use std::collections::HashMap;
+
+pub fn production_path() {
+    let config = HttpTransportConfig { allow_direct: key.is_none() };
+}'
+assert_exit "dynamic fallback after a cfg-gated use is rejected" 1 "$result"
+
+run_fixture '#[cfg(test)]
+use tempfile::TempDir;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn t() {
+        let config = HttpTransportConfig { allow_direct: key.is_none() };
+    }
+}'
+assert_exit "a later sentinel still exempts genuine test code" 0 "$result"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
