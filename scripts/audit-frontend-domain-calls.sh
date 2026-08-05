@@ -123,6 +123,13 @@ strip_excluded() {
 # file writes, and window-geometry persistence are also platform adapters
 # explicitly owned by the frontend under ADR-043. Keep exclusions API-specific:
 # a blanket `save` exclusion would hide the mutations this audit exists to catch.
+#
+# `ConfigureRole` assigns one Core-prepared context-bar role to a native
+# Button: it reads `label`, `enabled`, `interaction_id`, and
+# `accessibility_label` straight off the command and sets them. It derives no
+# copy, classifies no category, and makes no domain decision — the exact
+# mapping ADR-066 sanctions. Only the `Configure` verb makes it look like
+# domain logic.
 strip_sanctioned_boundary_calls() {
     grep -vE '\.save_to_png_bytes\(' \
         | grep -vE '(^|[^A-Za-z0-9_])pixmap\.save\(' \
@@ -130,6 +137,7 @@ strip_sanctioned_boundary_calls() {
         | grep -vE '\.save_key\(' \
         | grep -vE '(^|[^A-Za-z0-9_])saveBackupToFile\(' \
         | grep -vE '(^|[^A-Za-z0-9_])SaveWindowState\(' \
+        | grep -vE '(^|[^A-Za-z0-9_])ConfigureRole\(' \
         || true
 }
 
