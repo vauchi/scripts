@@ -118,12 +118,23 @@ for ROOT in "$@"; do
         # 2026-08-05-allow-direct-guard-testing-cfg-blind-spot).
         #
         # Brace depth is tracked from the sentinel forward: once it has
-        # opened and returned to zero, the sentinel is out of scope. A
-        # sentinel that never opens a block (a bare attribute on a `use`
-        # or a single statement) still exempts what follows, which stays
-        # deliberately permissive — false negatives remain safer than
-        # false positives here, since production call sites are
-        # enumerated explicitly in step (3).
+        # opened and returned to zero, the sentinel is out of scope.
+        #
+        # `opened` is set from the line's OPEN count, not from its net
+        # depth. A block that opens and closes on one line
+        # (`#[cfg(test)] fn helper() {}`) nets to zero, so a net-delta
+        # test would never see it open and would exempt the rest of the
+        # file — the same bypass class this rewrite exists to close.
+        #
+        # A sentinel that never opens a block guards a single
+        # `;`-terminated item (`#[cfg(feature = "testing")] use foo;`),
+        # so its scope ends at that `;`. Otherwise one cfg-gated `use`
+        # would exempt every production line beneath it.
+        #
+        # Known limitation: braces inside string literals or comments
+        # move the counter. Nothing in-tree hits this, and the
+        # alternative is lexing Rust in awk. A match wrongly flagged
+        # this way is a visible failure, not a silent bypass.
         START=$((LINE > 60 ? LINE - 60 : 1))
         if sed -n "${START},${LINE}p" "$FILE" | awk '
             { line[NR] = $0 }
@@ -142,10 +153,15 @@ for ROOT in "$@"; do
                     in_scope = 1
                     for (j = i; j < NR; j++) {
                         text = line[j]
-                        depth += gsub(/\{/, "{", text)
-                        depth -= gsub(/\}/, "}", text)
-                        if (depth > 0) { opened = 1 }
+                        opens = gsub(/\{/, "{", text)
+                        closes = gsub(/\}/, "}", text)
+                        if (opens > 0) { opened = 1 }
+                        depth += opens - closes
                         if (opened && depth <= 0) { in_scope = 0; break }
+                        if (!opened && j > i && line[j] ~ /;[ \t]*$/) {
+                            in_scope = 0
+                            break
+                        }
                     }
                     if (in_scope) { exit 0 }
                 }
