@@ -1491,6 +1491,23 @@ if command -v python3 >/dev/null 2>&1 \
     fi
 fi
 
+# ─── Shell-boundary vocabulary (core only) ───────────────────────────
+
+# Command and Event are the only envelopes crossing the shell boundary, and
+# ADR-066 bars domain vocabulary on either. The assertion needs `schema-gen`
+# to reach schemars, so the default `cargo nextest run` above never reaches
+# it — without this step the check exists only in CI, and a violation
+# survives locally until the pipeline reports it.
+if [[ "$REPO_DIR" == "core" && -f "$REPO_ROOT/Cargo.toml" ]]; then
+    echo ""
+    echo "Checking shell-boundary vocabulary..."
+    (
+        cd "$REPO_ROOT"
+        cargo test --quiet --features schema-gen -p vauchi-core \
+            --test domain_vocabulary_boundary_tests
+    )
+fi
+
 # ─── Summary ─────────────────────────────────────────────────────────
 
 HOOK_ELAPSED=$((SECONDS - HOOK_START))

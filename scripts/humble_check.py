@@ -41,9 +41,57 @@ RETIRED_BOUNDARY_PATTERNS = (
 )
 
 
+class VocabularyDriftError(Exception):
+    """A boundary rule greps for a type name absent from the shared vocabulary."""
+
+
+def _pattern_type_names(patterns: list[str]) -> set[str]:
+    """Capitalised identifiers a `\\bWord\\b` pattern greps for.
+
+    Lowercase literals (`visibility_label`, `handleAction`) are method and
+    field spellings rather than boundary types, so they are not vocabulary
+    entries and are skipped.
+    """
+    names = set()
+    for pattern in patterns:
+        for literal in re.findall(r"\\b([A-Za-z_][A-Za-z0-9_]*)\\b", pattern):
+            if literal[:1].isupper():
+                names.add(literal)
+    return names
+
+
+def validate_vocabulary_coverage(config: dict) -> None:
+    """Keep `retired_boundary_vocabulary` the single list of retired names.
+
+    Consumers that cannot grep repo sources — the Core schema test in
+    `domain_vocabulary_boundary_tests.rs` — read the vocabulary instead of
+    restating it. That only holds while the vocabulary covers every type the
+    rules grep for, so adding a rule pattern without listing its type fails
+    here rather than silently leaving the other consumer behind.
+
+    The two are supersets, not equals: `ContactList` is a vocabulary entry
+    with no rule, because the ratchet greps source text including prose and
+    would fire on comments that merely name a frontend screen.
+    """
+    vocabulary = set(config.get("retired_boundary_vocabulary", []))
+    missing = {}
+    for rule, definition in config.get("boundary_rules", {}).items():
+        absent = _pattern_type_names(definition.get("patterns", [])) - vocabulary
+        if absent:
+            missing[rule] = sorted(absent)
+
+    if missing:
+        detail = "; ".join(f"{rule}: {', '.join(names)}" for rule, names in sorted(missing.items()))
+        raise VocabularyDriftError(
+            f"boundary rules grep for types absent from retired_boundary_vocabulary — {detail}"
+        )
+
+
 def load_config(config_path: Path) -> dict:
     with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        config = json.load(f)
+    validate_vocabulary_coverage(config)
+    return config
 
 
 def load_baseline(baseline_path: Path) -> dict:

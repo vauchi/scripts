@@ -628,6 +628,50 @@ test_tighten_refuses_incomplete_checkout() {
     rm -rf "$root"
 }
 
+# test_vocabulary_covers_rule_types — the Core schema test reads the shared
+# vocabulary instead of restating it, which only holds while the vocabulary
+# covers every type the rules grep for
+test_vocabulary_covers_rule_types() {
+    root=$(mktemp -d)
+    config="$root/rules.json"
+    python3 - "$CONFIG" "$config" <<'PY'
+import json, sys
+config = json.load(open(sys.argv[1], encoding="utf-8"))
+config["boundary_rules"]["retired_screen_model"]["patterns"].append(r"\bContactRoster\b")
+json.dump(config, open(sys.argv[2], "w", encoding="utf-8"), indent=2)
+PY
+    set +e
+    out=$(python3 "$SCRIPT" --repo ios --workspace-root "$root" --config "$config" 2>&1)
+    rc=$?
+    set -e
+    assert_eq "vocabulary: rule type missing from the list fails" "1" "$rc"
+    case "$out" in
+        *ContactRoster*) got="named" ;;
+        *) got="$out" ;;
+    esac
+    assert_eq "vocabulary: failure names the absent type" "named" "$got"
+    rm -rf "$root"
+}
+
+# test_vocabulary_allows_entries_without_a_rule — the two are supersets, not
+# equals: the ratchet greps prose and would fire on a comment naming a screen
+test_vocabulary_allows_entries_without_a_rule() {
+    root=$(mktemp -d)
+    config="$root/rules.json"
+    python3 - "$CONFIG" "$config" <<'PY'
+import json, sys
+config = json.load(open(sys.argv[1], encoding="utf-8"))
+config["retired_boundary_vocabulary"].append("SomeUnscannedName")
+json.dump(config, open(sys.argv[2], "w", encoding="utf-8"), indent=2)
+PY
+    set +e
+    python3 "$SCRIPT" --repo ios --workspace-root "$root" --config "$config" >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "vocabulary: entry without a rule is allowed" "0" "$rc"
+    rm -rf "$root"
+}
+
 # run
 test_empty_workspace
 test_repo_path_resolves_repo_relative_roots
@@ -654,6 +698,8 @@ test_require_zero
 test_tighten_lowers_stored_counts
 test_tighten_never_raises_stored_counts
 test_tighten_refuses_incomplete_checkout
+test_vocabulary_covers_rule_types
+test_vocabulary_allows_entries_without_a_rule
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

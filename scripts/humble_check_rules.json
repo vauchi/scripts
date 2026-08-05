@@ -1,4 +1,16 @@
 {
+  "retired_boundary_vocabulary": [
+    "ScreenModel",
+    "WorkflowEngine",
+    "UserAction",
+    "ActionResult",
+    "Component",
+    "UiFieldVisibility",
+    "VisibilityMode",
+    "ContactList",
+    "RecoveryScreen",
+    "FieldVisibilityChanged"
+  ],
   "boundary_rules": {
     "retired_screen_model": {
       "message": "ADR-066 retires ScreenModel from frontends and bindings; consume generic Command values.",
