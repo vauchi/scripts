@@ -104,21 +104,54 @@ for ROOT in "$@"; do
                 ;;
         esac
 
-        # (4) Test/debug-context heuristic: look 60 lines back for a
-        # cfg attribute or a `mod tests { ... }` opening that would
-        # scope this match to non-production code. Any of the sentinels
-        # below in the preceding context is sufficient — false negatives
-        # are safer than false positives here since the production call
-        # sites have been explicitly enumerated.
+        # (4) Test/debug-context heuristic, scope-aware. Look 60 lines
+        # back for a cfg attribute or a `mod tests { ... }` opening that
+        # would scope this match to non-production code — then require
+        # that sentinel's block to still be OPEN at the match.
+        #
+        # Distance alone is not enough. A `#[cfg(feature = "testing")]`
+        # hatch that opens and closes a block does not cover the
+        # production code after it. Treating it as if it did left this
+        # guard blind at `Vauchi::build_relay_transport`, 17 lines below
+        # its hatch and the exact site of the 2026-07-15 P0 it exists to
+        # catch (problem record
+        # 2026-08-05-allow-direct-guard-testing-cfg-blind-spot).
+        #
+        # Brace depth is tracked from the sentinel forward: once it has
+        # opened and returned to zero, the sentinel is out of scope. A
+        # sentinel that never opens a block (a bare attribute on a `use`
+        # or a single statement) still exempts what follows, which stays
+        # deliberately permissive — false negatives remain safer than
+        # false positives here, since production call sites are
+        # enumerated explicitly in step (3).
         START=$((LINE > 60 ? LINE - 60 : 1))
-        CONTEXT=$(sed -n "${START},${LINE}p" "$FILE")
-        if echo "$CONTEXT" | grep -qE \
-            -e 'debug_assertions' \
-            -e '#\[test\]' \
-            -e '#\[cfg\(test\)\]' \
-            -e '#\[cfg\(any\(test' \
-            -e 'feature[[:space:]]*=[[:space:]]*"testing"' \
-            -e '^[[:space:]]*mod[[:space:]]+tests[[:space:]]*\{'; then
+        if sed -n "${START},${LINE}p" "$FILE" | awk '
+            { line[NR] = $0 }
+            END {
+                for (i = 1; i < NR; i++) {
+                    if (line[i] !~ /debug_assertions/ &&
+                        line[i] !~ /#\[test\]/ &&
+                        line[i] !~ /#\[cfg\(test\)\]/ &&
+                        line[i] !~ /#\[cfg\(any\(test/ &&
+                        line[i] !~ /feature[ \t]*=[ \t]*"testing"/ &&
+                        line[i] !~ /^[ \t]*mod[ \t]+tests[ \t]*\{/) {
+                        continue
+                    }
+                    depth = 0
+                    opened = 0
+                    in_scope = 1
+                    for (j = i; j < NR; j++) {
+                        text = line[j]
+                        depth += gsub(/\{/, "{", text)
+                        depth -= gsub(/\}/, "}", text)
+                        if (depth > 0) { opened = 1 }
+                        if (opened && depth <= 0) { in_scope = 0; break }
+                    }
+                    if (in_scope) { exit 0 }
+                }
+                exit 1
+            }
+        '; then
             continue
         fi
 
