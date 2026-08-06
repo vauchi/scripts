@@ -103,7 +103,10 @@ CS_FF_RE='(==|!=)[[:space:]]*DisplayHint\.|DisplayHint\.[A-Za-z]+[[:space:]]*(==
 # ── exclusion filter ─────────────────────────────────────────────────
 # Drop build output, vendored deps, generated bindings, and test trees so
 # the baseline does not churn on test edits. Applied as a grep -v chain on
-# the `path:lineno:line` output (BusyBox-safe — no --exclude).
+# the `path:lineno:line` output (BusyBox-safe — no --exclude). Rust inline
+# `#[cfg(test)] mod tests` modules are the same category; they are dropped
+# upstream in rust_source_lines (a grep -v cannot express "everything after
+# the attribute in the same file").
 strip_excluded() {
     grep -v '/target/' \
         | grep -v '/build/' \
@@ -157,6 +160,40 @@ count_calls() {
     printf '%s' "${n:-0}"
 }
 
+# rust_source_lines <src_root>
+# Emit `path:lineno:line` for every line BEFORE the first `#[cfg(test)]`
+# attribute in each .rs file under <src_root>. The /tests/ tree exclusion
+# keeps external fixtures out of the baseline; Rust's inline
+# `#[cfg(test)] mod tests` idiom is the same category, so test-module
+# lines must not move the ratchet either. Limitation: a file that puts
+# production code AFTER its first `#[cfg(test)]` attribute is undercounted
+# (the idiom places test modules last) — accepted, same curated-loose
+# stance as the verb list.
+rust_source_lines() {
+    root="$1"
+    [ -d "$root" ] || return 0
+    find "$root" -type f -name '*.rs' 2>/dev/null | while IFS= read -r f; do
+        awk '
+            /^[[:space:]]*#\[cfg\(test\)\]/ { in_tests = 1 }
+            !in_tests { printf "%s:%d:%s\n", FILENAME, FNR, $0 }
+        ' "$f"
+    done
+}
+
+# count_rust_calls <src_root> <content_re>
+# Rust counterpart of count_calls: counts <content_re> over .rs source
+# lines, skipping inline #[cfg(test)] modules and excluded trees.
+count_rust_calls() {
+    root="$1"; content_re="$2"
+    [ -d "$root" ] || { printf '0'; return; }
+    n=$(rust_source_lines "$root" \
+        | grep -E "$content_re" \
+        | strip_excluded \
+        | strip_sanctioned_boundary_calls \
+        | wc -l | tr -d '[:space:]')
+    printf '%s' "${n:-0}"
+}
+
 # ── repo-relative frontend source roots ──────────────────────────────
 TUI_SRC="$WORKSPACE_ROOT/tui/src"
 CLI_SRC="$WORKSPACE_ROOT/cli/src"
@@ -165,17 +202,17 @@ QT_SRC="$WORKSPACE_ROOT/linux-qt/src"
 WIN_SRC="$WORKSPACE_ROOT/windows/Vauchi"
 
 # ── counters ─────────────────────────────────────────────────────────
-domain_calls_tui=$(count_calls "$TUI_SRC" '\.rs:' "$RUST_RE")
-domain_calls_cli=$(count_calls "$CLI_SRC" '\.rs:' "$RUST_RE")
-domain_calls_linux_gtk=$(count_calls "$GTK_SRC" '\.rs:' "$RUST_RE")
+domain_calls_tui=$(count_rust_calls "$TUI_SRC" "$RUST_RE")
+domain_calls_cli=$(count_rust_calls "$CLI_SRC" "$RUST_RE")
+domain_calls_linux_gtk=$(count_rust_calls "$GTK_SRC" "$RUST_RE")
 domain_calls_linux_qt=$(count_calls "$QT_SRC" '\.(cpp|cc|h|hpp):' "$CPP_RE")
 domain_calls_windows=$(count_calls "$WIN_SRC" '\.cs:' "$CS_RE")
 domain_calls_total=$((domain_calls_tui + domain_calls_cli \
     + domain_calls_linux_gtk + domain_calls_linux_qt + domain_calls_windows))
 
-form_factor_tui=$(count_calls "$TUI_SRC" '\.rs:' "$RUST_FF_RE")
-form_factor_cli=$(count_calls "$CLI_SRC" '\.rs:' "$RUST_FF_RE")
-form_factor_linux_gtk=$(count_calls "$GTK_SRC" '\.rs:' "$RUST_FF_RE")
+form_factor_tui=$(count_rust_calls "$TUI_SRC" "$RUST_FF_RE")
+form_factor_cli=$(count_rust_calls "$CLI_SRC" "$RUST_FF_RE")
+form_factor_linux_gtk=$(count_rust_calls "$GTK_SRC" "$RUST_FF_RE")
 form_factor_linux_qt=$(count_calls "$QT_SRC" '\.(cpp|cc|h|hpp):' "$CPP_FF_RE")
 form_factor_windows=$(count_calls "$WIN_SRC" '\.cs:' "$CS_FF_RE")
 form_factor_total=$((form_factor_tui + form_factor_cli \

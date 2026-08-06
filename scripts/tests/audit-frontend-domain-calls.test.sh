@@ -383,6 +383,35 @@ JSON
     rm -rf "$root"
 }
 
+# ── 16. Rust inline #[cfg(test)] modules do NOT count ──────────────────
+# The /tests/ tree exclusion already keeps test fixtures out of the
+# baseline; Rust's inline `#[cfg(test)] mod tests` idiom is the same
+# category. Lines after the first `#[cfg(test)]` attribute in a .rs file
+# must not move the ratchet; production lines above it still count.
+test_rust_inline_test_module_excluded() {
+    root=$(mktemp -d)
+    dir="$root/cli/src"
+    mkdir -p "$dir"
+    cat >"$dir/handler.rs" <<'RS'
+fn handle() {
+    wb.save_duress_settings(&settings).unwrap();
+}
+
+// INLINE_TEST_REQUIRED: Binary crate without lib.rs - tests cannot be external
+#[cfg(test)]
+mod tests {
+    fn setup() {
+        wb.setup_app_password(p).unwrap();
+        wb.save_local_identity(&id).unwrap();
+    }
+}
+RS
+    out=$("$SCRIPT" "$root")
+    assert_eq "rust inline tests: only the production line counts" \
+        "1" "$(extract_counter "$out" domain_calls_cli)"
+    rm -rf "$root"
+}
+
 # ── run ───────────────────────────────────────────────────────────────
 test_empty_workspace
 test_rust_sentinel
@@ -400,6 +429,7 @@ test_bad_workspace
 test_form_factor_rust_sentinel
 test_form_factor_empty
 test_form_factor_ratchet
+test_rust_inline_test_module_excluded
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
