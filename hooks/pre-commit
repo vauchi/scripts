@@ -481,6 +481,31 @@ if git diff --cached --name-only --diff-filter=ACM | grep -q 'supply-chain/audit
 fi
 
 # ============================================================
+# Locale quality gates (VLC01)
+# ============================================================
+# Key parity and JSON validity pass on strings that are still English,
+# address the user in the wrong register, or drop a {placeholder}. All
+# three reached main before this gate existed. Runs only when locale
+# JSON is staged, and only in the repo that owns the checker.
+STAGED_LOCALE_JSON=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -E '^(de|en|es|fr|it)\.json$' || true)
+
+if [[ -n "$STAGED_LOCALE_JSON" ]]; then
+    LOCALE_CHECK="scripts/check-locale-quality.py"
+    if [[ -f "$LOCALE_CHECK" ]]; then
+        echo "[locales] Checking locale quality..."
+        if ! python3 "$LOCALE_CHECK" .; then
+            echo ""
+            echo "ERROR: Locale quality checks failed."
+            echo "Fix the findings above, or if a finding is a false positive"
+            echo "add the key to the allowlist in $LOCALE_CHECK."
+            exit 1
+        fi
+        echo "  Locale quality OK"
+    fi
+fi
+
+# ============================================================
 # CI-yaml configuration lint (VCI02/03)
 # ============================================================
 # extends+before_script without !reference (VCI02, archive E23) and
