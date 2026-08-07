@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Per-repo domain-call ratchet (ADR-021/043, ADR-069).
+#
+# Anchors:
+#   - .domain-calls-job: fail the MR when this repo grows domain logic
+#
+# Why per-repo, and why blocking:
+#
+# The workspace-wide `gates:workspace-ratchets` job in the root repo is
+# `allow_failure: true`, schedule-only, and clones every repo at
+# `--branch main`. It therefore measures code that has ALREADY landed and
+# cannot gate a merge request even in principle. Two real misses followed:
+# cli!496 raised the CLI count 5 -> 6 with nothing reporting it, and
+# scripts!510 lowered the shared baseline before the removal that earned
+# it, because baseline and code lived in different repos.
+#
+# This anchor runs the same audit inside the measured repo's own pipeline,
+# against the merge request's code, and blocks. The budget is read from
+# `.audit-baseline.json` at the repo root, so lowering it travels in the
+# same MR as the removal.
+#
+# Consumers set nothing; the repo's own `.audit-baseline.json` is the
+# single knob. Repos without that file fall back to the shared baseline
+# and this anchor should not be used.
+
+.domain-calls-job:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  needs: []
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    VAUCHI_SCRIPTS_REF: "main"
+  script:
+    - |
+      set -eu
+
+      if [ ! -f .audit-baseline.json ]; then
+        echo "No .audit-baseline.json at the repo root."
+        echo "This anchor requires a per-repo budget — see"
+        echo "ci-templates/domain-calls.yml for why."
+        exit 1
+      fi
+
+      apk add --no-cache git ripgrep >/dev/null
+
+      # The audit lives in vauchi/scripts and measures a workspace laid out
+      # as sibling repo directories. Reconstruct that shape with only this
+      # repo present: absent siblings count zero, which is correct here —
+      # each repo is responsible for its own counter.
+      git clone --depth=1 --branch "$VAUCHI_SCRIPTS_REF" \
+        "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/scripts.git" /tmp/vauchi-scripts
+
+      WS=/tmp/ws
+      mkdir -p "$WS"
+      cp -R "$CI_PROJECT_DIR" "$WS/${CI_PROJECT_NAME}"
+
+      echo "=== domain-call ratchet: ${CI_PROJECT_NAME} ==="
+      echo "budget: $(cat .audit-baseline.json)"
+
+      sh /tmp/vauchi-scripts/scripts/audit-frontend-domain-calls.sh \
+        --check /tmp/vauchi-scripts/scripts/audit-frontend-domain-calls.baseline.json \
+        "$WS"
