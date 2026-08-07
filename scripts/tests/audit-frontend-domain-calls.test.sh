@@ -412,6 +412,93 @@ RS
     rm -rf "$root"
 }
 
+# ── 17. A cfg(test) that is NOT a test module must NOT blind the file ──
+# `#[cfg(test)] use …;` at column 0 (real shape: cli/src/ui/presentation.rs)
+# is a test-only import, not a module. Everything below it is production
+# code and must still be audited — for BOTH counter families.
+test_cfg_test_use_does_not_blind_file() {
+    root=$(mktemp -d)
+    dir="$root/cli/src"
+    mkdir -p "$dir"
+    cat >"$dir/presentation.rs" <<'RS'
+// test-only protocol accessor import
+#[cfg(test)]
+use vauchi_core::Event;
+
+fn render() {
+    wb.save_duress_settings(&settings).unwrap();
+    if hint == DisplayHint::Watch { compact() }
+}
+RS
+    out=$("$SCRIPT" "$root")
+    assert_eq "cfg(test) use: production domain call still counts" \
+        "1" "$(extract_counter "$out" domain_calls_cli)"
+    assert_eq "cfg(test) use: production form-factor branch still counts" \
+        "1" "$(extract_counter "$out" form_factor_cli)"
+    rm -rf "$root"
+}
+
+# ── 18. An indented (impl-level) cfg(test) must NOT blind the file ─────
+# Test-only helper methods inside a production impl carry an indented
+# attribute (real shape: tui/src/ui/presentation_protocol.rs). Only a
+# column-0 attribute opening a `mod` may start the skip region.
+test_indented_cfg_test_does_not_blind_file() {
+    root=$(mktemp -d)
+    dir="$root/tui/src"
+    mkdir -p "$dir"
+    cat >"$dir/engine.rs" <<'RS'
+impl Engine {
+    fn render(&self) { draw(); }
+
+    #[cfg(test)]
+    fn test_helper(&self) { wb.setup_app_password(p).unwrap(); }
+
+    fn production(&self) {
+        wb.save_duress_settings(&settings).unwrap();
+    }
+}
+RS
+    out=$("$SCRIPT" "$root")
+    # 2, not 1: the impl-level test helper's body still counts — the
+    # heuristic only skips mod-wrapped regions, so non-module test code
+    # is over-counted (safe direction). The assertion that matters is
+    # that the production call BELOW the attribute is not blinded.
+    assert_eq "indented cfg(test): production call after it still counts" \
+        "2" "$(extract_counter "$out" domain_calls_tui)"
+    rm -rf "$root"
+}
+
+# ── 19. cfg(test) followed by a non-mod item is a false alarm ──────────
+# The skip decision looks at the next non-attribute line: only a `mod`
+# declaration opens a test region. A cfg(test) free function at column 0
+# keeps the rest of the file audited.
+test_cfg_test_free_function_does_not_blind_file() {
+    root=$(mktemp -d)
+    dir="$root/cli/src"
+    mkdir -p "$dir"
+    cat >"$dir/util.rs" <<'RS'
+fn production_one() {
+    wb.save_duress_settings(&settings).unwrap();
+}
+
+#[cfg(test)]
+fn helper() {
+    wb.setup_app_password(p).unwrap();
+}
+
+fn production_two() {
+    wb.configure_emergency_broadcast(a, b, c).unwrap();
+}
+RS
+    out=$("$SCRIPT" "$root")
+    # 3, not 2: the cfg(test) free function's body counts too (over-count,
+    # safe direction — only mod-wrapped regions are skipped). The critical
+    # assertion is that production_two, BELOW the attribute, still counts.
+    assert_eq "cfg(test) fn: production calls count, fn body over-counts" \
+        "3" "$(extract_counter "$out" domain_calls_cli)"
+    rm -rf "$root"
+}
+
 # ── run ───────────────────────────────────────────────────────────────
 test_empty_workspace
 test_rust_sentinel
@@ -430,6 +517,9 @@ test_form_factor_rust_sentinel
 test_form_factor_empty
 test_form_factor_ratchet
 test_rust_inline_test_module_excluded
+test_cfg_test_use_does_not_blind_file
+test_indented_cfg_test_does_not_blind_file
+test_cfg_test_free_function_does_not_blind_file
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

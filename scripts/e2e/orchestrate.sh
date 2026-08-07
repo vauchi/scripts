@@ -793,11 +793,12 @@ scenario_cross_platform() {
     echo "     just e2e-cli alice contacts list"
     echo ""
 
-    # Check if alice already exists
+    # Check if alice already exists (core storage — the CLI no longer
+    # writes identity.json; identity lives in vauchi.db)
     local alice_dir
     alice_dir=$(cli_instance_dir "alice")
 
-    if [ -d "$alice_dir" ] && [ -f "$alice_dir/identity.json" ]; then
+    if [ -d "$alice_dir" ] && [ -f "$alice_dir/vauchi.db" ]; then
         log_info "Alice CLI instance already exists"
         echo ""
         echo "Run: just e2e-cli alice exchange start"
@@ -1132,14 +1133,15 @@ cmd_map() {
             local contacts_count=0
 
             # Try to get identity name using CLI card show command
-            if [ -f "$instance_dir/identity.json" ] && cli_is_built 2>/dev/null; then
+            # (core storage: the CLI no longer writes identity.json)
+            if [ -f "$instance_dir/vauchi.db" ] && cli_is_built 2>/dev/null; then
                 identity_name=$("$(cli_binary)" --data-dir "$instance_dir" --relay "$CLI_RELAY_URL" card show 2>/dev/null | head -2 | tail -1 | sed 's/^ *//' | head -c 20)
             fi
             # Count contacts using CLI (look for "Contacts (N):" in output)
             if cli_is_built 2>/dev/null; then
                 local contact_output
                 contact_output=$("$(cli_binary)" --data-dir "$instance_dir" --relay "$CLI_RELAY_URL" contacts list 2>/dev/null || true)
-                contacts_count=$(echo "$contact_output" | grep -oP 'Contacts \(\K[0-9]+' | head -1 || echo "0")
+                contacts_count=$(echo "$contact_output" | sed -n 's/.*Contacts (\([0-9][0-9]*\)).*/\1/p' | head -1 || echo "0")
                 [ -z "$contacts_count" ] && contacts_count=0
             fi
 
@@ -1162,7 +1164,7 @@ cmd_map() {
             local contacts_count=0
 
             if [ -f "$instance_dir/identity.json" ]; then
-                identity_name=$(grep -oP '"name"\s*:\s*"\K[^"]+' "$instance_dir/identity.json" 2>/dev/null | head -1)
+                identity_name=$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$instance_dir/identity.json" 2>/dev/null | head -1)
             fi
             if [ -d "$instance_dir/contacts" ]; then
                 contacts_count=$(find "$instance_dir/contacts" -name "*.json" 2>/dev/null | wc -l)

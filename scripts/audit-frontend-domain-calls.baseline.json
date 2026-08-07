@@ -4,11 +4,11 @@
   "workspace_root": "<workspace-root>",
   "totals": {
     "domain_calls_tui":            0,
-    "domain_calls_cli":            9,
+    "domain_calls_cli":            5,
     "domain_calls_linux_gtk":      0,
     "domain_calls_linux_qt":       0,
     "domain_calls_windows":        0,
-    "domain_calls_total":          9,
+    "domain_calls_total":          5,
     "form_factor_tui":             0,
     "form_factor_cli":             0,
     "form_factor_linux_gtk":       0,

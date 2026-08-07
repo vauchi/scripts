@@ -153,7 +153,7 @@ count_calls() {
     root="$1"; ext_re="$2"; content_re="$3"
     [ -d "$root" ] || { printf '0'; return; }
     n=$(grep -rsnE "$content_re" "$root" 2>/dev/null \
-        | grep -E "$ext_re" \
+        | { grep -E "$ext_re" || true; } \
         | strip_excluded \
         | strip_sanctioned_boundary_calls \
         | wc -l | tr -d '[:space:]')
@@ -161,23 +161,38 @@ count_calls() {
 }
 
 # rust_source_lines <src_root>
-# Emit `path:lineno:line` for every line BEFORE the first `#[cfg(test)]`
-# attribute in each .rs file under <src_root>. The /tests/ tree exclusion
-# keeps external fixtures out of the baseline; Rust's inline
-# `#[cfg(test)] mod tests` idiom is the same category, so test-module
-# lines must not move the ratchet either. Limitation: a file that puts
-# production code AFTER its first `#[cfg(test)]` attribute is undercounted
-# (the idiom places test modules last) — accepted, same curated-loose
-# stance as the verb list.
+# Emit `path:lineno:line` for every line OUTSIDE inline test modules in
+# each .rs file under <src_root>. The /tests/ tree exclusion keeps
+# external fixtures out of the baseline; Rust's inline
+# `#[cfg(test)] mod tests` idiom is the same category.
+#
+# The skip region opens ONLY on a column-0 `#[cfg(test)]` whose next
+# non-attribute line declares a `mod` — a `#[cfg(test)] use …;` or an
+# indented impl-level attribute is test-only *code*, not a module, and
+# must not blind the production lines below it (both shapes exist in this
+# workspace and silently dropped ~95% of cli/src/ui/presentation.rs from
+# the audit under the looser heuristic). A `#[cfg(test)]` free function
+# at column 0 keeps its own body counted (over-count direction, safe).
 rust_source_lines() {
     root="$1"
     [ -d "$root" ] || return 0
-    find "$root" -type f -name '*.rs' 2>/dev/null | while IFS= read -r f; do
-        awk '
-            /^[[:space:]]*#\[cfg\(test\)\]/ { in_tests = 1 }
-            !in_tests { printf "%s:%d:%s\n", FILENAME, FNR, $0 }
-        ' "$f"
-    done
+    # FNR==1 resets the state machine per file, so one awk process can
+    # safely chew the whole batch (find -exec +).
+    find "$root" -type f -name '*.rs' -exec awk '
+        FNR == 1 { in_tests = 0; pending = 0 }
+        in_tests { next }
+        pending && /^[[:space:]]*#/ {
+            printf "%s:%d:%s\n", FILENAME, FNR, $0; next
+        }
+        pending && /^(pub(\([^)]*\))?[[:space:]]+)?mod[[:space:]]/ {
+            in_tests = 1; pending = 0; next
+        }
+        pending { pending = 0; printf "%s:%d:%s\n", FILENAME, FNR, $0; next }
+        /^#\[cfg\(test\)\]/ {
+            pending = 1; printf "%s:%d:%s\n", FILENAME, FNR, $0; next
+        }
+        { printf "%s:%d:%s\n", FILENAME, FNR, $0 }
+    ' {} +
 }
 
 # count_rust_calls <src_root> <content_re>
@@ -187,7 +202,7 @@ count_rust_calls() {
     root="$1"; content_re="$2"
     [ -d "$root" ] || { printf '0'; return; }
     n=$(rust_source_lines "$root" \
-        | grep -E "$content_re" \
+        | { grep -E "$content_re" || true; } \
         | strip_excluded \
         | strip_sanctioned_boundary_calls \
         | wc -l | tr -d '[:space:]')
