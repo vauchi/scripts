@@ -266,44 +266,96 @@ if [ "$CHECK_MODE" -eq 0 ]; then
 fi
 
 # ── --check (ratchet) mode ────────────────────────────────────────────
-baseline_value() {
-    awk -v k="\"$1\"" '
+read_key() {  # read_key <file> <key>
+    [ -f "$1" ] || return 1
+    awk -v k="\"$2\"" '
         $1 ~ k {
             v = $0
             sub(/.*:[[:space:]]+/, "", v)
             sub(/,$/, "", v)
             print v + 0
+            found = 1
             exit
         }
-    ' "$BASELINE_FILE"
+        END { if (!found) exit 1 }
+    ' "$1"
+}
+
+# Counter names are `<metric>_<repo>`; the repo segment uses underscores
+# where the directory uses hyphens.
+repo_dir_for() {
+    case "$1" in
+        linux_gtk) echo 'linux-gtk' ;;
+        linux_qt)  echo 'linux-qt' ;;
+        *)         echo "$1" ;;
+    esac
+}
+
+# A repo may declare its own budget in `<repo>/.audit-baseline.json`,
+# keyed by bare metric name. That file lives in the repo it measures, so
+# lowering it and removing the calls it counts is one atomic MR — the
+# shared file cannot offer that (scripts!510 merged a lowering before the
+# removal that earned it). Absent, the shared file still applies, so
+# adopting this is per-repo and opt-in.
+per_repo_baseline() {  # per_repo_baseline <metric> <repo>
+    read_key "$WORKSPACE_ROOT/$(repo_dir_for "$2")/.audit-baseline.json" "$1"
+}
+
+baseline_value() {  # baseline_value <metric> <repo>
+    if [ -n "${2:-}" ] && v=$(per_repo_baseline "$1" "$2"); then
+        echo "$v"
+        return 0
+    fi
+    if [ -n "${2:-}" ]; then
+        shared_key="$1_$2"
+    else
+        shared_key="$1"
+    fi
+    read_key "$BASELINE_FILE" "$shared_key" || echo 0
 }
 
 regressions=0
-check_one() {
-    name="$1"
-    current="$2"
-    base=$(baseline_value "$name")
+summed_baseline=0
+check_one() {  # check_one <metric> <repo> <current>
+    metric="$1"
+    repo="$2"
+    current="$3"
+    base=$(baseline_value "$metric" "$repo")
     base="${base:-0}"
+    summed_baseline=$((summed_baseline + base))
     if [ "$current" -gt "$base" ]; then
-        printf 'REGRESSION %s: baseline %d, now %d (domain-call count must not rise)\n' \
-            "$name" "$base" "$current" >&2
+        printf 'REGRESSION %s_%s: baseline %d, now %d (domain-call count must not rise)\n' \
+            "$metric" "$repo" "$base" "$current" >&2
         regressions=$((regressions + 1))
     fi
 }
 
-check_one 'domain_calls_tui'       "$domain_calls_tui"
-check_one 'domain_calls_cli'       "$domain_calls_cli"
-check_one 'domain_calls_linux_gtk' "$domain_calls_linux_gtk"
-check_one 'domain_calls_linux_qt'  "$domain_calls_linux_qt"
-check_one 'domain_calls_windows'   "$domain_calls_windows"
-check_one 'domain_calls_total'     "$domain_calls_total"
+# The aggregate is derived, never read: it must equal the sum of the
+# budgets actually in force, or a permissive shared total would silently
+# re-permit what a per-repo file forbids.
+check_total() {  # check_total <metric> <current>
+    if [ "$2" -gt "$summed_baseline" ]; then
+        printf 'REGRESSION %s_total: baseline %d, now %d (domain-call count must not rise)\n' \
+            "$1" "$summed_baseline" "$2" >&2
+        regressions=$((regressions + 1))
+    fi
+}
 
-check_one 'form_factor_tui'        "$form_factor_tui"
-check_one 'form_factor_cli'        "$form_factor_cli"
-check_one 'form_factor_linux_gtk'  "$form_factor_linux_gtk"
-check_one 'form_factor_linux_qt'   "$form_factor_linux_qt"
-check_one 'form_factor_windows'    "$form_factor_windows"
-check_one 'form_factor_total'      "$form_factor_total"
+summed_baseline=0
+check_one 'domain_calls' tui       "$domain_calls_tui"
+check_one 'domain_calls' cli       "$domain_calls_cli"
+check_one 'domain_calls' linux_gtk "$domain_calls_linux_gtk"
+check_one 'domain_calls' linux_qt  "$domain_calls_linux_qt"
+check_one 'domain_calls' windows   "$domain_calls_windows"
+check_total 'domain_calls'         "$domain_calls_total"
+
+summed_baseline=0
+check_one 'form_factor' tui        "$form_factor_tui"
+check_one 'form_factor' cli        "$form_factor_cli"
+check_one 'form_factor' linux_gtk  "$form_factor_linux_gtk"
+check_one 'form_factor' linux_qt   "$form_factor_linux_qt"
+check_one 'form_factor' windows    "$form_factor_windows"
+check_total 'form_factor'          "$form_factor_total"
 
 if [ "$regressions" -gt 0 ]; then
     printf 'audit-frontend-domain-calls: %d counter(s) exceeded baseline %s\n' \
