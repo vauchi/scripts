@@ -347,7 +347,10 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         # C/C++ and CMake belong here: linux-qt and windows are entirely C++,
         # and vauchi-cabi's public headers are C. Without them every push in
         # those repos took the non-code fast path and skipped every gate.
-        CODE_PATTERN='\.(rs|swift|kt|java|ts|tsx|js|jsx|css|scss|html|c|cc|cpp|cxx|h|hh|hpp|hxx|m|mm)$'
+        # The trailing alternation matches git hooks, which carry no
+        # extension; without it the scripts repo skipped the gates on its
+        # own product.
+        CODE_PATTERN='\.(rs|swift|kt|java|ts|tsx|js|jsx|css|scss|html|c|cc|cpp|cxx|h|hh|hpp|hxx|m|mm|sh|bash|py)$|(^|/)hooks/[a-z-]+$'
         BUILD_PATTERN='(Cargo\.(toml|lock)|package.*\.json|.*\.gradle|CMakeLists\.txt|.*\.cmake)'
         HAS_CODE=$(echo "$CHANGED_FILES" | grep -E "$CODE_PATTERN" || true)
         HAS_BUILD=$(echo "$CHANGED_FILES" | grep -E "$BUILD_PATTERN" || true)

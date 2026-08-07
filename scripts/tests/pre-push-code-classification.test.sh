@@ -61,6 +61,14 @@ expect_code "vauchi-cabi/include/vauchi.h"
 expect_code "CMakeLists.txt"
 expect_code "tests/render_fixture_smoke.cmake"
 
+# Shell and Python are the scripts/ repo's actual product — VSH lint rules
+# exist precisely because shell here is code — and hook files carry no
+# extension at all, so they need a path rule rather than a suffix rule.
+expect_code "scripts/humble_check.py"
+expect_code "scripts/quiet-runner.sh"
+expect_code "hooks/pre-push"
+expect_code "hooks/commit-msg"
+
 # Previously covered languages must keep classifying as code.
 expect_code "src/lib.rs"
 expect_code "Sources/App/View.swift"
@@ -72,6 +80,10 @@ expect_not_code "README.md"
 expect_not_code "docs/guide.md"
 expect_not_code ".gitignore"
 expect_not_code "assets/logo.png"
+# The hooks path rule must not swallow prose that merely lives under a
+# hooks/ directory — it matches extensionless files only.
+expect_not_code "docs/hooks/overview.md"
+expect_not_code "hooks/README.md"
 
 echo "pre-push code classification: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
