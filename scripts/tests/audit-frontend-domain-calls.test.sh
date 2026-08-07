@@ -255,6 +255,115 @@ JSON
     rm -rf "$root"
 }
 
+# ── 8b. per-repo baseline overrides the shared file ───────────────────
+# A baseline that lives in the repo it measures can be lowered in the
+# same MR as the removal that earns it. The shared file cannot: it lives
+# in `scripts` while the code lives in `cli`, so the two are separate
+# MRs and can merge in the wrong order (scripts!510).
+test_per_repo_baseline_overrides_shared() {
+    root=$(mktemp -d)
+    mkdir -p "$root/cli/src"
+    cat >"$root/cli/src/main.rs" <<'RS'
+fn h() {
+    wb.setup_app_password(p)?;
+    wb.setup_duress_password(d)?;
+}
+RS
+    base="$root/baseline.json"
+    cat >"$base" <<'JSON'
+{
+  "totals": {
+    "domain_calls_cli": 5,
+    "domain_calls_total": 5
+  }
+}
+JSON
+    # The repo declares a tighter budget than the shared file allows.
+    cat >"$root/cli/.audit-baseline.json" <<'JSON'
+{
+  "domain_calls": 1
+}
+JSON
+    set +e
+    out=$("$SCRIPT" --check "$base" "$root" 2>&1)
+    rc=$?
+    set -e
+    assert_eq "per-repo baseline wins over the shared file" "1" "$rc"
+    case "$out" in
+        *"baseline 1, now 2"*) got="reported" ;;
+        *) got="not reported: $out" ;;
+    esac
+    assert_eq "per-repo regression names the repo's own budget" "reported" "$got"
+    rm -rf "$root"
+}
+
+# ── 8c. shared file still applies when the repo declares nothing ───────
+test_shared_baseline_used_without_per_repo_file() {
+    root=$(mktemp -d)
+    mkdir -p "$root/cli/src"
+    cat >"$root/cli/src/main.rs" <<'RS'
+fn h() {
+    wb.setup_app_password(p)?;
+    wb.setup_duress_password(d)?;
+}
+RS
+    base="$root/baseline.json"
+    cat >"$base" <<'JSON'
+{
+  "totals": {
+    "domain_calls_cli": 5,
+    "domain_calls_total": 5
+  }
+}
+JSON
+    set +e
+    "$SCRIPT" --check "$base" "$root" >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "shared baseline still honoured (migration is opt-in)" "0" "$rc"
+    rm -rf "$root"
+}
+
+# ── 8d. the aggregate follows the per-repo budgets ─────────────────────
+# The recorded `_total` is derivable: it equals the sum of its
+# components, so it must not silently permit what a component forbids.
+test_total_follows_per_repo_baselines() {
+    root=$(mktemp -d)
+    mkdir -p "$root/cli/src"
+    cat >"$root/cli/src/main.rs" <<'RS'
+fn h() {
+    wb.setup_app_password(p)?;
+    wb.setup_duress_password(d)?;
+}
+RS
+    base="$root/baseline.json"
+    # Shared file is permissive on BOTH the component and the total.
+    cat >"$base" <<'JSON'
+{
+  "totals": {
+    "domain_calls_cli": 9,
+    "domain_calls_total": 9
+  }
+}
+JSON
+    cat >"$root/cli/.audit-baseline.json" <<'JSON'
+{
+  "domain_calls": 0
+}
+JSON
+    set +e
+    out=$("$SCRIPT" --check "$base" "$root" 2>&1)
+    rc=$?
+    set -e
+    assert_eq "total cannot exceed the summed per-repo budgets" "1" "$rc"
+    case "$out" in
+        *domain_calls_total*) got="total reported" ;;
+        *) got="total silent: $out" ;;
+    esac
+    assert_eq "total regression is reported too" "total reported" "$got"
+    rm -rf "$root"
+}
+
 # ── 9. --check ratchet: exits zero AT/BELOW baseline ──────────────────
 test_check_at_or_below_baseline_passes() {
     root=$(mktemp -d)
@@ -509,6 +618,9 @@ test_wrong_extension
 test_excluded_paths
 test_total_sums
 test_check_above_baseline_fails
+test_per_repo_baseline_overrides_shared
+test_shared_baseline_used_without_per_repo_file
+test_total_follows_per_repo_baselines
 test_check_at_or_below_baseline_passes
 test_check_missing_baseline
 test_json_validity
