@@ -412,11 +412,37 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
                     exit 1
                 fi
                 echo "  All local: includes resolve on disk"
-            elif ! glab ci lint "$REPO_ROOT/.gitlab-ci.yml" >/dev/null 2>&1; then
-                echo ""
-                echo "FAILED: CI config is invalid:"
-                glab ci lint "$REPO_ROOT/.gitlab-ci.yml" 2>&1
-                exit 1
+            elif ! CI_LINT_OUT=$(glab ci lint "$REPO_ROOT/.gitlab-ci.yml" 2>&1); then
+                # `glab ci lint` POSTs to the project's lint endpoint, so a
+                # token without permission there fails exactly like a broken
+                # config. Reporting 403 as "CI config is invalid" blocks every
+                # push in repos that use `project:` includes, for a reason
+                # that has nothing to do with the config (observed on tui,
+                # project 77874360). Separate the two verdicts.
+                # Key on auth vocabulary, or on a status code in HTTP
+                # response framing (`: 403 {`). A bare `40[13]` would also
+                # match a digit inside a validation message and silently
+                # excuse a real config error as an auth failure.
+                if printf '%s' "$CI_LINT_OUT" |
+                    grep -qE 'invalid_token|Token is expired|insufficient_scope|Forbidden|Unauthorized|:[[:space:]]*40[13][[:space:]{]'; then
+                    echo "  server lint unavailable — this is an auth/permission"
+                    echo "  failure, NOT a verdict on the config:"
+                    printf '%s\n' "$CI_LINT_OUT" | sed 's/^/    /'
+                    echo "  falling back to the local structural check"
+                    if ! sh "$HOOK_DIR/../scripts/check-ci-yaml-structure.sh" \
+                        "$REPO_ROOT/.gitlab-ci.yml"; then
+                        echo ""
+                        echo "FAILED: CI config has a structural defect (above)."
+                        echo "Server lint could not run, so this is the floor —"
+                        echo "fix the finding, or get lint permission for a full check."
+                        exit 1
+                    fi
+                else
+                    echo ""
+                    echo "FAILED: CI config is invalid:"
+                    printf '%s\n' "$CI_LINT_OUT"
+                    exit 1
+                fi
             else
                 echo "  CI lint OK"
             fi
