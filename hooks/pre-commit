@@ -377,35 +377,55 @@ SECRET_PATTERNS_WARNING=(
 
 SECRET_FOUND=0
 SECRET_BLOCKING=0
-for file in $STAGED_FILES; do
-    if [[ ! -f "$file" ]]; then
+# NUL-delimited: a path containing a space would otherwise be split into
+# two nonexistent paths and skipped — silently, which is the failure mode
+# this whole section exists to prevent.
+while IFS= read -r -d '' file; do
+    # git prints "-" for both counts when the staged blob is binary. This
+    # replaces a `file` probe of the working tree, which said nothing
+    # about what is actually being committed.
+    if git diff --cached --numstat -z -- "$file" 2>/dev/null |
+        tr '\0' '\n' | grep -qE '^-[[:space:]]+-[[:space:]]'; then
         continue
     fi
 
-    # Skip binary files and common false-positive files
-    if file "$file" | grep -q 'binary\|image\|executable'; then
+    # Read the STAGED blob. Listing paths from the index and then grepping
+    # the working tree checks a different thing whenever the two disagree:
+    # staging a secret and scrubbing the working copy passed, and deleting
+    # the working copy skipped the file entirely.
+    staged=$(git show ":$file" 2>/dev/null) || continue
+
+    # Fixture exclusion, anchored to a path segment or to the documented
+    # `*-example.*` naming. Unanchored, this matched any path merely
+    # containing the letters — `release-latest.md` was skipped because
+    # "latest" ends in "test".
+    if [[ "$file" =~ (^|/)(tests?|specs?|examples?|samples?|mocks?|fixtures?)/ ]] ||
+        [[ "$file" =~ [._/-](test|spec|example|sample|mock)s?\.[^/]+$ ]]; then
         continue
     fi
 
-    # Skip test files and example configs
-    if [[ "$file" =~ (test|spec|example|sample|mock) ]]; then
+    # A file that DEFINES the pattern list necessarily contains every
+    # string in it, so the scanner blocks its own source. Exempt the
+    # definition rather than obfuscating the patterns, which would make
+    # them harder to read and audit than the false positive is worth.
+    if printf '%s' "$staged" | grep -q 'SECRET_PATTERNS_BLOCKING=('; then
         continue
     fi
 
     for pattern in "${SECRET_PATTERNS_BLOCKING[@]}"; do
-        if grep -iEq "$pattern" "$file" 2>/dev/null; then
+        if printf '%s' "$staged" | grep -iEq "$pattern"; then
             echo "  BLOCKING: key material in $file (pattern: $pattern)"
             SECRET_BLOCKING=1
         fi
     done
 
     for pattern in "${SECRET_PATTERNS_WARNING[@]}"; do
-        if grep -iEq "$pattern" "$file" 2>/dev/null; then
+        if printf '%s' "$staged" | grep -iEq "$pattern"; then
             echo "  WARNING: Potential secret in $file (pattern: $pattern)"
             SECRET_FOUND=1
         fi
     done
-done
+done < <(git diff --cached --name-only --diff-filter=ACM -z)
 
 if [[ $SECRET_BLOCKING -eq 1 ]]; then
     echo ""
