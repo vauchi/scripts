@@ -90,6 +90,27 @@ run_case "named *-example.*"                   "docs/key-example.md"    keep  al
 run_case "under spec/"                         "spec/fixtures/key.md"   keep  allow
 
 echo
+echo "== must block: a file that merely mentions the scanner's marker =="
+# The self-exemption must key on WHERE the file is, never on what it
+# contains. A content trigger is forgeable: anyone can paste the marker
+# into a .env and the scan skips the whole file.
+decoy=$(mktemp -d)
+git -C "$decoy" init --quiet
+git -C "$decoy" config user.email t@example.com
+git -C "$decoy" config user.name Test
+printf '# SECRET_PATTERNS_BLOCKING=(\n%s\n' "$SECRET" > "$decoy/notes.md"
+git -C "$decoy" add notes.md
+decoy_out=$( (cd "$decoy" && bash "$HOOK") 2>&1 )
+if printf '%s' "$decoy_out" | grep -q 'BLOCKING'; then
+    printf '  PASS marker in an ordinary file does not exempt it\n'
+    pass=$((pass + 1))
+else
+    printf '  FAIL a file is exempted by its own content — forgeable bypass\n' >&2
+    fail=$((fail + 1))
+fi
+rm -rf "$decoy"
+
+echo
 echo "== must NOT block: the scanner's own pattern definition =="
 # The pattern list contains every string it searches for, so the scanner
 # would otherwise refuse to let its own source be committed.

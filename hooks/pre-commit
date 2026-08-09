@@ -361,10 +361,16 @@ STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
 # (ADRs, audit frameworks, backup designs), `PASSWORD[[:space:]]*=` 31.
 # Blocking on those would stop routine doc commits and train everyone to
 # reach for `--no-verify`, which costs more than the check is worth.
+# The bracketed letter is deliberate. `[E]` matches a literal E, so these
+# still match real key material — but the pattern text itself no longer
+# does, so the scanner does not flag its own source. The alternative was
+# exempting this file, and every exemption on a secret scanner is a bypass
+# waiting to be used: a content-based one is forgeable by anyone who pastes
+# the marker into a file, and a path-based one still trusts a path.
 SECRET_PATTERNS_BLOCKING=(
-    'BEGIN RSA PRIVATE KEY'
-    'BEGIN EC PRIVATE KEY'
-    'BEGIN OPENSSH PRIVATE KEY'
+    'BEGIN RSA PRIVAT[E] KEY'
+    'BEGIN EC PRIVAT[E] KEY'
+    'BEGIN OPENSSH PRIVAT[E] KEY'
     'ghp_[a-zA-Z0-9]{36}'  # GitHub personal access token
 )
 SECRET_PATTERNS_WARNING=(
@@ -401,14 +407,6 @@ while IFS= read -r -d '' file; do
     # "latest" ends in "test".
     if [[ "$file" =~ (^|/)(tests?|specs?|examples?|samples?|mocks?|fixtures?)/ ]] ||
         [[ "$file" =~ [._/-](test|spec|example|sample|mock)s?\.[^/]+$ ]]; then
-        continue
-    fi
-
-    # A file that DEFINES the pattern list necessarily contains every
-    # string in it, so the scanner blocks its own source. Exempt the
-    # definition rather than obfuscating the patterns, which would make
-    # them harder to read and audit than the false positive is worth.
-    if printf '%s' "$staged" | grep -q 'SECRET_PATTERNS_BLOCKING=('; then
         continue
     fi
 
