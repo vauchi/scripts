@@ -4,11 +4,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """A shell that acts on one half of a command pair must handle the other.
 
-Core emits `DismissOverlay` to close a menu it opened with
-`PresentOverlay`. A shell that renders the first and ignores the second
-leaves the menu on screen over the destination the user just chose — and
-says nothing, because an unhandled command falls into a generic effect.
-That shipped on Android (`vauchi/android!621`), on iOS
+Core opens a menu with `PresentOverlay` and closes it with
+`DismissOverlay`. A shell that renders the first and ignores the second
+leaves the menu over the destination the user just chose — and says
+nothing, because an unhandled command falls into a generic effect. That
+shipped on Android (`vauchi/android!621`), on iOS
 (`problems/2026-08-07-ios-stale-overlay-and-raw-error-alert`, priority
 critical) and on web-demo, each found by hand, months apart.
 
@@ -16,26 +16,40 @@ The pairing is the invariant worth checking: nothing about the *content*
 of a shell's overlay code says whether it can close one, but the absence
 of the counterpart command is mechanical.
 
-## Exemptions carry reasons
+## Exemptions live with the shell, not here
 
-A gap is not automatically a defect. Windows and linux-qt raise their
-overlay as a modal dialog they close themselves on selection, so Core's
-dismissal is redundant there — a real conformance gap with no
-user-visible symptom. Those live in the allowlist with a stated reason,
-because an exemption nobody has to justify is how a check stops meaning
-anything (see `_private/docs/lint-errors/cc21-chestertons-fence`).
+A gap is not automatically a defect — Windows and linux-qt raise a modal
+dialog they close themselves, so Core's dismissal is redundant there.
+Each shell records its own exemptions in
+`.shell-command-conformance-allowlist` at its repo root, matching the
+`.file-size-baseline` / `.domain-named-views-allowlist` convention.
+
+That placement is deliberate: the reason describes that shell's code, a
+shell can justify a gap in its own MR without touching this repo, and the
+justification is reviewed by the people who own the code it describes.
+
+Format, one per line — the reason is mandatory and the file is rejected
+without one:
+
+    DismissOverlay  # ContentDialog closes itself on click
+
+## Modes
+
+    --shell <name> [root]   check one shell; `root` is that shell's
+                            checkout (default `.`). This is the CI mode:
+                            each repo checks itself, gating the MR that
+                            can break it.
+    [root]                  check every shell directory under a workspace
+                            checkout.
 
 ## What this cannot do
 
 Detection is textual: it sees whether a shell's sources mention the
 command, not whether the arm it reaches actually fires. iOS mentioned
-`DismissOverlay`, decoded it, had a test named for it — and the bug was
-still live, because the shell was built against a stale artifact. So a
-green run here means "the counterpart is handled somewhere", never "the
+`DismissOverlay`, decoded it, had a test named for it — and was still
+broken on device, because the build had resolved a stale artifact. A
+green run means "the counterpart is handled somewhere", never "the
 behaviour works". Behaviour needs a device.
-
-Usage:
-  check-shell-command-conformance.py [workspace_root]
 
 Exit: 0 when every gap is allowlisted; 1 on an unlisted gap; 2 on
       usage/IO error.
@@ -47,7 +61,7 @@ import sys
 # (present, dismiss) — acting on the first obliges handling the second.
 COMMAND_PAIRS = [("PresentOverlay", "DismissOverlay")]
 
-# Shell directories and the source extensions worth scanning in each.
+# Shell name -> source extensions worth scanning.
 SHELLS = {
     "android": (".kt", ".kts"),
     "ios": (".swift",),
@@ -60,11 +74,11 @@ SHELLS = {
 }
 
 SKIP_DIRS = {
-    "build", "target", "node_modules", ".git", "obj", "bin",
+    "build", "build-local", "target", "node_modules", ".git", "obj", "bin",
     "DerivedData", "Pods", "dist", "generated", "Generated",
 }
 
-ALLOW_FILE = "shell-command-conformance-allow.txt"
+ALLOWLIST = ".shell-command-conformance-allowlist"
 
 
 def is_test_path(path: pathlib.Path) -> bool:
@@ -78,8 +92,8 @@ def mentions(root: pathlib.Path, exts: tuple, needle: str) -> bool:
     """Does any non-test source file under `root` mention `needle`?
 
     Tests are excluded deliberately: a shell whose only reference is in a
-    test has not wired the command, and counting it would let the check
-    pass on a shell that cannot act.
+    test has not wired the command, and counting it would let this pass
+    on a shell that cannot act.
     """
     pattern = re.compile(rf"\b{re.escape(needle)}\b")
     for path in root.rglob("*"):
@@ -95,44 +109,70 @@ def mentions(root: pathlib.Path, exts: tuple, needle: str) -> bool:
     return False
 
 
-def load_allowlist(script_dir: pathlib.Path) -> dict:
-    """`shell command  # reason` per line. The reason is mandatory."""
+def load_allowlist(shell_dir: pathlib.Path) -> dict:
+    """`<command>  # reason` per line, from the shell's own repo root."""
     allow = {}
-    path = script_dir / ALLOW_FILE
+    path = shell_dir / ALLOWLIST
     if not path.exists():
         return allow
     for lineno, raw in enumerate(path.read_text().splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        entry, _, reason = line.partition("#")
-        fields = entry.split()
-        if len(fields) != 2 or not reason.strip():
+        command, _, reason = line.partition("#")
+        if not command.split() or not reason.strip():
             print(
-                f"{path}:{lineno}: expected `<shell> <command>  # reason`",
+                f"{path}:{lineno}: expected `<command>  # reason` — an "
+                f"exemption without a stated reason is how a check stops "
+                f"meaning anything",
                 file=sys.stderr,
             )
             raise SystemExit(2)
-        allow[(fields[0], fields[1])] = reason.strip()
+        allow[command.split()[0]] = reason.strip()
     return allow
 
 
+def check_shell(shell: str, shell_dir: pathlib.Path) -> tuple:
+    """Returns (gaps, exemptions) for one shell."""
+    exts = SHELLS[shell]
+    allow = load_allowlist(shell_dir)
+    gaps, exempt = [], []
+    for present, dismiss in COMMAND_PAIRS:
+        if not mentions(shell_dir, exts, present):
+            continue  # does not act on the pair at all
+        if mentions(shell_dir, exts, dismiss):
+            continue
+        reason = allow.get(dismiss)
+        (exempt if reason else gaps).append((shell, present, dismiss, reason))
+    return gaps, exempt
+
+
 def main() -> int:
-    root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
-    allow = load_allowlist(pathlib.Path(__file__).resolve().parent)
+    args = sys.argv[1:]
+    single = None
+    if args and args[0] == "--shell":
+        if len(args) < 2 or args[1] not in SHELLS:
+            print(
+                f"usage: {sys.argv[0]} --shell <{'|'.join(sorted(SHELLS))}> [root]",
+                file=sys.stderr,
+            )
+            return 2
+        single = args[1]
+        args = args[2:]
+    root = pathlib.Path(args[0] if args else ".").resolve()
 
     gaps, exempt = [], []
-    for shell, exts in sorted(SHELLS.items()):
-        shell_dir = root / shell
-        if not shell_dir.is_dir():
-            continue
-        for present, dismiss in COMMAND_PAIRS:
-            if not mentions(shell_dir, exts, present):
-                continue  # does not act on the pair at all
-            if mentions(shell_dir, exts, dismiss):
-                continue
-            reason = allow.get((shell, dismiss))
-            (exempt if reason else gaps).append((shell, present, dismiss, reason))
+    if single:
+        g, e = check_shell(single, root)
+        gaps += g
+        exempt += e
+    else:
+        for shell in sorted(SHELLS):
+            shell_dir = root / shell
+            if shell_dir.is_dir():
+                g, e = check_shell(shell, shell_dir)
+                gaps += g
+                exempt += e
 
     for shell, present, dismiss, reason in exempt:
         print(f"  exempt  {shell}: handles {present}, not {dismiss} — {reason}")
@@ -147,7 +187,7 @@ def main() -> int:
         print("A shell that renders an overlay but cannot close one leaves it")
         print("over the destination, silently — an unhandled command becomes a")
         print("generic effect and nothing reports it.")
-        print(f"Fix the shell, or add a reason to scripts/{ALLOW_FILE}.")
+        print(f"Fix the shell, or add a reason to its {ALLOWLIST}.")
         return 1
     return 0
 

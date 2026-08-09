@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# A shell that renders an overlay must be able to close one.
+#
+# Core opens a menu with PresentOverlay and closes it with
+# DismissOverlay. A shell handling only the first leaves the menu over
+# the destination the user just chose, and reports nothing — an
+# unhandled command becomes a generic effect. That shipped on Android,
+# on iOS at priority critical, and on web-demo, each found by hand.
+#
+# Runs per-shell rather than across the workspace on purpose. A
+# workspace-level job lives in a repo that a shell change never touches,
+# so it would pass forever while the thing it watches breaks — the exact
+# shape catalogued in
+# `_private/docs/backlog/2026-08-09-gates-that-pass-by-not-running.md`.
+# Here the check gates the merge request that can actually break it.
+#
+# Usage — in the shell repo's .gitlab-ci.yml:
+#
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: <pinned-ref>
+#       file: '/ci-templates/shell-command-conformance.yml'
+#
+#   check:shell-command-conformance:
+#     extends: .shell-command-conformance
+#     variables:
+#       VAUCHI_SHELL: ios
+#
+# Exemptions live in this repo, not in scripts: add the command and a
+# reason to `.shell-command-conformance-allowlist` at the repo root. The
+# reason is mandatory — the checker exits 2 without one.
+
+.shell-command-conformance:
+  stage: lint
+  image: python:3.12-alpine
+  # Blocking by design. An advisory would join the pile of warnings
+  # nobody reads, which is the failure this exists to catch.
+  allow_failure: false
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - apk add --no-cache git >/dev/null
+    - |
+      if [ -z "${VAUCHI_SHELL:-}" ]; then
+        echo "VAUCHI_SHELL must name this shell (ios, android, macos, tui," >&2
+        echo "linux-gtk, linux-qt, windows, web-demo)." >&2
+        exit 2
+      fi
+    - git clone --depth=1 --branch "${VAUCHI_SCRIPTS_REF:-main}"
+      "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/scripts.git"
+      "${CI_PROJECT_DIR}/.vauchi-scripts"
+  script:
+    - echo "=== Shell command-pair conformance (${VAUCHI_SHELL}) ==="
+    - python3 "${CI_PROJECT_DIR}/.vauchi-scripts/scripts/check-shell-command-conformance.py"
+      --shell "${VAUCHI_SHELL}" "${CI_PROJECT_DIR}"
