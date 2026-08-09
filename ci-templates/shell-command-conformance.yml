@@ -42,7 +42,20 @@
     - if: $CI_MERGE_REQUEST_IID
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   before_script:
-    - apk add --no-cache git >/dev/null
+    - |
+      # The Alpine CDN fails intermittently and a bare `apk add` turns
+      # that into a red pipeline for a check that never ran. Retry the
+      # fetch, and fail loudly if it genuinely cannot install rather
+      # than continuing into a job whose tools are missing.
+      for attempt in 1 2 3; do
+          apk add --no-cache git && installed=yes && break
+          echo "apk add failed (attempt $attempt/3), retrying in 5s" >&2
+          sleep 5
+      done
+      if [ "${installed:-}" != yes ]; then
+          echo "apk add failed after 3 attempts" >&2
+          exit 1
+      fi
     - |
       if [ -z "${VAUCHI_SHELL:-}" ]; then
         echo "VAUCHI_SHELL must name this shell (ios, android, macos, tui," >&2
