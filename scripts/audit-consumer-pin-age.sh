@@ -37,6 +37,10 @@ if [ "${1:-}" = "--json" ]; then
 fi
 
 WORKSPACE_ROOT="${1:-$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)}"
+# Absolute, so paths from `find` compare against git's absolute
+# --show-toplevel. Passing a relative root otherwise made every prefix
+# strip fail and every lock look untracked.
+WORKSPACE_ROOT=$(CDPATH='' cd -- "$WORKSPACE_ROOT" && pwd)
 CORE="$WORKSPACE_ROOT/core"
 
 if [ ! -d "$CORE/.git" ]; then
@@ -109,6 +113,23 @@ for lock in $consumers; do
             *branch\ =\ *) pin_kind="branch"; pin_value=$(printf '%s' "$decl" | sed -E 's/.*branch = "([^"]*)".*/\1/') ;;
             *rev\ =\ *)    pin_kind="rev";    pin_value=$(printf '%s' "$decl" | sed -E 's/.*rev = "([^"]*)".*/\1/') ;;
         esac
+    fi
+
+    # An untracked lock is local state, not shared: CI resolves it from
+    # scratch on a fresh runner, so its age says nothing about what the
+    # project builds. relay/fuzz's lock is gitignored and read as 568
+    # commits stale here while CI was resolving current main — reporting
+    # that as a project-wide finding would have been wrong.
+    tracked="yes"
+    repo_root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [ -n "$repo_root" ]; then
+        rel_lock=${lock#"$repo_root"/}
+        git -C "$repo_root" ls-files --error-unmatch "$rel_lock" >/dev/null 2>&1 || tracked="no"
+    fi
+
+    if [ "$tracked" = "no" ]; then
+        pin_kind="untracked"
+        pin_value="local lock only"
     fi
 
     if git -C "$CORE" cat-file -e "$rev^{commit}" 2>/dev/null; then
