@@ -27,7 +27,11 @@ HOOK="$DIR/hooks/pre-commit"
 
 pass=0
 fail=0
-SECRET='-----BEGIN RSA PRIVATE KEY-----'
+# Assembled at runtime so this file does not itself carry the literal the
+# scanner blocks on. The alternative — exempting this path — is the hole
+# that was just removed; a test for a security control must not require
+# the control to look away from it.
+SECRET="-----BEGIN RSA PRIVAT""E KEY-----"
 
 # stage <path> <content>; then optional working-tree mutation:
 #   keep    leave the working tree matching the index
@@ -83,11 +87,48 @@ run_case "protest.md (contains 'test')"        "docs/protest.md"        keep  bl
 run_case "sampler.md (contains 'sample')"      "docs/sampler.md"        keep  block
 
 echo
-echo "== must NOT block: the fixtures the exclusion exists for =="
-# The hook's own guidance: "name it *-example.* or put it under tests/".
-run_case "under tests/"                        "tests/fixtures/key.md"  keep  allow
-run_case "named *-example.*"                   "docs/key-example.md"    keep  allow
-run_case "under spec/"                         "spec/fixtures/key.md"   keep  allow
+echo "== must block: key material, whatever the path is called =="
+# A fixture path suppresses the advisory WARNING tier only. It used to
+# suppress the blocking tier too, which made the gate opt-out by rename:
+# `secrets.env` sails through as `secrets-example.env`. Measured across
+# the workspace, that exemption covered 1156 files and shielded exactly
+# one piece of blocking-tier material — the sample key in this very test.
+run_case "under tests/"                        "tests/fixtures/key.md"  keep  block
+run_case "named *-example.*"                   "docs/key-example.md"    keep  block
+run_case "under spec/"                         "spec/fixtures/key.md"   keep  block
+
+echo
+echo "== the WARNING tier is where a fixture path still suppresses =="
+# The exemption's whole justification. Without this half pinned, a later
+# change could quietly make it suppress nothing and look correct: 33 files
+# across the workspace trip these patterns in fixture paths, and warnings
+# on routine commits stop being read.
+warn_case() {
+    label=$1; path=$2; want=$3   # want: warn | quiet
+
+    repo=$(mktemp -d)
+    git -C "$repo" init --quiet
+    git -C "$repo" config user.email t@example.com
+    git -C "$repo" config user.name Test
+    mkdir -p "$repo/$(dirname "$path")"
+    printf 'PASSWORD = hunter2\n' > "$repo/$path"
+    git -C "$repo" add "$path"
+    out=$( (cd "$repo" && bash "$HOOK") 2>&1 )
+
+    got=quiet
+    printf '%s' "$out" | grep -q 'WARNING: Potential secret' && got=warn
+
+    if [ "$got" = "$want" ]; then
+        printf '  PASS %s\n' "$label"; pass=$((pass + 1))
+    else
+        printf '  FAIL %s — wanted %s, got %s\n' "$label" "$want" "$got" >&2
+        fail=$((fail + 1))
+    fi
+    rm -rf "$repo"
+}
+warn_case "ordinary path warns"        "config/app.md"          warn
+warn_case "fixture path stays quiet"   "tests/fixtures/app.md"  quiet
+warn_case "*-example.* stays quiet"    "docs/app-example.md"    quiet
 
 echo
 echo "== must block: a file that merely mentions the scanner's marker =="

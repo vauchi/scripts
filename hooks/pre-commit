@@ -404,13 +404,26 @@ while IFS= read -r -d '' file; do
     # the working copy skipped the file entirely.
     staged=$(git show ":$file" 2>/dev/null) || continue
 
-    # Fixture exclusion, anchored to a path segment or to the documented
+    # Fixture path, anchored to a path segment or to the documented
     # `*-example.*` naming. Unanchored, this matched any path merely
     # containing the letters — `release-latest.md` was skipped because
     # "latest" ends in "test".
+    #
+    # It suppresses the WARNING tier only. Measured across the workspace
+    # on 2026-08-09: of 1156 files this pattern exempts, 33 trip a warning
+    # and exactly one trips the blocking tier — the test that feeds this
+    # scanner a sample key. So the exemption earns its keep against noise
+    # and buys nothing on the tier that blocks, where it was purely a
+    # bypass: `secrets.env` skips the scan entirely if renamed
+    # `secrets-example.env`.
+    #
+    # Committed key material is not a fixture problem here. This project
+    # generates real crypto in tests (ADR-002: never mock crypto) rather
+    # than committing keys, which is why the measurement found none.
+    is_fixture_path=0
     if [[ "$file" =~ (^|/)(tests?|specs?|examples?|samples?|mocks?|fixtures?)/ ]] ||
         [[ "$file" =~ [._/-](test|spec|example|sample|mock)s?\.[^/]+$ ]]; then
-        continue
+        is_fixture_path=1
     fi
 
     for pattern in "${SECRET_PATTERNS_BLOCKING[@]}"; do
@@ -419,6 +432,10 @@ while IFS= read -r -d '' file; do
             SECRET_BLOCKING=1
         fi
     done
+
+    if [[ $is_fixture_path -eq 1 ]]; then
+        continue
+    fi
 
     for pattern in "${SECRET_PATTERNS_WARNING[@]}"; do
         if printf '%s' "$staged" | grep -iEq "$pattern"; then
@@ -432,8 +449,10 @@ if [[ $SECRET_BLOCKING -eq 1 ]]; then
     echo ""
     echo "Commit blocked: literal key material detected in staged files."
     echo "Remove it and rotate the key — it is already in your working tree."
-    echo "If this is a fixture the skip list misses, name it *-example.* or"
-    echo "put it under tests/; bypass of last resort: git commit --no-verify"
+    echo "A fixture path does NOT excuse key material: renaming the file"
+    echo "would only hide it. Generate keys in the test instead (ADR-002),"
+    echo "or, if it genuinely must be committed, say so in review and use"
+    echo "the bypass of last resort: git commit --no-verify"
     exit 1
 fi
 
