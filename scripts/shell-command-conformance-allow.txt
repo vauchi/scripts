@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Shells that act on one half of a command pair without handling the
+# other, where that is correct rather than a defect.
+#
+# Format:  <shell> <command>  # why this is not a defect
+#
+# The reason is mandatory and the checker rejects the file without one.
+# An exemption nobody has to justify is how a check stops meaning
+# anything — which is the failure this checker exists to catch.
+#
+# Verified 2026-08-09 by reading each shell's overlay code, after a
+# grep-level sweep over-reported three shells as broken and closer
+# reading cut it to one.
+
+windows DismissOverlay   # ContentDialog: the item-click handler calls dialog.Hide() before dispatching, and the modal blocks re-tapping the affordance, so Core's dismissal is redundant — PresentationHostEffects.cs
+linux-qt DismissOverlay  # QDialog: the button handler calls dialog->accept() before dispatchInteraction, same shape as windows — presentationcontroller_effects.cpp
