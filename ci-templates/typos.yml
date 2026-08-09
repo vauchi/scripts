@@ -59,7 +59,26 @@ lint:typos:
           DL="wget -qO-"
         else
           echo "Neither curl nor wget available — installing wget..."
-          apk add --no-cache wget >/dev/null 2>&1 || apt-get update -qq && apt-get install -y -qq wget >/dev/null 2>&1
+          # `A || B && C` parses as `(A || B) && C`, so the previous
+          # one-liner ran apt-get install even when apk had already
+          # succeeded — harmless on Alpine only because the failure was
+          # discarded. Branch on the package manager that exists instead.
+          if command -v apk >/dev/null 2>&1; then
+              for attempt in 1 2 3; do
+                  apk add --no-cache wget >/dev/null 2>&1 && installed=yes && break
+                  sleep 5
+              done
+          elif command -v apt-get >/dev/null 2>&1; then
+              for attempt in 1 2 3; do
+                  apt-get update -qq && apt-get install -y -qq wget >/dev/null 2>&1 \
+                      && installed=yes && break
+                  sleep 5
+              done
+          fi
+          if [ "${installed:-}" != yes ]; then
+              echo "could not install wget — no usable downloader" >&2
+              exit 1
+          fi
           DL="wget -qO-"
         fi
 

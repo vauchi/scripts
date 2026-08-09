@@ -53,7 +53,18 @@
         exit 1
       fi
 
-      apk add --no-cache git ripgrep >/dev/null
+      # The Alpine CDN fails intermittently and a bare `apk add` turns
+      # that into a red job for a check that never ran. Retry, and fail
+      # loudly rather than continuing without the tools.
+      for attempt in 1 2 3; do
+          apk add --no-cache git ripgrep >/dev/null && installed=yes && break
+          echo "apk add failed (attempt $attempt/3), retrying in 5s" >&2
+          sleep 5
+      done
+      if [ "${installed:-}" != yes ]; then
+          echo "apk add failed after 3 attempts" >&2
+          exit 1
+      fi
 
       # The audit lives in vauchi/scripts and measures a workspace laid out
       # as sibling repo directories. Reconstruct that shape with only this

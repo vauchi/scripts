@@ -129,7 +129,19 @@
     DESIGN_DRIFT_PROTOCOL: "component"
     CORE_REF: "main"
   before_script:
-    - apk add --no-cache curl openssh-client bash grep git
+    - |
+      # The Alpine CDN fails intermittently and a bare `apk add` turns
+      # that into a red job for a check that never ran. Retry, and fail
+      # loudly rather than continuing without the tools.
+      for attempt in 1 2 3; do
+          apk add --no-cache curl openssh-client bash grep git && installed=yes && break
+          echo "apk add failed (attempt $attempt/3), retrying in 5s" >&2
+          sleep 5
+      done
+      if [ "${installed:-}" != yes ]; then
+          echo "apk add failed after 3 attempts" >&2
+          exit 1
+      fi
   script:
     - |
       set -euo pipefail
