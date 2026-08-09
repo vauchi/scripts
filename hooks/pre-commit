@@ -378,7 +378,10 @@ SECRET_PATTERNS_WARNING=(
     'SECRET[_-]?KEY'
     'API[_-]?KEY[[:space:]]*='
     'PASSWORD[[:space:]]*='
-    'aws_secret_access_key'
+    # Bracketed for the same reason as the blocking list: without it this
+    # one warns on every edit of this file, and a check that cries wolf on
+    # its own source is how people learn to reach for --no-verify.
+    'aws_secret_access_ke[y]'
 )
 
 SECRET_FOUND=0
