@@ -35,6 +35,14 @@
 .shell-command-conformance:
   stage: lint
   image: python:3.12-alpine
+  # Required, not cosmetic. The project's runners are tagged, so an
+  # untagged job is never picked up: it sits `pending` with `runner: None`
+  # until the pipeline is cancelled, and the merge request shows a gate
+  # that is neither passing nor failing. Observed on tui!540 with the
+  # first version of this template — a gate that cannot run is the
+  # failure this whole check exists to catch, so shipping one here would
+  # have been its own counter-example.
+  tags: [docker]
   # Blocking by design. An advisory would join the pile of warnings
   # nobody reads, which is the failure this exists to catch.
   allow_failure: false
