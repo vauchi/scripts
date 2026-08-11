@@ -1,14 +1,14 @@
 {
   "schema_version": 2,
-  "captured_at": "2026-08-07T00:00:00Z",
+  "captured_at": "2026-08-11T22:49:28Z",
   "workspace_root": "<workspace-root>",
   "totals": {
     "domain_calls_tui":            0,
-    "domain_calls_cli":            6,
+    "domain_calls_cli":            2,
     "domain_calls_linux_gtk":      0,
     "domain_calls_linux_qt":       0,
     "domain_calls_windows":        0,
-    "domain_calls_total":          6,
+    "domain_calls_total":          2,
     "form_factor_tui":             0,
     "form_factor_cli":             0,
     "form_factor_linux_gtk":       0,
