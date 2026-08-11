@@ -249,19 +249,26 @@ write_result_json() {
 # ── Platform gates ────────────────────────────────────────────────
 
 # Wake + unlock an Android device for the flow run.
-# Order matters: stayon first (keeps USB-connected device awake), then
+# Order matters: stayon first (keeps a plugged-in device awake), then
 # wakeup, swipe-up to the PIN pad, enter the PIN as digit keycodes
 # (input text can miss non-IME PIN pads), tap the confirm arrow
-# (KEYEVENT_ENTER does not submit on AOSP PIN pads — found 2026-07-18).
+# (KEYCODE_ENTER does not submit on AOSP PIN pads — found 2026-07-18).
+#
+# `stayon true` covers AC+USB+wireless: a dock or charger reports
+# "AC powered", which `stayon usb` leaves out, so the screen slept
+# mid-gate and every flow captured a black frame (found 2026-08-11).
 ensure_android_ready() {
     local serial="$1"
     local adb=(adb -s "$serial")
     local attempt
-    "${adb[@]}" shell svc power stayon usb >/dev/null 2>&1 || true
+    "${adb[@]}" shell svc power stayon true >/dev/null 2>&1 || true
     # Keep the screen on for the whole gate run (test device).
     "${adb[@]}" shell settings put system screen_off_timeout 600000 >/dev/null 2>&1 || true
     for attempt in 1 2; do
-        "${adb[@]}" shell input keyevent KEYEVENT_WAKEUP >/dev/null 2>&1
+        # KEYCODE_, not KEYEVENT_: `input` exits 0 on an unknown name, so
+        # the wake silently never happened and the PIN went to a dark
+        # screen (found 2026-08-11).
+        "${adb[@]}" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1
         sleep 2
         # Already unlocked? (keyguard not the FOCUSED window — a bare
         # NotificationShade grep also matches its always-present window)
