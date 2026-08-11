@@ -368,6 +368,11 @@ gate_mobile() {
         --env "FIELD_VALUE=${FIELD_VALUE:-test@example.com}"
         --env "APP_PASSWORD=${APP_PASSWORD:-TestPass123!}"
         --env "DURESS_PIN=${DURESS_PIN:-654321}"
+        # Non-numeric so the reducer's digit filter empties it — the
+        # rejects-invalid flow asserts duress never becomes enabled. Its
+        # own guard aborts the flow when this is unset, so omitting it
+        # made that flow unrunnable under the gate rather than merely red.
+        --env "INVALID_PIN=${INVALID_PIN:-abc}"
         --env "DECOY_NAME=${DECOY_NAME:-Decoy Contact}"
         --env "REAL_CONTACT_NAME=${REAL_CONTACT_NAME:-E2E Test}"
         --env "CONTACT_NAME=${CONTACT_NAME:-E2E Test}"
