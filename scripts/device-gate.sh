@@ -29,15 +29,23 @@
 # Options:
 #   --skip-build      Skip ABI parity check and build+install; run the
 #                     flows against whatever is already installed.
-#   --flows "a,b,c"   Comma-separated Maestro flow names. Default:
+#   --flows "a,b,c"   Comma-separated flow names. Default:
 #                     create_identity,add_field,generate_qr,sync,add_custom_group
 #                     complete_exchange is NOT in the default set (it needs
 #                     two devices); naming it here attempts it and records
 #                     the result.
+#                     `link_device_two_devices` is script-backed rather
+#                     than Maestro (two devices in lockstep inside a 60 s
+#                     window) and reports `skip`, not `fail`, when no
+#                     second device is attached.
 #
 # Environment:
 #   IOS_DEVICE_ID   iOS device UDID override
 #   ANDROID_SERIAL  Android device serial override
+#   LINK_JOINER_SERIAL
+#                   Second Android device for link_device_two_devices.
+#                   Defaults to any attached device that is not the
+#                   primary one.
 #   FLOW_TIMEOUT    Per-flow timeout in seconds (default: 300)
 #   PIN             App PIN for PIN-gated flows (default: 123456, same
 #                   convention as _private/docs/testing/device-automation/
@@ -63,6 +71,60 @@ FLOW_TIMEOUT="${FLOW_TIMEOUT:-300}"
 PIN="${PIN:-123456}"
 
 DEFAULT_FLOWS=(create_identity add_field generate_qr sync add_custom_group)
+
+# Flows driven by a script rather than Maestro, because they need two
+# devices acting together and Maestro drives one per invocation. Named
+# here so `--flows` can request them like any other.
+SCRIPT_FLOWS=(link_device_two_devices)
+
+is_script_flow() {
+    local candidate="$1" known
+    for known in "${SCRIPT_FLOWS[@]}"; do
+        [[ "$candidate" == "$known" ]] && return 0
+    done
+    return 1
+}
+
+# Dispatch a script-backed flow. Exit 2 means "could not run" (no second
+# device) rather than "the product is broken", and the caller reports it
+# as skipped — a gate that fails for want of hardware teaches people to
+# ignore it.
+run_script_flow() {
+    local name="$1" platform="$2" device="$3" evidence_dir="$4"
+    case "$name" in
+        link_device_two_devices)
+            if [[ "$platform" != "android" ]]; then
+                echo "link_device_two_devices is android-only"
+                return 2
+            fi
+            local joiner
+            joiner="${LINK_JOINER_SERIAL:-$(second_android_serial "$device")}"
+            if [[ -z "$joiner" ]]; then
+                echo "no second Android device attached — set LINK_JOINER_SERIAL"
+                return 2
+            fi
+            NAME="${NAME:-Maestro Test}" \
+                bash "$(dirname "${BASH_SOURCE[0]}")/device-link-two-device.sh" \
+                "$device" "$joiner" "$evidence_dir"
+            ;;
+        *)
+            echo "unknown script flow: $name"
+            return 2
+            ;;
+    esac
+}
+
+# Any attached Android device that is not the gate's primary one.
+second_android_serial() {
+    local primary="$1" serial
+    while read -r serial _; do
+        [[ -z "$serial" || "$serial" == "List" ]] && continue
+        [[ "$serial" == "$primary" ]] && continue
+        printf '%s' "$serial"
+        return 0
+    done < <(adb devices | tail -n +2)
+    return 1
+}
 
 PLATFORM=""
 SKIP_BUILD=0
@@ -200,6 +262,8 @@ validate_flows() {
     local platform="$1"
     local name flow
     for name in "${FLOWS[@]}"; do
+        # Script-backed flows have no yaml by definition.
+        is_script_flow "$name" && continue
         flow="e2e/maestro/$platform/$name.yaml"
         if [[ ! -f "$flow" ]]; then
             printf '%b\n' "${RED}ERROR: flow not found: $flow${NC}" >&2
@@ -404,6 +468,26 @@ gate_mobile() {
         echo "  → $name (timeout ${FLOW_TIMEOUT}s)"
         start=$SECONDS
         rc=0
+        # Script-backed flows take the same result/evidence path as the
+        # Maestro ones so a reader cannot tell them apart in result.json.
+        if is_script_flow "$name"; then
+            run_script_flow "$name" "$platform" "$device" "$evidence_dir" \
+                >"$log" 2>&1 || rc=$?
+            dur=$((SECONDS - start))
+            if [[ $rc -eq 0 ]]; then
+                status=pass
+            elif [[ $rc -eq 2 ]]; then
+                # A missing precondition (second device absent) is not a
+                # product failure and must not read as one.
+                status=skip
+            else
+                status=fail
+                pfail=1
+            fi
+            printf '    %s (%ss) — %s\n' "$status" "$dur" "$log"
+            results+=("$name|$status|$dur")
+            continue
+        fi
         # iOS on physical hardware needs the xctestrunner driver signed:
         # --apple-team-id (default: the Vauchi dev team) and a generous
         # driver-startup timeout on first run (driver install + trust).
