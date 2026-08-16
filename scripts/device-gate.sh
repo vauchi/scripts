@@ -69,6 +69,10 @@ RUN_DATE="$(date +%F)"
 EVIDENCE_BASE="_private/docs/testing/device-gates/$RUN_DATE"
 FLOW_TIMEOUT="${FLOW_TIMEOUT:-300}"
 PIN="${PIN:-123456}"
+# Resolved once: the identity name `create_identity` onboards with is the
+# same one later flows assert against. Two copies of this default drifted
+# apart and the two-device link flow asserted a name no flow had created.
+NAME="${NAME:-E2E Test}"
 
 DEFAULT_FLOWS=(create_identity add_field generate_qr sync add_custom_group)
 
@@ -103,7 +107,7 @@ run_script_flow() {
                 echo "no second Android device attached — set LINK_JOINER_SERIAL"
                 return 2
             fi
-            NAME="${NAME:-Maestro Test}" \
+            NAME="$NAME" \
                 bash "$(dirname "${BASH_SOURCE[0]}")/device-link-two-device.sh" \
                 "$device" "$joiner" "$evidence_dir"
             ;;
@@ -426,7 +430,7 @@ gate_mobile() {
     # parameters explicitly via --env. Defaults mirror `just e2e-maestro-critical`
     # (NAME/FIELD_*) and `just e2e-maestro` (the rest) so custom --flows work.
     local maestro_env=(
-        --env "NAME=${NAME:-E2E Test}"
+        --env "NAME=$NAME"
         --env "FIELD_TYPE=${FIELD_TYPE:-Email}"
         --env "FIELD_LABEL=${FIELD_LABEL:-Work}"
         --env "FIELD_VALUE=${FIELD_VALUE:-test@example.com}"
