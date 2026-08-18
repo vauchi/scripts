@@ -374,9 +374,29 @@ workflow:
     # On shared shell runners (nell, allyson), $HOME is shared across concurrent jobs —
     # deleting the global registry races with sccache in parallel jobs.
     - rm -rf .cargo/registry/src 2>/dev/null || true
-    # Ensure sccache is available and start the daemon
+    # Ensure sccache is available and start the daemon.
+    #
+    # Fails loudly on purpose. These lines used to end in `2>/dev/null || true`,
+    # so a server that never came up was invisible — and every rustc call is
+    # wrapped in an sccache client that then blocks forever waiting for it, with
+    # no timeout. On 2026-08-17 that hung core's builds for the full 60-minute
+    # job budget, three pipelines running, at 0.8 load on 24 cores, with no
+    # error in the log. The cause was simply a missing cache directory.
+    #
+    # A cold cache costs minutes; a wedged client costs the whole job and says
+    # nothing. So: create the directory, refuse to continue without a server,
+    # and prove it answers before handing it the build.
+    - mkdir -p "${SCCACHE_DIR:-$HOME/.cache/sccache}"
     - command -v sccache >/dev/null 2>&1 || cargo binstall sccache --no-confirm 2>/dev/null || true
-    - sccache --start-server 2>/dev/null || true
+    - |
+      if command -v sccache >/dev/null 2>&1; then
+        sccache --start-server || { echo "sccache: server failed to start"; exit 1; }
+        sccache --show-stats >/dev/null || { echo "sccache: server not responding"; exit 1; }
+      else
+        # No sccache at all is survivable — an uncached build is slow, not stuck.
+        echo "sccache: not installed, building without it"
+        export RUSTC_WRAPPER=
+      fi
     # Helper: fetch a file from the vauchi/scripts repo (project 77957857).
     # Single point of change for URL pattern and auth. Uses HTTP Basic Auth
     # (same mechanism as git clone in before_script above). All templates
