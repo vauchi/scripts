@@ -27,6 +27,7 @@
 # Usage:
 #   ios-wda.sh session [bundle_id]      Start a session, print its id
 #   ios-wda.sh tap-label <label>        Scroll into view, tap, verify
+#   ios-wda.sh tap-fixed <label>        Tap where it is (command bar)
 #   ios-wda.sh tap-name <name>          Tap by accessibility identifier
 #   ios-wda.sh labels                   Print Buttons/StaticTexts on screen
 #   ios-wda.sh accept-alert             Dismiss a springboard permission alert
@@ -161,6 +162,30 @@ tap_label() {
     return 1
 }
 
+# Tap `label` where it already is, without scrolling.
+#
+# `tap_label` exists for content that scrolls; it refuses anything within
+# 90pt of an edge because the status bar and the floating command bar
+# swallow taps aimed underneath them. But the command bar's own buttons
+# live inside that margin and are pinned there, so scrolling can never
+# bring them anywhere else — `tap_label` drags eight times and gives up.
+tap_fixed() {
+    local label="$1" el coords x y
+    el=$(find_by "predicate string" "label == '$label'")
+    if [ -z "$el" ]; then
+        echo "no element labelled '$label'" >&2
+        return 1
+    fi
+    coords=$(centre_of "$el")
+    if [ -z "$coords" ]; then
+        echo "'$label' has no rect" >&2
+        return 1
+    fi
+    read -r x y <<<"$coords"
+    tap_xy "$x" "$y"
+    echo "tapped '$label' at $x,$y"
+}
+
 accept_alert() {
     # Unscoped session: a permission alert is springboard's, and an
     # app-scoped session answers "not running, possibly crashed".
@@ -197,6 +222,8 @@ case "${1:-}" in
     session)      start_session "${2:-}" ;;
     tap-label)    [ $# -ge 2 ] || { echo "usage: $0 tap-label <label>" >&2; exit 2; }
                   tap_label "$2" ;;
+    tap-fixed)    [ $# -ge 2 ] || { echo "usage: $0 tap-fixed <label>" >&2; exit 2; }
+                  tap_fixed "$2" ;;
     tap-name)     [ $# -ge 2 ] || { echo "usage: $0 tap-name <name>" >&2; exit 2; }
                   el=$(find_by name "$2")
                   [ -z "$el" ] && { echo "no element named '$2'" >&2; exit 1; }
@@ -204,5 +231,5 @@ case "${1:-}" in
                   tap_xy "$x" "$y"; echo "tapped '$2' at $x,$y" ;;
     labels)       labels ;;
     accept-alert) accept_alert ;;
-    *)            echo "usage: $0 {session|tap-label|tap-name|labels|accept-alert}" >&2; exit 2 ;;
+    *)            echo "usage: $0 {session|tap-label|tap-fixed|tap-name|labels|accept-alert}" >&2; exit 2 ;;
 esac
