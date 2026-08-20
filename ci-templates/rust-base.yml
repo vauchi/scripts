@@ -390,7 +390,11 @@ workflow:
     - command -v sccache >/dev/null 2>&1 || cargo binstall sccache --no-confirm 2>/dev/null || true
     - |
       if command -v sccache >/dev/null 2>&1; then
-        sccache --start-server || { echo "sccache: server failed to start"; exit 1; }
+        # --start-server exits 2 with "Address in use" when a server is
+        # ALREADY running — the normal case when a concurrent job on this
+        # runner started one first. That is a healthy shared server, not a
+        # dead one, so only --show-stats decides liveness.
+        sccache --start-server >/dev/null 2>&1 || true
         sccache --show-stats >/dev/null || { echo "sccache: server not responding"; exit 1; }
       else
         # No sccache at all is survivable — an uncached build is slow, not stuck.
