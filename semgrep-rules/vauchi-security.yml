@@ -27,6 +27,7 @@ rules:
     metadata:
       category: security
       confidence: HIGH
+      security-severity: "9.0"
 
   - id: vauchi-no-ring-dependency
     patterns:
@@ -40,6 +41,8 @@ rules:
     paths:
       include:
         - "**/Cargo.toml"
+    metadata:
+      security-severity: "9.0"
 
   - id: vauchi-no-snow-in-core
     patterns:
@@ -59,6 +62,7 @@ rules:
     metadata:
       category: security
       confidence: HIGH
+      security-severity: "9.0"
 
   - id: vauchi-no-manual-zeroize-on-drop
     pattern-regex: '(?m)^\s*impl\s+(?:zeroize::)?ZeroizeOnDrop\s+for\b'
@@ -91,6 +95,7 @@ rules:
   #
   # Currently disabled in: cli (println), linux-gtk (eprintln)
   # ============================================================
+      security-severity: "9.0"
 
   - id: vauchi-no-println-in-lib
     patterns:
@@ -117,6 +122,7 @@ rules:
     metadata:
       category: security
       confidence: MEDIUM
+      security-severity: "5.0"
 
   - id: vauchi-no-dbg-macro
     patterns:
@@ -142,6 +148,7 @@ rules:
   # flags unsafe in vauchi-core, where zero-unsafe is a design invariant.
   # core repo disables the community rule via sast-ruleset.toml.
   # ============================================================
+      security-severity: "9.0"
 
   - id: vauchi-no-unsafe-in-core
     patterns:
@@ -158,6 +165,7 @@ rules:
     metadata:
       category: security
       confidence: HIGH
+      security-severity: "9.0"
 
   - id: vauchi-no-eprintln-in-lib
     patterns:
@@ -186,6 +194,7 @@ rules:
   # ============================================================
   # Randomness policy
   # ============================================================
+      security-severity: "5.0"
 
   - id: vauchi-no-thread-rng
     patterns:
@@ -208,6 +217,7 @@ rules:
   # ============================================================
   # Test isolation / temp file policy
   # ============================================================
+      security-severity: "9.0"
 
   - id: vauchi-no-env-temp-dir
     patterns:
@@ -225,6 +235,7 @@ rules:
     metadata:
       category: security
       confidence: HIGH
+      security-severity: "9.0"
 
   - id: vauchi-no-fixed-tmp-path
     pattern-regex: '"/tmp/[^"]*"'
@@ -243,6 +254,7 @@ rules:
   # ============================================================
   # Shell / CI supply-chain policy
   # ============================================================
+      security-severity: "9.0"
 
   - id: vauchi-no-curl-pipe-shell
     pattern-regex: 'curl\s+[^|]*\|\s*(?:bash|sh|zsh)\b'
@@ -258,6 +270,7 @@ rules:
     metadata:
       category: security
       confidence: HIGH
+      security-severity: "9.0"
 
   - id: vauchi-no-unverified-script-fetch
     pattern-regex: 'curl\s+[^\n]*\.sh[^\n]*\n\s*chmod\s+\+x[^\n]*\n\s*\.?/.*\.sh'

@@ -41,6 +41,7 @@ rules:
       confidence: HIGH
       rule_id: CC-03
       lint_errors_page: _private/docs/lint-errors/cc03-specific-assertions.md
+      security-severity: "5.0"
 
   - id: vauchi-cc03-assert-is-err
     patterns:
@@ -56,6 +57,7 @@ rules:
       confidence: MEDIUM
       rule_id: CC-03
       lint_errors_page: _private/docs/lint-errors/cc03-specific-assertions.md
+      security-severity: "5.0"
 
   - id: vauchi-cc03-assert-is-some
     patterns:
@@ -74,6 +76,7 @@ rules:
   # ============================================================
   # CC-06: No real-time waits in tests
   # ============================================================
+      security-severity: "5.0"
 
   - id: vauchi-cc06-no-sleep-in-tests
     patterns:
@@ -93,6 +96,7 @@ rules:
       confidence: HIGH
       rule_id: CC-06
       lint_errors_page: _private/docs/lint-errors/cc06-no-realtime-waits.md
+      security-severity: "5.0"
 
   - id: vauchi-cc06-no-tokio-sleep-in-tests
     patterns:
@@ -120,6 +124,7 @@ rules:
   # ConnectionManager keep the generic — see the ok: cases in
   # vauchi-quality.rs)
   # ============================================================
+      security-severity: "5.0"
 
   - id: vauchi-adr030-no-transport-generic
     patterns:
@@ -140,6 +145,7 @@ rules:
   # ============================================================
   # ADR-043: DisplayHint is a construction parameter, never wire data
   # ============================================================
+      security-severity: "5.0"
 
   - id: vauchi-adr043-no-displayhint-on-screenmodel
     patterns:
@@ -158,3 +164,4 @@ rules:
       confidence: HIGH
       rule_id: ADR-043
       lint_errors_page: _private/docs/lint-errors/adr043-no-displayhint-on-screenmodel.md
+      security-severity: "5.0"
