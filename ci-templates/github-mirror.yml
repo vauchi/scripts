@@ -66,10 +66,23 @@
       fi
   script:
     - |
-      # --- Generate GitHub App JWT (RS256, valid 10 min) ---
+      # --- Generate GitHub App JWT (RS256) ---
+      # GitHub rejects a JWT whose exp is more than 10 minutes ahead of
+      # *its* clock. `now + 600` sat exactly on that limit, so any forward
+      # skew on the runner tipped it over and GitHub answered 401
+      # "'Expiration time' claim ('exp') is too far in the future" — which
+      # stopped every mirror in the workspace on 2026-08-20.
+      #
+      # 5 minutes, not 9: this JWT is exchanged for an installation token
+      # on the very next line and never reused, so a long validity buys
+      # nothing. Centring it inside the 10-minute window instead maximises
+      # tolerance in both directions — roughly 5 minutes of forward skew
+      # before GitHub calls exp too distant, and 5 of backward skew before
+      # it calls the token expired. Picking 9 minutes would have left only
+      # 60 s of headroom against a skew whose size we never measured.
       header=$(printf '{"alg":"RS256","typ":"JWT"}' | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
       now=$(date +%s)
-      payload=$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' "$((now - 60))" "$((now + 600))" "$GITHUB_APP_ID" \
+      payload=$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' "$((now - 60))" "$((now + 300))" "$GITHUB_APP_ID" \
         | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
       unsigned="${header}.${payload}"
 
@@ -112,7 +125,7 @@
           echo "GitHub said: (no response body)"
         fi
         case "$HTTP_STATUS" in
-          401) echo "  → the App JWT was rejected: check GITHUB_APP_ID and that GITHUB_APP_PRIVATE_KEY is the current key" ;;
+          401) echo "  → the App JWT was rejected. Read the message above: an 'exp' complaint means runner clock skew, not a bad credential; otherwise check GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY" ;;
           404) echo "  → installation not found: check GITHUB_APP_INSTALLATION_ID, or the App may be uninstalled from the org" ;;
           000) echo "  → no HTTP response at all: network or DNS failure reaching api.github.com" ;;
         esac
