@@ -47,6 +47,24 @@ assert_contains() {
     fi
 }
 
+assert_output() {
+    name="$1"
+    pattern="$2"
+    report="$3"
+
+    set +e
+    output="$(python3 "$CHECKER" "$report" 2>&1)"
+    set -e
+
+    if grep -Eq "$pattern" <<<"$output"; then
+        pass=$((pass + 1))
+        printf '  PASS %s\n' "$name"
+    else
+        fail=$((fail + 1))
+        printf '  FAIL %s\n    missing pattern: %s\n    output: %s\n' "$name" "$pattern" "$output" >&2
+    fi
+}
+
 cat > "$WORK/clean.json" <<'EOF'
 {"version":"15.0.7","vulnerabilities":[],"scan":{}}
 EOF
@@ -75,6 +93,23 @@ cat > "$WORK/malformed-finding.json" <<'EOF'
 {"version":"15.0.7","vulnerabilities":[{"id":"NO-SEVERITY"}],"scan":{}}
 EOF
 
+
+cat > "$WORK/rule-timeout.json" <<'EOF'
+{"version":"15.0.7","vulnerabilities":[],"scan":{"status":"success","messages":[{"level":"warn","value":"Timeout when running vauchi-no-ring-direct on vauchi-core/src/storage/rekey.rs"}]}}
+EOF
+
+cat > "$WORK/benign-message.json" <<'EOF'
+{"version":"15.0.7","vulnerabilities":[],"scan":{"status":"success","messages":[{"level":"info","value":"Scanned 1318 files"}]}}
+EOF
+
+cat > "$WORK/scan-failed.json" <<'EOF'
+{"version":"15.0.7","vulnerabilities":[],"scan":{"status":"failure","messages":[]}}
+EOF
+
+cat > "$WORK/no-messages-key.json" <<'EOF'
+{"version":"15.0.7","vulnerabilities":[],"scan":{"status":"success"}}
+EOF
+
 assert_status "clean report passes" 0 "$WORK/clean.json"
 assert_status "medium finding remains advisory" 0 "$WORK/medium.json"
 assert_status "high finding remains advisory" 0 "$WORK/high.json"
@@ -83,6 +118,12 @@ assert_status "missing report fails closed" 2 "$WORK/missing.json"
 assert_status "invalid JSON fails closed" 2 "$WORK/malformed.json"
 assert_status "missing vulnerability list fails closed" 2 "$WORK/missing-vulnerabilities.json"
 assert_status "finding without severity fails closed" 2 "$WORK/malformed-finding.json"
+assert_status "rule timeout blocks — an unscanned file is not a clean one" 1 "$WORK/rule-timeout.json"
+assert_status "benign analyzer message passes" 0 "$WORK/benign-message.json"
+assert_status "failed scan blocks" 1 "$WORK/scan-failed.json"
+assert_status "report without scan.messages still passes" 0 "$WORK/no-messages-key.json"
+assert_output "report without scan.messages says timeouts are unverified" "cannot verify" "$WORK/no-messages-key.json"
+assert_output "timeout block names the rule and file" "vauchi-no-ring-direct" "$WORK/rule-timeout.json"
 assert_contains "shared template exposes severity gate" '^\.security-sast-severity-gate:' "$TEMPLATE"
 assert_contains "severity gate consumes semgrep report artifacts" 'job: semgrep-sast' "$TEMPLATE"
 assert_contains "severity gate is blocking" 'allow_failure: false' "$TEMPLATE"
