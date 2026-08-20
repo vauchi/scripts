@@ -226,10 +226,17 @@ quality:new-test-annotations:
 # assertions that pass regardless of the value (assert!(x.is_ok())).
 
 quality:semgrep-rules:
-  extends: .linux-runner-nocache
   stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/python:3.12-slim
+  tags: [docker]
   needs: []
   allow_failure: false
+  # Self-provisioning on a docker image rather than .linux-runner-nocache:
+  # nothing installs semgrep or opengrep on the self-hosted runners, so a
+  # job that assumes the binary is a gate that cannot run. Pinned because
+  # an unpinned analyzer changes what the gate enforces without review.
+  variables:
+    SEMGREP_VERSION: "1.174.0"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
@@ -239,14 +246,28 @@ quality:semgrep-rules:
           - ".gitlab-ci.yml"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "schedule"
+  before_script:
+    - pip install --no-cache-dir --quiet "semgrep==${SEMGREP_VERSION}"
   script:
+    # Fetched with python rather than curl: the slim image ships no curl,
+    # and urllib raises on a non-200 instead of writing an error body to
+    # the rules file and letting semgrep "pass" on nothing (VSH13).
     - |
-      fetch_vauchi_script semgrep-rules/vauchi-quality.yml /tmp/vauchi-quality.yml
+      python - <<'FETCH'
+      import os, sys, urllib.parse, urllib.request
 
-      if ! command -v opengrep >/dev/null 2>&1; then
-          echo "ERROR: opengrep is not installed on this runner." >&2
-          echo "A quality gate that silently skips is worse than no gate." >&2
-          exit 1
-      fi
-
-      opengrep scan --config /tmp/vauchi-quality.yml --error --quiet .
+      path = urllib.parse.quote("semgrep-rules/vauchi-quality.yml", safe="")
+      url = "{}/projects/77957857/repository/files/{}/raw?ref={}".format(
+          os.environ["CI_API_V4_URL"], path, os.environ["VAUCHI_SCRIPTS_REF"])
+      request = urllib.request.Request(
+          url, headers={"JOB-TOKEN": os.environ["CI_JOB_TOKEN"]})
+      try:
+          with urllib.request.urlopen(request, timeout=30) as response:
+              body = response.read()
+      except Exception as error:
+          sys.exit("ERROR: fetching vauchi-quality.yml failed: {}".format(error))
+      if not body.strip():
+          sys.exit("ERROR: vauchi-quality.yml came back empty")
+      open("/tmp/vauchi-quality.yml", "wb").write(body)
+      FETCH
+    - semgrep scan --config /tmp/vauchi-quality.yml --error --quiet --metrics=off .
