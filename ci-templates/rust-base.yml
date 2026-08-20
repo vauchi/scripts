@@ -394,8 +394,30 @@ workflow:
         # ALREADY running — the normal case when a concurrent job on this
         # runner started one first. That is a healthy shared server, not a
         # dead one, so only --show-stats decides liveness.
+        #
+        # --show-stats must be bounded: a wedged server accepts the
+        # connection and never answers, which spends the whole job timeout
+        # (core!1548, 5m0s, against a 14-day-old server). Same
+        # timeout/gtimeout/shim ladder as _git_fetch_bounded above.
+        if command -v timeout >/dev/null 2>&1; then
+          _sccache_stats_bounded() { timeout 30 sccache --show-stats; }
+        elif command -v gtimeout >/dev/null 2>&1; then
+          _sccache_stats_bounded() { gtimeout 30 sccache --show-stats; }
+        else
+          _sccache_stats_bounded() {
+            ( sccache --show-stats ) & local pid=$!
+            ( sleep 30 && kill -TERM "$pid" 2>/dev/null ) & local killer=$!
+            wait "$pid" 2>/dev/null; local rc=$?
+            kill -TERM "$killer" 2>/dev/null
+            return "$rc"
+          }
+        fi
         sccache --start-server >/dev/null 2>&1 || true
-        sccache --show-stats >/dev/null || { echo "sccache: server not responding"; exit 1; }
+        _sccache_stats_bounded >/dev/null || {
+          echo "sccache: server on port ${SCCACHE_SERVER_PORT:-4226} did not answer within 30s."
+          echo "sccache: a wedged long-lived server is the usual cause — kill it on the runner host."
+          exit 1
+        }
       else
         # No sccache at all is survivable — an uncached build is slow, not stuck.
         echo "sccache: not installed, building without it"
