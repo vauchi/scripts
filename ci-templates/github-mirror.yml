@@ -88,14 +88,43 @@
       JWT="${unsigned}.${signature}"
 
       # --- Exchange JWT for installation access token ---
-      TOKEN=$(curl -sf -X POST \
+      # Capture status and body separately. `curl -sf | jq` cannot report
+      # why it failed: -f makes curl exit 22 on any 4xx/5xx, and under
+      # pipefail that kills the job at this assignment, before the check
+      # below can run. Every mirror failure on 2026-08-20 printed only
+      # "exit code 22" for that reason.
+      : > /tmp/gh-token.json
+      HTTP_STATUS=$(curl -s -o /tmp/gh-token.json -w '%{http_code}' -X POST \
         -H "Authorization: Bearer ${JWT}" \
         -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/app/installations/${GITHUB_APP_INSTALLATION_ID}/access_tokens" \
-        | jq -r '.token')
+        "https://api.github.com/app/installations/${GITHUB_APP_INSTALLATION_ID}/access_tokens") \
+        || HTTP_STATUS="000"
+
+      if [ "$HTTP_STATUS" != "201" ]; then
+        echo "ERROR: token exchange returned HTTP ${HTTP_STATUS} (expected 201)"
+        # GitHub's error bodies name the cause ("Bad credentials",
+        # "Integration not found", "expired"). They carry no token — a
+        # non-201 response has none to leak — so this is safe to print and
+        # is the whole point of the change.
+        if [ -s /tmp/gh-token.json ]; then
+          echo "GitHub said: $(jq -r '.message // "no message field"' < /tmp/gh-token.json 2>/dev/null || echo 'unparsable body')"
+        else
+          echo "GitHub said: (no response body)"
+        fi
+        case "$HTTP_STATUS" in
+          401) echo "  → the App JWT was rejected: check GITHUB_APP_ID and that GITHUB_APP_PRIVATE_KEY is the current key" ;;
+          404) echo "  → installation not found: check GITHUB_APP_INSTALLATION_ID, or the App may be uninstalled from the org" ;;
+          000) echo "  → no HTTP response at all: network or DNS failure reaching api.github.com" ;;
+        esac
+        rm -f /tmp/gh-token.json
+        exit 1
+      fi
+
+      TOKEN=$(jq -r '.token' < /tmp/gh-token.json)
+      rm -f /tmp/gh-token.json
 
       if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
-        echo "ERROR: Failed to obtain GitHub installation token"
+        echo "ERROR: HTTP 201 but no token in the response body"
         exit 1
       fi
 
