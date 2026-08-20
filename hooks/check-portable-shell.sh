@@ -126,10 +126,63 @@ check_file() {
 
     done < "$file"
 
+    if ! check_web_status "$file"; then
+        found=1
+    fi
+
     CHECKED=$((CHECKED + 1))
     if [[ "$found" -eq 1 ]]; then
         VIOLATIONS=$((VIOLATIONS + 1))
     fi
+}
+
+# VSH13 web call whose HTTP status is discarded.
+#
+# Its own pass, because the pattern spans continuation lines and the
+# line-based loop above cannot see it:
+#
+#   TOKEN=$(curl -sf -X POST \
+#     "https://api.example/thing" \
+#     | jq -r '.token')
+#
+# is one logical command. curl's exit status is thrown away — under
+# pipefail the job dies with a bare "exit code 22" and no HTTP status;
+# without pipefail the status becomes jq's and the failure is silent.
+# Every github-mirror job in the workspace failed this way on 2026-08-20
+# and reported nothing usable for a day.
+check_web_status() {
+    local file="$1"
+    local logical="" start_line=0 line_no=0 line found=0
+
+    while IFS= read -r line; do
+        line_no=$((line_no + 1))
+
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+        [[ -z "$logical" ]] && start_line="$line_no"
+        logical+=" ${line%\\}"
+
+        # Command continues on the next line — keep accumulating.
+        [[ "$line" == *\\ ]] && continue
+
+        if [[ "$logical" =~ (curl|wget)[[:space:]] ]] \
+            && [[ "$logical" == *'$('* ]] \
+            && [[ "$logical" == *'|'* ]] \
+            && [[ "$logical" != *portable-shell-ok* ]] \
+            && [[ "$logical" != *http_code* ]] \
+            && [[ "$logical" != *--fail-with-body* ]] \
+            && [[ "$logical" != *--write-out* ]]; then
+            emit VSH13 "$file" "$start_line" \
+                'web call piped inside $() discards its HTTP status' \
+                "capture it with -w '%{http_code}' -o FILE and branch on it, or use curl --fail-with-body" \
+                vsh13-web-call-status-discarded # portable-shell-ok
+            found=1
+        fi
+
+        logical=""
+    done < "$file"
+
+    return "$((found == 0 ? 0 : 1))"
 }
 
 # If arguments given, check those files. Otherwise, check staged files.
