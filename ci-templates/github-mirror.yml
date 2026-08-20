@@ -86,12 +86,22 @@
         | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
       unsigned="${header}.${payload}"
 
-      # Decode base64 PEM and sign (variable is File type — path to base64 content)
-      # Strip whitespace/newlines before decoding (wl-copy may add trailing newline)
-      tr -d '[:space:]' < "$GITHUB_APP_PRIVATE_KEY" | base64 -d > /tmp/app.pem
+      # Accept the key in either form. GitHub hands you a PEM on download,
+      # but this variable has always been stored base64-encoded, and
+      # pasting the PEM straight in fails with a message about decoding
+      # that reads like a corrupt key rather than a wrong encoding. Detect
+      # instead of demanding, so rotating the key cannot fail on format.
+      if grep -q "PRIVATE KEY" "$GITHUB_APP_PRIVATE_KEY" 2>/dev/null; then
+        cp "$GITHUB_APP_PRIVATE_KEY" /tmp/app.pem
+      else
+        # Strip whitespace/newlines before decoding (wl-copy may add one)
+        tr -d '[:space:]' < "$GITHUB_APP_PRIVATE_KEY" | base64 -d > /tmp/app.pem 2>/dev/null || true
+      fi
       if ! openssl rsa -in /tmp/app.pem -check -noout 2>/dev/null; then
-        echo "ERROR: GITHUB_APP_PRIVATE_KEY did not decode to a valid RSA key"
-        echo "File contents (first 20 chars): $(head -c 20 "$GITHUB_APP_PRIVATE_KEY")..."
+        echo "ERROR: GITHUB_APP_PRIVATE_KEY is neither a PEM nor base64 of one"
+        echo "  first 20 chars of the variable: $(head -c 20 "$GITHUB_APP_PRIVATE_KEY")..."
+        echo "  a PEM starts '-----BEGIN'; base64 of one starts 'LS0tLS1CRUdJTi'"
+        rm -f /tmp/app.pem
         exit 1
       fi
       signature=$(printf '%s' "$unsigned" \
