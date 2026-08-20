@@ -274,3 +274,92 @@ rules:
     metadata:
       category: security
       confidence: HIGH
+
+  # ============================================================
+  # Crypto agility and transport trust (ADR-002, ADR-007, ADR-019,
+  # ADR-037). security-severity is set explicitly: the GitLab semgrep
+  # analyzer's own ERROR-to-severity mapping is undocumented and has
+  # changed between analyzer versions, and the CI gate blocks on
+  # Critical only. Stating it here is the difference between a rule
+  # that fails a pipeline and one that decorates a dashboard.
+  # ============================================================
+
+  - id: vauchi-no-aes-gcm
+    patterns:
+      - pattern-either:
+          - pattern: use aes_gcm::$MOD
+          - pattern: Aes256Gcm::$FN(...)
+          - pattern: Aes128Gcm::$FN(...)
+    message: >
+      AES-GCM is prohibited. XChaCha20-Poly1305 is the only approved
+      AEAD (ADR-002/ADR-019). Vauchi is pre-release, so there is no
+      legacy ciphertext to decrypt and no exemption to claim — the
+      only AES-GCM left in the tree is the name of the
+      re_encrypt_aes_gcm_to_xchacha20 migration step.
+    severity: ERROR
+    languages: [rust]
+    metadata:
+      category: security
+      confidence: HIGH
+      security-severity: "9.0"
+
+  - id: vauchi-no-tls-verification-disabled
+    patterns:
+      - pattern-either:
+          - pattern: $BUILDER.danger_accept_invalid_certs(true)
+          - pattern: $BUILDER.danger_accept_invalid_hostnames(true)
+    message: >
+      Disabling TLS certificate or hostname verification is prohibited
+      (ADR-037: no plaintext relay connections, ever — a connection
+      that accepts any certificate is plaintext to anyone on the path).
+      Note this rule deliberately does not flag rustls `.dangerous()`:
+      network/tls_pinning.rs uses it to install a PinningVerifier that
+      wraps WebPkiServerVerifier, which strengthens verification.
+    severity: ERROR
+    languages: [rust]
+    metadata:
+      category: security
+      confidence: HIGH
+      security-severity: "9.0"
+
+  - id: vauchi-no-unapproved-crypto-crate
+    patterns:
+      - pattern-either:
+          - pattern: openssl = ...
+          - pattern: sodiumoxide = ...
+          - pattern: libsodium-sys = ...
+          - pattern: rust-crypto = ...
+          - pattern: md5 = ...
+          - pattern: sha1 = ...
+    message: >
+      Unapproved crypto dependency. ADR-002/ADR-019 fix the crate set
+      (RustCrypto primary, chacha20poly1305 + argon2 spec-mandated,
+      aws-lc-rs for TLS, ohttp for privacy); adding a crypto crate
+      requires an ADR amendment, not a Cargo.toml line. md5 and sha1
+      are additionally broken for any security purpose.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - "**/Cargo.toml"
+    metadata:
+      category: security
+      confidence: HIGH
+      security-severity: "9.0"
+
+  - id: vauchi-hkdf-requires-domain-separation
+    patterns:
+      - pattern-either:
+          - pattern: $HKDF.expand(&[], $OUT)
+          - pattern: $HKDF.expand(b"", $OUT)
+    message: >
+      HKDF expand with an empty info string. Every derivation path
+      needs a unique info string (ADR-007 domain separation) —
+      without one, two derivations from the same IKM collide and a
+      key becomes reusable across contexts it was never meant for.
+    severity: ERROR
+    languages: [rust]
+    metadata:
+      category: security
+      confidence: HIGH
+      security-severity: "9.0"

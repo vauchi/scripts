@@ -208,3 +208,45 @@ quality:new-test-annotations:
       fetch_vauchi_script scripts/check-new-test-annotations.sh /tmp/check-new-test-annotations.sh
       /tmp/check-new-test-annotations.sh "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
   timeout: 5 minutes
+
+# ============================================================
+# Vauchi Quality Semgrep Rules (CC-03, CC-06, ADR-030, ADR-043)
+# ============================================================
+# semgrep-rules/vauchi-quality.yml was written but never wired to
+# anything: no CI job and no just recipe referenced it, so ADR-030's
+# "semgrep-enforced" claim in adr-constraints.md held only for whoever
+# ran the command by hand. This job runs it.
+#
+# Deliberately NOT folded into the SAST ruleset passthrough: quality
+# findings would then land in the security dashboard, which
+# sast-ruleset.toml excludes them from on purpose.
+#
+# Complements quality:zero-assertions rather than duplicating it —
+# that job catches tests with no assertions, these rules catch
+# assertions that pass regardless of the value (assert!(x.is_ok())).
+
+quality:semgrep-rules:
+  extends: .linux-runner-nocache
+  stage: lint
+  needs: []
+  allow_failure: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/*.rs"
+          - ".gitlab-ci.yml"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - |
+      fetch_vauchi_script semgrep-rules/vauchi-quality.yml /tmp/vauchi-quality.yml
+
+      if ! command -v opengrep >/dev/null 2>&1; then
+          echo "ERROR: opengrep is not installed on this runner." >&2
+          echo "A quality gate that silently skips is worse than no gate." >&2
+          exit 1
+      fi
+
+      opengrep scan --config /tmp/vauchi-quality.yml --error --quiet .
