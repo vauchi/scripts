@@ -240,6 +240,14 @@ workflow:
     # This is transient — retry resolves it. A proper fix would use per-job
     # SCCACHE_DIR but costs 15-25 min cold builds per job.
     RUSTC_WRAPPER: "sccache"
+    # Pinned so CI never inherits the port from the runner account's shell
+    # profile. nell's shell runner sources ~/.zshrc, which exports
+    # SCCACHE_SERVER_PORT for interactive use — so a maintainer's session and
+    # every CI job were pointed at one daemon, and core!1548 failed on
+    # "server on port 4227 did not answer within 30s" while that daemon was
+    # restarting. Unlike SCCACHE_DIR, the port IS read per client invocation,
+    # so setting it here works.
+    SCCACHE_SERVER_PORT: "4228"
   before_script:
     # Ensure user-installed cargo tools are in PATH (CARGO_HOME is overridden
     # to ${CI_PROJECT_DIR}/.cargo for caching, so ~/.cargo/bin isn't automatic)
