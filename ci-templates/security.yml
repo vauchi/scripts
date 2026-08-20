@@ -105,7 +105,7 @@ secret_detection:
   variables:
     FETCH_SCRIPT_PATH: "scripts/ci/check-sast-severity.py"
     FETCH_SCRIPT_OUTPUT: "check-sast-severity.py"
-    FETCH_SCRIPT_SHA256: "15643ebfa4cd367afef9a50734e0b5889524c79fad0d8a1c510bd2e8dca8382c"
+    FETCH_SCRIPT_SHA256: "af880b4cf806346273861870ca75692a174f98272528497f2bccbb9d0fda4d97"
   before_script:
     - |
       # The Alpine CDN fails intermittently and a bare `apk add` turns

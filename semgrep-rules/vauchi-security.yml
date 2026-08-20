@@ -154,7 +154,7 @@ rules:
     languages: [rust]
     paths:
       include:
-        - "vauchi-core/src/**"
+        - "**/vauchi-core/src/**"
     metadata:
       category: security
       confidence: HIGH
