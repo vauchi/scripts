@@ -255,6 +255,30 @@ RS
     rm -rf "$root"
 }
 
+# ── 9. A sentence ending in a period is not mistaken for a key ────────
+# The exclusion used to be "contains a dot", which excused any sentence
+# with punctuation. Titles and labels are held to the key shape too.
+test_period_sentences_are_not_keys() {
+    root=$(mktemp -d)
+    mk_ui "$root" punctuated.rs <<'RS'
+fn build() -> ScreenModel {
+    ScreenModel {
+        title: "Something went wrong.".into(),
+        subtitle: Some("We could not reach the relay. Try again.".into()),
+        components: vec![Component::Text {
+            content: "settings.privacy.export_body".into(),
+        }],
+    }
+}
+RS
+    out=$("$SCRIPT" "$root")
+    assert_eq "periods: title counted" "1" "$(extract_counter "$out" ui_literal_titles)"
+    assert_eq "periods: subtitle counted" "1" "$(extract_counter "$out" ui_literal_labels)"
+    # A genuine dotted key, even a deep one, stays excluded.
+    assert_eq "periods: total == 2" "2" "$(extract_counter "$out" ui_literal_total)"
+    rm -rf "$root"
+}
+
 test_empty_workspace
 test_keyed_and_data_score_zero
 test_literals_are_counted
@@ -263,6 +287,7 @@ test_cfg_test_block_excluded
 test_check_ratchet
 test_message_copy_counted
 test_message_ratchet
+test_period_sentences_are_not_keys
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

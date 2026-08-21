@@ -66,33 +66,33 @@ UI_DIR="$ROOT/core/vauchi-app/src/ui"
 # machine stops counting at the first `#[cfg(test)]` attribute — ui
 # files keep their test module last (pinned by the sentinel suite).
 #
-# Strings that look like locale keys (contain a '.') are excluded — the
-# desired end-state for i18n threading is `title: "some.key".into()`, not
-# a hardcoded English literal.
+# Strings shaped like locale keys (`some.key`, lowercase and dotted) are
+# excluded — the desired end-state for i18n threading is
+# `title: "some.key".into()`, not a hardcoded English literal. The shape
+# is tested exactly: merely containing a '.' would excuse any sentence
+# that ends in a period.
 count_kind() { # $1 = file, $2 = "title" | "label" | "message"
     awk -v kind="$2" '
         /^#\[cfg\(test\)\]/ { intest = 1 }
         intest { next }
-        # `message:` holds whole sentences, so its key test is exact
-        # rather than "contains a dot": the dot rule the other kinds
-        # use would wave through every sentence ending in a period.
-        kind == "message" {
-            if ($0 ~ "(^|[^_a-zA-Z])message:[[:space:]]*(Some\\()?\"") {
-                s = $0
-                sub(/^.*message:[[:space:]]*/, "", s)
-                sub(/^Some\(/, "", s)
-                sub(/^"/, "", s)
-                sub(/".*$/, "", s)
-                if (s ~ /^[A-Za-z]/ && s !~ /^[a-z0-9_]+(\.[a-z0-9_]+)+$/) n++
-            }
-            next
-        }
         {
             if (kind == "title")
-                pat = "(^|[^_a-zA-Z])title:[[:space:]]*(Some\\()?\"[A-Za-z][^.\"]*\""
+                fields = "title"
+            else if (kind == "message")
+                fields = "message"
             else
-                pat = "(^|[^_a-zA-Z])(label|subtitle|detail|hint|placeholder|content):[[:space:]]*(Some\\()?\"[A-Za-z][^.\"]*\""
-            if ($0 ~ pat) n++
+                fields = "(label|subtitle|detail|hint|placeholder|content)"
+            if ($0 !~ "(^|[^_a-zA-Z])" fields ":[[:space:]]*(Some\\()?\"") next
+            # Strip down to the literal itself, then ask whether it is
+            # shaped like a locale key. Testing the shape exactly beats
+            # the old "contains a dot" proxy, which quietly excused every
+            # English sentence that ended in a period.
+            s = $0
+            sub("^.*" fields ":[[:space:]]*", "", s)
+            sub(/^Some\(/, "", s)
+            sub(/^"/, "", s)
+            sub(/".*$/, "", s)
+            if (s ~ /^[A-Za-z]/ && s !~ /^[a-z0-9_]+(\.[a-z0-9_]+)+$/) n++
         }
         END { print n + 0 }
     ' "$1"
