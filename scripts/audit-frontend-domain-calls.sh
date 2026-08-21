@@ -107,6 +107,11 @@ CS_FF_RE='(==|!=)[[:space:]]*DisplayHint\.|DisplayHint\.[A-Za-z]+[[:space:]]*(==
 # `#[cfg(test)] mod tests` modules are the same category; they are dropped
 # upstream in rust_source_lines (a grep -v cannot express "everything after
 # the attribute in the same file").
+# `_tests.rs` is excluded because the repo gates sibling test files with
+# `#[cfg(test)]` on the `#[path] mod` declaration in the PARENT module.
+# The attribute therefore lives in a different file than the code, and
+# the cfg(test) state machine in rust_source_lines cannot see it — test
+# arrangement would otherwise count as a frontend domain call.
 strip_excluded() {
     grep -v '/target/' \
         | grep -v '/build/' \
@@ -116,6 +121,7 @@ strip_excluded() {
         | grep -v '/local-bindings/' \
         | grep -v '/tests/' \
         | grep -v '/Tests/' \
+        | grep -v '_tests\.rs:' \
         | grep -v '/test-automation/' \
         || true
 }

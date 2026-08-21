@@ -209,6 +209,37 @@ RS
     rm -rf "$root"
 }
 
+# ── 6b. `*_tests.rs` siblings are test code, not frontend calls ───────
+# The repo gates these with `#[cfg(test)]` on the `#[path] mod` line in
+# the PARENT module, so the attribute is in a different file and the
+# cfg(test) state machine cannot see it. Before this exclusion, one
+# `setup_app_password` in tui/src/ui/presentation_renderer_tests.rs
+# counted as a frontend domain call and held the ratchet red.
+test_sibling_test_files_excluded() {
+    root=$(mktemp -d)
+    src="$root/tui/src/ui"
+    mkdir -p "$src"
+    cat >"$src/renderer.rs" <<'RS'
+fn draw() { wb.save_duress_settings(&settings)?; }
+RS
+    cat >"$src/renderer_tests.rs" <<'RS'
+fn arrange() { wb.setup_app_password("app-password-123")?; }
+RS
+    out=$("$SCRIPT" "$root")
+    assert_eq "sibling tests: only the production call counts" \
+        "1" "$(extract_counter "$out" domain_calls_tui)"
+
+    # The exclusion must not become a way to hide production code: a real
+    # call in a normally-named file next to it is still counted.
+    cat >"$src/more.rs" <<'RS'
+fn also() { wb.configure_emergency_broadcast(a, b, c)?; }
+RS
+    out=$("$SCRIPT" "$root")
+    assert_eq "sibling tests: a second production call still counts" \
+        "2" "$(extract_counter "$out" domain_calls_tui)"
+    rm -rf "$root"
+}
+
 # ── 7. Total sums across repos ────────────────────────────────────────
 test_total_sums() {
     root=$(mktemp -d)
@@ -616,6 +647,7 @@ test_native_image_export_not_counted
 test_cs_sentinel
 test_wrong_extension
 test_excluded_paths
+test_sibling_test_files_excluded
 test_total_sums
 test_check_above_baseline_fails
 test_per_repo_baseline_overrides_shared
