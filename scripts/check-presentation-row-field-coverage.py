@@ -76,7 +76,14 @@ SHELLS = {
         ["android/app/src/main/kotlin/app/vauchi/ui/presentation/PresentationNodeRenderer.kt"],
         snake_to_camel,
     ),
-    "tui": (["tui/src/ui/presentation_renderer"], lambda n: n),
+    # Two paths: the TUI splits row handling between the renderer and the
+    # protocol module, which owns `row_is_addressable`/`row_toggle` so the
+    # highlight and the keypress cannot disagree. Scoping to the renderer
+    # alone reported `activation` as dropped the moment that moved.
+    "tui": (
+        ["tui/src/ui/presentation_renderer", "tui/src/ui/presentation_protocol.rs"],
+        lambda n: n,
+    ),
     "linux-gtk": (["linux-gtk/src/core_ui/generic_surface"], lambda n: n),
     "linux-qt": (["linux-qt/src/coreui"], snake_to_camel),
     "windows": (["windows/Vauchi/CoreUI"], snake_to_pascal),

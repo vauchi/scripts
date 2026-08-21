@@ -6,36 +6,36 @@
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "linux-gtk": {
-    "accessibility": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "detail": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "enabled": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "fallback_text": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
+    "accessibility": "Real gap. Core prepares the accessibility label for every row and this shell never reads it, so assistive tech gets nothing for a row. Worst on linux-gtk, where AT-SPI is the whole a11y surface. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
+    "detail": "Real gap. Core populates detail on three row builders (contact status, settings values, link details) and it is never shown. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
+    "enabled": "Dormant, not dropped: every PresentationRow Core builds hardcodes `enabled: true`, so no shell can be observed honouring it. Revisit when Core first emits a disabled row \u2014 a shell that ignores it would then let the user activate something Core disabled, and this exemption would hide that.",
+    "fallback_text": "Real gap. The initials fallback is plain text and every shell can render it, including a terminal \u2014 Android was fixed for exactly this and now draws the initials circle. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "image_data": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
+    "image_data": "Real gap for a graphical shell. Core sends avatar bytes; iOS and Android draw them. A terminal cannot, which is why the TUI entry is narrower \u2014 see fallback_text there. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "linux-qt": {
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "image_data": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
+    "image_data": "Real gap for a graphical shell. Core sends avatar bytes; iOS and Android draw them. A terminal cannot, which is why the TUI entry is narrower \u2014 see fallback_text there. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "macos": {
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "tui": {
-    "accessibility": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
+    "accessibility": "Real gap. Core prepares the accessibility label for every row and this shell never reads it, so assistive tech gets nothing for a row. Worst on linux-gtk, where AT-SPI is the whole a11y surface. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
     "controls": "Settings toggles are unreachable in the TUI for the same reason. A terminal can render a checkbox, so this is a gap rather than a platform limit.",
-    "detail": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "enabled": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "fallback_text": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
+    "detail": "Real gap. Core populates detail on three row builders (contact status, settings values, link details) and it is never shown. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
+    "enabled": "Dormant, not dropped: every PresentationRow Core builds hardcodes `enabled: true`, so no shell can be observed honouring it. Revisit when Core first emits a disabled row \u2014 a shell that ignores it would then let the user activate something Core disabled, and this exemption would hide that.",
+    "fallback_text": "Real gap. The initials fallback is plain text and every shell can render it, including a terminal \u2014 Android was fixed for exactly this and now draws the initials circle. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "image_data": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "secondary_actions": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "selected": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
+    "image_data": "Real gap for a graphical shell. Core sends avatar bytes; iOS and Android draw them. A terminal cannot, which is why the TUI entry is narrower \u2014 see fallback_text there. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
+    "secondary_actions": "Real gap. Core populates per-row actions from item.actions; a shell that drops them leaves those actions unreachable. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
+    "selected": "Real gap. Core computes selected from field visibility on two row builders, so it is not always false \u2014 a shell that ignores it shows the wrong row as chosen. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "web-demo": {
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "windows": {
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "image_data": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
+    "image_data": "Real gap for a graphical shell. Core sends avatar bytes; iOS and Android draw them. A terminal cannot, which is why the TUI entry is narrower \u2014 see fallback_text there. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   }
 }
