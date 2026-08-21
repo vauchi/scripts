@@ -19,7 +19,7 @@ assert_status() {
     report="$3"
 
     set +e
-    output="$(python3 "$CHECKER" "$report" 2>&1)"
+    output="$(python3 "$CHECKER" "$report" ${4:+"$4"} 2>&1)"
     actual=$?
     set -e
 
@@ -53,7 +53,7 @@ assert_output() {
     report="$3"
 
     set +e
-    output="$(python3 "$CHECKER" "$report" 2>&1)"
+    output="$(python3 "$CHECKER" "$report" ${4:+"$4"} 2>&1)"
     set -e
 
     if grep -Eq "$pattern" <<<"$output"; then
@@ -110,6 +110,29 @@ cat > "$WORK/no-messages-key.json" <<'EOF'
 {"version":"15.0.7","vulnerabilities":[],"scan":{"status":"success"}}
 EOF
 
+
+# SARIF is where semgrep actually reports an incomplete scan. Shapes below
+# are copied from real semgrep 1.174.0 output, not invented: note that
+# executionSuccessful stays true even when rules gave up on files.
+cat > "$WORK/sarif-timeout.json" <<'EOF'
+{"runs":[{"invocations":[{"executionSuccessful":true,"toolExecutionNotifications":[
+{"descriptor":{"id":"Timeout"},"level":"warning","message":{"text":"Timeout when running vauchi-no-ring-direct on vauchi-core/src/storage/rekey.rs"}}]}]}]}
+EOF
+
+cat > "$WORK/sarif-oom.json" <<'EOF'
+{"runs":[{"invocations":[{"executionSuccessful":true,"toolExecutionNotifications":[
+{"descriptor":{"id":"Out of memory"},"level":"warning","message":{"text":"Out of memory at line vauchi-core/src/storage/activity_log.rs:1:\n Exceeded memory limit"}}]}]}]}
+EOF
+
+cat > "$WORK/sarif-syntax.json" <<'EOF'
+{"runs":[{"invocations":[{"executionSuccessful":true,"toolExecutionNotifications":[
+{"descriptor":{"id":"Other syntax error"},"level":"warning","message":{"text":"Other syntax error at line vauchi-core/src/storage/connection.rs:1:\n Sys_error"}}]}]}]}
+EOF
+
+cat > "$WORK/sarif-clean.json" <<'EOF'
+{"runs":[{"invocations":[{"executionSuccessful":true,"toolExecutionNotifications":[]}]}]}
+EOF
+
 assert_status "clean report passes" 0 "$WORK/clean.json"
 assert_status "medium finding remains advisory" 0 "$WORK/medium.json"
 assert_status "high finding remains advisory" 0 "$WORK/high.json"
@@ -124,6 +147,14 @@ assert_status "failed scan blocks" 1 "$WORK/scan-failed.json"
 assert_status "report without scan.messages still passes" 0 "$WORK/no-messages-key.json"
 assert_output "report without scan.messages says timeouts are unverified" "cannot verify" "$WORK/no-messages-key.json"
 assert_output "timeout block names the rule and file" "vauchi-no-ring-direct" "$WORK/rule-timeout.json"
+assert_status "sarif timeout blocks — the file was not scanned" 1 "$WORK/clean.json" "$WORK/sarif-timeout.json"
+assert_status "sarif out-of-memory blocks for the same reason" 1 "$WORK/clean.json" "$WORK/sarif-oom.json"
+assert_status "sarif syntax error is reported, not blocking" 0 "$WORK/clean.json" "$WORK/sarif-syntax.json"
+assert_status "sarif with no notifications passes" 0 "$WORK/clean.json" "$WORK/sarif-clean.json"
+assert_status "absent sarif keeps the report-only path" 0 "$WORK/clean.json" "$WORK/no-such.sarif"
+assert_output "sarif timeout names the rule and file" "rekey.rs" "$WORK/clean.json" "$WORK/sarif-timeout.json"
+assert_output "sarif syntax error is still surfaced" "Other syntax error" "$WORK/clean.json" "$WORK/sarif-syntax.json"
+assert_output "a clean sarif stops claiming timeouts are unverified" "verified no rule timed out" "$WORK/clean.json" "$WORK/sarif-clean.json"
 assert_contains "shared template exposes severity gate" '^\.security-sast-severity-gate:' "$TEMPLATE"
 assert_contains "severity gate consumes semgrep report artifacts" 'job: semgrep-sast' "$TEMPLATE"
 assert_contains "severity gate is blocking" 'allow_failure: false' "$TEMPLATE"
