@@ -58,6 +58,23 @@ variables:
 semgrep-sast:
   tags: [docker]
   allow_failure: false
+  # Publish semgrep.sarif alongside the GitLab report. The report carries
+  # findings but not the analyzer's own notifications, so the severity gate
+  # could not see that a rule gave up on a file (core!1551 printed "no SARIF
+  # at semgrep.sarif" on a green run); semgrep records that in SARIF under
+  # runs[].invocations[].toolExecutionNotifications.
+  #
+  # Overriding `artifacts` REPLACES the upstream block, so both existing
+  # uploads are re-listed. The upstream job uploads gl-sast-report.json twice
+  # — once as "archive" (paths) and once as "sast" (reports) — verified in
+  # the job log, not assumed. Dropping either would silently stop findings
+  # reaching the security dashboard.
+  artifacts:
+    paths:
+      - gl-sast-report.json
+      - semgrep.sarif
+    reports:
+      sast: gl-sast-report.json
   # Self-heal transient SAST failures (analyzer image / ruleset download,
   # registry hiccups). semgrep is deterministic on fixed source, so a real
   # finding fails every attempt — retry cannot mask it. Overriding retry
