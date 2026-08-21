@@ -18,7 +18,6 @@
     "image_data": "Pre-existing at the time this gate landed (2026-08-20), not reviewed. Baselined so the gate stops new drops immediately; tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "macos": {
-    "controls": "Real defect, not a design choice: the same drop fixed on iOS in ios!645, where six settings rendered as text with no switch. macOS shares the file's shape and was missed. Fix, do not re-baseline.",
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "tui": {
