@@ -6,7 +6,6 @@
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "linux-gtk": {
-    "accessibility": "Real gap. Core prepares the accessibility label for every row and this shell never reads it, so assistive tech gets nothing for a row. Worst on linux-gtk, where AT-SPI is the whole a11y surface. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
     "detail": "Real gap. Core populates detail on three row builders (contact status, settings values, link details) and it is never shown. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
     "enabled": "Dormant, not dropped: every PresentationRow Core builds hardcodes `enabled: true`, so no shell can be observed honouring it. Revisit when Core first emits a disabled row \u2014 a shell that ignores it would then let the user activate something Core disabled, and this exemption would hide that.",
     "fallback_text": "Real gap. The initials fallback is plain text and every shell can render it, including a terminal \u2014 Android was fixed for exactly this and now draws the initials circle. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
