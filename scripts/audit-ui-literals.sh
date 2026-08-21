@@ -18,6 +18,9 @@
 #                       string literal (covers the wire-level A11y
 #                       struct's label/hint fields at their inline
 #                       construction sites)
+#   ui_literal_messages — `message:` initialized with a string literal
+#                       (toast/alert body copy — the ShowToast and
+#                       ShowAlert sentences a user reads verbatim)
 #   ui_literal_total  — sum
 #
 # Deliberately NOT counted:
@@ -66,10 +69,24 @@ UI_DIR="$ROOT/core/vauchi-app/src/ui"
 # Strings that look like locale keys (contain a '.') are excluded — the
 # desired end-state for i18n threading is `title: "some.key".into()`, not
 # a hardcoded English literal.
-count_kind() { # $1 = file, $2 = "title" | "label"
+count_kind() { # $1 = file, $2 = "title" | "label" | "message"
     awk -v kind="$2" '
         /^#\[cfg\(test\)\]/ { intest = 1 }
         intest { next }
+        # `message:` holds whole sentences, so its key test is exact
+        # rather than "contains a dot": the dot rule the other kinds
+        # use would wave through every sentence ending in a period.
+        kind == "message" {
+            if ($0 ~ "(^|[^_a-zA-Z])message:[[:space:]]*(Some\\()?\"") {
+                s = $0
+                sub(/^.*message:[[:space:]]*/, "", s)
+                sub(/^Some\(/, "", s)
+                sub(/^"/, "", s)
+                sub(/".*$/, "", s)
+                if (s ~ /^[A-Za-z]/ && s !~ /^[a-z0-9_]+(\.[a-z0-9_]+)+$/) n++
+            }
+            next
+        }
         {
             if (kind == "title")
                 pat = "(^|[^_a-zA-Z])title:[[:space:]]*(Some\\()?\"[A-Za-z][^.\"]*\""
@@ -83,6 +100,7 @@ count_kind() { # $1 = file, $2 = "title" | "label"
 
 titles=0
 labels=0
+messages=0
 if [ -d "$UI_DIR" ]; then
     # find -print + read loop: portable, no process-substitution needs.
     tmp_list=$(mktemp)
@@ -90,21 +108,24 @@ if [ -d "$UI_DIR" ]; then
     while IFS= read -r f; do
         t=$(count_kind "$f" title)
         l=$(count_kind "$f" label)
+        m=$(count_kind "$f" message)
         titles=$((titles + t))
         labels=$((labels + l))
+        messages=$((messages + m))
     done < "$tmp_list"
     rm -f "$tmp_list"
 fi
-total=$((titles + labels))
+total=$((titles + labels + messages))
 
 json=$(printf '{
   "schema_version": 1,
   "totals": {
     "ui_literal_titles": %d,
     "ui_literal_labels": %d,
+    "ui_literal_messages": %d,
     "ui_literal_total":  %d
   }
-}\n' "$titles" "$labels" "$total")
+}\n' "$titles" "$labels" "$messages" "$total")
 
 if [ "$MODE" = "snapshot" ]; then
     printf '%s\n' "$json"
@@ -127,7 +148,7 @@ get_total() { # $1 = json-string, $2 = key
 }
 
 rc=0
-for key in ui_literal_titles ui_literal_labels ui_literal_total; do
+for key in ui_literal_titles ui_literal_labels ui_literal_messages ui_literal_total; do
     cur=$(get_total "$json" "$key")
     base=$(get_total "$(cat "$BASELINE")" "$key")
     base=${base:-0}
@@ -137,6 +158,6 @@ for key in ui_literal_titles ui_literal_labels ui_literal_total; do
     fi
 done
 if [ "$rc" -eq 0 ]; then
-    echo "audit-ui-literals: OK (titles=$titles labels=$labels total=$total, all <= baseline)"
+    echo "audit-ui-literals: OK (titles=$titles labels=$labels messages=$messages total=$total, all <= baseline)"
 fi
 exit "$rc"

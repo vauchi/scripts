@@ -198,12 +198,71 @@ RS
     rm -rf "$root"
 }
 
+# ── 7. `message:` copy is counted, sentences and all ──────────────────
+# Toast/alert bodies were invisible to this gate until 2026-08-21: the
+# field was not scanned, and the "contains a dot means locale key" rule
+# the other kinds use would have waved through every sentence ending in
+# a period anyway. Both halves are pinned here.
+test_message_copy_counted() {
+    root=$(mktemp -d)
+    mk_ui "$root" toasts.rs <<'RS'
+fn build(&self) -> ActionResult {
+    let a = ActionResult::ShowAlert {
+        title: self.t("error.title"),
+        message: "Export failed: could not read data.".into(),
+    };
+    let b = ActionResult::ShowToast {
+        message: "Contact archived".into(),
+    };
+    let c = ActionResult::ShowToast {
+        message: self.t("contacts.toast_hidden"),
+    };
+    let d = ActionResult::ShowAlert {
+        message: "backup.error_not_a_backup".into(),
+    };
+}
+RS
+    out=$("$SCRIPT" "$root"); rc=$?
+    assert_eq "messages: exit 0" 0 "$rc"
+    # Counted: the period-bearing sentence + the bare toast copy.
+    # Not counted: the self.t(...) call and the bare locale key.
+    assert_eq "messages: counted == 2" "2" "$(extract_counter "$out" ui_literal_messages)"
+    assert_eq "messages: total == 2" "2" "$(extract_counter "$out" ui_literal_total)"
+    rm -rf "$root"
+}
+
+# ── 8. --check ratchet gates on messages specifically ─────────────────
+test_message_ratchet() {
+    root=$(mktemp -d)
+    mk_ui "$root" clean.rs <<'RS'
+fn build(&self) -> ActionResult {
+    ActionResult::ShowToast { message: self.t("contacts.toast_archived") }
+}
+RS
+    baseline="$root/baseline.json"
+    "$SCRIPT" "$root" > "$baseline"
+    rc=0; "$SCRIPT" --check "$baseline" "$root" >/dev/null || rc=$?
+    assert_eq "message-ratchet: clean exits 0" 0 "$rc"
+
+    # A single new hardcoded sentence must turn the gate red.
+    mk_ui "$root" regressed.rs <<'RS'
+fn build2(&self) -> ActionResult {
+    ActionResult::ShowToast { message: "Something went wrong.".into() }
+}
+RS
+    rc=0; "$SCRIPT" --check "$baseline" "$root" >/dev/null || rc=$?
+    assert_eq "message-ratchet: new sentence exits 1" 1 "$rc"
+    rm -rf "$root"
+}
+
 test_empty_workspace
 test_keyed_and_data_score_zero
 test_literals_are_counted
 test_locale_key_literals_excluded
 test_cfg_test_block_excluded
 test_check_ratchet
+test_message_copy_counted
+test_message_ratchet
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
