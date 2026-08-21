@@ -105,7 +105,7 @@ secret_detection:
   variables:
     FETCH_SCRIPT_PATH: "scripts/ci/check-sast-severity.py"
     FETCH_SCRIPT_OUTPUT: "check-sast-severity.py"
-    FETCH_SCRIPT_SHA256: "af880b4cf806346273861870ca75692a174f98272528497f2bccbb9d0fda4d97"
+    FETCH_SCRIPT_SHA256: "5ae3bbc672a1a63d600e92ea726e3129a08ae6dfe25ed8edbff15c0cd829f061"
   before_script:
     - |
       # The Alpine CDN fails intermittently and a bare `apk add` turns
@@ -122,7 +122,7 @@ secret_detection:
       fi
     - !reference [.verified-fetch-script, before_script]
   script:
-    - python3 check-sast-severity.py gl-sast-report.json
+    - python3 check-sast-severity.py gl-sast-report.json semgrep.sarif
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "api"
       when: never

@@ -15,6 +15,12 @@ VALID_SEVERITIES = {"critical", "high", "medium", "low", "unknown", "info"}
 # findings for a file vauchi-no-ring-direct never finished reading.
 INCOMPLETE_SCAN = re.compile(r"time[d\s-]*out|timeout", re.IGNORECASE)
 
+# semgrep reports incomplete analysis through SARIF notification descriptors,
+# NOT through executionSuccessful — that stays true while rules give up on
+# files (observed: 43 notifications, executionSuccessful true). These two mean
+# a parseable file went unanalysed, which is the whole point of the gate.
+BLOCKING_DESCRIPTORS = {"timeout", "out of memory"}
+
 
 def load_findings(report_path: Path) -> list[dict[str, object]]:
     try:
@@ -36,6 +42,47 @@ def load_findings(report_path: Path) -> list[dict[str, object]]:
     return findings
 
 
+def load_notifications(sarif_path: Path) -> list[dict[str, object]] | None:
+    """SARIF notifications, or None when there is no SARIF to read."""
+    if not sarif_path.is_file():
+        return None
+    try:
+        sarif = json.loads(sarif_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot read SARIF: {error}") from error
+
+    notifications = []
+    for run in sarif.get("runs", []) if isinstance(sarif, dict) else []:
+        for invocation in run.get("invocations", []) if isinstance(run, dict) else []:
+            found = invocation.get("toolExecutionNotifications")
+            if isinstance(found, list):
+                notifications.extend(entry for entry in found if isinstance(entry, dict))
+    return notifications
+
+
+def describe(notification: dict[str, object]) -> tuple[str, str]:
+    descriptor = notification.get("descriptor")
+    kind = descriptor.get("id", "") if isinstance(descriptor, dict) else ""
+    message = notification.get("message")
+    text = message.get("text", "") if isinstance(message, dict) else ""
+    return str(kind), " ".join(str(text).split())
+
+
+def report_incomplete_analysis(notifications: list[dict[str, object]]) -> list[str]:
+    """Notifications that mean a file was not analysed. Others are printed."""
+    blocking, noted = [], []
+    for notification in notifications:
+        kind, text = describe(notification)
+        if kind.lower() in BLOCKING_DESCRIPTORS or INCOMPLETE_SCAN.search(text):
+            blocking.append(f"{kind}: {text}")
+        else:
+            noted.append(f"{kind}: {text}")
+
+    for entry in noted:
+        print(f"NOTE: analyzer reported {entry}")
+    return blocking
+
+
 def load_scan(report_path: Path) -> dict[str, object]:
     report = json.loads(report_path.read_text(encoding="utf-8"))
     scan = report.get("scan") if isinstance(report, dict) else None
@@ -52,9 +99,9 @@ def report_scan_completeness(scan: dict[str, object]) -> list[str]:
 
     messages = scan.get("messages")
     if not isinstance(messages, list):
-        # Not a failure: the field is optional, and a gate that cannot see
-        # timeouts must say so rather than imply it checked for them.
-        print("NOTE: cannot verify rule timeouts — report has no scan.messages.")
+        # GitLab's semgrep analyzer does not emit scan.messages — confirmed on
+        # core!1548, where this branch printed on every run. SARIF carries the
+        # incomplete-scan notifications instead; main() checks those.
         return problems
 
     for message in messages:
@@ -66,8 +113,11 @@ def report_scan_completeness(scan: dict[str, object]) -> list[str]:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print(f"Usage: {Path(sys.argv[0]).name} <gl-sast-report.json>", file=sys.stderr)
+    if len(sys.argv) not in (2, 3):
+        print(
+            f"Usage: {Path(sys.argv[0]).name} <gl-sast-report.json> [semgrep.sarif]",
+            file=sys.stderr,
+        )
         return 2
 
     try:
@@ -76,11 +126,20 @@ def main() -> int:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
 
+    sarif_path = Path(sys.argv[2] if len(sys.argv) == 3 else "semgrep.sarif")
     try:
         problems = report_scan_completeness(load_scan(Path(sys.argv[1])))
-    except (OSError, json.JSONDecodeError) as error:
+        notifications = load_notifications(sarif_path)
+    except (OSError, json.JSONDecodeError, ValueError) as error:
         print(f"ERROR: cannot read SAST report: {error}", file=sys.stderr)
         return 2
+
+    if notifications is None:
+        print(f"NOTE: cannot verify rule timeouts — no SARIF at {sarif_path}.")
+    else:
+        problems.extend(report_incomplete_analysis(notifications))
+        if not problems:
+            print("SAST scan completeness: verified no rule timed out.")
 
     if problems:
         print(f"BLOCKED: SAST scan did not complete ({len(problems)} problem(s)).")
