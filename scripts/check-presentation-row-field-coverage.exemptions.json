@@ -6,15 +6,11 @@
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "linux-gtk": {
-    "detail": "Real gap. Core populates detail on three row builders (contact status, settings values, link details) and it is never shown. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
     "enabled": "Dormant, not dropped: every PresentationRow Core builds hardcodes `enabled: true`, so no shell can be observed honouring it. Revisit when Core first emits a disabled row \u2014 a shell that ignores it would then let the user activate something Core disabled, and this exemption would hide that.",
-    "fallback_text": "Real gap. The initials fallback is plain text and every shell can render it, including a terminal \u2014 Android was fixed for exactly this and now draws the initials circle. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "image_data": "Real gap for a graphical shell. Core sends avatar bytes; iOS and Android draw them. A terminal cannot, which is why the TUI entry is narrower \u2014 see fallback_text there. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
+    "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "linux-qt": {
-    "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "image_data": "Real gap for a graphical shell. Core sends avatar bytes; iOS and Android draw them. A terminal cannot, which is why the TUI entry is narrower \u2014 see fallback_text there. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
+    "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
   },
   "macos": {
     "icon_token": "Core populates icon_token in six places and no shell renders any of them. The values are SF Symbol names, so the vocabulary has to be decided before a non-Apple shell can map them \u2014 see backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders."
