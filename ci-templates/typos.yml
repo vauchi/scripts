@@ -17,11 +17,24 @@
 # Requires: lint stage defined in the consuming pipeline.
 #
 # NOTE: Self-contained — does not extend rust-base.yml.
-# Downloads pre-built binary from GitHub so it works on any runner
-# (Docker, shell, macOS, Linux) without requiring cargo.
+# Downloads a pre-built binary from GitHub so it needs no cargo, on either
+# a Docker or a shell runner.
+#
+# It is NOT OS-agnostic, despite reading that way for a long time: the
+# fallback below runs `uname -m`, maps only to *-unknown-linux-musl
+# targets, and installs wget via apk/apt-get. It cannot run on Windows,
+# and on macOS it works only when `typos` is already on PATH.
+#
+# Hence the `linux` tag. Until 2026-09-05 this job asked for `self-hosted`
+# alone, which meant "allyson" only by accident — the moment a Windows
+# runner joined the fleet carrying the same tag, GitLab handed it this
+# job (pam-shell picked up lint:typos in core!1554). A capability tag
+# names what a runner CAN DO, so an under-specified job is a coin flip
+# between every runner that qualifies.
 
 lint:typos:
   tags:
+    - linux
     - self-hosted
   stage: lint
   needs: []
