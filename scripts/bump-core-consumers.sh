@@ -76,6 +76,9 @@ BASE=$(git -C "$CORE" rev-parse --short origin/main)
 # consumer pinned to a tag can only move to a tag that exists, which is
 # why cli!498 sat blocked until one was cut.
 LATEST_TAG=$(git -C "$CORE" tag --sort=-creatordate | head -1)
+# The `version = "=X"` constraint beside each tag is the tag without its
+# leading `v`. Derived here so the two can never drift apart.
+LATEST_VER=${LATEST_TAG#v}
 
 printf '=== core: main %s, newest tag %s ===\n\n' "$BASE" "${LATEST_TAG:-<none>}"
 
@@ -154,11 +157,29 @@ for lock in $locks; do
             failed=$((failed + 1))
             continue
         fi
+
+        # The tag never travels alone. These deps carry `version = "=X"`
+        # beside it, and cargo resolves the *version* against what the tag
+        # actually contains — so moving the tag without the constraint
+        # yields `candidate versions found which didn't match`, every
+        # time, for every tag-pinned consumer. Both fields move together
+        # or neither does.
+        if ! sed -E "s#(vauchi-(core|app|platform|protocol) = \{ git = \"https://gitlab\.com/vauchi/core\.git\"[^}]*version = \"=)[^\"]*(\")#\1$LATEST_VER\3#g" \
+            "$tmp" > "$tmp.v"; then
+            rm -f "$tmp" "$tmp.v"
+            printf '  %-16s FAIL  could not rewrite the version pin in Cargo.toml\n' "$rel"
+            failed=$((failed + 1))
+            continue
+        fi
+        mv "$tmp.v" "$tmp"
+
+        cp "$manifest" "$manifest.pre-bump.$$"
         mv "$tmp" "$manifest"
 
         # Prove the edit landed. A silent no-op here would leave the lock
         # refresh resolving the OLD tag and the repo reported as current.
         if ! grep -q "tag = \"$LATEST_TAG\"" "$manifest"; then
+            mv "$manifest.pre-bump.$$" "$manifest"
             printf '  %-16s FAIL  tag rewrite produced no change\n' "$rel"
             failed=$((failed + 1))
             continue
@@ -169,10 +190,17 @@ for lock in $locks; do
     # for a tag dep it follows the tag just written.
     if ! (cd "$dir" && cargo update -p vauchi-core -p vauchi-app >/dev/null 2>&1) &&
        ! (cd "$dir" && cargo update >/dev/null 2>&1); then
-        printf '  %-16s FAIL  could not resolve\n' "$rel"
+        # Put the manifest back. Leaving a half-applied bump behind means
+        # the next reader finds an unbuildable tree and no note saying why
+        # — the failure has to be reportable without also being contagious.
+        if [ -f "$manifest.pre-bump.$$" ]; then
+            mv "$manifest.pre-bump.$$" "$manifest"
+        fi
+        printf '  %-16s FAIL  could not resolve (manifest restored)\n' "$rel"
         failed=$((failed + 1))
         continue
     fi
+    rm -f "$manifest.pre-bump.$$"
 
     after=$(grep -m1 -oE 'git\+https://gitlab\.com/vauchi/core\.git[^"]*#[0-9a-f]+' "$lock" |
         sed 's/.*#//' | cut -c1-8)
