@@ -420,12 +420,38 @@ workflow:
             return "$rc"
           }
         fi
+        # `--stop-server` needs the same bound: it talks to the same
+        # unresponsive socket that `--show-stats` just hung on.
+        if command -v timeout >/dev/null 2>&1; then
+          _sccache_stop_bounded() { timeout 30 sccache --stop-server; }
+        elif command -v gtimeout >/dev/null 2>&1; then
+          _sccache_stop_bounded() { gtimeout 30 sccache --stop-server; }
+        else
+          _sccache_stop_bounded() {
+            ( sccache --stop-server ) & local pid=$!
+            ( sleep 30 && kill -TERM "$pid" 2>/dev/null ) & local killer=$!
+            wait "$pid" 2>/dev/null; local rc=$?
+            kill -TERM "$killer" 2>/dev/null
+            return "$rc"
+          }
+        fi
         sccache --start-server >/dev/null 2>&1 || true
-        _sccache_stats_bounded >/dev/null || {
-          echo "sccache: server on port ${SCCACHE_SERVER_PORT:-4226} did not answer within 30s."
-          echo "sccache: a wedged long-lived server is the usual cause — kill it on the runner host."
-          exit 1
-        }
+        if ! _sccache_stats_bounded >/dev/null; then
+          # SCCACHE_IDLE_TIMEOUT=0 keeps this daemon alive between jobs on
+          # purpose, which is also what lets one wedge outlive the job that
+          # created it: on 2026-09-07 a wedged server on allyson:4228 failed
+          # every Rust job workspace-wide from 06:13 until a human killed it.
+          # Restarting only a server that has already failed its probe does
+          # not fight the long-lived design — a wedged daemon serves nobody.
+          echo "sccache: server on port ${SCCACHE_SERVER_PORT:-4226} did not answer within 30s; restarting it once."
+          _sccache_stop_bounded >/dev/null 2>&1 || true
+          sccache --start-server >/dev/null 2>&1 || true
+          _sccache_stats_bounded >/dev/null || {
+            echo "sccache: still unresponsive after a restart — kill it on the runner host."
+            exit 1
+          }
+          echo "sccache: recovered after restart."
+        fi
       else
         # No sccache at all is survivable — an uncached build is slow, not stuck.
         echo "sccache: not installed, building without it"
