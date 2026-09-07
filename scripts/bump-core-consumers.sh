@@ -35,6 +35,10 @@
 #
 #     --dry-run   report what would change, touch nothing
 #     --repo      limit to one consumer (default: all)
+#     --stable-only  target the newest release tag (vX.Y.Z), ignoring
+#                 -dev prereleases. For monitors: "behind the newest
+#                 release" is a condition that stays false most days,
+#                 where "behind the newest tag" is true most days.
 #     --build     `cargo check` each bumped consumer and report the result
 #
 # Exit: 0 if every attempted bump resolved (build failures are reported,
@@ -46,12 +50,14 @@ set -eu
 DRY=0
 ONLY=""
 BUILD=0
+STABLE_ONLY=0
 WORKSPACE_ROOT=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run) DRY=1; shift ;;
         --build)   BUILD=1; shift ;;
+        --stable-only) STABLE_ONLY=1; shift ;;
         --repo)    ONLY="${2:-}"; shift 2 ;;
         --help|-h) sed -n '5,45p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         --*)       printf 'bump-core-consumers: unknown option: %s\n' "$1" >&2; exit 2 ;;
@@ -75,7 +81,20 @@ BASE=$(git -C "$CORE" rev-parse --short origin/main)
 # Newest core tag by creation date. Dev tags are the cadence here; a
 # consumer pinned to a tag can only move to a tag that exists, which is
 # why cli!498 sat blocked until one was cut.
-LATEST_TAG=$(git -C "$CORE" tag --sort=-creatordate | head -1)
+#
+# --stable-only restricts that to release tags (vX.Y.Z, no -dev suffix).
+# Core cut 32 tags in the 30 days to 2026-09-07, nearly all -dev.N, so
+# "behind the newest tag" is true for almost every consumer on almost
+# every day — fine for a human running a bump on purpose, useless as an
+# alarm condition, because a monitor that is red by default stops being
+# read (see gates:workspace-ratchets in the root .gitlab-ci.yml).
+# "Behind the newest *release*" is the durable, actionable condition.
+if [ "$STABLE_ONLY" -eq 1 ]; then
+    LATEST_TAG=$(git -C "$CORE" tag --sort=-creatordate |
+        grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+else
+    LATEST_TAG=$(git -C "$CORE" tag --sort=-creatordate | head -1)
+fi
 # The `version = "=X"` constraint must be the version the crate actually
 # declares at that tag, read from the tag itself. Deriving it from the tag
 # name instead (`${LATEST_TAG#v}`) is wrong for prerelease tags: core's
