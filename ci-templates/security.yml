@@ -152,10 +152,22 @@ secret_detection:
 # ============================================================
 
 # Rust security audit (cargo-audit)
+#
+# --deny warnings is deliberate. Plain `cargo audit` exits 0 on
+# `unsound`, `unmaintained` and `yanked` advisories, which is how
+# RUSTSEC-2026-0253 (unsound lru, use-after-free in LruCache::pop) sat
+# in four consumers' lockfiles without a single red pipeline — the one
+# repo that caught it, web-demo, was also the only one passing this
+# flag. An advisory nobody is told about is not a check.
+#
+# Per-repo exceptions go in AUDIT_IGNORES as `--ignore RUSTSEC-…`
+# flags, next to a comment naming the record and the exit condition.
+# Set it in the repo's top-level `variables:` so the RC-tag audit
+# (.rc-security-audit) inherits the same list; unset means none.
 .security-audit:
   stage: security
   script:
-    - cargo audit
+    - cargo audit --deny warnings ${AUDIT_IGNORES:-}
 
 # Rust license compliance (cargo-deny)
 .security-licenses:
@@ -199,10 +211,26 @@ secret_detection:
 #   security:deny:
 #     extends: [.rust-runner-readonly, .security-deny-job]
 
-# cargo-audit with auto-install (MR dependency changes only)
+# cargo-audit with auto-install (MR dependency changes + main + schedule)
+#
+# The dependency-change rule alone cannot see a NEW advisory published
+# against an UNCHANGED lockfile, which is the normal way advisories
+# arrive. main and schedule are what make this a standing check rather
+# than a review-time one; web-demo already carried all three and was
+# the only repo where RUSTSEC-2026-0253 ever surfaced.
 .security-audit-job:
-  extends: [.security-audit, .validation-deps, .timeout-quick]
+  extends: [.security-audit, .timeout-quick]
   needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        compare_to: refs/heads/$CI_DEFAULT_BRANCH
+        paths:
+          - "**/Cargo.toml"
+          - "**/Cargo.lock"
+          - ".gitlab-ci.yml"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
   before_script:
     - !reference [.self-hosted, before_script]
     - command -v cargo-audit >/dev/null 2>&1 || cargo binstall cargo-audit --no-confirm 2>/dev/null || true
