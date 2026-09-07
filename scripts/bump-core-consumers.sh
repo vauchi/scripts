@@ -76,9 +76,24 @@ BASE=$(git -C "$CORE" rev-parse --short origin/main)
 # consumer pinned to a tag can only move to a tag that exists, which is
 # why cli!498 sat blocked until one was cut.
 LATEST_TAG=$(git -C "$CORE" tag --sort=-creatordate | head -1)
-# The `version = "=X"` constraint beside each tag is the tag without its
-# leading `v`. Derived here so the two can never drift apart.
-LATEST_VER=${LATEST_TAG#v}
+# The `version = "=X"` constraint must be the version the crate actually
+# declares at that tag, read from the tag itself. Deriving it from the tag
+# name instead (`${LATEST_TAG#v}`) is wrong for prerelease tags: core's
+# `v0.64.0-dev.1` carries workspace version `0.64.0`, so a name-derived
+# `=0.64.0-dev.1` never resolves. Dev tags are legitimate bump targets —
+# cli was pinned to `v0.60.1-dev.8` before v0.61.0 — so the tag choice
+# stays as-is and only the version lookup changes.
+if [ -n "$LATEST_TAG" ]; then
+    LATEST_VER=$(git -C "$CORE" show "$LATEST_TAG:Cargo.toml" 2>/dev/null |
+        sed -n 's/^version = "\(.*\)"$/\1/p' | head -1)
+    if [ -z "$LATEST_VER" ]; then
+        echo "ERROR: no workspace version found in $LATEST_TAG:Cargo.toml" >&2
+        echo "       refusing to guess it from the tag name." >&2
+        exit 1
+    fi
+else
+    LATEST_VER=""
+fi
 
 printf '=== core: main %s, newest tag %s ===\n\n' "$BASE" "${LATEST_TAG:-<none>}"
 
