@@ -27,7 +27,14 @@ PAGE="_private/docs/lint-errors/vsp01-stale-ci-template-pin.md"
 [ -f "$CI_YAML" ] || { echo "  (no CI yaml: $CI_YAML)"; exit 0; }
 [ -f "$RECENT" ] || { echo "check-stale-ci-pin: recent-tags file not found: $RECENT" >&2; exit 2; }
 
-pins="$(grep -oE 'ci-templates-v[0-9]+\.[0-9]+\.[0-9]+' "$CI_YAML" 2>/dev/null | sort -u || true)"
+# Strip comments before matching. A comment naming the tag that first
+# carried a template is history, not a pin, and flagging it makes VSP01
+# permanently red for a file nobody can fix without deleting the note.
+# Anything outside a comment still counts — `ref:`, a variable, or a
+# `git clone --branch` in a script line are all real pins.
+pins="$(sed 's/#.*$//' "$CI_YAML" 2>/dev/null \
+    | grep -oE 'ci-templates-v[0-9]+\.[0-9]+\.[0-9]+' \
+    | sort -u || true)"
 [ -n "$pins" ] || { echo "  no ci-template pins in $LABEL"; exit 0; }
 
 while IFS= read -r pin; do

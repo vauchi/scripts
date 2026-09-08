@@ -46,6 +46,21 @@ assert_eq "stale pin: VSP01" "1" "$(has VSP01 "$out")"
 assert_eq "stale pin: names the pin" "1" "$(has 'ci-templates-v2026.07.2' "$out")"
 rm -f "$Y"
 
+# ── a stale tag named only in a comment is history, not a pin ─────────
+Y="$(mktemp)"
+printf '  ref: ci-templates-v2026.07.8\n# added to ci-templates in ci-templates-v2026.07.2+\n' > "$Y"
+run "$Y"
+assert_eq "commented tag: exit 0" "0" "$rc"
+assert_eq "commented tag: no VSP01" "0" "$(has VSP01 "$out")"
+rm -f "$Y"
+
+# ── a stale pin in a script line still counts ─────────────────────────
+Y="$(mktemp)"
+printf '  script:\n    - git clone --branch ci-templates-v2026.07.2 url\n' > "$Y"
+run "$Y"
+assert_eq "script-line pin: exit 1" "1" "$rc"
+rm -f "$Y"
+
 # ── no ci-template pin present: exit 0 ────────────────────────────────
 Y="$(mktemp)"
 printf 'stages:\n  - lint\n' > "$Y"
