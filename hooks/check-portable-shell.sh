@@ -130,6 +130,10 @@ check_file() {
         found=1
     fi
 
+    if ! check_bash4_shebang "$file"; then
+        found=1
+    fi
+
     CHECKED=$((CHECKED + 1))
     if [[ "$found" -eq 1 ]]; then
         VIOLATIONS=$((VIOLATIONS + 1))
@@ -180,6 +184,43 @@ check_web_status() {
         fi
 
         logical=""
+    done < "$file"
+
+    return "$((found == 0 ? 0 : 1))"
+}
+
+# VSH14 bash-4 syntax under a #!/bin/bash shebang.
+#
+# Its own pass, because the line loop above skips comments and the
+# shebang is one. macOS ships bash 3.2 at /bin/bash, so pinning that
+# interpreter while using declare -A, mapfile, readarray or ${v^^}
+# aborts the script at that line — on 2026-09-08 orchestrate.sh died on
+# its top-level `declare -A` before any subcommand ran, taking every
+# `just e2e-*` recipe on the dev Mac with it. Either half alone is fine:
+# #!/usr/bin/env bash finds a modern bash on PATH, and /bin/bash runs
+# POSIX-ish bodies everywhere. Only the pairing is a defect.
+check_bash4_shebang() {
+    local file="$1"
+    local shebang line line_no=0 found=0
+
+    IFS= read -r shebang < "$file" || return 0
+    [[ "$shebang" =~ ^#![[:space:]]*/bin/bash ]] || return 0
+
+    while IFS= read -r line; do
+        line_no=$((line_no + 1))
+
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ "$line" =~ portable-shell-ok ]] && continue
+
+        if [[ "$line" =~ (declare|local|typeset)[[:space:]]+-[A-Za-z]*A[[:space:]] ]] \
+            || [[ "$line" =~ ^[[:space:]]*(mapfile|readarray)[[:space:]] ]] \
+            || [[ "$line" =~ \$\{[A-Za-z_][A-Za-z0-9_]*(\^\^|,,) ]]; then
+            emit VSH14 "$file" "$line_no" \
+                'bash-4 syntax under a #!/bin/bash shebang (macOS /bin/bash is 3.2)' \
+                'switch the shebang to #!/usr/bin/env bash' \
+                vsh14-bash4-under-bin-bash # portable-shell-ok
+            found=1
+        fi
     done < "$file"
 
     return "$((found == 0 ? 0 : 1))"

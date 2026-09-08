@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -29,19 +29,19 @@ COVERAGE_TARGETS=(
 
 # Function to print colored output
 print_status() {
-    echo -e "${GREEN}✅ $1${NC}"
+    printf '%b\n' "${GREEN}✅ $1${NC}"
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    printf '%b\n' "${YELLOW}⚠️  $1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}❌ $1${NC}"
+    printf '%b\n' "${RED}❌ $1${NC}"
 }
 
 print_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+    printf '%b\n' "${BLUE}ℹ️  $1${NC}"
 }
 
 # Setup coverage tools
