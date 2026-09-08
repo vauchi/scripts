@@ -73,6 +73,36 @@ run_case VSH10 'date -d "2026-07-05" +%s'
 run_case VSH11 'hash=$(md5sum "$f" | cut -d" " -f1)'
 run_case VSH12 'sed "s/[0-9]\+//" f'
 
+# ── VSH14 bash-4 syntax under a /bin/bash shebang ──────────────────────
+# macOS ships bash 3.2 at /bin/bash; the pairing aborts the whole script
+# there. run_case cannot express it (the shebang must be line 1), so
+# these cases are spelled out.
+vsh14_case() {
+    name="$1"; shebang="$2"; body="$3"; want_rc="$4"
+    ws="$(mktemp -d)"
+    printf '%s\n%s\n' "$shebang" "$body" > "$ws/s.sh"
+    out="$("$SCRIPT" "$ws/s.sh" 2>&1)"; rc=$?
+    assert_eq "$name: exit $want_rc" "$want_rc" "$rc"
+    if [ "$want_rc" = "1" ]; then
+        assert_eq "$name: carries ID" "1" \
+            "$(printf '%s' "$out" | grep -c 'VSH14:' | head -1)"
+        assert_eq "$name: names the fix" "1" \
+            "$(printf '%s' "$out" | grep -qE 'VSH14: .+ — fix: .+' && echo 1 || echo 0)"
+    fi
+    rm -rf "$ws"
+}
+
+vsh14_case "VSH14 declare -A"  '#!/bin/bash' 'declare -A m=([a]=1)'        1
+vsh14_case "VSH14 local -A"    '#!/bin/bash' 'f() { local -A m; }'         1
+vsh14_case "VSH14 mapfile"     '#!/bin/bash' 'mapfile -t xs < f'           1
+vsh14_case "VSH14 readarray"   '#!/bin/bash' 'readarray -t xs < f'         1
+vsh14_case "VSH14 case-expand" '#!/bin/bash' 'up="${name^^}"'              1
+
+# env-bash shebang resolves to a modern bash — the same body is fine.
+vsh14_case "VSH14 env bash exempt" '#!/usr/bin/env bash' 'mapfile -t xs < f' 0
+# No bash-4 feature — a /bin/bash shebang alone is not a violation.
+vsh14_case "VSH14 plain /bin/bash ok" '#!/bin/bash' 'printf "hi\n"'        0
+
 # ── suppression: portable-shell-ok passes ──────────────────────────────
 ws="$(mktemp -d)"
 printf '%s\n' 'grep -oP "x" f  # portable-shell-ok: fixture in docs' > "$ws/sup.sh"
