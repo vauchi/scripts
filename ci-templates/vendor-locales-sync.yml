@@ -1,0 +1,122 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Opens a re-vendor MR in core when the locales catalogue moves.
+#
+# Why: core keeps a vendored copy of en.json (vauchi-app/locales/) so a
+# consumer building the crate without a sibling locales checkout does not
+# ship the two-key stub build.rs falls back to. `vendor-locales.sh
+# --check` fails the blocking `lint:cross-cutting-blocking` job whenever
+# that copy drifts.
+#
+# Nothing regenerated it. locales already triggers core on merge
+# (`trigger:core-validate`), but core only *validated* — so the drift
+# surfaced later, on the next unrelated core MR, whose author had not
+# caused it and had to stop and re-vendor by hand. Core's history shows
+# that happening repeatedly: "chore: re-vendor the locale catalogue
+# after locales!151", "tidy: re-vendor the locale catalogue at locales
+# 69dea7f", and more.
+#
+# Requires PROJECT_ACCESS_TOKEN (api + write_repository), already set at
+# group level for release.yml and snapshot-record.yml.
+#
+# Usage (core/.gitlab-ci.yml):
+#   include:
+#     - project: 'vauchi/scripts'
+#       file: '/ci-templates/vendor-locales-sync.yml'
+
+sync:vendor-locales:
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/debian:stable-slim
+  stage: lint
+  tags: [docker]
+  needs: []
+  variables:
+    GIT_STRATEGY: clone
+    GIT_DEPTH: "0"
+  rules:
+    # Only on the locales trigger. A core MR must never open MRs against core.
+    - if: $CI_PIPELINE_SOURCE == "pipeline" && $CONTENT_TRIGGER_REPO == "locales"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git curl python3 > /dev/null 2>&1
+  script:
+    - |
+      set -eu
+
+      git clone --depth 1 "${CI_SERVER_URL}/vauchi/locales.git" ../locales
+      sh scripts/vendor-locales.sh
+
+      # Common case: locales changed something core does not vendor (a
+      # non-English file, the schema). Say so and stop — an empty MR is
+      # worse than none.
+      if git diff --quiet -- vauchi-app/locales/; then
+        echo "vendor-locales: catalogue already current — no MR needed"
+        exit 0
+      fi
+
+      LOCALES_REV=$(git -C ../locales rev-parse --short HEAD)
+      git config user.email "noreply@vauchi.app"
+      git config user.name "vauchi-gitlab-runner"
+      git remote set-url origin "https://vauchi-gitlab-runner:${PROJECT_ACCESS_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+
+      BRANCH="chore/re-vendor-locales"
+
+      # Reuse the open MR rather than stacking one per locales merge:
+      # only the newest catalogue matters, so each run supersedes the last.
+      # Read the status before parsing: a 401 body parses as happily as a
+      # result set, and silently "finding no open MR" would open a
+      # duplicate on every locales merge (VSH13).
+      : > /tmp/mr-lookup.json
+      LOOKUP_STATUS=$(curl --silent --output /tmp/mr-lookup.json --write-out '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests?state=opened&source_branch=${BRANCH}") || LOOKUP_STATUS="000"
+      if [ "$LOOKUP_STATUS" != "200" ]; then
+        echo "ERROR: MR lookup returned HTTP $LOOKUP_STATUS" >&2
+        cat /tmp/mr-lookup.json >&2
+        exit 1
+      fi
+      EXISTING=$(python3 -c "import json; mrs=json.load(open('/tmp/mr-lookup.json')); print(mrs[0]['iid'] if mrs else '')")
+
+      git checkout -B "$BRANCH"
+      git add vauchi-app/locales/
+      printf '%s\n' \
+        "chore: re-vendor the locale catalogue at locales ${LOCALES_REV}" \
+        "" \
+        "Opened by sync:vendor-locales after a locales merge, so the drift" \
+        "does not surface on the next unrelated core MR." \
+        "" \
+        "Co-Authored-By: vauchi-gitlab-runner <noreply@vauchi.app>" > /tmp/revendor-msg
+      git commit --file /tmp/revendor-msg
+
+      git push -u origin "$BRANCH" --force-with-lease
+
+      if [ -n "$EXISTING" ]; then
+        echo "Updated existing re-vendor MR !${EXISTING}"
+        exit 0
+      fi
+
+      DESCRIPTION="Opened automatically after a locales merge.
+
+      core vendors en.json so consumers without a locales checkout do not ship
+      a stub catalogue. Without this refresh the drift fails
+      lint:cross-cutting-blocking on the next unrelated core MR.
+
+      Vendored at locales ${LOCALES_REV}."
+
+      PAYLOAD=$(SB="$BRANCH" TB="$CI_DEFAULT_BRANCH" RV="$LOCALES_REV" DESC="$DESCRIPTION" python3 -c "
+      import json, os
+      print(json.dumps({
+          'source_branch': os.environ['SB'],
+          'target_branch': os.environ['TB'],
+          'title': 'chore: re-vendor the locale catalogue at locales ' + os.environ['RV'],
+          'description': os.environ['DESC'],
+          'remove_source_branch': True,
+      }))")
+
+      : > /tmp/mr-create.json
+      CREATE_STATUS=$(curl --silent --output /tmp/mr-create.json --write-out '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --header "Content-Type: application/json" --data "$PAYLOAD" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests") || CREATE_STATUS="000"
+      if [ "$CREATE_STATUS" != "201" ]; then
+        echo "ERROR: MR creation returned HTTP $CREATE_STATUS" >&2
+        cat /tmp/mr-create.json >&2
+        exit 1
+      fi
+      MR_IID=$(python3 -c "import json; print(json.load(open('/tmp/mr-create.json')).get('iid',''))")
+      echo "Opened re-vendor MR !${MR_IID}"
