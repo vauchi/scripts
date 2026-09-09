@@ -2,13 +2,13 @@
   "schema_version": 2,
   "repos": {
     "core": {
-      "retired_screen_model": 17,
-      "retired_workflow_engine": 3,
-      "retired_user_action": 13,
-      "retired_action_result": 9,
-      "retired_domain_components": 2,
+      "retired_screen_model": 0,
+      "retired_workflow_engine": 0,
+      "retired_user_action": 0,
+      "retired_action_result": 0,
+      "retired_domain_components": 0,
       "retired_visibility_labels": 0,
-      "split_dispatch_api": 17
+      "split_dispatch_api": 0
     },
     "cli": {
       "retired_screen_model": 0,
@@ -32,22 +32,22 @@
       "retired_action_result": 0,
       "retired_domain_components": 0,
       "retired_visibility_labels": 0,
-      "split_dispatch_api": 1
+      "split_dispatch_api": 0
     },
     "android": {
       "action_id_minting": 0,
       "error_substring_classification": 0,
       "domain_screen_id_branch": 0,
-      "notification_category_mapping": 7,
+      "notification_category_mapping": 0,
       "field_visibility_interpretation": 0,
       "app_screen_enum_branch": 0,
       "retired_screen_model": 0,
       "retired_workflow_engine": 0,
       "retired_user_action": 0,
       "retired_action_result": 0,
-      "retired_domain_components": 1,
+      "retired_domain_components": 0,
       "retired_visibility_labels": 0,
-      "split_dispatch_api": 5
+      "split_dispatch_api": 0
     },
     "macos": {
       "action_id_minting": 0,
@@ -61,7 +61,7 @@
       "retired_action_result": 0,
       "retired_domain_components": 0,
       "retired_visibility_labels": 0,
-      "split_dispatch_api": 1
+      "split_dispatch_api": 0
     },
     "windows": {
       "action_id_minting": 0,
@@ -96,7 +96,7 @@
       "retired_workflow_engine": 0,
       "retired_user_action": 0,
       "retired_action_result": 0,
-      "retired_domain_components": 1,
+      "retired_domain_components": 0,
       "retired_visibility_labels": 0,
       "split_dispatch_api": 0
     },
