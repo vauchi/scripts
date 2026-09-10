@@ -1,0 +1,22 @@
+# CC-27 ratchet: check scripts without a seeded-violation test (2026-09-10 baseline: 20).
+# Entries may only be removed — add the test, then delete the line.
+hooks/check-sensitive.sh
+scripts/check-aead.sh
+scripts/check-allow-failure-budget.sh
+scripts/check-claude-md.sh
+scripts/check-context-budget.sh
+scripts/check-design-tokens.sh
+scripts/check-domain-named-views.sh
+scripts/check-ios-local-bindings.sh
+scripts/check-new-test-annotations.sh
+scripts/check-no-direct-clipboard-writes.sh
+scripts/check-no-domain-conditionals-in-views.sh
+scripts/check-no-isimported-in-views.sh
+scripts/check-public-api.sh
+scripts/check-reachability-coverage.sh
+scripts/check-scenario-annotations.sh
+scripts/check-workspace-versions.sh
+scripts/check-zero-assertions.sh
+scripts/ci/check-ci-template-refs.sh
+scripts/ci/check-orphan-baselines.sh
+scripts/ci/check-removed-symbols.sh

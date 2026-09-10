@@ -55,6 +55,9 @@ test:selftests: # vci02-ok: .mr-or-main is rules-only, no before_script to prese
     - npm install -g markdownlint-cli@0.41.0 >/dev/null 2>&1 || echo "markdownlint install failed — its suite self-skips"
   script:
     - |
+      # CC-27 ratchet: every check-*.sh has a seeded-violation test or a
+      # baseline line that may only be removed.
+      bash scripts/check-seeded-violation-tests.sh
       FAILED=0
       for t in scripts/tests/*.test.sh; do
         echo "═══ $t ═══"
