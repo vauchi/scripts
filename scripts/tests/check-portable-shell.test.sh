@@ -78,15 +78,15 @@ run_case VSH12 'sed "s/[0-9]\+//" f'
 # there. run_case cannot express it (the shebang must be line 1), so
 # these cases are spelled out.
 vsh14_case() {
-    name="$1"; shebang="$2"; body="$3"; want_rc="$4"
+    v14name="$1"; v14sb="$2"; v14body="$3"; v14want="$4"
     ws="$(mktemp -d)"
-    printf '%s\n%s\n' "$shebang" "$body" > "$ws/s.sh"
+    printf '%s\n%s\n' "$v14sb" "$v14body" > "$ws/s.sh"
     out="$("$SCRIPT" "$ws/s.sh" 2>&1)"; rc=$?
-    assert_eq "$name: exit $want_rc" "$want_rc" "$rc"
-    if [ "$want_rc" = "1" ]; then
-        assert_eq "$name: carries ID" "1" \
+    assert_eq "$v14name: exit $v14want" "$v14want" "$rc"
+    if [ "$v14want" = "1" ]; then
+        assert_eq "$v14name: carries ID" "1" \
             "$(printf '%s' "$out" | grep -c 'VSH14:' | head -1)"
-        assert_eq "$name: names the fix" "1" \
+        assert_eq "$v14name: names the fix" "1" \
             "$(printf '%s' "$out" | grep -qE 'VSH14: .+ — fix: .+' && echo 1 || echo 0)"
     fi
     rm -rf "$ws"
