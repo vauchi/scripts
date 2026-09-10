@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
 # CC-27 ratchet: check scripts without a seeded-violation test (2026-09-10 baseline: 20).
 # Entries may only be removed — add the test, then delete the line.
 hooks/check-sensitive.sh
