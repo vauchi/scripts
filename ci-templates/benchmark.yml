@@ -56,7 +56,8 @@
     expire_in: 30 days
 
 # Compare against baseline (scheduled + release tags).
-# Fails the pipeline on regression > 20% — the gate is no longer advisory.
+# Fails the pipeline on regression > 100% (2x slower) — the gate is no longer advisory.
+# The intended threshold is > 20%; see TEMPORARY TOLERANCE below for why.
 # Reasoning: an advisory gate that only echoes WARNING does not affect
 # any pipeline outcome, so neither scheduled drift nor release-tag
 # regressions can ever block. Audit `_private/docs/audit-review-frameworks/

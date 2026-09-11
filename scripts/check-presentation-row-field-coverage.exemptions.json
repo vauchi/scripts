@@ -17,7 +17,6 @@
   },
   "tui": {
     "accessibility": "Real gap. Core prepares the accessibility label for every row and this shell never reads it, so assistive tech gets nothing for a row. Worst on linux-gtk, where AT-SPI is the whole a11y surface. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
-    "controls": "Settings toggles are unreachable in the TUI for the same reason. A terminal can render a checkbox, so this is a gap rather than a platform limit.",
     "detail": "Real gap. Core populates detail on three row builders (contact status, settings values, link details) and it is never shown. Tracked in backlog/2026-08-20-core-prepares-presentation-data-no-shell-renders.",
     "enabled": "Dormant, not dropped: every PresentationRow Core builds hardcodes `enabled: true`, so no shell can be observed honouring it. Revisit when Core first emits a disabled row \u2014 a shell that ignores it would then let the user activate something Core disabled, and this exemption would hide that.",
     "fallback_text": "Not a gap for a terminal. The fallback is initials standing in for an avatar, and the row title is already the name they are derived from \u2014 rendering \"AL Alice\" adds noise, not information. The generic \"every shell can draw text\" reasoning was too broad here; it holds for the graphical shells, which is where this stays a real gap.",
