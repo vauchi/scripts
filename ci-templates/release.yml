@@ -81,7 +81,7 @@
       # that into a red job for a check that never ran. Retry, and fail
       # loudly rather than continuing without the tools.
       for attempt in 1 2 3; do
-          apk add --no-cache git && installed=yes && break
+          apk add --no-cache git curl && installed=yes && break
           echo "apk add failed (attempt $attempt/3), retrying in 5s" >&2
           sleep 5
       done
@@ -103,8 +103,17 @@
         fi
       fi
 
-      git config user.name "vauchi-gitlab-runner"
-      git config user.email "noreply@vauchi.app"
+      # Commit as the token's own bot user. The group push rule "commit author
+      # must be a GitLab user" rejects a hardcoded noreply@vauchi.app address
+      # that belongs to nobody (core pipeline 2842810001, 2026-09-12). The
+      # /user endpoint answers with the member the token acts as; plain sed
+      # keeps this portable across the alpine, debian and node images.
+      BOT_USER_JSON=$(curl --silent --fail --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" "${CI_API_V4_URL}/user")
+      BOT_NAME=$(printf '%s' "$BOT_USER_JSON" | sed -n 's/.*"username":"\([^"]*\)".*/\1/p')
+      BOT_EMAIL=$(printf '%s' "$BOT_USER_JSON" | sed -n 's/.*"commit_email":"\([^"]*\)".*/\1/p')
+      [ -n "$BOT_NAME" ] && [ -n "$BOT_EMAIL" ] || { echo "ERROR: could not resolve the bot identity from PROJECT_ACCESS_TOKEN" >&2; exit 1; }
+      git config user.name "$BOT_NAME"
+      git config user.email "$BOT_EMAIL"
 
       # Use project access token for push — CI_JOB_TOKEN cannot be used here
       # because pushes via CI_JOB_TOKEN do not trigger new pipelines, and the

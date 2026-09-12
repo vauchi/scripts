@@ -55,8 +55,17 @@ sync:vendor-locales:
       fi
 
       LOCALES_REV=$(git -C ../locales rev-parse --short HEAD)
-      git config user.email "noreply@vauchi.app"
-      git config user.name "vauchi-gitlab-runner"
+      # Commit as the token's own bot user. The group push rule "commit author
+      # must be a GitLab user" rejects a hardcoded noreply@vauchi.app address
+      # that belongs to nobody (core pipeline 2842810001, 2026-09-12). The
+      # /user endpoint answers with the member the token acts as; plain sed
+      # keeps this portable across the alpine, debian and node images.
+      BOT_USER_JSON=$(curl --silent --fail --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" "${CI_API_V4_URL}/user")
+      BOT_NAME=$(printf '%s' "$BOT_USER_JSON" | sed -n 's/.*"username":"\([^"]*\)".*/\1/p')
+      BOT_EMAIL=$(printf '%s' "$BOT_USER_JSON" | sed -n 's/.*"commit_email":"\([^"]*\)".*/\1/p')
+      [ -n "$BOT_NAME" ] && [ -n "$BOT_EMAIL" ] || { echo "ERROR: could not resolve the bot identity from PROJECT_ACCESS_TOKEN" >&2; exit 1; }
+      git config user.name "$BOT_NAME"
+      git config user.email "$BOT_EMAIL"
       git remote set-url origin "https://vauchi-gitlab-runner:${PROJECT_ACCESS_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
 
       BRANCH="chore/re-vendor-locales"
@@ -83,7 +92,7 @@ sync:vendor-locales:
         "Opened by sync:vendor-locales after a locales merge, so the drift" \
         "does not surface on the next unrelated core MR." \
         "" \
-        "Co-Authored-By: vauchi-gitlab-runner <noreply@vauchi.app>" > /tmp/revendor-msg
+        "Co-Authored-By: ${BOT_NAME} <${BOT_EMAIL}>" > /tmp/revendor-msg
       git commit --file /tmp/revendor-msg
 
       git push -u origin "$BRANCH" --force-with-lease
