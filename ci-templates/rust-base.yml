@@ -90,6 +90,15 @@ workflow:
     # Suppress push pipelines when an MR is already open (prevents ghost duplicates)
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
       when: never
+    # A default-branch pipeline ends in the release tag (core's
+    # auto-tag:version runs in the last stage, behind every blocking job),
+    # so a merge landing mid-run must not cancel it: with the interruptible
+    # policy core main was canceled three runs in a row on 2026-09-12 and
+    # v0.67.1 waited hours for a quiet main. Only MR pipelines are cheap to
+    # cancel; every other source on the default branch runs to completion.
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      auto_cancel:
+        on_new_commit: none
     - if: $CI_PIPELINE_SOURCE == "push"
     - if: $CI_PIPELINE_SOURCE == "pipeline"
     - if: $CI_PIPELINE_SOURCE == "trigger"
