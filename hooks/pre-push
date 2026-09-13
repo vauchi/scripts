@@ -668,6 +668,14 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
             CLIPPY_EXTRA=(--no-default-features --features custom-protocol)
             TEST_CMD+=(--all-targets --no-default-features --features custom-protocol)
             ;;
+        ohttp-relay)
+            # `test-utils` gates the shared state constructors that
+            # router_integration, server_lifecycle and client_ip need.
+            # Cargo silently skips a target whose required-features are
+            # absent, so without this the hook runs 51 of 97 tests and
+            # reports success.
+            TEST_CMD+=(--all-targets --features test-utils)
+            ;;
         linux-gtk | linux-qt)
             TEST_CMD+=(--all-targets)
             # These repos have Linux-only deps (bluer, AT-SPI). On non-Linux,

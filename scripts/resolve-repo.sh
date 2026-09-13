@@ -163,6 +163,12 @@ repo_test_features() {
         # used by core CI (see core/.gitlab-ci.yml). Enabling it locally
         # too keeps `just test core` and CI consistent.
         core) echo "--features vauchi-core/testing,vauchi-core/test-kdf" ;;
+        # `test-utils` gates the shared state constructors that
+        # router_integration, server_lifecycle and client_ip need. Cargo
+        # silently skips a target whose required-features are absent, so
+        # without this `just test ohttp-relay` runs 40 of 86 tests and
+        # reports success.
+        ohttp-relay) echo "--features test-utils" ;;
         *)    echo "" ;;
     esac
 }
