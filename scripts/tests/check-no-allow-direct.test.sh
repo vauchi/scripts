@@ -212,5 +212,73 @@ mod tests {
 }'
 assert_exit "a later sentinel still exempts genuine test code" 0 "$result"
 
+# 70 filler lines: more than the old 60-line look-back window.
+filler=$(for i in $(seq 1 70); do printf '        let _f%s = %s;\n' "$i" "$i"; done)
+
+# core vauchi-platform/src/lib.rs:558 on 2026-09-25: a helper inside
+# `#[cfg(test)] mod tests` whose opening sat 64 lines above it.
+run_fixture "#[cfg(test)]
+mod tests {
+    use super::*;
+    fn early() {
+$filler
+    }
+    fn test_shred_sender() {
+        let transport = HttpTransport::new(HttpTransportConfig::for_testing(
+            \"http://localhost:8080\",
+            1000,
+        ));
+    }
+}"
+assert_exit "test helper more than 60 lines into mod tests is allowed" 0 "$result"
+
+run_fixture "#[cfg(test)]
+mod tests {
+    fn helper() {
+$filler
+    }
+}
+
+pub fn production_path() {
+    let config = HttpTransportConfig { allow_direct: key.is_none() };
+}"
+assert_exit "production site far below a closed test module is rejected" 1 "$result"
+
+# The guard ran with ripgrep absent and reported OK (2026-09-25: allyson's
+# shell runner had no rg until _private 0cac5327). A guard whose tool is
+# missing or broken must fail, not pass.
+run_fixture_with_path() {
+    local content="$1" path_dir="$2"
+    local root
+    root="$(mktemp -d)"
+    mkdir -p "$root/src"
+    printf '%s\n' "$content" > "$root/src/runner.rs"
+    set +e
+    output="$(PATH="$path_dir" "$SCRIPT" "$root" 2>&1)"
+    result=$?
+    set -e
+    rm -rf "$root"
+}
+
+tools_dir="$(mktemp -d)"
+for tool in bash env sed awk grep cat printf head tr cut dirname basename sort wc mktemp; do
+    tool_path="$(command -v "$tool" 2>/dev/null)" && ln -s "$tool_path" "$tools_dir/$tool"
+done
+
+run_fixture_with_path 'let config = HttpTransportConfig { allow_direct: key.is_none() };' "$tools_dir"
+assert_exit "missing ripgrep fails instead of passing" 2 "$result"
+assert_exit "missing ripgrep is named in the error" 1 \
+    "$(printf '%s' "$output" | grep -qi 'ripgrep' && echo 1 || echo 0)"
+
+broken_rg_dir="$(mktemp -d)"
+for tool in "$tools_dir"/*; do ln -s "$(readlink "$tool")" "$broken_rg_dir/$(basename "$tool")"; done
+printf '#!/bin/sh\necho "PCRE2 is not available in this build of ripgrep." >&2\nexit 2\n' > "$broken_rg_dir/rg"
+chmod +x "$broken_rg_dir/rg"
+run_fixture_with_path 'let config = HttpTransportConfig { allow_direct: key.is_none() };' "$broken_rg_dir"
+assert_exit "a failing ripgrep fails instead of passing" 2 "$result"
+assert_exit "ripgrep's own error is shown" 1 \
+    "$(printf '%s' "$output" | grep -q 'PCRE2 is not available' && echo 1 || echo 0)"
+rm -rf "$tools_dir" "$broken_rg_dir"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
