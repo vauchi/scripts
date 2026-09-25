@@ -31,7 +31,7 @@ if echo "$SUBJECT" | grep -qE "^Revert \""; then
 fi
 
 # Validate format: {type}: {description}
-VALID_TYPES="feat|fix|refactor|tidy|docs|test|chore|wip"
+VALID_TYPES="feat|fix|refactor|tidy|docs|test|chore|wip|diag"
 if ! echo "$SUBJECT" | grep -qE "^($VALID_TYPES): .+"; then
     echo ""
     echo "  VGT08: invalid commit message format — fix: prefix with '{type}: '. [_private/docs/lint-errors/vgt08-commit-format.md]"
@@ -39,7 +39,7 @@ if ! echo "$SUBJECT" | grep -qE "^($VALID_TYPES): .+"; then
     echo "  Expected: {type}: {description}"
     echo "  Got:      $SUBJECT"
     echo ""
-    echo "  Valid types: feat, fix, refactor, tidy, docs, test, chore, wip"
+    echo "  Valid types: feat, fix, refactor, tidy, docs, test, chore, wip, diag"
     echo ""
     echo "  Examples:"
     echo "    feat: implement BLE transport"
@@ -55,21 +55,44 @@ fi
 # the deterministic tier of CC-27 for the one defect class the
 # intervention ledger and reasoning-error log both rank first: a fix
 # asserted without being verified. Docs-only fixes are exempt.
+# The trailer must name the after-state: a trailer citing only the red job
+# passed the old length check on fixes that turned out wrong (macos 067c6d8).
 # Page: _private/docs/lint-errors/vgt11-fix-evidence.md
 if echo "$SUBJECT" | grep -qE "^fix: "; then
     STAGED=$(git diff --cached --name-only 2>/dev/null || true)
     CODE_PATHS=$(echo "$STAGED" | grep -vE '(\.(md|txt|svg|png|jpg|jpeg|webp|gif)$|^LICENSES/|^$)' || true)
     TEST_PATHS=$(echo "$STAGED" | grep -E '(^|/)(tests?|__tests__|[A-Za-z]+Tests?)/|/src/(test|androidTest)/|\.test\.[a-z]+$|\.spec\.[jt]s$|_test\.[a-z]+$|(^|/)test_[^/]+\.py$' || true)
-    TRAILER=$(grep -E '^Evidence: .{20,}' "$MSG_FILE" || true)
-    if [ -n "$CODE_PATHS" ] && [ -z "$TEST_PATHS" ] && [ -z "$TRAILER" ]; then
+    # The trailer runs to the first blank line or the next `Key: ` trailer;
+    # a continuation line beginning `after:` stays part of it.
+    EVIDENCE=$(awk '
+        /^#/ { next }
+        /^Evidence: / { inblock = 1; print; next }
+        inblock && (/^[[:space:]]*$/ || (/^[A-Z][A-Za-z-]*: / && tolower(substr($0, 1, 6)) != "after:")) { inblock = 0 }
+        inblock { print }
+    ' "$MSG_FILE" | tr '\n' ' ')
+    AFTER_VALUE=$(printf '%s\n' "$EVIDENCE" | awk '
+        { i = index(tolower($0), "after:"); if (i) { v = substr($0, i + 6); sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+$/, "", v); print v } }
+    ')
+    PREDICTION='(^|[^a-z])(should|will|would|expected|expect|hopefully|pending|not yet|tbd|once ci)([^a-z]|$)'
+    EVIDENCE_OK=""
+    if [ ${#EVIDENCE} -ge 30 ] && [ ${#AFTER_VALUE} -ge 10 ] \
+        && ! printf '%s' "$AFTER_VALUE" | grep -qiE "$PREDICTION"; then
+        EVIDENCE_OK=1
+    fi
+    if [ -n "$CODE_PATHS" ] && [ -z "$TEST_PATHS" ] && [ -z "$EVIDENCE_OK" ]; then
         echo ""
-        echo "  VGT11: fix commit touches code without evidence — fix: stage the test that observed the failure, or add an 'Evidence: <what was observed before/after>' trailer (20+ chars). [_private/docs/lint-errors/vgt11-fix-evidence.md]"
+        echo "  VGT11: fix commit touches code without an observed after-state — fix: stage the test that observed the failure, or write 'Evidence: before: <what failed>; after: <what you observed with the fix>'. The after: part is an observation, not a prediction. If you have not seen it yet, this is a hypothesis: commit it as 'diag: <change> to test <theory>'. [_private/docs/lint-errors/vgt11-fix-evidence.md]"
         echo ""
         echo "  Code paths staged:"
         echo "$CODE_PATHS" | sed 's/^/    /'
+        if [ -n "$EVIDENCE" ]; then
+            echo ""
+            echo "  Evidence found, but no observed after: in it:"
+            echo "    $EVIDENCE"
+        fi
         echo ""
         echo "  Example trailer:"
-        echo "    Evidence: observed 502 on \`just deploy-check\` before, 200 after"
+        echo "    Evidence: before: 502 on \`just deploy-check\`; after: 200 on the same command"
         echo ""
         exit 1
     fi
