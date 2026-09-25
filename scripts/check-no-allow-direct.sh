@@ -35,6 +35,33 @@ if [ $# -lt 1 ]; then
     exit 2
 fi
 
+# A guard whose search tool is missing or broken must fail, not pass: an
+# empty hit list from a failed rg reads as "no disallowed sites". It did —
+# allyson's shell runner had no rg until 2026-09-25 and every run said OK.
+if ! command -v rg >/dev/null 2>&1; then
+    echo "check-no-allow-direct: ripgrep (rg) is required but not found; refusing to report OK" >&2
+    exit 2
+fi
+
+# rg exits 0 on matches, 1 on none, 2 on error. Only an error fails the scan.
+scan() {
+    local err status out
+    err=$(mktemp)
+    set +e
+    out=$(rg --no-messages --with-filename --line-number --no-heading "$@" 2>"$err")
+    status=$?
+    set -e
+    if [ "$status" -gt 1 ]; then
+        echo "check-no-allow-direct: ripgrep failed (exit $status); refusing to report OK:" >&2
+        cat "$err" >&2
+        rm -f "$err"
+        return 2
+    fi
+    rm -f "$err"
+    [ -n "$out" ] && printf '%s\n' "$out"
+    return 0
+}
+
 VIOLATIONS=0
 REPORTED=""
 
@@ -48,10 +75,9 @@ for ROOT in "$@"; do
     # Reject dynamic expressions, shorthand field initializers, and calls to
     # the test-only constructor. Boolean field declarations and comparisons
     # are not initializers, so the pattern excludes them.
-    HITS=$(rg --no-messages --with-filename --line-number --no-heading \
-        --type rust --pcre2 \
+    HITS=$(scan --type rust --pcre2 \
         '(allow_direct\s*:(?!\s*bool\b)(?!\s*false\s*([,}]|//|$)))|(allow_direct\s*=(?!=)(?!\s*false\s*(;|//|$)))|((^|[{,])\s*allow_direct\s*[,}])|(HttpTransportConfig::for_testing\s*\()' \
-        "$ROOT" 2>/dev/null || true)
+        "$ROOT") || exit 2
 
     while IFS= read -r HIT; do
         [ -z "$HIT" ] && continue
@@ -104,10 +130,13 @@ for ROOT in "$@"; do
                 ;;
         esac
 
-        # (4) Test/debug-context heuristic, scope-aware. Look 60 lines
-        # back for a cfg attribute or a `mod tests { ... }` opening that
-        # would scope this match to non-production code — then require
-        # that sentinel's block to still be OPEN at the match.
+        # (4) Test/debug-context heuristic, scope-aware. Look back to the
+        # top of the file for a cfg attribute or a `mod tests { ... }`
+        # opening that would scope this match to non-production code —
+        # then require that sentinel's block to still be OPEN at the
+        # match. A fixed look-back window (60 lines until 2026-09-25)
+        # flagged test helpers that sat deeper in a large `mod tests`
+        # (core vauchi-platform/src/lib.rs:558, 64 lines in).
         #
         # Distance alone is not enough. A `#[cfg(feature = "testing")]`
         # hatch that opens and closes a block does not cover the
@@ -135,7 +164,7 @@ for ROOT in "$@"; do
         # move the counter. Nothing in-tree hits this, and the
         # alternative is lexing Rust in awk. A match wrongly flagged
         # this way is a visible failure, not a silent bypass.
-        START=$((LINE > 60 ? LINE - 60 : 1))
+        START=1
         if sed -n "${START},${LINE}p" "$FILE" | awk '
             { line[NR] = $0 }
             END {
@@ -181,15 +210,13 @@ for ROOT in "$@"; do
     # transport field directly. Detect Rust command/map injection and shell
     # assignment. Explicit `env_remove` calls do not match these patterns.
     ENV_HITS=$(
-        rg --no-messages --with-filename --line-number --no-heading \
-            --type rust \
+        scan --type rust \
             '"VAUCHI_ALLOW_DIRECT"[^,]*,[[:space:]]*"1"' \
-            "$ROOT" 2>/dev/null || true
-        rg --no-messages --with-filename --line-number --no-heading \
-            --glob '*.sh' --glob '*.bash' --glob '*.yml' --glob '*.yaml' \
+            "$ROOT" || exit 2
+        scan --glob '*.sh' --glob '*.bash' --glob '*.yml' --glob '*.yaml' \
             "VAUCHI_ALLOW_DIRECT[[:space:]]*=[[:space:]]*['\"]?1['\"]?" \
-            "$ROOT" 2>/dev/null || true
-    )
+            "$ROOT" || exit 2
+    ) || exit 2
 
     while IFS= read -r HIT; do
         [ -z "$HIT" ] && continue
