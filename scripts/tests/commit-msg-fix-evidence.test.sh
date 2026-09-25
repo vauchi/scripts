@@ -67,11 +67,53 @@ assert_eq "fix with *Tests/ dir: exit 0" "0" "$rc"
 run_case 'fix: keep back stack' android/app/src/main/Nav.kt android/app/src/test/NavTest.kt
 assert_eq "fix with src/test/: exit 0" "0" "$rc"
 
-# ── fix with an Evidence trailer → accepted ───────────────────────────
+# ── fix with an Evidence trailer that names the after-state → accepted ─
 run_case 'fix: correct relay backoff
 
-Evidence: observed 502 on `just deploy-check` before, 200 after' relay/src/backoff.rs
-assert_eq "fix with Evidence trailer: exit 0" "0" "$rc"
+Evidence: before: 502 on `just deploy-check`; after: 200 on the same command' relay/src/backoff.rs
+assert_eq "fix with Evidence after-state: exit 0" "0" "$rc"
+
+# The after-state may sit on a continuation line of the trailer.
+run_case 'fix: describe the window content view
+
+Evidence: job 16461108863 put an identifier on the flagged element;
+after: job 16461155146, container issue absent, 6/7 tests pass' macos/Vauchi/Window.swift
+assert_eq "fix with after-state on continuation line: exit 0" "0" "$rc"
+
+# ── Evidence that cites only the failure → rejected ───────────────────
+# macos 067c6d8 (2026-09-11) passed the old length check with this exact
+# trailer; both jobs are pre-fix observations and the fix was wrong.
+run_case "fix: stop the window's measuring wrapper from being an a11y element
+
+Evidence: macos job 16439004828 (element tree), 16438937323 (audit issue)." macos/Vauchi/PresentationHostView.swift
+assert_eq "fix citing only the failure: exit 1" "1" "$rc"
+assert_eq "fix citing only the failure: asks for after:" "1" \
+    "$(printf '%s' "$out" | grep -q "VGT11: .*after:" && echo 1 || echo 0)"
+assert_eq "fix citing only the failure: offers diag:" "1" \
+    "$(printf '%s' "$out" | grep -q "diag:" && echo 1 || echo 0)"
+
+# ── an after-state written as a prediction is a hypothesis → rejected ─
+run_case 'fix: bundle the App SDK runtime
+
+Evidence: before: DllNotFoundException in job 16457652091; after: should pass once CI runs' windows/Vauchi.csproj
+assert_eq "fix with predicted after-state: exit 1" "1" "$rc"
+
+run_case 'fix: bundle the App SDK runtime
+
+Evidence: before: DllNotFoundException in job 16457652091; after: not yet observed' windows/Vauchi.csproj
+assert_eq "fix with unobserved after-state: exit 1" "1" "$rc"
+
+# An after: outside the Evidence trailer does not count.
+run_case 'fix: bundle the App SDK runtime
+
+after: this line is prose, not the trailer
+
+Evidence: DllNotFoundException in windows job 16457652091' windows/Vauchi.csproj
+assert_eq "after: outside the trailer: exit 1" "1" "$rc"
+
+# ── diag: is the honest type for a change pushed to observe its effect ─
+run_case 'diag: bundle the App SDK runtime to test the DllNotFound theory' windows/Vauchi.csproj
+assert_eq "diag without evidence: exit 0" "0" "$rc"
 
 # ── trailer too short to name an observation → rejected ───────────────
 run_case 'fix: correct relay backoff
