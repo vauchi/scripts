@@ -86,7 +86,10 @@ if git -C "$repo_root" rebase origin/main --quiet 2>/dev/null; then
     echo "  Rebased successfully."
     echo ""
     echo "  RETRY: Push blocked — git pre-push hooks cannot update in-flight refs."
-    if git -C "$repo_root" rev-parse "origin/$branch" >/dev/null 2>&1; then
+    # A remote branch still on an old main is an ancestor of the rebased
+    # HEAD, so a plain push fast-forwards; only rewritten commits need force.
+    if git -C "$repo_root" rev-parse "origin/$branch" >/dev/null 2>&1 \
+        && ! git -C "$repo_root" merge-base --is-ancestor "origin/$branch" HEAD 2>/dev/null; then
         echo "  Run: git push --force-with-lease"
     else
         echo "  Run: git push"
