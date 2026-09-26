@@ -60,6 +60,13 @@ if [[ -n "$OPEN_MRS" ]]; then
 else
     echo "No open MR for branch $BRANCH"
 
+    # issue/<N> is the ADR-073 claim branch and continues after each merge;
+    # its next commits go into the next MR from the same branch.
+    if [[ "$BRANCH" =~ ^issue/[0-9]+$ ]]; then
+        echo "  issue/<N> continues after a merge — open the next MR with: just gitlab mr-create"
+        exit 0
+    fi
+
     # Pushing to a branch whose MR already merged recreates it on the
     # remote and orphans the commits — they land in no MR at all.
     if mrs_for_branch --merged && [[ -n "$MR_ROWS" ]] &&
