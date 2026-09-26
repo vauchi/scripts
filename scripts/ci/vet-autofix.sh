@@ -79,20 +79,25 @@ if [[ -n "$SYNC_FROM" ]]; then
         AUTH_HEADER="PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}"
     fi
 
-    CURL_ARGS=(--silent --fail)
+    CURL_ARGS=(--silent --show-error)
     if [[ -n "$AUTH_HEADER" ]]; then
         CURL_ARGS+=(--header "$AUTH_HEADER")
     fi
 
-    SOURCE_CONFIG=$(curl "${CURL_ARGS[@]}" \
-        "${CI_API_V4_URL}/projects/${SYNC_FROM}/repository/files/supply-chain%2Fconfig.toml/raw?ref=main" \
-        2>/dev/null) || {
-        echo "WARNING: Could not fetch source exemptions (project ${SYNC_FROM})"
-        echo "  URL: ${CI_API_V4_URL}/projects/${SYNC_FROM}/repository/files/supply-chain%2Fconfig.toml/raw?ref=main"
+    SOURCE_URL="${CI_API_V4_URL}/projects/${SYNC_FROM}/repository/files/supply-chain%2Fconfig.toml/raw?ref=main"
+    SOURCE_BODY=$(mktemp)
+    SOURCE_STATUS=$(curl "${CURL_ARGS[@]}" -o "$SOURCE_BODY" -w '%{http_code}' "$SOURCE_URL") \
+        || SOURCE_STATUS="000"
+    if [[ "$SOURCE_STATUS" == "200" ]]; then
+        SOURCE_CONFIG=$(cat "$SOURCE_BODY")
+    else
+        echo "WARNING: Could not fetch source exemptions (project ${SYNC_FROM}): HTTP ${SOURCE_STATUS}"
+        echo "  URL: ${SOURCE_URL}"
         echo "  Auth: ${AUTH_HEADER:+set ($(echo "$AUTH_HEADER" | cut -d: -f1))}${AUTH_HEADER:-none}"
         echo "  Continuing without sync — autofix will handle missing exemptions"
         SOURCE_CONFIG=""
-    }
+    fi
+    rm -f "$SOURCE_BODY"
 
     if [[ -n "$SOURCE_CONFIG" ]]; then
         # Strip CRLF — GitLab API may return Windows line endings if the
@@ -322,7 +327,7 @@ printf -v MR_BODY '%s\n\n%s\n\n%s' \
     "Source: ${SYNC_FROM:+project ${SYNC_FROM} (core) + }local regeneration." \
     "This MR was created automatically and set to merge when pipeline succeeds."
 
-MR_RESPONSE=$(curl --silent --fail --request POST \
+MR_RESPONSE=$(curl --silent --show-error --fail-with-body --request POST \
     --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
     "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests" \
     --data-urlencode "source_branch=${BRANCH}" \
@@ -333,6 +338,7 @@ MR_RESPONSE=$(curl --silent --fail --request POST \
     2>&1) || {
     echo "WARNING: Could not create MR — push succeeded, create MR manually"
     echo "  Branch: ${BRANCH}"
+    echo "  GitLab said: ${MR_RESPONSE:0:300}"
     exit 0
 }
 
@@ -353,10 +359,13 @@ echo "Created MR !${MR_IID}: ${MR_URL}"
 # close failure leaves the old MR open (harmless) and never blocks
 # the new MR's auto-merge.
 if [[ -n "$MR_IID" ]]; then
-    STALE_IIDS=$(curl --silent --fail \
+    OPEN_MRS=$(curl --silent --show-error --fail-with-body \
         --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
-        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests?state=opened&per_page=100" \
-        2>/dev/null \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests?state=opened&per_page=100") || {
+        echo "  (could not list open MRs, so superseded ones stay open: ${OPEN_MRS:0:300})"
+        OPEN_MRS='[]'
+    }
+    STALE_IIDS=$(printf '%s' "$OPEN_MRS" \
         | NEW_MR_IID="$MR_IID" python3 -c "
 import json, os, sys
 new_iid = int(os.environ.get('NEW_MR_IID', '0'))
