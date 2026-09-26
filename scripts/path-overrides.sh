@@ -88,8 +88,9 @@ build_block() {
 }
 
 # Strip any existing fenced block from a Cargo.toml. Idempotent.
-# Removes the BEGIN..END block plus any trailing blank lines we left,
-# then restores a single trailing newline so the file stays POSIX-clean.
+# Undoes exactly what append_block added — the fence and the one blank
+# line before it — so apply→clean leaves the file byte-identical and git
+# sees no diff.
 strip_block() {
     local cargo="$1"
     [[ -f "$cargo" ]] || return 0
@@ -103,12 +104,10 @@ strip_block() {
         skip == 1 && index($0, E) > 0 { skip = 0; next }
         skip == 0 { print }
     ' "$cargo" > "$tmp"
-    # Trim trailing blank lines, then restore a single newline.
-    while [[ -s "$tmp" ]] && [[ -z "$(tail -1 "$tmp")" ]]; do
+    if [[ -s "$tmp" ]] && [[ -z "$(tail -1 "$tmp")" ]]; then
         sed -e '$d' "$tmp" > "$tmp.next"
         mv "$tmp.next" "$tmp"
-    done
-    printf '\n' >> "$tmp"
+    fi
     mv "$tmp" "$cargo"
 }
 
