@@ -555,6 +555,80 @@ SW
     rm -rf "$root"
 }
 
+# test_require_zero_ignores_exception_markers — a grandfathered site is still
+# boundary debt, and a release may not ship any
+test_require_zero_ignores_exception_markers() {
+    root=$(mktemp -d)
+    dir="$root/ios/Vauchi/CoreUI"
+    mkdir -p "$dir"
+    # Opaque types only: a `Component` parameter would trip the unsuppressible
+    # boundary rules and pass this test without exercising the marker.
+    cat >"$dir/AnnotatedView.swift" <<'SW'
+class AnnotatedView {
+    // TODO(HUMBLE): action-id minting grandfathered until core supplies edit_action_id
+    func mintEdit(for node: Node) -> String {
+        return "\(node.id):edit"
+    }
+}
+SW
+    set +e
+    python3 "$SCRIPT" --repo ios --workspace-root "$root" --config "$CONFIG" --require-zero >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "require-zero: exception marker does not excuse release" "1" "$rc"
+    rm -rf "$root"
+}
+
+# test_require_zero_rejects_nonzero_stored_baseline — clean source with a
+# nonzero stored counter means the baseline was never tightened; release
+# must not stagnate on slack
+test_require_zero_rejects_nonzero_stored_baseline() {
+    root=$(mktemp -d)
+    mkdir -p "$root/ios/Vauchi/CoreUI"
+    baseline="$root/baseline.json"
+    python3 - "$BASELINE" "$baseline" <<'PY'
+import json, sys
+baseline = json.load(open(sys.argv[1], encoding="utf-8"))
+baseline["repos"]["ios"]["action_id_minting"] = 1
+json.dump(baseline, open(sys.argv[2], "w", encoding="utf-8"))
+PY
+    set +e
+    python3 "$SCRIPT" --repo ios --workspace-root "$root" --config "$CONFIG" \
+        --check "$baseline" --require-zero >/dev/null 2>&1
+    rc=$?
+    python3 "$SCRIPT" --repo ios --workspace-root "$root" --config "$CONFIG" \
+        --check "$BASELINE" --require-zero >/dev/null 2>&1
+    zero_rc=$?
+    set -e
+    assert_eq "require-zero: nonzero stored baseline exits 1" "1" "$rc"
+    assert_eq "require-zero: zero baseline and clean source pass" "0" "$zero_rc"
+    rm -rf "$root"
+}
+
+# test_release_ratchet_zero_template — the release gate reuses the verified
+# fetch and baseline instead of downloading an unpinned checker
+test_release_ratchet_zero_template() {
+    block=$(awk '/^\.release-ratchet-zero:/{on=1; print; next} on && /^[^ #]/{on=0} on' \
+        "$CROSS_CUTTING_TEMPLATE")
+    case "$block" in
+        *"extends: .cross-cutting-lint"*) extends="yes" ;;
+        *) extends="no" ;;
+    esac
+    case "$block" in
+        *'CHECK_ARGS: "--require-zero"'*) args="yes" ;;
+        *) args="no" ;;
+    esac
+    case "$block" in
+        *'CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'*) tag_only="yes" ;;
+        *) tag_only="no" ;;
+    esac
+    unverified=$(grep -c 'humble_check.py/raw' "$SCRIPT_DIR/../../ci-templates/release.yml" || true)
+    assert_eq "release gate: extends the verified runner" "yes" "$extends"
+    assert_eq "release gate: requires zero" "yes" "$args"
+    assert_eq "release gate: runs on release tags" "yes" "$tag_only"
+    assert_eq "release gate: no unverified checker download" "0" "$unverified"
+}
+
 # test_tighten_lowers_stored_counts — a baseline must be able to follow
 # counts down, or slack accumulates until the ratchet is inert
 test_tighten_lowers_stored_counts() {
@@ -695,6 +769,9 @@ test_release_zero_requires_live_and_baseline_zero
 test_enforcement_wiring
 test_verified_fetch_hashes_match
 test_require_zero
+test_require_zero_ignores_exception_markers
+test_require_zero_rejects_nonzero_stored_baseline
+test_release_ratchet_zero_template
 test_tighten_lowers_stored_counts
 test_tighten_never_raises_stored_counts
 test_tighten_refuses_incomplete_checkout
