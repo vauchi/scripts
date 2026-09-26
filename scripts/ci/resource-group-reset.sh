@@ -145,12 +145,13 @@ scan_project() {
         fi
 
         local job_rows
+        # Parse errors stay on stderr: a silenced parser here reported
+        # zero jobs on every run from ce521ea until vauchi/private#27.
         job_rows=$(printf '%s' "$jobs_json" | python3 -c '
 import json, sys
-data = json.load(sys.stdin)
-for j in data:
-    print(f"{j[\"id\"]}\t{j.get(\"status\",\"?\")}\t{j.get(\"created_at\",\"\")}\t{j.get(\"name\",\"\")}")
-' 2>/dev/null || true)
+for job in json.load(sys.stdin):
+    print(job["id"], job.get("status", "?"), job.get("created_at", ""), job.get("name", ""), sep="\t")
+' || true)
 
         if [ -z "$job_rows" ]; then
             break
@@ -170,15 +171,21 @@ for j in data:
             resource_group=$(printf '%s' "$detail" | python3 -c '
 import json, sys
 print(json.load(sys.stdin).get("resource_group") or "")
-' 2>/dev/null || true)
+' || true)
 
             case "$resource_group" in
                 ${prefix}*) ;;  # matches — continue
                 *) SKIP_COUNT=$((SKIP_COUNT + 1)); continue ;;
             esac
 
+            # An unreadable age must never count as stuck: with --execute
+            # that would cancel a job we know nothing about.
             local created_epoch age
-            created_epoch=$(_to_epoch "$created_at" || echo "0")
+            created_epoch=$(_to_epoch "$created_at" 2>/dev/null) || {
+                echo "  SKIP job ${job_id} (${job_name}) — ${status}, created_at '${created_at}' does not parse"
+                SKIP_COUNT=$((SKIP_COUNT + 1))
+                continue
+            }
             age=$((now - created_epoch))
 
             if [ "$age" -lt "$STUCK_THRESHOLD_SECS" ]; then
