@@ -313,6 +313,37 @@ test_clean_restore_lock() {
         "# >>> setup-path-overrides BEGIN" "$(cat "$repo/Cargo.toml")"
 }
 
+# ── 11. apply→clean restores Cargo.toml byte for byte ────────────────
+# Test 4 compares through $(cat), which drops trailing newlines, so it
+# passed while every clean left an extra blank line at end of file.
+test_clean_round_trip_is_byte_exact() {
+    local root
+    root="$(mktemp -d)"
+    trap 'rm -rf "$root"' RETURN
+    mk_workspace "$root"
+
+    printf '[package]\nname = "test-cli"\n' > "$root/cli/Cargo.toml"
+    printf '[package]\nname = "test-tui"\n\n' > "$root/tui/Cargo.toml"
+    cp "$root/cli/Cargo.toml" "$root/cli.before"
+    cp "$root/tui/Cargo.toml" "$root/tui.before"
+
+    (cd "$root" && bash ./path-overrides.sh apply >/dev/null 2>&1)
+    (cd "$root" && bash ./path-overrides.sh clean >/dev/null 2>&1)
+
+    local ending
+    for ending in cli tui; do
+        if cmp -s "$root/$ending.before" "$root/$ending/Cargo.toml"; then
+            printf '  PASS apply→clean is byte-exact (%s)\n' "$ending"
+            pass=$((pass + 1))
+        else
+            printf '  FAIL apply→clean changed bytes (%s): %d → %d\n' "$ending" \
+                "$(wc -c < "$root/$ending.before")" \
+                "$(wc -c < "$root/$ending/Cargo.toml")" >&2
+            fail=$((fail + 1))
+        fi
+    done
+}
+
 # ── Run all ───────────────────────────────────────────────────────────
 
 echo "── path-overrides.sh tests ──"
@@ -325,6 +356,7 @@ test_apply_removes_legacy_config
 test_apply_preserves_non_patch_config
 test_status_tracks_fence
 test_clean_restore_lock
+test_clean_round_trip_is_byte_exact
 test_unknown_subcommand
 
 echo ""
