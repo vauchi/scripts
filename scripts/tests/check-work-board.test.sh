@@ -102,6 +102,12 @@ run_board '## In Progress
 ## HIGH — Next'
 assert_eq "missing Done section: exit 1" "1" "$rc"
 
+# ── board moved to issues (ADR-073): nothing left to validate ─────────
+run_board '# Work Board — moved to GitLab issues
+
+The queue is the vauchi/private issue tracker.'
+assert_eq "board moved to issues: exit 0" "0" "$rc"
+
 # ── non-tautology guard (CC-21) ────────────────────────────────────────
 stub="$(mktemp)"; printf '#!/bin/sh\nexit 0\n' > "$stub"; chmod +x "$stub"
 b="$(mktemp)"; printf '## In Progress\n\n- [ ] unclaimed\n' > "$b"
