@@ -243,8 +243,9 @@ resource-group:reset:
     - if: $CI_PIPELINE_SOURCE == "web"
       when: manual
   variables:
-    # Dry-run by default on web-triggered manual runs; the nightly
-    # schedule sets RG_RESET_EXECUTE=true to actually cancel.
+    # Dry-run unless RG_RESET_EXECUTE=true. The nightly schedule does not
+    # set it yet (job 16748033836 on 2026-09-25 ran dry): runner-runbook
+    # step 5 adds it once the dry-run output has been reviewed.
     RG_RESET_EXECUTE: ""
   before_script:
     - |
