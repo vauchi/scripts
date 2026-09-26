@@ -538,40 +538,10 @@ if command -v markdownlint &>/dev/null; then
     fi
 
     if [[ -n "$MD_FILES" ]]; then
-        WS_ROOT="$REPO_ROOT/.."
-
-        # Resolve config: repo-local > _private > workspace root
-        MD_CONFIG=""
-        if [[ -f "$REPO_ROOT/.markdownlint.json" ]]; then
-            MD_CONFIG="$REPO_ROOT/.markdownlint.json"
-        elif [[ -f "$REPO_ROOT/.markdownlint.jsonc" ]]; then
-            MD_CONFIG="$REPO_ROOT/.markdownlint.jsonc"
-        elif [[ -f "$WS_ROOT/_private/.markdownlint.json" ]]; then
-            MD_CONFIG="$WS_ROOT/_private/.markdownlint.json"
-        elif [[ -f "$WS_ROOT/.markdownlint.json" ]]; then
-            MD_CONFIG="$WS_ROOT/.markdownlint.json"
-        fi
-
-        MD_ARGS=()
-        if [[ -n "$MD_CONFIG" ]]; then
-            MD_ARGS+=(-c "$MD_CONFIG")
-        fi
-
-        # Use custom line-length rule if available
-        CUSTOM_RULE="$WS_ROOT/_private/scripts/markdownlint-rule-line-length.js"
-        if [[ -f "$CUSTOM_RULE" ]]; then
-            MD_ARGS+=(-r "$CUSTOM_RULE")
-        fi
-
         MD_COUNT=$(echo "$MD_FILES" | wc -l | tr -d ' ')
         echo ""
         echo "[markdownlint] Linting $MD_COUNT changed .md file(s) ($REPO_DIR)..."
-        if ! echo "$MD_FILES" | xargs markdownlint ${MD_ARGS[@]+"${MD_ARGS[@]}"}; then
-            echo ""
-            echo "FAILED: markdownlint found issues. Run 'just lint-markdown fix' to auto-fix."
-            exit 1
-        fi
-        echo "  Markdown lint OK"
+        printf '%s\n' "$MD_FILES" | "$HOOK_DIR/lib/md-lint.sh" "$REPO_ROOT" || exit 1
     fi
 fi
 
@@ -1041,39 +1011,9 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
                 fi
 
                 if [[ -n "$MD_FILES" ]]; then
-                    WS_ROOT="$REPO_ROOT/.."
-
-                    # Resolve config: repo-local > _private > workspace root
-                    MD_CONFIG=""
-                    if [[ -f "$REPO_ROOT/.markdownlint.json" ]]; then
-                        MD_CONFIG="$REPO_ROOT/.markdownlint.json"
-                    elif [[ -f "$REPO_ROOT/.markdownlint.jsonc" ]]; then
-                        MD_CONFIG="$REPO_ROOT/.markdownlint.jsonc"
-                    elif [[ -f "$WS_ROOT/_private/.markdownlint.json" ]]; then
-                        MD_CONFIG="$WS_ROOT/_private/.markdownlint.json"
-                    elif [[ -f "$WS_ROOT/.markdownlint.json" ]]; then
-                        MD_CONFIG="$WS_ROOT/.markdownlint.json"
-                    fi
-
-                    MD_ARGS=()
-                    if [[ -n "$MD_CONFIG" ]]; then
-                        MD_ARGS+=(-c "$MD_CONFIG")
-                    fi
-
-                    # Use custom line-length rule if available
-                    CUSTOM_RULE="$WS_ROOT/_private/scripts/markdownlint-rule-line-length.js"
-                    if [[ -f "$CUSTOM_RULE" ]]; then
-                        MD_ARGS+=(-r "$CUSTOM_RULE")
-                    fi
-
                     MD_COUNT=$(echo "$MD_FILES" | wc -l | tr -d ' ')
                     echo "  Linting $MD_COUNT changed .md file(s)..."
-                    if ! echo "$MD_FILES" | xargs markdownlint ${MD_ARGS[@]+"${MD_ARGS[@]}"}; then
-                        echo ""
-                        echo "FAILED: markdownlint found issues. Run 'just lint-markdown fix' to auto-fix."
-                        exit 1
-                    fi
-                    echo "  Markdown lint OK"
+                    printf '%s\n' "$MD_FILES" | "$HOOK_DIR/lib/md-lint.sh" "$REPO_ROOT" || exit 1
                 else
                     echo "  No .md files changed, skipping"
                 fi
