@@ -42,10 +42,7 @@ cat >"$ws/repo/Cargo.lock" <<'LOCK'
 version = 4
 LOCK
 
-cat >"$ws/bin/curl" <<'CURL_MOCK'
-#!/usr/bin/env bash
-cat "$SOURCE_CONFIG_PATH"
-CURL_MOCK
+cp "$SCRIPT_DIR/fake-curl.py" "$ws/bin/curl"
 chmod +x "$ws/bin/curl"
 
 cat >"$ws/bin/cargo" <<'CARGO_MOCK'
@@ -70,7 +67,7 @@ set +e
 output=$(
     cd "$ws/repo"
     PATH="$ws/bin:/usr/bin:/bin" \
-        SOURCE_CONFIG_PATH="$ws/source-config.toml" \
+        FAKE_CURL_BODY="$(cat "$ws/source-config.toml")" \
         ORIGINAL_CONFIG_PATH="$ws/original-config.toml" \
         CARGO_LOG="$ws/cargo.log" \
         CI_API_V4_URL="https://gitlab.example/api/v4" \
@@ -98,3 +95,31 @@ if ! git -C "$ws/repo" diff --quiet -- supply-chain/config.toml; then
 fi
 
 printf 'PASS source-only exemptions are pruned before persistence\n'
+
+# A refused source fetch keeps going without sync, and says why.
+set +e
+output=$(
+    cd "$ws/repo"
+    PATH="$ws/bin:/usr/bin:/bin" \
+        FAKE_CURL_STATUS=403 \
+        FAKE_CURL_BODY='{"message":"403 Forbidden"}' \
+        ORIGINAL_CONFIG_PATH="$ws/original-config.toml" \
+        CARGO_LOG="$ws/cargo.log" \
+        CI_API_V4_URL="https://gitlab.example/api/v4" \
+        CI_COMMIT_BRANCH="test-branch" \
+        CI_DEFAULT_BRANCH="main" \
+        "$SCRIPT" --sync-from=77874344 2>&1
+)
+status=$?
+set -e
+
+if [[ $status -ne 0 ]]; then
+    printf 'FAIL refused sync exited %s\n%s\n' "$status" "$output" >&2
+    exit 1
+fi
+if [[ "$output" != *"Could not fetch source exemptions (project 77874344): HTTP 403"* ]]; then
+    printf 'FAIL refused sync did not name the HTTP status:\n%s\n' "$output" >&2
+    exit 1
+fi
+
+printf 'PASS a refused source fetch names its HTTP status and continues\n'
