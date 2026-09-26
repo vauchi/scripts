@@ -110,5 +110,28 @@ run_guard "$wc" "$(branch_specs "$head")"
 assert_eq "on main: proceeds (exit 0)" "0" "$RC"
 rm -rf "$(dirname "$wc")"
 
+# ── (f) the pushed branch still sits on an old main: the rebase only
+#        adds commits beneath the branch's own, so a plain push
+#        fast-forwards and force would be needless advice ───────────────
+wc="$(make_world)"
+git -C "$wc" push -q origin feature/x >/dev/null 2>&1   # remote branch = c0
+printf 'c2\n' > "$wc/g"; git -C "$wc" add g; git -C "$wc" commit -qm c2
+run_guard "$wc" "$(branch_specs "$(git -C "$wc" rev-parse HEAD)")"
+assert_eq "remote branch is an ancestor: advises plain push" "1" \
+    "$(printf '%s' "$OUT" | grep -c 'Run: git push$')"
+assert_eq "remote branch is an ancestor: no force advice" "0" \
+    "$(printf '%s' "$OUT" | grep -c 'force-with-lease')"
+rm -rf "$(dirname "$wc")"
+
+# ── (g) the remote branch holds commits the rebase rewrote: only a
+#        forced push replaces them ─────────────────────────────────────
+wc="$(make_world)"
+printf 'c2\n' > "$wc/g"; git -C "$wc" add g; git -C "$wc" commit -qm c2
+git -C "$wc" push -q origin feature/x >/dev/null 2>&1   # remote branch = c2
+run_guard "$wc" "$(branch_specs "$(git -C "$wc" rev-parse HEAD)")"
+assert_eq "remote branch rewritten: advises force-with-lease" "1" \
+    "$(printf '%s' "$OUT" | grep -c 'Run: git push --force-with-lease')"
+rm -rf "$(dirname "$wc")"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
