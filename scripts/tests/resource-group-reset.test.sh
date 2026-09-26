@@ -57,5 +57,21 @@ expect_logged "200 project name" "Scanning ios (id 77813130)"
 expect_logged "200 summary" "projects scanned:      2"
 expect_no_post "200"
 
+# An old job in a matching resource group is stuck; a fresh one is not.
+now=$(date -u +%Y-%m-%dT%H:%M:%S)
+printf '%s\t%s\t%s\n' \
+    "page=2" 200 '[]' \
+    "jobs?scope" 200 "[{\"id\":5,\"status\":\"running\",\"created_at\":\"2020-01-01T00:00:00.000Z\",\"name\":\"old\"},{\"id\":6,\"status\":\"pending\",\"created_at\":\"${now}.000Z\",\"name\":\"fresh\"},{\"id\":7,\"status\":\"running\",\"created_at\":\"not-a-date\",\"name\":\"garbled\"}]" \
+    "/jobs/" 200 '{"resource_group":"ios-spm-v1"}' \
+    "projects/" 200 '{"path":"ios"}' >"$ws/routes"
+: >"$ws/requests"
+FAKE_CURL_ROUTES="$ws/routes" run_reset 200 '[]'
+expect_logged "old job" "STUCK job 5 (old)"
+expect_logged "fresh job" "SKIP job 6 (fresh)"
+# A timestamp that does not parse must never read as "stuck" — once
+# --execute is on, that would cancel it.
+expect_logged "unparsable job" "SKIP job 7 (garbled)"
+expect_no_post "stuck dry-run"
+
 echo "resource-group-reset: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
