@@ -77,16 +77,34 @@ generate_endpoint() {
     '{schemaVersion:1,label:$l,message:$m,color:$c}' > "$output"
 }
 
+# --- GitLab API reader ---
+# Prints the body of a project API path. Every caller falls back to a
+# placeholder badge on failure, so failing is fine — but the log must name
+# the status, or a revoked token reads as "no data" (VSH13).
+gitlab_get() {
+  local path="$1" body status
+  body=$(mktemp)
+  status=$(curl --silent --show-error -o "$body" -w '%{http_code}' \
+    -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/${path}") || status="000"
+  if [ "$status" != "200" ]; then
+    log_warn "GitLab API ${path} returned HTTP ${status}"
+    rm -f "$body"
+    return 1
+  fi
+  cat "$body"
+  rm -f "$body"
+}
+
 # --- Determine pipeline status ---
 # Query the most recent completed pipeline on the default branch.
 # This job uses needs:[] so the current pipeline is always "running" —
 # we skip it to show the last meaningful result.
 PIPELINE_STATUS="unknown"
 if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
-  PIPELINE_STATUS=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines?ref=${CI_DEFAULT_BRANCH}&per_page=5" \
+  PIPELINE_STATUS=$(gitlab_get "pipelines?ref=${CI_DEFAULT_BRANCH}&per_page=5" \
     | jq -r '[.[] | select(.status == "success" or .status == "failed" or .status == "canceled")][0].status // "unknown"' \
-    2>/dev/null || echo "unknown")
+    2>/dev/null) || PIPELINE_STATUS="unknown"
 fi
 
 case "$PIPELINE_STATUS" in
@@ -109,15 +127,13 @@ generate_endpoint "pipeline" "$STATUS_LABEL" "$EP_COLOR" "${OUTPUT_DIR}/pipeline
 # not have coverage. Check up to 5 pipelines to find the latest value.
 COVERAGE=""
 if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
-  RECENT_PIDS=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines?ref=${CI_DEFAULT_BRANCH}&status=success&per_page=5" \
-    | jq -r '.[].id' 2>/dev/null || echo "")
+  RECENT_PIDS=$(gitlab_get "pipelines?ref=${CI_DEFAULT_BRANCH}&status=success&per_page=5" \
+    | jq -r '.[].id' 2>/dev/null) || RECENT_PIDS=""
 
   for PID in $RECENT_PIDS; do
-    COV_RAW=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${PID}/jobs?per_page=100" \
+    COV_RAW=$(gitlab_get "pipelines/${PID}/jobs?per_page=100" \
       | jq -r '[.[].coverage | select(. != null)] | if length > 0 then max else empty end' \
-      2>/dev/null || echo "")
+      2>/dev/null) || COV_RAW=""
     if [ -n "$COV_RAW" ]; then
       COVERAGE=$(printf "%.1f" "$COV_RAW")
       break
@@ -157,9 +173,7 @@ fi
 # Fetch latest stable (vX.Y.Z) and dev (vX.Y.Z-dev.N) tags.
 # Always generate badge files so URLs never 404.
 if [ -n "${CI_JOB_TOKEN:-}" ] && [ -n "${CI_API_V4_URL:-}" ]; then
-  TAGS_JSON=$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags?per_page=50&order_by=version" \
-    2>/dev/null || echo '[]')
+  TAGS_JSON=$(gitlab_get "repository/tags?per_page=50&order_by=version") || TAGS_JSON='[]'
 
   PROD_TAG=$(echo "$TAGS_JSON" \
     | jq -r '[.[] | .name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))][0] // empty' \
