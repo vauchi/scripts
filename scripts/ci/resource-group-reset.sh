@@ -84,20 +84,33 @@ if [ -z "${PROJECT_ACCESS_TOKEN:-}" ]; then
     exit 1
 fi
 
-# Seconds-since-epoch portable across GNU (`date -d`) and BSD
-# (`date -j -f`). Input format matches GitLab's ISO-8601 `created_at`.
+# Seconds since epoch for GitLab's ISO-8601 `created_at`. python3 is
+# already required here and parses it identically on alpine and macOS,
+# where `date -d` differs between BusyBox, GNU and BSD (VSH10).
 _to_epoch() {
-    local iso="$1"
-    # Strip fractional seconds + trailing Z / offset to a form both
-    # date flavours accept.
-    iso="${iso%.*}"
-    iso="${iso%Z}"
-    if date -d "$iso" +%s 2>/dev/null; then return; fi
-    # BSD / macOS
-    date -j -f '%Y-%m-%dT%H:%M:%S' "$iso" +%s 2>/dev/null
+    python3 -c 'import datetime, sys
+print(int(datetime.datetime.fromisoformat(sys.argv[1].replace("Z", "+00:00")).timestamp()))' "$1"
 }
 
 _now() { date -u +%s; }
+
+# Prints the body of a GitLab API path; on any other status than 200 it
+# names the status on stderr and fails, so callers keep their own
+# fallback without losing the reason (VSH13).
+gitlab_get() {
+    local path="$1" body status
+    body=$(mktemp)
+    status=$(curl --silent --show-error -o "$body" -w '%{http_code}' \
+        --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
+        "${GITLAB_API}/${path}") || status="000"
+    if [ "$status" != "200" ]; then
+        echo "  WARNING: GitLab API ${path} returned HTTP ${status}" >&2
+        rm -f "$body"
+        return 1
+    fi
+    cat "$body"
+    rm -f "$body"
+}
 
 CANCEL_COUNT=0
 SKIP_COUNT=0
@@ -107,10 +120,8 @@ scan_project() {
     local project_id="$1"
     local prefix="$2"
     local name
-    name=$(curl --silent --fail \
-        --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
-        "${GITLAB_API}/projects/${project_id}" \
-        | python3 -c 'import json,sys; print(json.load(sys.stdin).get("path","?"))' 2>/dev/null || echo "?")
+    name=$(gitlab_get "projects/${project_id}" \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin).get("path","?"))' 2>/dev/null) || name="?"
 
     echo "=== Scanning ${name} (id ${project_id}) for ${prefix}* resource groups ==="
     PROJECTS_SCANNED=$((PROJECTS_SCANNED + 1))
@@ -123,10 +134,7 @@ scan_project() {
     # jobs. `scope[]` filters are ORed; we only care about live states.
     while :; do
         local jobs_json
-        jobs_json=$(curl --silent --fail \
-            --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
-            "${GITLAB_API}/projects/${project_id}/jobs?scope[]=running&scope[]=pending&scope[]=waiting_for_resource&per_page=100&page=${page}" \
-            2>/dev/null) || {
+        jobs_json=$(gitlab_get "projects/${project_id}/jobs?scope[]=running&scope[]=pending&scope[]=waiting_for_resource&per_page=100&page=${page}") || {
             echo "  WARNING: jobs list page ${page} failed — stopping scan" >&2
             return 2
         }
@@ -153,9 +161,7 @@ for j in data:
 
             # Per-job detail includes resource_group (bulk endpoint doesn't).
             local detail
-            detail=$(curl --silent --fail \
-                --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" \
-                "${GITLAB_API}/projects/${project_id}/jobs/${job_id}" 2>/dev/null) || {
+            detail=$(gitlab_get "projects/${project_id}/jobs/${job_id}") || {
                 SKIP_COUNT=$((SKIP_COUNT + 1))
                 continue
             }
