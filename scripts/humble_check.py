@@ -161,7 +161,7 @@ def scan_file(
 
 
 def rule_message(rules: dict[str, dict], name: str) -> str:
-    return rules[name].get("message", name)
+    return rules.get(name, {}).get("message", name)
 
 
 def repo_rules(config: dict, repo: str) -> dict[str, dict]:
@@ -427,15 +427,24 @@ def tighten_baseline(
     return 0
 
 
-def check_zero(repo: str, result: dict) -> int:
-    """Release gate: every measured boundary-violation counter must be zero."""
-    nonzero = [(name, count) for name, count in result["counts"].items() if count]
+def check_zero(repo: str, result: dict, baseline: dict | None = None) -> int:
+    """Release gate: every live and stored boundary-violation counter must be zero."""
+    stored = (baseline or {}).get("repos", {}).get(repo, {})
+    names = sorted(set(result["counts"]) | set(stored))
+    nonzero = [
+        (name, result["counts"].get(name, 0), stored.get(name, 0))
+        for name in names
+        if result["counts"].get(name, 0) or stored.get(name, 0)
+    ]
     if not nonzero:
         print(f"humble_check ({repo}): OK — all boundary counters are zero")
         return 0
     print(f"humble_check ({repo}): {len(nonzero)} counter(s) are not zero", file=sys.stderr)
-    for name, count in nonzero:
-        print(f"  [{name}] current {count}: {rule_message(result['rules'], name)}", file=sys.stderr)
+    for name, count, stored_count in nonzero:
+        print(
+            f"  [{name}] current {count}, stored {stored_count}: {rule_message(result['rules'], name)}",
+            file=sys.stderr,
+        )
     print("Release blocked: retire all frontend boundary violations before publishing.", file=sys.stderr)
     return 1
 
@@ -454,12 +463,20 @@ def run(
         print(f"humble_check: no rules configured for repo '{repo}'", file=sys.stderr)
         return 2
 
-    result = scan_repo(workspace_root, repo, repo_path, config, lookback, lookahead)
+    result = scan_repo(
+        workspace_root,
+        repo,
+        repo_path,
+        config,
+        lookback,
+        lookahead,
+        ignore_exceptions=require_zero,
+    )
     if repo_path is not None and check_source_roots(repo, result):
         return 2
     if require_zero:
         scan_retired_boundary(result, workspace_root, repo_path, config["repos"][repo])
-        return check_zero(repo, result)
+        return check_zero(repo, result, baseline)
     if baseline is None:
         print(emit_snapshot(repo, result))
         return 0
@@ -490,7 +507,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Require every configured live and baseline counter to be zero",
     )
-    parser.add_argument("--require-zero", action="store_true", help="Release gate: require every measured counter to be zero")
+    parser.add_argument("--require-zero", action="store_true", help="Release gate: ignore exception markers; require every live counter, and every stored counter under --check, to be zero")
     parser.add_argument("--tighten", type=Path, metavar="BASELINE", help="Lower stored counters to measured counts; never raises one")
     parser.add_argument("--lookback", type=int, default=DEFAULT_LOOKBACK, help="Lines before a match to search for TODO(HUMBLE)")
     parser.add_argument("--lookahead", type=int, default=DEFAULT_LOOKAHEAD, help="Lines after a match to search for TODO(HUMBLE)")

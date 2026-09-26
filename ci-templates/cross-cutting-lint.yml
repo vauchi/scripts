@@ -42,7 +42,7 @@
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check.py"
       export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check.py"
-      export FETCH_SCRIPT_SHA256="d3ade0463b0f684fc1e6e60e5eca27d42e73ffcf97af9c384d013fe78eb9ab3d"
+      export FETCH_SCRIPT_SHA256="73d6b0a033378cbce65391267f3fa9f7aedef52d543767fd8922354191a00380"
     - !reference [.verified-fetch-script, before_script]
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check_rules.json"
@@ -69,3 +69,17 @@
       - "${ARTIFACTS}"
     when: on_failure
     expire_in: 1 week
+
+# Exact-zero release gate (ADR-066).  MR ratchets let existing debt stay
+# while it shrinks; a release tag may carry none, and TODO(HUMBLE) markers
+# do not excuse it.  Consumers instantiate it as `release:ratchet-zero` and
+# list it in the `needs:` of the job their publish jobs already wait on —
+# publish jobs are DAG-ordered, so a failing gate outside that chain turns
+# the pipeline red without stopping the publish.
+.release-ratchet-zero:
+  extends: .cross-cutting-lint
+  interruptible: false
+  variables:
+    CHECK_ARGS: "--require-zero"
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
