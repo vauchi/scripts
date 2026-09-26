@@ -10,7 +10,7 @@
 # required sections must exist.
 # Rule page: _private/docs/lint-errors/vgt05-work-board-claims.md
 # Self-test: scripts/tests/check-work-board.test.sh
-# Called by: `just session-end` and _private CI.
+# Called by: `just session-end`.
 
 set -euo pipefail
 
@@ -19,6 +19,13 @@ BOARD="${1:-_private/docs/work-board.md}"
 if [[ ! -f "$BOARD" ]]; then
     echo "check-work-board: board file not found: $BOARD" >&2
     exit 2
+fi
+
+# ADR-073: once the queue moved to GitLab issues the board is a pointer
+# file with no items or claims, so there is nothing left to validate.
+if head -5 "$BOARD" | grep -q '^# Work Board — moved to GitLab issues'; then
+    echo "  Work board moved to GitLab issues — nothing to check ($BOARD)"
+    exit 0
 fi
 
 # Items are a `- [ ]` line plus following indented continuation lines;
