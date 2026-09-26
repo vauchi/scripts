@@ -105,6 +105,16 @@ run
 assert_eq "merged branch: blocks" 1 "$rc"
 assert_contains "merged branch: names the MR" "!552" "$out"
 
+# 3b. issue/<N> is the ADR-073 claim branch: it continues after each merge
+#     (the next MR comes from the same branch), so a merged MR does not block
+#     it — but a non-numeric issue/ branch is still guarded.
+make_glab "$NO_OPEN" "$MERGED_ROW" 0
+run issue/26
+assert_eq "merged issue branch: proceeds" 0 "$rc"
+assert_contains "merged issue branch: points at the next MR" "just gitlab mr-create" "$out"
+run issue/abc
+assert_eq "merged non-numeric issue branch: blocks" 1 "$rc"
+
 # 4. ... and the documented override releases it.
 out=$(VAUCHI_GLAB_BIN="$WORK/bin/glab" ALLOW_MERGED_BRANCH=1 \
     bash "$REPORT" "$WORK/repo" feature/x 2>&1); rc=$?
