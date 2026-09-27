@@ -37,10 +37,11 @@ manual:release:
   allow_failure: true
   script: [true]
 
-manual:via-rules:
+partly:manual:
   rules:
     - if: $CI_COMMIT_TAG
       when: manual
+    - if: $CI_MERGE_REQUEST_IID
   allow_failure: true
   script: [true]
 
@@ -72,13 +73,28 @@ exit_of() {
 echo "check-allow-failure-budget.sh"
 
 root="$(workspace)"
-# advisory:job + included:advisory + .template-advisory; both manual jobs
-# are opt-in gates, not silently-failing checks, so they do not count.
-assert_eq "manual jobs excluded, local includes and templates counted" \
-    "3" "$(count_of "$root")"
-assert_eq "count within budget passes" "0" "$(exit_of 3 "$root")"
-assert_eq "count over budget fails" "1" "$(exit_of 2 "$root")"
+# Counted: advisory:job, partly:manual, included:advisory, .template-advisory.
+# Not counted: manual:release — a job-level manual job is an opt-in gate.
+# partly:manual still counts: only one rule is manual, and in merge
+# requests it runs automatically with its failures silenced.
+assert_eq "job-level manual excluded, rule-level manual, includes, templates counted" \
+    "4" "$(count_of "$root")"
+assert_eq "count within budget passes" "0" "$(exit_of 4 "$root")"
+assert_eq "count over budget fails" "1" "$(exit_of 3 "$root")"
 rm -rf "$root"
+
+# Each behaviour on its own, so two wrong answers cannot cancel out.
+only="$(mktemp -d)"
+mkdir -p "$only/repo"
+printf 'release:\n  when: manual\n  allow_failure: true\n' >"$only/repo/.gitlab-ci.yml"
+assert_eq "a job-level manual job alone counts zero" "0" "$(count_of "$only")"
+rm -rf "$only"
+
+only="$(mktemp -d)"
+mkdir -p "$only/repo/ci"
+printf 'advisory:\n  allow_failure: true\n' >"$only/repo/ci/included.yml"
+assert_eq "an advisory job in a ci/ include counts" "1" "$(count_of "$only")"
+rm -rf "$only"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
