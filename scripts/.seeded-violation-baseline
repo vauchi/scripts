@@ -4,7 +4,6 @@
 # Entries may only be removed — add the test, then delete the line.
 hooks/check-sensitive.sh
 scripts/check-aead.sh
-scripts/check-allow-failure-budget.sh
 scripts/check-claude-md.sh
 scripts/check-context-budget.sh
 scripts/check-design-tokens.sh
