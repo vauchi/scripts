@@ -223,6 +223,8 @@ lint:links-external:
         '**/*.md'
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
+  # Advisory because a third-party site being down or rate-limiting the
+  # runner fails this job without any change on our side (#72).
   allow_failure: true
 
 # ============================================================
