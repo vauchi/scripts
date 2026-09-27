@@ -61,12 +61,12 @@ YAML
 }
 
 count_of() {
-    sh "$SCRIPT" --budget 1000 "$1" | sed -n 's/^Current count: //p'
+    bash "$SCRIPT" --budget 1000 "$1" | sed -n 's/^Current count: //p'
 }
 
 exit_of() {
     local budget="$1" root="$2" rc=0
-    sh "$SCRIPT" --budget "$budget" "$root" >/dev/null 2>&1 || rc=$?
+    bash "$SCRIPT" --budget "$budget" "$root" >/dev/null 2>&1 || rc=$?
     printf '%s' "$rc"
 }
 
