@@ -96,5 +96,60 @@ printf 'advisory:\n  allow_failure: true\n' >"$only/repo/ci/included.yml"
 assert_eq "an advisory job in a ci/ include counts" "1" "$(count_of "$only")"
 rm -rf "$only"
 
+only="$(mktemp -d)"
+mkdir -p "$only/repo"
+cat >"$only/repo/.gitlab-ci.yml" <<'YAML'
+deploy:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+      allow_failure: true
+  script: [true]
+YAML
+assert_eq "allow_failure on a manual rule alone counts zero" "0" "$(count_of "$only")"
+rm -rf "$only"
+
+only="$(mktemp -d)"
+mkdir -p "$only/repo"
+cat >"$only/repo/.gitlab-ci.yml" <<'YAML'
+package:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - when: manual
+      allow_failure: true
+  script: [true]
+YAML
+assert_eq "a blocking tag rule with a manual fallback counts zero" "0" "$(count_of "$only")"
+rm -rf "$only"
+
+only="$(mktemp -d)"
+mkdir -p "$only/repo"
+cat >"$only/repo/.gitlab-ci.yml" <<'YAML'
+verify:
+  allow_failure: false
+  rules:
+    - if: $ESCAPE_HATCH == "true"
+      allow_failure: true
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+  script: [true]
+YAML
+assert_eq "allow_failure on an automatic rule counts" "1" "$(count_of "$only")"
+rm -rf "$only"
+
+only="$(mktemp -d)"
+mkdir -p "$only/repo"
+cat >"$only/repo/.gitlab-ci.yml" <<'YAML'
+flush:rules:
+  rules:
+  - if: $CI_COMMIT_TAG
+    when: manual
+    allow_failure: true
+  - if: $CI_MERGE_REQUEST_IID
+    allow_failure: true
+  script: [true]
+YAML
+assert_eq "rule entries indented level with rules: are told apart" "1" "$(count_of "$only")"
+rm -rf "$only"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
