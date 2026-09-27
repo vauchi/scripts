@@ -12,15 +12,16 @@
 # Scans .gitlab-ci.yml files and ci-templates/*.yml for
 # allow_failure: true. Exits non-zero if count exceeds budget.
 #
-# Default budget: 95 — the whole workspace (with _private), measured
-# 2026-09-27 after job-level manual jobs stopped counting and ci/ includes
-# started to (#72). The nightly root CI job cannot clone _private and
-# enforces the public share, 74, via --budget. Ratchet both down as
-# allow_failure entries are removed; never raise one to make a check pass.
+# Default budget: 66 — the whole workspace (with _private), measured
+# 2026-09-27 once allow_failure on manual jobs and manual rules stopped
+# counting and ci/ includes started to (#72). The nightly root CI job
+# cannot clone _private and enforces the public share, 62, via --budget.
+# Ratchet both down as allow_failure entries are removed; never raise one
+# to make a check pass.
 
 set -euo pipefail
 
-BUDGET=95
+BUDGET=66
 
 # Parse --budget flag
 while [ $# -gt 0 ]; do
@@ -57,14 +58,33 @@ for DIR in "$@"; do
         \( -name '.gitlab-ci.yml' -o -name '*.yml' -path '*/ci-templates/*' \
            -o -name '*.yml' -path '*/ci/*' \) \
         -not -path '*/.git/*' | while IFS= read -r file; do
-        # Per job block: a job-level `when: manual` needs allow_failure:
-        # true to not block the pipeline, so it is an opt-in gate, not a
-        # silently failing check. A rule-level one still counts — the job
-        # runs automatically under its other rules.
+        # Per job block: a `when: manual` job needs allow_failure: true to
+        # not block the pipeline, so it is an opt-in gate, not a silently
+        # failing check. That holds per rule entry too: allow_failure on a
+        # manual rule does not count, while job-level allow_failure still
+        # does whenever any rule runs the job automatically.
         count=$(awk '
-            function flush() { if (!manual) total += n; n = 0; manual = 0 }
+            function indent_of(line) { match(line, /^ */); return RLENGTH }
+            function flush_rule() {
+                if (!rule_manual) n += rule_af
+                rule_af = 0; rule_manual = 0; in_rule = 0
+            }
+            function flush() {
+                flush_rule(); if (!manual) total += n
+                n = 0; manual = 0; in_rules = 0; rule_indent = -1
+            }
             /^[^ \t#][^:]*:/ { flush() }
-            /^[ \t]*allow_failure:[ \t]*true/ { n++ }
+            /^  [A-Za-z_]+:/ {
+                flush_rule(); in_rules = ($0 ~ /^  rules:/); rule_indent = -1
+            }
+            in_rules && /^ *- / {
+                if (rule_indent < 0) rule_indent = indent_of($0)
+                if (indent_of($0) == rule_indent) { flush_rule(); in_rule = 1 }
+            }
+            in_rule && /when:[ \t]*manual/ { rule_manual = 1 }
+            /^[ \t]*(- )?allow_failure:[ \t]*true/ {
+                if (in_rule) rule_af++; else n++
+            }
             /^  when:[ \t]*manual/ { manual = 1 }
             END { flush(); print total + 0 }
         ' "$file")
