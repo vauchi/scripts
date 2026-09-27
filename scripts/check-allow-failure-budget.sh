@@ -12,12 +12,15 @@
 # Scans .gitlab-ci.yml files and ci-templates/*.yml for
 # allow_failure: true. Exits non-zero if count exceeds budget.
 #
-# Default budget: 58 (baseline measured 2026-03-29, includes advisory
-# quality jobs). Ratchet down as allow_failure entries are removed.
+# Default budget: 95 — the whole workspace (with _private), measured
+# 2026-09-27 after job-level manual jobs stopped counting and ci/ includes
+# started to (#72). The nightly root CI job cannot clone _private and
+# enforces the public share, 74, via --budget. Ratchet both down as
+# allow_failure entries are removed; never raise one to make a check pass.
 
 set -euo pipefail
 
-BUDGET=58
+BUDGET=95
 
 # Parse --budget flag
 while [ $# -gt 0 ]; do
@@ -49,12 +52,22 @@ for DIR in "$@"; do
     fi
 
     # Find all CI YAML files
+    # ci/*.yml: local includes (core keeps most of its jobs there).
     find "$DIR" -maxdepth 3 \
-        \( -name '.gitlab-ci.yml' -o -name '*.yml' -path '*/ci-templates/*' \) \
-        -not -path '*/.git/*' \
-        -print0 | while IFS= read -r -d '' file; do
-        # Count allow_failure: true occurrences per file
-        count=$(grep -c 'allow_failure:[[:space:]]*true' "$file" 2>/dev/null || true)
+        \( -name '.gitlab-ci.yml' -o -name '*.yml' -path '*/ci-templates/*' \
+           -o -name '*.yml' -path '*/ci/*' \) \
+        -not -path '*/.git/*' | while IFS= read -r file; do
+        # Per job block: a job-level `when: manual` needs allow_failure:
+        # true to not block the pipeline, so it is an opt-in gate, not a
+        # silently failing check. A rule-level one still counts — the job
+        # runs automatically under its other rules.
+        count=$(awk '
+            function flush() { if (!manual) total += n; n = 0; manual = 0 }
+            /^[^ \t#][^:]*:/ { flush() }
+            /^[ \t]*allow_failure:[ \t]*true/ { n++ }
+            /^  when:[ \t]*manual/ { manual = 1 }
+            END { flush(); print total + 0 }
+        ' "$file")
         if [ "$count" -gt 0 ]; then
             echo "$count $file"
         fi
