@@ -75,8 +75,13 @@ sync:vendor-locales:
       # Read the status before parsing: a 401 body parses as happily as a
       # result set, and silently "finding no open MR" would open a
       # duplicate on every locales merge (VSH13).
+      #
+      # Both MR calls authenticate as the project access token, like the
+      # push above: CI_JOB_TOKEN was refused creating the MR (HTTP 401,
+      # core job 16765324887, 2026-09-27), which left the pushed branch
+      # without an MR and core main red on the drift.
       : > /tmp/mr-lookup.json
-      LOOKUP_STATUS=$(curl --silent --output /tmp/mr-lookup.json --write-out '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests?state=opened&source_branch=${BRANCH}") || LOOKUP_STATUS="000"
+      LOOKUP_STATUS=$(curl --silent --output /tmp/mr-lookup.json --write-out '%{http_code}' --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests?state=opened&source_branch=${BRANCH}") || LOOKUP_STATUS="000"
       if [ "$LOOKUP_STATUS" != "200" ]; then
         echo "ERROR: MR lookup returned HTTP $LOOKUP_STATUS" >&2
         cat /tmp/mr-lookup.json >&2
@@ -121,7 +126,7 @@ sync:vendor-locales:
       }))")
 
       : > /tmp/mr-create.json
-      CREATE_STATUS=$(curl --silent --output /tmp/mr-create.json --write-out '%{http_code}' --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --header "Content-Type: application/json" --data "$PAYLOAD" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests") || CREATE_STATUS="000"
+      CREATE_STATUS=$(curl --silent --output /tmp/mr-create.json --write-out '%{http_code}' --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" --header "Content-Type: application/json" --data "$PAYLOAD" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests") || CREATE_STATUS="000"
       if [ "$CREATE_STATUS" != "201" ]; then
         echo "ERROR: MR creation returned HTTP $CREATE_STATUS" >&2
         cat /tmp/mr-create.json >&2
