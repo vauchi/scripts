@@ -41,6 +41,13 @@ variables:
   SAST_EXCLUDED_PATHS: "target/, node_modules/, dist/, builds/, cache/, tmp/, tests/fixtures/"
   SAST_EXCLUDED_ANALYZERS: ""
   SAST_ANALYZER_IMAGE_TAG: "5"
+  # semgrep's default 5 s per rule and file is charged the file's parse time
+  # too, so a busy shared runner tripped it on core's 1968-line rekey.rs
+  # (core!1643) where a local run of every rule takes 1.2 s. The severity gate
+  # still blocks any timeout, so a rule that really hangs is still caught;
+  # this only lifts the ceiling above scheduling noise. Max-target-bytes is
+  # restated because this variable replaces the analyzer's default whole.
+  SAST_SCANNER_ALLOWED_CLI_OPTS: "--max-target-bytes=1000000 --timeout=30"
 
   # Secret Detection
   SECRET_DETECTION_EXCLUDED_PATHS: "target/, node_modules/, builds/, cache/, tmp/"
