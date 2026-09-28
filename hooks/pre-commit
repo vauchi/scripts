@@ -486,7 +486,7 @@ STAGED_SHELL=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(sh|
 if [[ -n "$STAGED_SHELL" ]]; then
     echo "[5/6] Checking shell portability..."
 
-    # shellcheck (industry standard — catches echo -e, [[ ]] in sh, etc.)
+    # ShellCheck is the industry standard — catches echo -e, [[ ]] in sh, etc.
     if command -v shellcheck &> /dev/null; then
         SC_FILES=$(echo "$STAGED_SHELL" | grep -E '\.(sh|bash)$' || true)
         SC_ERRORS=""
