@@ -116,7 +116,7 @@ if [ "$TOTAL" -gt "$BUDGET" ]; then
     OVER=$((TOTAL - BUDGET))
     echo "FAIL: allow_failure count ($TOTAL) exceeds budget ($BUDGET) by $OVER."
     echo "Remove $OVER allow_failure: true entries before merging."
-    echo "See: _private/docs/problems/2026-03-14-audit-allow-failure-ci-jobs/"
+    echo "See: _private/docs/problems/done/2026-09-13-allow-failure-budget-doubled-unenforced/"
     exit 1
 else
     REMAINING=$((BUDGET - TOTAL))
