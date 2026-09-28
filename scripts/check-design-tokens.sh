@@ -101,7 +101,7 @@ for DIR in "$@"; do
         -not -name 'theme.rs' \
         -not -name '*_test.rs' \
         -not -path '*/tests/*' \
-        -print0 | xargs -0 grep -nE 'set_source_rgb\(\s*[0-9]' 2>/dev/null \
+        -print0 | xargs -0 grep -nE 'set_source_rgb\([[:space:]]*[0-9]' 2>/dev/null \
         | sed 's/^/RUST_RGB /' >> "$TMPFILE" || true
 
     # Rust (linux-gtk): hardcoded English user-visible strings inside
@@ -115,8 +115,8 @@ for DIR in "$@"; do
         -not -name 'i18n.rs' \
         -not -name '*_test.rs' \
         -not -path '*/tests/*' \
-        -print0 | xargs -0 grep -nE '\.(label|title|placeholder_text)\(\s*"[A-Za-z][A-Za-z][A-Za-z .,!?'\''…-]*"' 2>/dev/null \
-        | grep -vE '\.title\(\s*"Vauchi"\s*\)' \
+        -print0 | xargs -0 grep -nE '\.(label|title|placeholder_text)\([[:space:]]*"[A-Za-z][A-Za-z][A-Za-z .,!?'\''…-]*"' 2>/dev/null \
+        | grep -vE '\.title\([[:space:]]*"Vauchi"[[:space:]]*\)' \
         | sed 's/^/RUST_EN_STR /' >> "$TMPFILE" || true
 
     # C++ (linux-qt): hex-color literals inside setStyleSheet calls.
@@ -162,7 +162,7 @@ for DIR in "$@"; do
         -not -path '*/obj/*' \
         -not -path '*/bin/*' \
         -not -path '*/Generated/*' \
-        -print0 | xargs -0 grep -nE '\bColor\.FromArgb\(\s*(0x)?[0-9a-fA-F]+\s*,\s*(0x)?[0-9a-fA-F]+\b' 2>/dev/null \
+        -print0 | xargs -0 grep -nE '\bColor\.FromArgb\([[:space:]]*(0x)?[0-9a-fA-F]+[[:space:]]*,[[:space:]]*(0x)?[0-9a-fA-F]+\b' 2>/dev/null \
         | sed 's/^/CS_ARGB /' >> "$TMPFILE" || true
 
     # C# (windows): hex-color string literals (e.g. "#4682B4") outside
