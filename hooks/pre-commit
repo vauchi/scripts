@@ -21,7 +21,9 @@ _repo_top=$(git rev-parse --show-toplevel)
 for _slot_root in "$_repo_top" "$_repo_top/.."; do
     if [[ -f "$_slot_root/just/slot-lib.sh" ]]; then
         # portable-shell-ok: best-effort heartbeat; a failure must never block a commit
-        ( source "$_slot_root/just/slot-lib.sh" && slot_touch "$_slot_root" ) || true
+        # declare -F: a workspace whose slot-lib predates slot_touch skips quietly
+        ( source "$_slot_root/just/slot-lib.sh" \
+            && if declare -F slot_touch > /dev/null; then slot_touch "$_slot_root"; fi ) || true
         break
     fi
 done
