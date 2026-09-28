@@ -78,12 +78,24 @@ for DIR in "$@"; do
         | grep -vE '\.cornerRadius\((4|8|16)\)' \
         | sed 's/^/RADIUS /' >> "$TMPFILE" || true
 
-    # Swift: find hardcoded .tint(.cyan), .foregroundColor(.blue), etc.
-    # These should use theme.accent, theme.success, etc.
+    # Swift: hardcoded colours — a named colour passed as a value
+    # (.foregroundColor(.red), case .error: .red, ok ? .green : .orange),
+    # Color.<name>, or a Color(red:/white:/hex:) literal. These should
+    # use theme.accent, theme.error, etc. ThemeService.swift holds the
+    # fallbacks for a missing theme, so it may name colours.
     find "$DIR" -name '*.swift' \
         -not -path '*/Generated/*' \
         -not -name 'ThemeService.swift' \
-        -print0 | xargs -0 grep -nE '\.(tint|foregroundColor|foregroundStyle)\(\.(cyan|blue|red|green|orange|yellow)\)' 2>/dev/null \
+        -print0 | xargs -0 grep -nE '[(:?,][[:space:]]*\.(cyan|blue|red|green|orange|yellow|purple|pink|mint|teal|indigo|brown|gray)([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])Color\.(red|green|blue|orange|yellow|cyan|purple|pink|mint|teal|indigo|brown|gray|black|white)([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])Color\((red|white|hex|\.sRGB)' 2>/dev/null \
+        | sed 's/^/COLOR /' >> "$TMPFILE" || true
+
+    # Kotlin: hardcoded Compose colours — Color(0x…) or Color.<Name>.
+    # Theme.kt defines the palette, so it may hold them; Transparent and
+    # Unspecified are not colours of the design.
+    find "$DIR" -name '*.kt' \
+        -not -name 'Tokens.kt' \
+        -not -name 'Theme.kt' \
+        -print0 | xargs -0 grep -nE '(^|[^A-Za-z0-9_])Color\(0x[0-9A-Fa-f]+\)|(^|[^A-Za-z0-9_])Color\.(Red|Green|Blue|Yellow|Cyan|Magenta|Gray|DarkGray|LightGray|Black|White)([^A-Za-z0-9_]|$)' 2>/dev/null \
         | sed 's/^/COLOR /' >> "$TMPFILE" || true
 
     # Kotlin: find off-scale N.dp values (not 0/1/2/4/8/16/24/32/44)
@@ -176,6 +188,14 @@ for DIR in "$@"; do
         -print0 | xargs -0 grep -nE '"#[0-9a-fA-F]{6}"' 2>/dev/null \
         | sed 's/^/CS_HEX /' >> "$TMPFILE" || true
 done
+
+# A line may carry `design-token-ok: <reason>` when a literal is the
+# design (a camera preview is black, a QR code needs a white quiet zone).
+# The reason is required so each exception says why.
+FILTERED=$(mktemp)
+trap 'rm -f "$TMPFILE" "$FILTERED"' EXIT
+grep -vE 'design-token-ok:[[:space:]]*[^[:space:]]' "$TMPFILE" > "$FILTERED" || true
+mv "$FILTERED" "$TMPFILE"
 
 TOTAL=$(wc -l < "$TMPFILE" | tr -d ' ')
 
