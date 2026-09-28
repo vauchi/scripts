@@ -14,6 +14,18 @@ set -euo pipefail
 
 echo "=== Pre-commit checks ==="
 
+# Slot heartbeat (vauchi/private#414): every commit re-stamps this session's
+# workspace-slot lock, so a session running past the 12h expiry is not taken
+# over as stale. The root repo is the slot; a sub-repo's parent is.
+_repo_top=$(git rev-parse --show-toplevel)
+for _slot_root in "$_repo_top" "$_repo_top/.."; do
+    if [[ -f "$_slot_root/just/slot-lib.sh" ]]; then
+        # portable-shell-ok: best-effort heartbeat; a failure must never block a commit
+        ( source "$_slot_root/just/slot-lib.sh" && slot_touch "$_slot_root" ) || true
+        break
+    fi
+done
+
 # ============================================================
 # 1. Spell check (typos) — fast, runs on staged files only
 # ============================================================
