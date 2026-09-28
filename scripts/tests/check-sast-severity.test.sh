@@ -159,6 +159,8 @@ assert_contains "shared template exposes severity gate" '^\.security-sast-severi
 assert_contains "severity gate consumes semgrep report artifacts" 'job: semgrep-sast' "$TEMPLATE"
 assert_contains "severity gate is blocking" 'allow_failure: false' "$TEMPLATE"
 assert_contains "severity gate runs the checked validator" 'check-sast-severity.py gl-sast-report.json' "$TEMPLATE"
+assert_contains "semgrep gets 30 s per rule and file, not the 5 s a loaded runner trips" \
+    '^  SAST_SCANNER_ALLOWED_CLI_OPTS: "--max-target-bytes=1000000 --timeout=30"$' "$TEMPLATE"
 
 printf '\ncheck-sast-severity.test: %d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
