@@ -29,6 +29,12 @@ HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOOK_START=$SECONDS
 _STAMP_SKIP=0
 
+# e2e's device tests launch the app with clear state on whatever phone or
+# simulator is attached; pushes wiped a phone another session had on the
+# exchange rig (#396). A push never drives devices unless the caller sets
+# VAUCHI_E2E_NO_DEVICES=0 explicitly.
+export VAUCHI_E2E_NO_DEVICES="${VAUCHI_E2E_NO_DEVICES:-1}"
+
 echo "=== Pre-push checks ($REPO_DIR) ==="
 
 # ─── Pushed-ref specs (stdin is read exactly once) ──────────────────
