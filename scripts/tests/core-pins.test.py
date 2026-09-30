@@ -147,6 +147,160 @@ def test_check_reports_lag_errors_and_hardcoded_ci_refs():
     assert not PINS.failed(rows)
 
 
+def test_a_commented_out_core_line_is_not_a_pin():
+    live = 'vauchi-core = { git = "https://gitlab.com/vauchi/core.git", tag = "v0.69.0", version = "=0.69.0" }\n'
+    old = '# vauchi-core = { git = "https://gitlab.com/vauchi/core.git", tag = "v0.60.0" }\n'
+    assert PINS.read_pin("cargo", old + live) == "v0.69.0"
+    text, crates = PINS.bump_pin("cargo", old + live, "0.70.0")
+    assert text.startswith(old), "a comment must be left as written"
+    assert crates == ["vauchi-core"]
+
+
+def test_a_bump_makes_any_version_constraint_exact():
+    caret = 'vauchi-core = { git = "https://gitlab.com/vauchi/core.git", tag = "v0.69.0", version = "0.69" }\n'
+    text, _ = PINS.bump_pin("cargo", caret, "0.70.0")
+    assert text == 'vauchi-core = { git = "https://gitlab.com/vauchi/core.git", tag = "v0.70.0", version = "=0.70.0" }\n'
+
+
+def test_a_multi_line_dependency_table_is_named_as_unsupported():
+    table = '[dependencies.vauchi-core]\ngit = "https://gitlab.com/vauchi/core.git"\ntag = "v0.69.0"\n'
+    assert "one-line" in expect_error(PINS.read_pin, "cargo", table)
+
+
+def test_single_quoted_and_unquoted_ci_refs_are_found_too():
+    ci = "  CORE_REF: 'v0.59.0'\n  CORE_REF: v0.59.0\n  CORE_REF: \"v0.59.0\"\n"
+    assert [n for n, _ in PINS.hardcoded_ci_refs(ci)] == [1, 2, 3]
+
+
+def test_a_prerelease_pin_is_judged_by_its_version():
+    def status(pin):
+        text = CARGO.replace("v0.68.0", pin)
+        rows = PINS.check({"consumers": [{"repo": "cli", "kind": "cargo", "file": "Cargo.toml"}]},
+                          lambda repo, path: text if path == "Cargo.toml" else None, "v0.69.0")
+        return rows[0].status
+
+    assert status("v0.70.0-dev.3") == "current", "a dev tag ahead of the release is current"
+    assert status("v0.70.0-rc.1") == "current"
+    assert status("v0.69.0-dev.9") == "behind", "a prerelease of the latest release is behind it"
+    assert status("v0.68.5") == "behind"
+    assert status("main") == "error"
+
+
+def test_every_reader_names_what_it_could_not_find():
+    assert "no version" in expect_error(PINS.read_pin, "cabi-json", "{not json")
+    assert "no version" in expect_error(PINS.read_pin, "cabi-json", "{}")
+    assert "vauchi-platform-swift" in expect_error(PINS.read_pin, "xcode-spm", "repositoryURL = \"x\";")
+    assert "no app.vauchi" in expect_error(PINS.read_pin, "gradle", "")
+    assert "disagree" in expect_error(
+        PINS.read_pin, "gradle",
+        'x("app.vauchi:vauchi-platform:0.69.0")\ny("app.vauchi:vauchi-platform:0.68.0")\n')
+    assert "let version" in expect_error(PINS.read_pin, "swift-let-version", "")
+
+
+def _git(*args, cwd):
+    import subprocess
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid",
+                    "-c", "init.defaultBranch=main", *args],
+                   cwd=cwd, check=True, capture_output=True)
+
+
+def _cli(*args):
+    import subprocess, sys
+    return subprocess.run([sys.executable, str(MODULE_PATH), *args], capture_output=True, text=True)
+
+
+def test_the_command_line_reads_bumps_and_reports_errors():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        manifest = Path(tmp) / "Cargo.toml"
+        manifest.write_text(CARGO)
+        read = _cli("read", "--kind", "cargo", str(manifest))
+        assert (read.returncode, read.stdout) == (0, "v0.68.0\n")
+
+        bump = _cli("bump", "--kind", "cargo", "--version", "0.69.0", str(manifest))
+        assert (bump.returncode, bump.stdout) == (0, "vauchi-core\nvauchi-app\nrqrr\n")
+        assert PINS.read_pin("cargo", manifest.read_text()) == "v0.69.0"
+
+        missing = _cli("read", "--kind", "cargo", str(Path(tmp) / "absent.toml"))
+        assert missing.returncode == 2 and "No such file" in missing.stderr
+        refused = _cli("bump", "--kind", "gradle", "--version", "0.69.0", str(manifest))
+        assert refused.returncode == 2 and "its own pipeline" in refused.stderr
+
+
+def test_check_reads_pins_from_git_and_strict_fails_only_on_lag():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        core = root / "core"
+        (core / "ci").mkdir(parents=True)
+        (core / "ci" / "consumer-pins.json").write_text(json.dumps({"consumers": [
+            {"repo": "cli", "kind": "cargo", "file": "Cargo.toml", "bumped_by": "bump:consumer-pins"}]}))
+        _git("init", "-q", cwd=core)
+        _git("add", "-A", cwd=core)
+        _git("commit", "-q", "-m", "init", cwd=core)
+        _git("tag", "v0.69.0", cwd=core)
+        cli = root / "cli"
+        cli.mkdir()
+        (cli / "Cargo.toml").write_text(CARGO)
+        _git("init", "-q", cwd=cli)
+        _git("add", "-A", cwd=cli)
+        _git("commit", "-q", "-m", "init", cwd=cli)
+
+        lagging = _cli("check", "--root", str(root), "--ref", "main", "--strict")
+        assert lagging.returncode == 1, lagging.stdout + lagging.stderr
+        assert "behind" in lagging.stdout and "v0.68.0" in lagging.stdout
+        assert _cli("check", "--root", str(root), "--ref", "main").returncode == 0, "without --strict it only reports"
+
+        (cli / "Cargo.toml").write_text(PINS.bump_pin("cargo", CARGO, "0.69.0")[0])
+        _git("commit", "-q", "-am", "bump", cwd=cli)
+        current = _cli("check", "--root", str(root), "--ref", "main", "--strict")
+        assert current.returncode == 0, current.stdout + current.stderr
+        assert "current" in current.stdout
+
+
+def test_fetch_reads_the_table_after_fetching_core():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        remote = root / "core-remote.git"
+        seed = root / "seed"
+        seed.mkdir()
+        (seed / "README").write_text("core\n")
+        _git("init", "-q", cwd=seed)
+        _git("add", "-A", cwd=seed)
+        _git("commit", "-q", "-m", "init", cwd=seed)
+        _git("tag", "v0.69.0", cwd=seed)
+        _git("clone", "-q", "--bare", str(seed), str(remote), cwd=root)
+        _git("clone", "-q", str(remote), str(root / "core"), cwd=root)
+
+        # The table lands on core's remote after the local clone was made.
+        (seed / "ci").mkdir()
+        (seed / "ci" / "consumer-pins.json").write_text(json.dumps({"consumers": [
+            {"repo": "cli", "kind": "cargo", "file": "Cargo.toml", "bumped_by": "bump:consumer-pins"}]}))
+        _git("add", "-A", cwd=seed)
+        _git("commit", "-q", "-m", "table", cwd=seed)
+        _git("push", "-q", str(remote), "HEAD:main", cwd=seed)
+
+        cli_remote = root / "cli-remote.git"
+        cli_seed = root / "cli-seed"
+        cli_seed.mkdir()
+        (cli_seed / "Cargo.toml").write_text(CARGO)
+        _git("init", "-q", cwd=cli_seed)
+        _git("add", "-A", cwd=cli_seed)
+        _git("commit", "-q", "-m", "init", cwd=cli_seed)
+        _git("clone", "-q", "--bare", str(cli_seed), str(cli_remote), cwd=root)
+        _git("clone", "-q", str(cli_remote), str(root / "cli"), cwd=root)
+        # cli is bumped on its remote after the local clone: only a fetch of
+        # cli, listed by the table core just gained, can see it.
+        (cli_seed / "Cargo.toml").write_text(PINS.bump_pin("cargo", CARGO, "0.69.0")[0])
+        _git("commit", "-q", "-am", "bump", cwd=cli_seed)
+        _git("push", "-q", str(cli_remote), "HEAD:main", cwd=cli_seed)
+
+        run = _cli("check", "--root", str(root), "--fetch", "--strict")
+        assert run.returncode == 0, run.stdout + run.stderr
+        assert "cli" in run.stdout and "current" in run.stdout
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
