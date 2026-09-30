@@ -481,6 +481,26 @@ fi
 echo "  Secrets check OK"
 
 # ============================================================
+# 4.5 Conflict markers in any staged file
+# ============================================================
+# A rebase committed _private/docs/problems/.wip-baseline with both sides
+# and the markers on 2026-09-30; no stage looked (vauchi/private#449). Reads
+# the staged blob like the secret scan. A lone ======= is a Markdown setext
+# underline, so only the <<<<<<< and >>>>>>> lines count.
+echo "[4.5/6] Checking for conflict markers..."
+MARKER_HITS=""
+while IFS= read -r -d '' staged_path; do
+    hits=$(git show ":$staged_path" 2>/dev/null | grep -I -n -E '^(<{7}|>{7})( |$)' || true)
+    [[ -n "$hits" ]] && MARKER_HITS+="$(printf '%s\n' "$hits" | sed "s|^|  $staged_path:|")"$'\n'
+done < <(git diff --cached --name-only --diff-filter=ACM -z)
+if [[ -n "$MARKER_HITS" ]]; then
+    echo "ERROR: conflict markers in staged files — resolve the merge before committing:"
+    printf '%s' "$MARKER_HITS"
+    exit 1
+fi
+echo "  Conflict markers OK"
+
+# ============================================================
 # 5. Shell portability checks (staged .sh and .just files)
 # ============================================================
 STAGED_SHELL=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(sh|bash|just)$' || true)
