@@ -33,9 +33,10 @@ CORE_GIT_LINE = re.compile(r'git\s*=\s*"https://gitlab\.com/vauchi/core(?:\.git)
 CRATE_NAME = re.compile(r"^\s*([A-Za-z0-9_-]+)\s*=")
 TAG = re.compile(r'tag\s*=\s*"([^"]+)"')
 BRANCH = re.compile(r'branch\s*=\s*"[^"]*"')
-EXACT_VERSION = re.compile(r'version\s*=\s*"=[^"]*"')
+VERSION_REQ = re.compile(r'version\s*=\s*"[^"]*"')
 RELEASE_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
-HARDCODED_CI_REF = re.compile(r'^\s*(?:VAUCHI_)?CORE_REF:\s*"?v\d+\.\d+\.\d+')
+VERSION_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$")
+HARDCODED_CI_REF = re.compile(r"""^\s*(?:VAUCHI_)?CORE_REF:\s*["']?v\d+\.\d+\.\d+""")
 
 # Kinds this tool rewrites. The others are bumped by the pipeline that
 # publishes their artifact (update:swift-bindings, trigger:ios/macos/
@@ -54,7 +55,18 @@ def _tag(version: str) -> str:
 
 
 def _core_lines(text: str) -> list[tuple[int, str]]:
-    return [(i, line) for i, line in enumerate(text.splitlines()) if CORE_GIT_LINE.search(line)]
+    lines = [
+        (i, line) for i, line in enumerate(text.splitlines())
+        if CORE_GIT_LINE.search(line) and not line.lstrip().startswith("#")
+    ]
+    for _, line in lines:
+        name = CRATE_NAME.match(line)
+        if name and name.group(1) == "git":
+            raise PinError(
+                "Core dependencies must be one-line tables: "
+                'crate = { git = "https://gitlab.com/vauchi/core.git", tag = "vX.Y.Z", ... }'
+            )
+    return lines
 
 
 def _read_cargo(text: str) -> str:
@@ -147,7 +159,8 @@ def _bump_cargo(text: str, version: str) -> tuple[str, list[str]]:
             line = BRANCH.sub(f'tag = "{_tag(version)}"', line, count=1)
         else:
             raise PinError(f"{crates[-1] if crates else 'a Core dependency'} has no tag or branch to replace")
-        lines[i] = EXACT_VERSION.sub(f'version = "={version.lstrip("v")}"', line, count=1)
+        # Any constraint becomes exact: "0.69" would exclude the new tag.
+        lines[i] = VERSION_REQ.sub(f'version = "={version.lstrip("v")}"', line, count=1)
     if not crates:
         raise PinError("no Core dependency in this manifest")
     return "".join(lines), crates
@@ -177,6 +190,15 @@ def bump_pin(kind: str, text: str, version: str) -> tuple[str, list[str]]:
 def _release_key(tag: str) -> Optional[tuple[int, int, int]]:
     match = RELEASE_TAG.match(tag)
     return tuple(int(part) for part in match.groups()) if match else None  # type: ignore[return-value]
+
+
+def _version_key(tag: str) -> Optional[tuple[int, int, int, int]]:
+    """Order release and prerelease tags: a prerelease sorts below its release."""
+    match = VERSION_TAG.match(tag)
+    if not match:
+        return None
+    major, minor, patch, prerelease = match.groups()
+    return int(major), int(minor), int(patch), 0 if prerelease else 1
 
 
 def latest_release_tag(tags: list[str]) -> str:
@@ -217,9 +239,9 @@ def check(table: dict, read_file: Callable[[str, str], Optional[str]], latest: s
             note = "; ".join(f".gitlab-ci.yml line {n}: {line}" for n, line in hardcoded)
             rows.append(Row(repo, bumped_by, pin, "hardcoded-ci-ref", note))
             continue
-        pin_key, latest_key = _release_key(pin), _release_key(latest)
+        pin_key, latest_key = _version_key(pin), _version_key(latest)
         if pin_key is None:
-            rows.append(Row(repo, bumped_by, pin, "error", "pin is not a release tag"))
+            rows.append(Row(repo, bumped_by, pin, "error", "pin is not a version tag"))
         elif latest_key is not None and pin_key < latest_key:
             rows.append(Row(repo, bumped_by, pin, "behind", f"latest is {latest}"))
         else:
@@ -251,20 +273,23 @@ def _fetch(root: Path) -> None:
     A repo that cannot be fetched is named on stderr: its readings may be
     stale, and saying so beats a confident wrong number.
     """
-    repos = ["core"]
-    table_text = _git_show(root, "origin/main")("core", "ci/consumer-pins.json")
-    if table_text:
-        repos += [consumer["repo"] for consumer in json.loads(table_text)["consumers"]]
-    for repo in repos:
+    def fetch(repo: str) -> None:
         repo_dir = root / repo
         if not (repo_dir / ".git").exists():
-            continue
+            return
         result = subprocess.run(
             ["git", "-C", str(repo_dir), "fetch", "--quiet", "--tags", "origin"],
             capture_output=True, text=True, check=False,
         )
         if result.returncode != 0:
             print(f"core-pins: could not fetch {repo}; its pin may be stale", file=sys.stderr)
+
+    # Core first: the consumer list comes from its table, which may be new.
+    fetch("core")
+    table_text = _git_show(root, "origin/main")("core", "ci/consumer-pins.json")
+    if table_text:
+        for consumer in json.loads(table_text)["consumers"]:
+            fetch(consumer["repo"])
 
 
 def _main(argv: list[str]) -> int:
