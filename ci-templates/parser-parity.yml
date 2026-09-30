@@ -25,6 +25,11 @@
 #                   main). Pin to a specific tag/commit for reproducible
 #                   runs.
 #   PARSER_PROTOCOL: "component" (legacy) or "presentation".
+#   CORE_PIN_FILE / CORE_PIN_KIND: the consumer's own Core pin (e.g.
+#                   cabi-version.json / cabi-json). When set, CORE_REF is
+#                   read from it through scripts/core-pins.py, so the check
+#                   runs against the Core the app ships with (ADR-026
+#                   amendment, #434). Prefer this over a CORE_REF constant.
 
 .parser-parity-job:
   stage: lint
@@ -40,6 +45,8 @@
     CORE_REF: "main"
     PARSER_PROTOCOL: "component"
     PARSER_SCRIPT_REF: "main"
+    CORE_PIN_FILE: ""
+    CORE_PIN_KIND: ""
   before_script:
     - |
       # The Alpine CDN fails intermittently and a bare `apk add` turns
@@ -66,6 +73,14 @@
       if [ ! -e "$PARSER_FILE" ]; then
         echo "ERROR: PARSER_FILE not found: $PARSER_FILE"
         exit 2
+      fi
+
+      # Same step as design-drift.yml: the pin, not a constant, names Core.
+      if [ -n "$CORE_PIN_FILE" ]; then
+        wget -q -O /tmp/core-pins.py \
+          "https://gitlab.com/vauchi/scripts/-/raw/${PARSER_SCRIPT_REF}/scripts/core-pins.py"
+        CORE_REF=$(python3 /tmp/core-pins.py read --kind "$CORE_PIN_KIND" "$CORE_PIN_FILE")
+        echo "Core ref from $CORE_PIN_FILE: $CORE_REF"
       fi
 
       # Fetch only the canonical enum file from core via shallow clone +
