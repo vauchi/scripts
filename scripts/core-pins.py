@@ -16,7 +16,7 @@ Usage:
     core-pins.py read --kind KIND FILE
     core-pins.py bump --kind KIND --version X.Y.Z FILE
     core-pins.py consumers --table FILE [--bumped-by JOB]
-    core-pins.py check --root DIR [--ref origin/main] [--table FILE] [--strict]
+    core-pins.py check --root DIR [--ref origin/main] [--table FILE] [--fetch] [--strict]
 """
 
 from __future__ import annotations
@@ -245,6 +245,28 @@ def _git_show(root: Path, ref: str) -> Callable[[str, str], Optional[str]]:
     return read
 
 
+def _fetch(root: Path) -> None:
+    """Refresh origin refs, so pins are read as released, not as last pulled.
+
+    A repo that cannot be fetched is named on stderr: its readings may be
+    stale, and saying so beats a confident wrong number.
+    """
+    repos = ["core"]
+    table_text = _git_show(root, "origin/main")("core", "ci/consumer-pins.json")
+    if table_text:
+        repos += [consumer["repo"] for consumer in json.loads(table_text)["consumers"]]
+    for repo in repos:
+        repo_dir = root / repo
+        if not (repo_dir / ".git").exists():
+            continue
+        result = subprocess.run(
+            ["git", "-C", str(repo_dir), "fetch", "--quiet", "--tags", "origin"],
+            capture_output=True, text=True, check=False,
+        )
+        if result.returncode != 0:
+            print(f"core-pins: could not fetch {repo}; its pin may be stale", file=sys.stderr)
+
+
 def _main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -267,6 +289,7 @@ def _main(argv: list[str]) -> int:
     check_cmd.add_argument("--ref", default="origin/main")
     check_cmd.add_argument("--table", type=Path)
     check_cmd.add_argument("--strict", action="store_true")
+    check_cmd.add_argument("--fetch", action="store_true", help="git fetch core and every consumer first")
 
     args = parser.parse_args(argv)
     try:
@@ -283,6 +306,8 @@ def _main(argv: list[str]) -> int:
                 if args.bumped_by is None or consumer.get("bumped_by") == args.bumped_by:
                     print(consumer["repo"], consumer["kind"], consumer["file"])
         else:
+            if args.fetch:
+                _fetch(args.root)
             read = _git_show(args.root, args.ref)
             table_text = args.table.read_text(encoding="utf-8") if args.table else read("core", "ci/consumer-pins.json")
             if table_text is None:
