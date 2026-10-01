@@ -10,6 +10,7 @@
 # _private/docs/problems/2026-07-21-process-meta-churn-ratio/
 #
 #   ledger entries per 100 commits   maintainer interruptions per unit of work
+#     (+ minutes per 100 commits)    the same, weighted by time, by defect class
 #   stale active records             WIP that nobody touched in 30 days
 #   fix/feat ratio                   rework per feature
 #   closed as already fixed          intake that never verified against code
@@ -67,6 +68,30 @@ else
     since="$(cutoff_date "$DAYS")"
     entries=$(awk -v w="$since" '/^- 20[0-9][0-9]-[0-9][0-9]-[0-9][0-9] \|/ { if ($2 >= w) n++ } END { print n + 0 }' "$LEDGER")
     echo "  ledger entries per 100 commits: $(ratio "$entries" "$commits" 1 100) ($entries entries / $commits commits)"
+    # Counts rank the many short interruptions first; the time sits in the few
+    # long ones (private#466). Bucket midpoints, gt30m capped at 45, so every
+    # figure is a lower bound — the weights of the 2026-08-21 ledger analysis.
+    awk -F' [|] ' -v w="$since" -v c="$commits" '
+        /^- 20[0-9][0-9]-[0-9][0-9]-[0-9][0-9] \|/ {
+            if (substr($1, 3) < w) next
+            class = ($6 ~ /^`[a-z-]+` *$/) ? $6 : "unclassified"
+            gsub(/`| /, "", class)
+            minutes = ($3 == "lt5m") ? 3 : ($3 == "5-30m") ? 17 : 45
+            by[class] += minutes; total += minutes
+        }
+        END {
+            if (!total) exit
+            printf "  ledger minutes per 100 commits: %.0f (", total * 100 / c
+            sep = ""
+            while (1) {
+                top = ""
+                for (k in by) if (top == "" || by[k] > by[top] || (by[k] == by[top] && k < top)) top = k
+                if (top == "") break
+                printf "%s%s %.0f", sep, top, by[top] * 100 / c
+                delete by[top]; sep = ", "
+            }
+            print ")"
+        }' "$LEDGER"
 fi
 
 active=0
