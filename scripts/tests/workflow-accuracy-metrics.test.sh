@@ -54,7 +54,7 @@ build_workspace() {
     commit_in "$ws/core" "fix: four"
     commit_in "$ws/relay" "fix: five"
     commit_in "$ws/relay" "docs: six"
-    # 6 commits, 2 feat, 3 fix → fix/feat 1.50; ledger 3 entries → 50.0 per 100
+    # 6 commits, 2 feat, 3 fix → fix/feat 1.50; ledger 4 entries → 66.7 per 100
 
     mkdir -p "$ws/_private/docs/problems/done" "$ws/_private/scripts"
     # Dated relative to today: fixed dates slid out of the 30-day window and
@@ -63,9 +63,12 @@ build_workspace() {
     cat > "$ws/_private/docs/intervention-ledger.md" <<EOF
 # ledger
 - $recent | gate | lt5m | retry | mechanical | \`style\` | a
-- $recent | gate | lt5m | review | prevented-defect | \`stale-state\` | b
+- $recent | gate | lt5m | review | prevented-defect | \`stale-state\`
 - $recent | other | 5-30m | retry | prevented-defect | \`unverified-claim\` | c
+- $recent | gate | gt30m | wait | mechanical | six fields, before classes
 EOF
+    # Minutes by bucket midpoint: 3 + 3 + 17 + 45 = 68 → 1133 per 100 commits.
+    # The second entry has a class and no note; the fourth predates classes.
     for d in 2026-08-01-a 2026-08-02-b 2026-08-03-c; do
         mkdir -p "$ws/_private/docs/problems/$d"
         printf '| **Status** | implementing |\n' > "$ws/_private/docs/problems/$d/README.md"
@@ -88,8 +91,11 @@ WS="$(build_workspace)"
 out="$("$SCRIPT" --root "$WS" --days 30 2>&1)"; rc=$?
 
 assert_eq "runs clean: exit 0" "0" "$rc"
-assert_eq "ledger per 100 commits = 50.0" "1" \
-    "$(printf '%s' "$out" | grep -qE 'ledger entries per 100 commits[^0-9]+50\.0' && echo 1 || echo 0)"
+assert_eq "ledger per 100 commits = 66.7" "1" \
+    "$(printf '%s' "$out" | grep -qE 'ledger entries per 100 commits[^0-9]+66\.7' && echo 1 || echo 0)"
+assert_eq "ledger minutes per 100 commits, by class, largest first" \
+    "  ledger minutes per 100 commits: 1133 (unclassified 750, unverified-claim 283, stale-state 50, style 50)" \
+    "$(printf '%s\n' "$out" | grep 'ledger minutes')"
 assert_eq "stale share = 1/3" "1" \
     "$(printf '%s' "$out" | grep -qE 'stale active records[^0-9]+1/3' && echo 1 || echo 0)"
 assert_eq "fix/feat ratio = 1.50" "1" \
