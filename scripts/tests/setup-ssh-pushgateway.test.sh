@@ -247,6 +247,7 @@ STUB
 cat >"$STUB_DIR/ssh" <<STUB
 #!/bin/sh
 cat > "$CAPTURE"
+[ -z "\${STUB_SSH_ERR:-}" ] || echo "\$STUB_SSH_ERR" >&2
 exit \${STUB_SSH_RC:-0}
 STUB
 chmod +x "$STUB_DIR/curl" "$STUB_DIR/ssh"
@@ -300,6 +301,22 @@ else
     echo "  FAIL: returned nonzero but did not report why"
     FAIL=$(( FAIL + 1 ))
 fi
+
+# A refusal names the key that was tried and keeps what ssh answered. Core's
+# binary-size push failed on every sampled main pipeline from 2026-08-20 to
+# 2026-10-01 and the log said only "NO transport delivered" (private#15).
+STUB_SSH_RC=255 STUB_SSH_ERR="Permission denied (publickey)." PUSHGATEWAY_URL="" \
+    PUSHGATEWAY_SSH_MODE="restricted" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>"$STUB_DIR/err" || true
+assert_file_contains "a refused push keeps ssh's own message" \
+    "$STUB_DIR/err" "Permission denied (publickey)"
+assert_file_contains "a refused push names the transport it tried" \
+    "$STUB_DIR/err" "NO transport delivered the metric (tried: restricted)"
+
+STUB_CURL_RC=1 PUSHGATEWAY_URL="http://stub" PUSHGATEWAY_SSH_MODE="" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>"$STUB_DIR/err" || true
+assert_file_contains "with no key decoded, only the direct URL is named" \
+    "$STUB_DIR/err" "NO transport delivered the metric (tried: direct)"
 
 rm -rf "$STUB_DIR"
 teardown_test
