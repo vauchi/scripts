@@ -29,6 +29,14 @@ commit_in() { # $1=repo $2=subject
     git -C "$1" commit -q --allow-empty -m "$2"
 }
 
+days_ago() { # $1 = days back → YYYY-MM-DD (BSD probe first: BSD date misreads -d)
+    if date -v-1d >/dev/null 2>&1; then
+        date -v-"$1"d +%F
+    else
+        date -d "$1 days ago" +%F # portable-shell-ok: GNU branch of a probed BSD/GNU switch
+    fi
+}
+
 # A miniature workspace: two product repos with dated commits, a ledger,
 # three active records (one stale per a stubbed checker), and three done
 # records of which one closed as already fixed.
@@ -49,11 +57,14 @@ build_workspace() {
     # 6 commits, 2 feat, 3 fix → fix/feat 1.50; ledger 3 entries → 50.0 per 100
 
     mkdir -p "$ws/_private/docs/problems/done" "$ws/_private/scripts"
-    cat > "$ws/_private/docs/intervention-ledger.md" <<'EOF'
+    # Dated relative to today: fixed dates slid out of the 30-day window and
+    # turned this suite red on 2026-10-01.
+    recent="$(days_ago 5)"
+    cat > "$ws/_private/docs/intervention-ledger.md" <<EOF
 # ledger
-- 2026-09-01 | gate | lt5m | retry | mechanical | `style` | a
-- 2026-09-02 | gate | lt5m | review | prevented-defect | `stale-state` | b
-- 2026-09-03 | other | 5-30m | retry | prevented-defect | `unverified-claim` | c
+- $recent | gate | lt5m | retry | mechanical | \`style\` | a
+- $recent | gate | lt5m | review | prevented-defect | \`stale-state\` | b
+- $recent | other | 5-30m | retry | prevented-defect | \`unverified-claim\` | c
 EOF
     for d in 2026-08-01-a 2026-08-02-b 2026-08-03-c; do
         mkdir -p "$ws/_private/docs/problems/$d"
@@ -61,7 +72,7 @@ EOF
     done
     for d in 2026-08-04-d 2026-08-05-e 2026-08-06-f; do
         mkdir -p "$ws/_private/docs/problems/done/$d"
-        printf '| **Status** | done |\n| **Last Updated** | 2026-09-01 |\n' \
+        printf '| **Status** | done |\n| **Last Updated** | %s |\n' "$recent" \
             > "$ws/_private/docs/problems/done/$d/README.md"
     done
     printf 'Closed: already fixed by core!1\n' >> "$ws/_private/docs/problems/done/2026-08-04-d/README.md"
