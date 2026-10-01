@@ -142,16 +142,18 @@ _pushgateway_stamp() {
 pushgateway_push() {
     local metrics_text="$1"
     local url_path="$2"
+    local tried=""
 
     # Direct URL (highest priority). Note this exercises NO credential —
     # a push that succeeds here says nothing about either SSH key.
     if [ -n "${PUSHGATEWAY_URL:-}" ]; then
         if _pushgateway_stamp "$metrics_text" direct |
-            curl -s --fail --connect-timeout 3 --max-time 5 \
-                --data-binary @- "${PUSHGATEWAY_URL}${url_path}" 2>/dev/null; then
+            curl -sS --fail --connect-timeout 3 --max-time 5 \
+                --data-binary @- "${PUSHGATEWAY_URL}${url_path}"; then
             echo "pushgateway: delivered via direct URL (no SSH credential exercised)" >&2
             return 0
         fi
+        tried="direct"
     fi
 
     # SSH push
@@ -162,7 +164,7 @@ pushgateway_push() {
             if _pushgateway_stamp "$metrics_text" full |
                 ssh -o ConnectTimeout=5 \
                     "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
-                    "curl -s --fail --max-time 5 --data-binary @- http://localhost:9091${url_path}" 2>/dev/null; then
+                    "curl -sS --fail --max-time 5 --data-binary @- http://localhost:9091${url_path}"; then
                 echo "pushgateway: delivered via the full deploy key" >&2
                 return 0
             fi
@@ -176,13 +178,20 @@ pushgateway_push() {
             if _pushgateway_stamp "$metrics_text" restricted |
                 ssh -o ConnectTimeout=5 \
                     "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
-                    "${url_path}" 2>/dev/null; then
+                    "${url_path}"; then
                 echo "pushgateway: delivered via the restricted pushgateway key" >&2
                 return 0
             fi
             ;;
     esac
 
-    echo "pushgateway: NO transport delivered the metric" >&2
+    # ssh's and curl's stderr is left in the log on purpose: with it sent
+    # to /dev/null, core's binary-size push was refused on every sampled main
+    # pipeline for six weeks and the log named neither key nor cause
+    # (private#15).
+    case "${PUSHGATEWAY_SSH_MODE:-}" in
+        full|restricted) tried="${tried:+$tried, }$PUSHGATEWAY_SSH_MODE" ;;
+    esac
+    echo "pushgateway: NO transport delivered the metric (tried: ${tried:-nothing})" >&2
     return 1
 }
