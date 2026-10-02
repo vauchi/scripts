@@ -48,8 +48,10 @@ sync:vendor-locales:
 
       # Common case: locales changed something core does not vendor (a
       # non-English file, the schema). Say so and stop — an empty MR is
-      # worse than none.
-      if git diff --quiet -- vauchi-app/locales/; then
+      # worse than none. Compare en.json alone: vendor-locales.sh always
+      # rewrites REVISION, so diffing the whole directory opened a no-op
+      # MR after every locales merge that left English alone (#475).
+      if git diff --quiet -- vauchi-app/locales/en.json; then
         echo "vendor-locales: catalogue already current — no MR needed"
         exit 0
       fi
