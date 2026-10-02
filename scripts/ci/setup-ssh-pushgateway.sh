@@ -146,10 +146,14 @@ _pushgateway_stamp() {
 # from May to October 2026 with nobody able to say which line was wrong
 # (private#470). So curl writes the body to stderr and the status to stdout,
 # and the status decides.
-_pushgateway_accepted() { # $1 = HTTP status or "unreachable", $2 = transport
+_pushgateway_accepted() { # $1 = HTTP status, $2 = transport, $3 = exit code of the call
     case "$1" in
-        2??) return 0 ;;
-        unreachable) echo "pushgateway: unreachable via $2" >&2 ;;
+        2??) [ "$3" -eq 0 ] && return 0
+             echo "pushgateway: unreachable via $2 (exit $3)" >&2 ;;
+        ""|000) echo "pushgateway: unreachable via $2 (exit $3)" >&2 ;;
+        # A refusal is reported by its status even when curl then exits
+        # non-zero: the Pushgateway closed early while answering 400 and
+        # curl exited 18 (scripts job 16885785551).
         *) echo "pushgateway: HTTP $1 via $2" >&2 ;;
     esac
     return 1
@@ -162,12 +166,12 @@ pushgateway_push() {
 
     # Direct URL (highest priority). Note this exercises NO credential —
     # a push that succeeds here says nothing about either SSH key.
-    local http_status
+    local http_status call_exit
     if [ -n "${PUSHGATEWAY_URL:-}" ]; then
         http_status=$(_pushgateway_stamp "$metrics_text" direct |
             curl -sS -o /dev/stderr -w '%{http_code}' --connect-timeout 3 --max-time 5 \
-                --data-binary @- "${PUSHGATEWAY_URL}${url_path}") || http_status="unreachable"
-        if _pushgateway_accepted "$http_status" direct; then
+                --data-binary @- "${PUSHGATEWAY_URL}${url_path}") && call_exit=0 || call_exit=$?
+        if _pushgateway_accepted "$http_status" direct "$call_exit"; then
             echo "pushgateway: delivered via direct URL (no SSH credential exercised)" >&2
             return 0
         fi
@@ -182,8 +186,8 @@ pushgateway_push() {
             http_status=$(_pushgateway_stamp "$metrics_text" full |
                 ssh -o ConnectTimeout=5 \
                     "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
-                    "curl -sS -o /dev/stderr -w '%{http_code}' --max-time 5 --data-binary @- http://localhost:9091${url_path}") || http_status="unreachable"
-            if _pushgateway_accepted "$http_status" full; then
+                    "curl -sS -o /dev/stderr -w '%{http_code}' --max-time 5 --data-binary @- http://localhost:9091${url_path}") && call_exit=0 || call_exit=$?
+            if _pushgateway_accepted "$http_status" full "$call_exit"; then
                 echo "pushgateway: delivered via the full deploy key" >&2
                 return 0
             fi

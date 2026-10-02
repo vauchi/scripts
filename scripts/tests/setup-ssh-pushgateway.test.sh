@@ -367,7 +367,7 @@ assert_file_contains "a status that arrived is reported even if curl exits non-z
 STUB_SSH_STATUS=000 STUB_SSH_RC=28 PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="full" \
     pushgateway_push "vauchi_x 1" "/metrics/job/t" >/dev/null 2>"$STUB_DIR/err" || true
 assert_file_contains "no answer at all is unreachable" \
-    "$STUB_DIR/err" "pushgateway: unreachable via full"
+    "$STUB_DIR/err" "pushgateway: unreachable via full (exit 28)"
 
 # The status must not leak into the job's stdout, where callers read results.
 out=$(PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="full" \
