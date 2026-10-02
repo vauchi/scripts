@@ -139,6 +139,22 @@ _pushgateway_stamp() {
     printf '%s\nvauchi_push_transport{mode="%s"} 1\n' "$1" "$2"
 }
 
+# The Pushgateway says why it rejects a payload in the response body ("text
+# format parsing error in line 3", "collected metric … was collected before
+# with the same name and label values"). `curl --fail` discards that body
+# and exits 22, which is how the engineering payload was answered HTTP 400
+# from May to October 2026 with nobody able to say which line was wrong
+# (private#470). So curl writes the body to stderr and the status to stdout,
+# and the status decides.
+_pushgateway_accepted() { # $1 = HTTP status or "unreachable", $2 = transport
+    case "$1" in
+        2??) return 0 ;;
+        unreachable) echo "pushgateway: unreachable via $2" >&2 ;;
+        *) echo "pushgateway: HTTP $1 via $2" >&2 ;;
+    esac
+    return 1
+}
+
 pushgateway_push() {
     local metrics_text="$1"
     local url_path="$2"
@@ -146,10 +162,12 @@ pushgateway_push() {
 
     # Direct URL (highest priority). Note this exercises NO credential —
     # a push that succeeds here says nothing about either SSH key.
+    local http_status
     if [ -n "${PUSHGATEWAY_URL:-}" ]; then
-        if _pushgateway_stamp "$metrics_text" direct |
-            curl -sS --fail --connect-timeout 3 --max-time 5 \
-                --data-binary @- "${PUSHGATEWAY_URL}${url_path}"; then
+        http_status=$(_pushgateway_stamp "$metrics_text" direct |
+            curl -sS -o /dev/stderr -w '%{http_code}' --connect-timeout 3 --max-time 5 \
+                --data-binary @- "${PUSHGATEWAY_URL}${url_path}") || http_status="unreachable"
+        if _pushgateway_accepted "$http_status" direct; then
             echo "pushgateway: delivered via direct URL (no SSH credential exercised)" >&2
             return 0
         fi
@@ -161,10 +179,11 @@ pushgateway_push() {
         full)
             # Full-access key: send the curl command to execute on the VPS
             # shellcheck disable=SC2029  # intentional client-side expansion
-            if _pushgateway_stamp "$metrics_text" full |
+            http_status=$(_pushgateway_stamp "$metrics_text" full |
                 ssh -o ConnectTimeout=5 \
                     "${PUSHGATEWAY_SSH_USER}@${PUSHGATEWAY_SSH_HOST}" \
-                    "curl -sS --fail --max-time 5 --data-binary @- http://localhost:9091${url_path}"; then
+                    "curl -sS -o /dev/stderr -w '%{http_code}' --max-time 5 --data-binary @- http://localhost:9091${url_path}") || http_status="unreachable"
+            if _pushgateway_accepted "$http_status" full; then
                 echo "pushgateway: delivered via the full deploy key" >&2
                 return 0
             fi
