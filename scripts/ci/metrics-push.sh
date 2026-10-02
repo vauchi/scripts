@@ -623,6 +623,12 @@ if [ "$repos_with_data" -lt "$(( expected_repos / 2 ))" ]; then
     echo "WARNING: Check CI_JOB_TOKEN allowlists — vauchi/scripts must be allowed to read each target project." >&2
 fi
 
+# The payload says when it was built. It shares its Pushgateway group with
+# _private's cycle metrics, so the group's push_time_seconds stayed fresh
+# while this payload was rejected for months; EngineeringMetricsStale reads
+# this line instead (private#470).
+append_metric "vauchi_eng_daily_push_timestamp_seconds" "" "$(date +%s)"
+
 push_metrics
 
 echo "vauchi metrics-push: done ($(echo "$METRICS_TEXT" | wc -l | tr -d ' ') metric lines, ${repos_with_data}/${expected_repos} repos)" >&2
