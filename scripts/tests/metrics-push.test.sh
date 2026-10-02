@@ -30,9 +30,15 @@ check() {
 
 work=$(mktemp -d)
 mkdir -p "$work/bin"
+# Every pipeline listing holds one pipeline; its job listing holds two
+# failed jobs, so the per-job failure metric has two series per repository.
 cat > "$work/bin/curl" <<'STUB'
 #!/bin/sh
-printf '[]\n200'
+case "$*" in
+    */jobs*) printf '[{"name":"test:unit","status":"failed","allow_failure":false},{"name":"lint:fmt","status":"failed","allow_failure":false}]\n200' ;;
+    */pipelines*) printf '[{"id":1,"status":"failed","duration":60,"created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-01T00:01:00Z"}]\n200' ;;
+    *) printf '[]\n200' ;;
+esac
 STUB
 chmod +x "$work/bin/curl"
 
@@ -50,6 +56,17 @@ check "the payload carries exactly one timestamp line" "1" \
     "$(printf '%s\n' "$payload" | grep -c '^vauchi_eng_daily_push_timestamp_seconds ')"
 check "the timestamp is the time of this run" "1" \
     "$([ -n "$stamp" ] && [ "$stamp" -ge "$before" ] && [ "$stamp" -le "$after" ] && echo 1 || echo 0)"
+
+# The Pushgateway replaces a pushed `job` or `instance` label with the
+# grouping key's, so series told apart only by such a label collapse into
+# one and the whole payload is refused. That is what answered HTTP 400 from
+# May to October 2026: the per-job failure metric carried the CI job's name
+# in a label called `job` (scripts job 16885785551, 13 "was collected
+# before with the same name and label values").
+check "two failing jobs give two series for a repository" "2" \
+    "$(printf '%s\n' "$payload" | grep -c '^vauchi_eng_ci_mr_job_failures_20{repo="core",')"
+check "no pushed label is named job or instance" "" \
+    "$(printf '%s\n' "$payload" | grep -E '[{,](job|instance)=' | head -3)"
 
 # The Pushgateway rejects a payload that names one series twice.
 check "no series appears twice" "" \

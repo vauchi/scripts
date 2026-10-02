@@ -356,6 +356,19 @@ assert_file_contains "a direct rejection names its status" \
 assert_file_contains "a direct rejection keeps the response body" \
     "$STUB_DIR/err" "unauthorized"
 
+# curl can exit non-zero after the answer arrived (exit 18 when the server
+# closes early, as the Pushgateway did while answering 400 in scripts job
+# 16885785551). The status it printed still decides; "unreachable" is for
+# no answer at all.
+STUB_SSH_STATUS=400 STUB_SSH_RC=18 PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="full" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" >/dev/null 2>"$STUB_DIR/err" || true
+assert_file_contains "a status that arrived is reported even if curl exits non-zero" \
+    "$STUB_DIR/err" "pushgateway: HTTP 400 via full"
+STUB_SSH_STATUS=000 STUB_SSH_RC=28 PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="full" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" >/dev/null 2>"$STUB_DIR/err" || true
+assert_file_contains "no answer at all is unreachable" \
+    "$STUB_DIR/err" "pushgateway: unreachable via full"
+
 # The status must not leak into the job's stdout, where callers read results.
 out=$(PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="full" \
     pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>/dev/null)
