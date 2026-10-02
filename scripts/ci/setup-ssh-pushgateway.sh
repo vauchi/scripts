@@ -7,7 +7,8 @@
 # Source this file, call setup_ssh_pushgateway, then use pushgateway_push.
 #
 # Key precedence:
-#   1. PUSHGATEWAY_URL      — direct HTTP push (no SSH needed)
+#   1. PUSHGATEWAY_URL      — direct HTTP push (no SSH needed); with
+#                              PUSHGATEWAY_TOKEN set, sent as a bearer token
 #   2. DEPLOY_SSH_PRIVATE_KEY — full VPS access (protected, main only)
 #   3. PUSHGATEWAY_SSH_KEY   — restricted pushgateway-only key (unprotected,
 #                              all branches). Server-side forced command
@@ -159,6 +160,31 @@ _pushgateway_accepted() { # $1 = HTTP status, $2 = transport, $3 = exit code of 
     return 1
 }
 
+# POST stdin to the direct URL and print the HTTP status. push.vauchi.app
+# takes "Authorization: Bearer $PUSHGATEWAY_TOKEN" (private#470); without the
+# variable nothing is sent, as before.
+#
+# The header goes to curl through a config on a file descriptor rather than
+# an argument: on a shared shell runner every job can read the others'
+# command lines, and printf is a builtin, so the token never reaches argv.
+_pushgateway_direct() { # $1 = URL
+    local url="$1"
+    if [ -z "${PUSHGATEWAY_TOKEN:-}" ]; then
+        curl -sS -o /dev/stderr -w '%{http_code}' --connect-timeout 3 --max-time 5 \
+            --data-binary @- "$url"
+        return
+    fi
+    case "$PUSHGATEWAY_TOKEN" in
+        *[!A-Za-z0-9_-]*)
+            # It is written inside a quoted config value; never echo it.
+            echo "pushgateway: PUSHGATEWAY_TOKEN holds characters outside A-Z a-z 0-9 _ - and was not sent" >&2
+            return 1 ;;
+    esac
+    curl -sS -o /dev/stderr -w '%{http_code}' --connect-timeout 3 --max-time 5 \
+        -K <(printf 'header = "Authorization: Bearer %s"\n' "$PUSHGATEWAY_TOKEN") \
+        --data-binary @- "$url"
+}
+
 pushgateway_push() {
     local metrics_text="$1"
     local url_path="$2"
@@ -169,8 +195,7 @@ pushgateway_push() {
     local http_status call_exit
     if [ -n "${PUSHGATEWAY_URL:-}" ]; then
         http_status=$(_pushgateway_stamp "$metrics_text" direct |
-            curl -sS -o /dev/stderr -w '%{http_code}' --connect-timeout 3 --max-time 5 \
-                --data-binary @- "${PUSHGATEWAY_URL}${url_path}") && call_exit=0 || call_exit=$?
+            _pushgateway_direct "${PUSHGATEWAY_URL}${url_path}") && call_exit=0 || call_exit=$?
         if _pushgateway_accepted "$http_status" direct "$call_exit"; then
             echo "pushgateway: delivered via direct URL (no SSH credential exercised)" >&2
             return 0
