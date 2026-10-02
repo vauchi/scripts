@@ -419,6 +419,22 @@ assert_file_contains "a malformed token is named, not printed" \
     "$STUB_DIR/err" "PUSHGATEWAY_TOKEN holds characters outside"
 assert_eq "…and its value stays out of the log" "0" "$(grep -c "tmp/x" "$STUB_DIR/err")"
 
+# The helper is sourced by jobs whose shell is plain sh (the design-drift
+# job runs in alpine before bash is installed), so it must parse there. The
+# first version of the bearer header used bash process substitution, which
+# dash and ash reject at parse time, before any function is called
+# (private#470).
+for posix_shell in dash sh; do
+    command -v "$posix_shell" >/dev/null 2>&1 || continue
+    if "$posix_shell" -n "$SCRIPT_DIR/setup-ssh-pushgateway.sh" 2>"$STUB_DIR/err"; then
+        echo "  PASS: the helper parses under $posix_shell"
+        PASS=$(( PASS + 1 ))
+    else
+        echo "  FAIL: the helper does not parse under $posix_shell — $(head -1 "$STUB_DIR/err")"
+        FAIL=$(( FAIL + 1 ))
+    fi
+done
+
 # The status must not leak into the job's stdout, where callers read results.
 out=$(PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="full" \
     pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>/dev/null)
