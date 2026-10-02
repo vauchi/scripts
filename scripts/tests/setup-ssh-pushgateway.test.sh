@@ -243,6 +243,14 @@ CAPTURE="$STUB_DIR/payload"
 # HTTP status on stdout.
 cat >"$STUB_DIR/curl" <<STUB
 #!/bin/sh
+# Record the command line, and the config file curl was pointed at with -K.
+printf '%s\n' "\$*" > "$CAPTURE.argv"
+: > "$CAPTURE.config"
+prev=""
+for arg in "\$@"; do
+    [ "\$prev" = "-K" ] && cat "\$arg" > "$CAPTURE.config"
+    prev="\$arg"
+done
 cat > "$CAPTURE"
 [ -z "\${STUB_CURL_BODY:-}" ] || echo "\$STUB_CURL_BODY" >&2
 printf '%s' "\${STUB_CURL_STATUS:-200}"
@@ -368,6 +376,48 @@ STUB_SSH_STATUS=000 STUB_SSH_RC=28 PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="full
     pushgateway_push "vauchi_x 1" "/metrics/job/t" >/dev/null 2>"$STUB_DIR/err" || true
 assert_file_contains "no answer at all is unreachable" \
     "$STUB_DIR/err" "pushgateway: unreachable via full (exit 28)"
+
+# push.vauchi.app wants "Authorization: Bearer <token>" (private#470). The
+# token reaches curl through a config on a file descriptor, never the
+# command line: on a shared shell runner every job can read the others'
+# argv, and this token is what lets a job write metrics.
+TOKEN="5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+PUSHGATEWAY_TOKEN="$TOKEN" PUSHGATEWAY_URL="http://stub" PUSHGATEWAY_SSH_MODE="" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>/dev/null
+assert_file_contains "the direct push sends the token as a bearer header" \
+    "$CAPTURE.config" "Authorization: Bearer $TOKEN"
+assert_eq "the token is not on curl's command line" "0" \
+    "$(grep -c -F "$TOKEN" "$CAPTURE.argv")"
+check_stamp "a push with a token is still stamped mode=direct" "direct"
+
+PUSHGATEWAY_TOKEN="" PUSHGATEWAY_URL="http://stub" PUSHGATEWAY_SSH_MODE="" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>/dev/null
+assert_eq "without a token no header is sent" "0" \
+    "$(grep -c "Authorization" "$CAPTURE.config")"
+
+# 401, 403 and 405 are the endpoint's refusals; each is reported with its
+# status and none counts as a delivery.
+for refusal in 401 403 405; do
+    if STUB_CURL_STATUS=$refusal PUSHGATEWAY_TOKEN="$TOKEN" PUSHGATEWAY_URL="http://stub" \
+        PUSHGATEWAY_SSH_MODE="" \
+        pushgateway_push "vauchi_x 1" "/metrics/job/t" >/dev/null 2>"$STUB_DIR/err"; then
+        echo "  FAIL: an HTTP $refusal from the endpoint was reported as delivered"
+        FAIL=$(( FAIL + 1 ))
+    else
+        assert_file_contains "an HTTP $refusal from the endpoint is reported" \
+            "$STUB_DIR/err" "pushgateway: HTTP $refusal via direct"
+    fi
+done
+
+# A token that would break out of curl's config line is not sent at all.
+: > "$CAPTURE.config"
+PUSHGATEWAY_TOKEN='abc" --output "/tmp/x' PUSHGATEWAY_URL="http://stub" PUSHGATEWAY_SSH_MODE="" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" >/dev/null 2>"$STUB_DIR/err" || true
+assert_eq "a malformed token is never written into curl's config" "0" \
+    "$(grep -c "output" "$CAPTURE.config")"
+assert_file_contains "a malformed token is named, not printed" \
+    "$STUB_DIR/err" "PUSHGATEWAY_TOKEN holds characters outside"
+assert_eq "…and its value stays out of the log" "0" "$(grep -c "tmp/x" "$STUB_DIR/err")"
 
 # The status must not leak into the job's stdout, where callers read results.
 out=$(PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="full" \
