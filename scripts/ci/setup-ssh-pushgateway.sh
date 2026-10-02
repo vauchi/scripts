@@ -166,7 +166,9 @@ _pushgateway_accepted() { # $1 = HTTP status, $2 = transport, $3 = exit code of 
 #
 # The header goes to curl through a config on a file descriptor rather than
 # an argument: on a shared shell runner every job can read the others'
-# command lines, and printf is a builtin, so the token never reaches argv.
+# command lines. A here-document on descriptor 3, not bash's <(…): jobs
+# source this file from plain sh, where process substitution is a syntax
+# error for the whole file.
 _pushgateway_direct() { # $1 = URL
     local url="$1"
     if [ -z "${PUSHGATEWAY_TOKEN:-}" ]; then
@@ -181,8 +183,9 @@ _pushgateway_direct() { # $1 = URL
             return 1 ;;
     esac
     curl -sS -o /dev/stderr -w '%{http_code}' --connect-timeout 3 --max-time 5 \
-        -K <(printf 'header = "Authorization: Bearer %s"\n' "$PUSHGATEWAY_TOKEN") \
-        --data-binary @- "$url"
+        -K /dev/fd/3 --data-binary @- "$url" 3<<CONFIG
+header = "Authorization: Bearer $PUSHGATEWAY_TOKEN"
+CONFIG
 }
 
 pushgateway_push() {
