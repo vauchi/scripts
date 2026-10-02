@@ -138,16 +138,22 @@ push_metrics() {
 }
 
 # 30 days ago in ISO 8601 (Linux + macOS compat)
-thirty_days_ago() {
-    date -d '30 days ago' +%Y-%m-%dT00:00:00Z 2>/dev/null \
-        || date -v-30d +%Y-%m-%dT00:00:00Z 2>/dev/null \
-        || echo "1970-01-01T00:00:00Z"
+thirty_days_ago() { # BSD probe first: BSD date misreads -d
+    if date -v-1d >/dev/null 2>&1; then
+        date -v-30d +%Y-%m-%dT00:00:00Z
+    else
+        date -d '30 days ago' +%Y-%m-%dT00:00:00Z 2>/dev/null || echo "1970-01-01T00:00:00Z" # portable-shell-ok: GNU branch of a probed switch
+    fi
 }
 
 # Days between a YYYY-MM-DD date and today
 days_since() {
     local then_epoch now_epoch
-    then_epoch=$(date -d "$1" +%s 2>/dev/null || date -jf "%Y-%m-%d" "$1" +%s 2>/dev/null || echo 0)
+    if date -v-1d >/dev/null 2>&1; then
+        then_epoch=$(date -jf "%Y-%m-%d" "$1" +%s 2>/dev/null || echo 0)
+    else
+        then_epoch=$(date -d "$1" +%s 2>/dev/null || echo 0) # portable-shell-ok: GNU branch of a probed BSD/GNU switch
+    fi
     now_epoch=$(date +%s)
     echo $(( (now_epoch - then_epoch) / 86400 ))
 }
@@ -363,7 +369,7 @@ collect_test_metrics() {
         for search_dir in "$dir/src" "$dir/tests"; do
             [ -d "$search_dir" ] || continue
             local count
-            count=$(grep -r '#\[test\]' "$search_dir" --include="*.rs" 2>/dev/null | wc -l | tr -d ' ')
+            count=$(find "$search_dir" -name '*.rs' -exec grep -h '#\[test\]' {} + 2>/dev/null | wc -l | tr -d ' ')
             total_tests=$((total_tests + count))
         done
     done
@@ -508,8 +514,8 @@ collect_cycle_metrics() {
         [ -f "$plan_file" ] || continue
         local pending completed
         # Match both "- [ ]" and "1. [ ]" style checkboxes
-        pending=$(grep -cE '^\s*(-|[0-9]+\.)\s*\[ \]' "$plan_file" 2>/dev/null || echo "0")
-        completed=$(grep -cE '^\s*(-|[0-9]+\.)\s*\[x\]' "$plan_file" 2>/dev/null || echo "0")
+        pending=$(grep -cE '^[[:space:]]*(-|[0-9]+\.)[[:space:]]*\[ \]' "$plan_file" 2>/dev/null || echo "0")
+        completed=$(grep -cE '^[[:space:]]*(-|[0-9]+\.)[[:space:]]*\[x\]' "$plan_file" 2>/dev/null || echo "0")
         pending=${pending//[^0-9]/}; pending=${pending:-0}
         completed=${completed//[^0-9]/}; completed=${completed:-0}
         total_pending=$((total_pending + pending))
