@@ -327,8 +327,12 @@ for j in d:
                 # (pipe `| while` would lose METRICS_TEXT updates in a subshell).
                 while read -r count job; do
                     [ -z "$job" ] && continue
+                    # ci_job, not job: the Pushgateway overwrites a pushed
+                    # `job` label with the grouping key's, which made every
+                    # series of a repository identical and the payload
+                    # invalid (private#470).
                     append_metric "vauchi_eng_ci_mr_job_failures_20" \
-                        "repo=\"${repo}\",job=\"${job}\"" "$count"
+                        "repo=\"${repo}\",ci_job=\"${job}\"" "$count"
                 done < <(echo "$_acc" | grep -v '^$' | sort | uniq -c | sort -rn | head -5)
             fi
         fi
