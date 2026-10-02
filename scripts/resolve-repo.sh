@@ -162,7 +162,10 @@ repo_test_features() {
         # 64 MB / 3 iterations) for ~5x faster KDF-bound tests. Already
         # used by core CI (see core/.gitlab-ci.yml). Enabling it locally
         # too keeps `just test core` and CI consistent.
-        core) echo "--features vauchi-core/testing,vauchi-core/test-kdf" ;;
+        # `vauchi-app/testing` is its own flag: `vauchi-core/testing` does
+        # not set `cfg(feature = "testing")` inside vauchi-app's tests, so
+        # without it 14 gated tests compiled out and ran nowhere.
+        core) echo "--features vauchi-core/testing,vauchi-core/test-kdf,vauchi-app/testing" ;;
         # `test-utils` gates the shared state constructors that
         # router_integration, server_lifecycle and client_ip need. Cargo
         # silently skips a target whose required-features are absent, so
