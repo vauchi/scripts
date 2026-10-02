@@ -150,6 +150,21 @@
           echo "apk add failed after 3 attempts" >&2
           exit 1
       fi
+
+      # This job replaces any inherited before_script, so it does not get
+      # fetch_vauchi_script from rust-base. Without a definition here the
+      # helper download below was "command not found" and no repository's
+      # design-drift numbers were ever pushed (private#470). Plain sh: the
+      # job's shell is alpine's.
+      fetch_vauchi_script() {
+        src_path="$1"; dest="$2"
+        encoded_path=$(printf '%s' "$src_path" | sed 's|/|%2F|g')
+        mkdir -p "$(dirname "$dest")"
+        curl -fsSL -u "gitlab-ci-token:${CI_JOB_TOKEN}" \
+          "${CI_API_V4_URL}/projects/77957857/repository/files/${encoded_path}/raw?ref=${VAUCHI_SCRIPTS_REF}" \
+          -o "$dest"
+        chmod +x "$dest"
+      }
   script:
     - |
       set -euo pipefail
@@ -311,8 +326,8 @@
       METRICS_TEXT="${METRICS_TEXT}vauchi_eng_design_drift_score{repo=\"${REPO_LABEL}\"} ${SCORE}\n"
 
       # Push via shared helper (tries: direct URL → full SSH → restricted SSH)
-      if fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh /tmp/setup-ssh-pushgateway.sh 2>/dev/null; then
-        source /tmp/setup-ssh-pushgateway.sh
+      if fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh /tmp/setup-ssh-pushgateway.sh; then
+        . /tmp/setup-ssh-pushgateway.sh
         setup_ssh_pushgateway
         METRICS_FLAT=$(printf '%b' "$METRICS_TEXT")
         if pushgateway_push "$METRICS_FLAT" "/metrics/job/vauchi_design_drift/repo/${REPO_LABEL}"; then
