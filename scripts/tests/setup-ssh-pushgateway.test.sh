@@ -238,16 +238,21 @@ setup_test "transport stamping"
 STUB_DIR=$(mktemp -d)
 CAPTURE="$STUB_DIR/payload"
 
-# Stubs record stdin instead of reaching the network.
+# Stubs record stdin instead of reaching the network. Like curl with
+# -o /dev/stderr -w '%{http_code}', they answer with a body on stderr and the
+# HTTP status on stdout.
 cat >"$STUB_DIR/curl" <<STUB
 #!/bin/sh
 cat > "$CAPTURE"
+[ -z "\${STUB_CURL_BODY:-}" ] || echo "\$STUB_CURL_BODY" >&2
+printf '%s' "\${STUB_CURL_STATUS:-200}"
 exit \${STUB_CURL_RC:-0}
 STUB
 cat >"$STUB_DIR/ssh" <<STUB
 #!/bin/sh
 cat > "$CAPTURE"
 [ -z "\${STUB_SSH_ERR:-}" ] || echo "\$STUB_SSH_ERR" >&2
+printf '%s' "\${STUB_SSH_STATUS:-200}"
 exit \${STUB_SSH_RC:-0}
 STUB
 chmod +x "$STUB_DIR/curl" "$STUB_DIR/ssh"
@@ -317,6 +322,44 @@ STUB_CURL_RC=1 PUSHGATEWAY_URL="http://stub" PUSHGATEWAY_SSH_MODE="" \
     pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>"$STUB_DIR/err" || true
 assert_file_contains "with no key decoded, only the direct URL is named" \
     "$STUB_DIR/err" "NO transport delivered the metric (tried: direct)"
+
+# A rejected payload is not a delivery, and the log keeps the Pushgateway's
+# reason. The engineering payload was answered HTTP 400 on every sampled day
+# from 2026-05-20 to 2026-10-01; curl --fail threw the explanation away and
+# exited 22, so nobody could say which line was wrong (private#470).
+REJECTION="text format parsing error in line 3: second TYPE line for metric"
+if STUB_SSH_STATUS=400 STUB_SSH_ERR="$REJECTION" PUSHGATEWAY_URL="" \
+    PUSHGATEWAY_SSH_MODE="full" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" >/dev/null 2>"$STUB_DIR/err"; then
+    echo "  FAIL: an HTTP 400 over the deploy key was reported as delivered"
+    FAIL=$(( FAIL + 1 ))
+else
+    echo "  PASS: an HTTP 400 over the deploy key is not a delivery"
+    PASS=$(( PASS + 1 ))
+fi
+assert_file_contains "a rejection keeps the Pushgateway's reason" \
+    "$STUB_DIR/err" "second TYPE line for metric"
+assert_file_contains "a rejection names its status and transport" \
+    "$STUB_DIR/err" "pushgateway: HTTP 400 via full"
+
+if STUB_CURL_STATUS=401 STUB_CURL_BODY="unauthorized" PUSHGATEWAY_URL="http://stub" \
+    PUSHGATEWAY_SSH_MODE="" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" >/dev/null 2>"$STUB_DIR/err"; then
+    echo "  FAIL: an HTTP 401 on the direct URL was reported as delivered"
+    FAIL=$(( FAIL + 1 ))
+else
+    echo "  PASS: an HTTP 401 on the direct URL is not a delivery"
+    PASS=$(( PASS + 1 ))
+fi
+assert_file_contains "a direct rejection names its status" \
+    "$STUB_DIR/err" "pushgateway: HTTP 401 via direct"
+assert_file_contains "a direct rejection keeps the response body" \
+    "$STUB_DIR/err" "unauthorized"
+
+# The status must not leak into the job's stdout, where callers read results.
+out=$(PUSHGATEWAY_URL="" PUSHGATEWAY_SSH_MODE="full" \
+    pushgateway_push "vauchi_x 1" "/metrics/job/t" 2>/dev/null)
+assert_eq "a delivery prints nothing on stdout" "" "$out"
 
 rm -rf "$STUB_DIR"
 teardown_test
