@@ -183,7 +183,7 @@
       done
 
       # Also check for library outputs (.so, .dylib, .a)
-      for lib in target/release/*.{so,dylib,a} target/release/lib*.{so,dylib,a}; do
+      for lib in target/release/*.{so,dylib,a}; do
         if [ ! -f "$lib" ]; then continue; fi
 
         LIB_NAME=$(basename "$lib")
