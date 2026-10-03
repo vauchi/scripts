@@ -74,8 +74,10 @@
       cargo mutants --test-tool "${MUTATION_TEST_TOOL}" ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
       MUTANTS_PID=$!
       trap 'kill $MUTANTS_PID 2>/dev/null; wait $MUTANTS_PID 2>/dev/null' EXIT
-      "$PROGRESS_SCRIPT" "$MUTANTS_PID" "$MUTANTS_OUT"
-      MUTATION_EXIT=$?
+      "$PROGRESS_SCRIPT" "$MUTANTS_PID" "$MUTANTS_OUT" || true
+      # Only this shell, the parent, can collect cargo-mutants' status;
+      # the monitor is a sibling and cannot wait for it (vauchi/private#487).
+      wait "$MUTANTS_PID" && MUTATION_EXIT=0 || MUTATION_EXIT=$?
       # Push metrics to Grafana regardless of pass/fail, then exit with mutation status
       "$PUSH_SCRIPT" "$MUTANTS_OUT" "${CI_PROJECT_NAME}" || true
 

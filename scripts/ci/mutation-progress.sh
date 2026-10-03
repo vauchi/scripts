@@ -12,12 +12,18 @@
 # result files from <mutants_out_dir>. Displays real-time progress with
 # GitLab CI collapsible sections and a final summary.
 #
-# Exit code: same as the cargo-mutants process.
+# Exit code: 0 once the process is gone. The process is the caller's
+# child, not this script's, so only the caller can `wait` for it and
+# read its status (vauchi/private#487).
+#
+# MUTATION_PROGRESS_POLL_SECS shortens the polling interval for tests.
 
 set -euo pipefail
 
 MUTANTS_PID="${1:?Usage: mutation-progress.sh <pid> <output_dir>}"
 MUTANTS_OUT="${2:?Usage: mutation-progress.sh <pid> <output_dir>}"
+POLL_SECS="${MUTATION_PROGRESS_POLL_SECS:-30}"
+DISCOVERY_POLL_SECS="${MUTATION_PROGRESS_POLL_SECS:-10}"
 
 # Colors
 G='\033[32m'; R='\033[31m'; Y='\033[33m'; D='\033[2m'
@@ -44,12 +50,38 @@ last_mutant() {
   fi
 }
 
+running() { kill -0 "$MUTANTS_PID" 2>/dev/null; }
+
+print_summary() {
+  local c m t u d cpct
+  c=$(count "$MUTANTS_OUT/caught.txt"); m=$(count "$MUTANTS_OUT/missed.txt")
+  t=$(count "$MUTANTS_OUT/timeout.txt"); u=$(count "$MUTANTS_OUT/unviable.txt")
+  d=$((c + m + t + u))
+  [ "$TOTAL" -gt 0 ] 2>/dev/null && cpct=$((c * 100 / TOTAL)) || cpct=0
+
+  echo ""
+  printf '%b' "${B}=== Mutation Testing Summary ===${Z}\n"
+  printf "  Total:    %d / %d\n" "$d" "$TOTAL"
+  printf '  Caught:   %b%d (%d%%)%b\n' "$G" "$c" "$cpct" "$Z"
+  printf '  Missed:   %b%d%b\n' "$R" "$m" "$Z"
+  printf '  Timeout:  %b%d%b\n' "$Y" "$t" "$Z"
+  printf '  Unviable: %b%d%b\n' "$D" "$u" "$Z"
+  if [ -s "$MUTANTS_OUT/missed.txt" ]; then
+    echo ""
+    printf '%b' "${R}${B}Missed mutants:${Z}\n"
+    while IFS= read -r line; do printf '  %b%s%b\n' "$R" "$line" "$Z"; done < "$MUTANTS_OUT/missed.txt"
+  fi
+}
+
+TOTAL=0
+
 # Wait for mutants.json to be written (indicates mutant discovery is done)
-while [ ! -f "$MUTANTS_OUT/mutants.json" ] && kill -0 "$MUTANTS_PID" 2>/dev/null; do
-  sleep 10
+while [ ! -f "$MUTANTS_OUT/mutants.json" ] && running; do
+  sleep "$DISCOVERY_POLL_SECS"
 done
-if ! kill -0 "$MUTANTS_PID" 2>/dev/null; then
-  wait "$MUTANTS_PID"; exit $?
+if ! running && [ ! -f "$MUTANTS_OUT/mutants.json" ]; then
+  print_summary
+  exit 0
 fi
 
 TOTAL=$(python3 -c "import json; print(len(json.load(open('$MUTANTS_OUT/mutants.json'))))" 2>/dev/null || echo "0")
@@ -59,8 +91,8 @@ printf '%b' "${B}${C}Baseline: compiling and running unmutated tests${Z}\n"
 
 SECONDS=0; BASELINE_OPEN=true; TESTING_OPEN=false
 
-while kill -0 "$MUTANTS_PID" 2>/dev/null; do
-  sleep 30
+while running; do
+  sleep "$POLL_SECS"
   c=$(count "$MUTANTS_OUT/caught.txt"); m=$(count "$MUTANTS_OUT/missed.txt")
   t=$(count "$MUTANTS_OUT/timeout.txt"); u=$(count "$MUTANTS_OUT/unviable.txt")
   d=$((c + m + t + u))
@@ -92,25 +124,4 @@ done
 $BASELINE_OPEN && printf "\033[0Ksection_end:%s:baseline\r\033[0K" "$(date +%s)"
 $TESTING_OPEN && printf "\033[0Ksection_end:%s:testing\r\033[0K" "$(date +%s)"
 
-wait "$MUTANTS_PID"
-EXIT_CODE=$?
-
-c=$(count "$MUTANTS_OUT/caught.txt"); m=$(count "$MUTANTS_OUT/missed.txt")
-t=$(count "$MUTANTS_OUT/timeout.txt"); u=$(count "$MUTANTS_OUT/unviable.txt")
-d=$((c + m + t + u))
-[ "$TOTAL" -gt 0 ] 2>/dev/null && cpct=$((c * 100 / TOTAL)) || cpct=0
-
-echo ""
-printf '%b' "${B}=== Mutation Testing Summary ===${Z}\n"
-printf "  Total:    %d / %d\n" "$d" "$TOTAL"
-printf '  Caught:   %b%d (%d%%)%b\n' "$G" "$c" "$cpct" "$Z"
-printf '  Missed:   %b%d%b\n' "$R" "$m" "$Z"
-printf '  Timeout:  %b%d%b\n' "$Y" "$t" "$Z"
-printf '  Unviable: %b%d%b\n' "$D" "$u" "$Z"
-if [ -s "$MUTANTS_OUT/missed.txt" ]; then
-  echo ""
-  printf '%b' "${R}${B}Missed mutants:${Z}\n"
-  while IFS= read -r line; do printf '  %b%s%b\n' "$R" "$line" "$Z"; done < "$MUTANTS_OUT/missed.txt"
-fi
-
-exit "$EXIT_CODE"
+print_summary
