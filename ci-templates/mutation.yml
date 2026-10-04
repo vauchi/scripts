@@ -73,18 +73,23 @@
       PACKAGE_FLAG="${MUTATION_PACKAGE:+-p ${MUTATION_PACKAGE}}"
       cargo mutants --test-tool "${MUTATION_TEST_TOOL}" ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
       MUTANTS_PID=$!
+      # cargo-mutants writes its result files one level down, in mutants.out/.
+      MUTANTS_DIR="$MUTANTS_OUT/mutants.out"
       trap 'kill $MUTANTS_PID 2>/dev/null; wait $MUTANTS_PID 2>/dev/null' EXIT
-      "$PROGRESS_SCRIPT" "$MUTANTS_PID" "$MUTANTS_OUT" || true
+      "$PROGRESS_SCRIPT" "$MUTANTS_PID" "$MUTANTS_DIR" || true
       # Only this shell, the parent, can collect cargo-mutants' status;
       # the monitor is a sibling and cannot wait for it (vauchi/private#487).
       wait "$MUTANTS_PID" && MUTATION_EXIT=0 || MUTATION_EXIT=$?
+      # The trap only guards a job that dies early. Left armed, its `kill` of
+      # the reaped pid fails, and under the job's errexit that failure became
+      # the exit status of every run (vauchi/private#511).
+      trap - EXIT
       # Push metrics to Grafana regardless of pass/fail, then exit with mutation status
-      "$PUSH_SCRIPT" "$MUTANTS_OUT" "${CI_PROJECT_NAME}" || true
+      "$PUSH_SCRIPT" "$MUTANTS_DIR" "${CI_PROJECT_NAME}" || true
 
       # Generate JUnit XML from cargo-mutants text output for GitLab test tab.
       # Uses plain text files (missed.txt, caught.txt, unviable.txt) instead of
       # jq+outcomes.json since jq may not be installed on all runners.
-      MUTANTS_DIR="$MUTANTS_OUT/mutants.out"
       JUNIT="$MUTANTS_OUT/mutation-junit.xml"
       MISSED=$(wc -l < "$MUTANTS_DIR/missed.txt" 2>/dev/null | tr -d ' ' || echo 0)
       CAUGHT=$(wc -l < "$MUTANTS_DIR/caught.txt" 2>/dev/null | tr -d ' ' || echo 0)
