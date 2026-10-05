@@ -65,8 +65,12 @@
       if [ "$COVERAGE_USE_NEXTEST" = "true" ]; then
         cargo binstall cargo-nextest --no-confirm 2>/dev/null || true
       fi
-    - fetch_vauchi_script scripts/ci/push-coverage.sh push-coverage.sh
-    - fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh setup-ssh-pushgateway.sh
+    # Fetched into the scripts repository's layout, because push-coverage.sh
+    # sources ../lib/common.sh (private#520).
+    - mkdir -p .vauchi-scripts/ci .vauchi-scripts/lib
+    - fetch_vauchi_script scripts/ci/push-coverage.sh .vauchi-scripts/ci/push-coverage.sh
+    - fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh .vauchi-scripts/ci/setup-ssh-pushgateway.sh
+    - fetch_vauchi_script scripts/lib/common.sh .vauchi-scripts/lib/common.sh
     - |
       PROJECT_ROOT="$(pwd -P)"
       cd "${COVERAGE_WORKDIR}"
@@ -89,7 +93,8 @@
 
       # Push metrics to Grafana (always, even if tests failed — data is still valid)
       REPO_LABEL="${COVERAGE_REPO_LABEL:-${CI_PROJECT_NAME}}"
-      "${PROJECT_ROOT}/push-coverage.sh" cobertura.xml "${REPO_LABEL}" || true
+      "${PROJECT_ROOT}/.vauchi-scripts/ci/push-coverage.sh" cobertura.xml "${REPO_LABEL}" \
+        || echo "WARNING: coverage metrics for ${REPO_LABEL} were not pushed (see above)"
 
       # Propagate test failure after metrics push (so coverage data is always reported)
       exit ${COVERAGE_EXIT:-0}
