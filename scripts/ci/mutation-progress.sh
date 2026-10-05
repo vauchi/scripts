@@ -40,13 +40,15 @@ color_type() {
   esac
 }
 
+# The newest result file names the outcome of the last mutant. `ls -t`
+# rather than `find -printf`: BSD and BusyBox find lack -printf, and under
+# pipefail its failure ended the monitor before the summary (#521). `ls`
+# exits non-zero for the outcome files not written yet, hence `|| true`.
 last_mutant() {
   local f
-  f=$(find "$MUTANTS_OUT" -maxdepth 1 -name '*.txt' \
-        \( -name caught.txt -o -name missed.txt -o -name timeout.txt -o -name unviable.txt \) \
-        -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+  f=$(cd "$MUTANTS_OUT" && { ls -t caught.txt missed.txt timeout.txt unviable.txt 2>/dev/null || true; } | head -1)
   if [ -n "$f" ]; then
-    printf "  \xe2\x94\x94 %s \xe2\x80\x94 %b\n" "$(tail -1 "$f")" "$(color_type "$(basename "$f" .txt)")"
+    printf "  \xe2\x94\x94 %s \xe2\x80\x94 %b\n" "$(tail -1 "$MUTANTS_OUT/$f")" "$(color_type "${f%.txt}")"
   fi
 }
 
