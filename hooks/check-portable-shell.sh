@@ -24,15 +24,25 @@ emit() {
 
 check_file() {
     local file="$1"
-    local line_no=0
+    local line_no=0 read_no=0 start_no=0 logical=""
     local found=0
 
     while IFS= read -r line; do
-        line_no=$((line_no + 1))
+        read_no=$((read_no + 1))
 
         # Skip comments and empty lines
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ -z "$line" ]] && continue
+
+        # Check a backslash-continued command as one line, reported at its
+        # first line: otherwise a flag on a continuation line never meets
+        # its command (`find … \` then `-printf …`, vauchi/private#521).
+        [[ -z "$logical" ]] && start_no="$read_no"
+        logical+="${line%\\} "
+        [[ "$line" == *\\ ]] && continue
+        line="$logical"
+        logical=""
+        line_no="$start_no"
 
         # Skip lines with inline suppression, string literals, or regex tests.
         # Use "# portable-shell-ok" to suppress false positives on specific lines.
