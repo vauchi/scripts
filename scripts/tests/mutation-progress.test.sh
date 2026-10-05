@@ -106,6 +106,28 @@ wait "$pid" || true
 assert_eq "early death exits 0" 0 "$status"
 assert_contains "early death still prints a summary" "Total:    0 / 0" "$output"
 
+# ── 5. A find without -printf (BSD, BusyBox) still gets a summary ────
+# GNU-only flags made the monitor die after its first progress line on
+# macOS, before the summary (vauchi/private#521). This find refuses
+# -printf the way BSD and BusyBox find do, on any host.
+mkdir -p "$WORK/bin" "$WORK/bsd"
+cat > "$WORK/bin/find" <<'FIND'
+#!/usr/bin/env bash
+for a in "$@"; do
+    if [ "$a" = "-printf" ]; then
+        echo "find: -printf: unknown primary or operator" >&2
+        exit 1
+    fi
+done
+exec /usr/bin/find "$@"
+FIND
+chmod +x "$WORK/bin/find"
+fake_mutants "$WORK/bsd" 2 caught missed
+PATH="$WORK/bin:$PATH" run_monitor "$pid" "$WORK/bsd"
+wait "$pid" || true
+assert_eq "without -printf the monitor still exits 0" 0 "$status"
+assert_contains "without -printf the summary still counts" "Total:    2 / 3" "$output"
+
 # ── 4. The template, as parent, waits for cargo-mutants itself ───────
 TEMPLATE="$SCRIPT_DIR/../../ci-templates/mutation.yml"
 template_body="$(cat "$TEMPLATE")"

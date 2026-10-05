@@ -68,6 +68,9 @@ run_case VSH06 'grep -r pat . --include="*.md"'
 run_case VSH07 'sed --in-place "s/a/b/" f'
 run_case VSH07 "sed -i '' 's/a/b/' f"
 run_case VSH08 'find src -name "*.rs" -printf "%f\n"'
+# A continued command: find on one line, -printf on the next
+# (vauchi/private#521 — mutation-progress.sh slipped through this way).
+run_case VSH08 'f=$(find "$d" -maxdepth 1 -name "*.txt" \' '    -printf "%T@ %p\n" | sort -rn)'
 run_case VSH09 'awk "{ print gensub(/a/, \"b\", \"g\") }" f'
 run_case VSH10 'date -d "2026-07-05" +%s'
 run_case VSH11 'hash=$(md5sum "$f" | cut -d" " -f1)'
