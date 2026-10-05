@@ -618,8 +618,9 @@ fi
 
 # Sanity check: the script queries every repo in GITLAB_PROJECTS. If only a
 # handful returned data, the CI token likely lacks cross-project API access.
-# (This happens when vauchi/scripts is not in the job-token allowlist of the
-# target projects; see scripts/.gitlab-ci.yml::metrics:daily.)
+# (With a job token: vauchi/scripts missing from a target project's job-token
+# allowlist. On the production host, which runs this from vauchi-metrics.timer
+# with a read-only token, a token without access to those projects.)
 repos_with_data=$(echo "$METRICS_TEXT" | grep -oE 'repo="[^"]+"' | sed 's/repo="//;s/"$//' | sort -u | wc -l | tr -d ' ')
 expected_repos=${#GITLAB_PROJECTS[@]}
 if [ "$repos_with_data" -lt "$(( expected_repos / 2 ))" ]; then

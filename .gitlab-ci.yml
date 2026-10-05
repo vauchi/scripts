@@ -271,46 +271,6 @@ resource-group:reset:
       fi
   allow_failure: true  # advisory: never block other scheduled work
 
-# Push engineering metrics to Prometheus pushgateway (daily schedule).
-# allow_failure: true because pushgateway availability is best-effort
-# observability — a missed daily push is recoverable on the next run
-# and must never gate scheduled work. Audited 2026-04-22 T2.5.
-#
-# REQUIRES: vauchi/scripts must be in the CI/CD job-token allowlist of every
-# project queried by scripts/scripts/ci/metrics-push.sh (core, relay, cli, tui,
-# ios, android, e2e, macos, windows, linux-gtk, linux-qt, ohttp-relay, web-demo).
-# Without this, the job token can only read vauchi/scripts itself and the
-# Engineering Metrics dashboard will show only the scripts repo.
-metrics:daily:
-  stage: metrics
-  tags:
-    - self-hosted
-    - shellcheck
-    - linux
-  resource_group: metrics-daily
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-      when: manual
-  variables:
-    GIT_STRATEGY: clone
-    GIT_DEPTH: "1"
-  before_script:
-    - mkdir -p ~/.ssh
-    - base64 -d "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-    - chmod 600 ~/.ssh/id_ed25519
-    - |
-      cat >> ~/.ssh/config <<'SSHEOF'
-      Host bold-hopper-vps
-        HostName 87.106.25.46
-        User vauchi
-        StrictHostKeyChecking accept-new
-      SSHEOF
-    - chmod 600 ~/.ssh/config
-  script:
-    - scripts/ci/metrics-push.sh --ci
-  allow_failure: true
-
 # Collect CI runner queue metrics and push to Prometheus.
 # Runs every few minutes from a schedule. Self-hosted runner so the
 # pushgateway SSH key and GitLab API token stay off SaaS runners.
