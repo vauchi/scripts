@@ -47,6 +47,7 @@ done <<EOF
 $fetches
 EOF
 
+# shellcheck disable=SC2016  # matches the template's literal ${PROJECT_ROOT}
 invocation=$(sed -n 's/^ *"\${PROJECT_ROOT}\/\([^"]*push-coverage\.sh\)".*/\1/p' "$TEMPLATE")
 check "the template runs push-coverage.sh from the project root" \
     "1" "$(printf '%s\n' "$invocation" | grep -c .)"
