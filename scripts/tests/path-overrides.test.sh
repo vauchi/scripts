@@ -96,6 +96,10 @@ test_apply_writes_fence() {
         "$(cat "$root/web-demo/wasm/Cargo.toml")"
     assert_contains "e2e patches vauchi-relay" \
         'vauchi-relay = { path = "../relay" }' "$(cat "$root/e2e/Cargo.toml")"
+    # e2e decodes signed OHTTP records with vauchi-protocol directly (#288);
+    # unpatched, it would be a second copy beside core's local one.
+    assert_contains "e2e patches vauchi-protocol" \
+        'vauchi-protocol = { path = "../core/vauchi-protocol" }' "$(cat "$root/e2e/Cargo.toml")"
     assert_contains "relay patches only vauchi-protocol" \
         'vauchi-protocol = { path = "../core/vauchi-protocol" }' \
         "$(cat "$root/relay/Cargo.toml")"

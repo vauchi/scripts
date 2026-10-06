@@ -28,6 +28,8 @@ case "$(basename "$PWD")" in
         ;;
     relay)
         output="$FIXTURE_ROOT/target/release/vauchi-relay"
+        mkdir -p "$(dirname "$output")"
+        : > "$FIXTURE_ROOT/target/release/vauchi-ohttp-anchor"
         ;;
     ohttp-relay)
         output="$PWD/target/release/vauchi-ohttp-relay"
@@ -45,11 +47,32 @@ CARGO_LOG="$fixture/cargo.log" FIXTURE_ROOT="$fixture" \
     PATH="$fixture/fake-bin:$PATH" \
     bash "$fixture/scripts/scripts/e2e/build-binaries.sh" >/dev/null
 
+failures=0
+
 if grep -q '^ohttp-relay|build --release --features e2e-faults ' "$fixture/cargo.log"; then
     echo "PASS: E2E OHTTP relay enables fault-controller endpoints"
-    exit 0
+else
+    echo "FAIL: E2E OHTTP relay build omitted --features e2e-faults" >&2
+    failures=$((failures + 1))
 fi
 
-echo "FAIL: E2E OHTTP relay build omitted --features e2e-faults" >&2
-cat "$fixture/cargo.log" >&2
-exit 1
+# #288: e2e moves the relay across OHTTP windows with its test clock.
+if grep -q '^relay|build --release .*--features e2e-test-clock' "$fixture/cargo.log"; then
+    echo "PASS: E2E relay enables the OHTTP test clock"
+else
+    echo "FAIL: E2E relay build omitted --features e2e-test-clock" >&2
+    failures=$((failures + 1))
+fi
+
+# #288: e2e provisions each relay's test anchor with the ceremony CLI.
+if [ -f "$fixture/target/e2e-bin/vauchi-ohttp-anchor" ]; then
+    echo "PASS: E2E bin dir carries vauchi-ohttp-anchor next to the relay"
+else
+    echo "FAIL: vauchi-ohttp-anchor missing from the E2E bin dir" >&2
+    failures=$((failures + 1))
+fi
+
+if [ "$failures" -ne 0 ]; then
+    cat "$fixture/cargo.log" >&2
+    exit 1
+fi
