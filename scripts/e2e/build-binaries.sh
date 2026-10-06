@@ -72,6 +72,27 @@ build_if_changed() {
     echo "  [done]   $binary_name"
 }
 
+# Build the relay with its OHTTP test clock, so e2e can move the windowed
+# gateway across 24 h windows, and keep the anchor ceremony CLI it ships:
+# e2e provisions each relay's test anchor with it (#288). A cache from
+# before the CLI was copied lacks it, so its absence forces a rebuild.
+build_relay_if_changed() {
+    local repo_dir="$1"
+    local anchor_cli="vauchi-ohttp-anchor"
+    if [[ ! -f "$BIN_DIR/$anchor_cli" ]]; then
+        rm -f "$BIN_DIR/.vauchi-relay.sha"
+    fi
+    build_if_changed "$repo_dir" "vauchi-relay" --features e2e-test-clock
+    if [[ ! -f "$BIN_DIR/$anchor_cli" ]]; then
+        local built_cli="$WORKSPACE_ROOT/target/release/$anchor_cli"
+        if [[ ! -f "$built_cli" ]]; then
+            echo "ERROR: Expected $anchor_cli at $built_cli" >&2
+            exit 1
+        fi
+        cp "$built_cli" "$BIN_DIR/$anchor_cli"
+    fi
+}
+
 # Build the ohttp-relay binary if the SHA has changed.
 # ohttp-relay lives in its own Cargo workspace, so its target dir differs
 # from the workspace-root target used by cli/relay.
@@ -115,7 +136,7 @@ echo ""
 # this feature, so their destructive-operation grace period stays unforgeable.
 build_if_changed "$WORKSPACE_ROOT/cli" "vauchi" --no-default-features --features e2e-test-clock
 
-build_if_changed "$WORKSPACE_ROOT/relay" "vauchi-relay"
+build_relay_if_changed "$WORKSPACE_ROOT/relay"
 
 build_ohttp_relay_if_changed "$WORKSPACE_ROOT/ohttp-relay"
 

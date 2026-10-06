@@ -53,7 +53,7 @@ CONSUMERS=(
     "tui|../core||vauchi-core,vauchi-app"
     "linux-gtk|../core||vauchi-core,vauchi-app"
     "relay|../core||vauchi-protocol"
-    "e2e|../core|../relay|vauchi-core,vauchi-app"
+    "e2e|../core|../relay|vauchi-core,vauchi-app,vauchi-protocol"
 )
 
 # ── helpers ────────────────────────────────────────────────────────────────
