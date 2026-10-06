@@ -69,7 +69,7 @@
     # sources ../lib/common.sh (private#520).
     - mkdir -p .vauchi-scripts/ci .vauchi-scripts/lib
     - fetch_vauchi_script scripts/ci/push-coverage.sh .vauchi-scripts/ci/push-coverage.sh
-    - fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh .vauchi-scripts/ci/setup-ssh-pushgateway.sh
+    - fetch_vauchi_script scripts/ci/pushgateway-push.sh .vauchi-scripts/ci/pushgateway-push.sh
     - fetch_vauchi_script scripts/lib/common.sh .vauchi-scripts/lib/common.sh
     - |
       PROJECT_ROOT="$(pwd -P)"

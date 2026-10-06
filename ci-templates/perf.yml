@@ -208,12 +208,11 @@
         exit 0
       fi
 
-      if fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh /tmp/setup-ssh-pushgateway.sh 2>/dev/null; then
+      if fetch_vauchi_script scripts/ci/pushgateway-push.sh /tmp/pushgateway-push.sh 2>/dev/null; then
         # shellcheck source=/dev/null
-        source /tmp/setup-ssh-pushgateway.sh
-        setup_ssh_pushgateway
+        source /tmp/pushgateway-push.sh
         if pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_binary_size/repo/${REPO_LABEL}"; then
-          echo "✓ Binary size metrics pushed for ${REPO_LABEL} (${PUSHGATEWAY_SSH_MODE:-direct})"
+          echo "✓ Binary size metrics pushed for ${REPO_LABEL}"
         else
           echo "⚠ Pushgateway push failed (non-fatal) — metrics logged above"
         fi
@@ -308,18 +307,16 @@
       fi
 
       PUSH_JOB="vauchi_app_size"
-      # Pushgateway forced-command allowlist requires single-segment label
-      # values per `/key/value/key/value/...`; "android/apk" would split.
-      # Encode platform+format as one segment so the restricted-key path
-      # accepts it (matches push-proxy.sh regex `[a-z0-9_.-]+`).
+      # push.vauchi.app's path allowlist takes single-segment label values
+      # of [a-z0-9_.-]; "android/apk" would split. Encode platform+format
+      # as one segment (private infra/monitoring/pushgate/nginx.conf.template).
       PUSH_INSTANCE="${MOBILE_SIZE_PLATFORM}_${MOBILE_SIZE_FORMAT}"
 
-      if fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh /tmp/setup-ssh-pushgateway.sh 2>/dev/null; then
+      if fetch_vauchi_script scripts/ci/pushgateway-push.sh /tmp/pushgateway-push.sh 2>/dev/null; then
         # shellcheck source=/dev/null
-        source /tmp/setup-ssh-pushgateway.sh
-        setup_ssh_pushgateway
+        source /tmp/pushgateway-push.sh
         if pushgateway_push "$METRICS_TEXT" "/metrics/job/${PUSH_JOB}/instance/${PUSH_INSTANCE}"; then
-          echo "✓ App size metrics pushed for ${PUSH_INSTANCE} (${PUSHGATEWAY_SSH_MODE:-direct})"
+          echo "✓ App size metrics pushed for ${PUSH_INSTANCE}"
         else
           echo "⚠ Pushgateway push failed (non-fatal) — metrics logged above"
         fi

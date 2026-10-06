@@ -52,7 +52,7 @@
     - command -v cargo-mutants >/dev/null 2>&1 || cargo binstall cargo-mutants --no-confirm 2>/dev/null || true
     - command -v cargo-nextest >/dev/null 2>&1 || cargo binstall cargo-nextest --no-confirm 2>/dev/null || true
     - |
-      for script in mutation-progress.sh push-mutation.sh setup-ssh-pushgateway.sh; do
+      for script in mutation-progress.sh push-mutation.sh pushgateway-push.sh; do
         fetch_vauchi_script "scripts/ci/${script}" "${script}"
       done
     - |

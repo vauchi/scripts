@@ -6,19 +6,19 @@
 # metrics-push.sh — Push engineering metrics to Prometheus Pushgateway
 #
 # Collects pipeline, test quality, and cycle metrics from
-# GitLab API + local workspace, then pushes to Prometheus via SSH.
+# GitLab API + local workspace, then pushes to the Pushgateway.
 # Note: Coverage metrics are pushed by individual CI jobs via push-coverage.sh.
 #
 # Usage:
-#   metrics-push.sh                     # Local: all metrics, push via SSH
-#   metrics-push.sh --ci                # CI: GitLab API + cycle metrics, push via SSH
+#   metrics-push.sh                     # Local: all metrics, push
+#   metrics-push.sh --ci                # CI: GitLab API + cycle metrics, push
 #   metrics-push.sh --dry-run           # Print Prometheus text to stdout, don't push
 #   metrics-push.sh --ci --dry-run      # CI collect to stdout
 #
 # Environment variables:
 #   GITLAB_TOKEN       — Personal access token (local mode)
 #   CI_JOB_TOKEN       — Automatic in GitLab CI (CI mode)
-#   PUSHGATEWAY_URL    — Override push target (default: SSH to VPS localhost:9091)
+#   PUSHGATEWAY_URL    — the push endpoint; PUSHGATEWAY_TOKEN its bearer token
 #   VAUCHI_ROOT        — Workspace root (default: auto-detected)
 #   PRIVATE_DIR        — Path to _private repo (default: $VAUCHI_ROOT/_private)
 
@@ -30,7 +30,7 @@ VAUCHI_ROOT="${VAUCHI_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 PRIVATE_DIR="${PRIVATE_DIR:-$VAUCHI_ROOT/_private}"
 GITLAB_API="https://gitlab.com/api/v4"
 
-# Pushgateway target / SSH key handling lives in setup-ssh-pushgateway.sh
+# The push itself lives in pushgateway-push.sh
 # (sourced from push_metrics()). Override the host/IP/user there if the VPS
 # moves — single source of truth across every push site.
 
@@ -120,8 +120,7 @@ append_metric() {
     fi
 }
 
-# Push metrics to pushgateway via the shared helper (handles direct URL,
-# full SSH key, and restricted forced-command SSH key uniformly).
+# Push metrics to the Pushgateway via the shared helper.
 push_metrics() {
     if $DRY_RUN; then
         echo "$METRICS_TEXT"
@@ -129,8 +128,7 @@ push_metrics() {
     fi
 
     # shellcheck disable=SC1091  # dynamic source path — not resolvable without -x
-    source "$SCRIPT_DIR/setup-ssh-pushgateway.sh"
-    setup_ssh_pushgateway
+    source "$SCRIPT_DIR/pushgateway-push.sh"
 
     if ! pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_engineering"; then
         echo "metrics-push: push failed (non-fatal)" >&2

@@ -17,8 +17,8 @@
 # Environment:
 #   CI_JOB_TOKEN       — GitLab CI token (CI mode)
 #   GITLAB_TOKEN       — Personal token (local mode)
-#   PUSHGATEWAY_URL    — Optional direct pushgateway URL
-#   DEPLOY_SSH_PRIVATE_KEY / PUSHGATEWAY_SSH_KEY — SSH push keys
+#   PUSHGATEWAY_URL    — the push endpoint (push.vauchi.app)
+#   PUSHGATEWAY_TOKEN  — its token, sent as a bearer
 
 set -euo pipefail
 
@@ -199,8 +199,7 @@ if [ "$DRY_RUN" = true ]; then
 fi
 
 if [ "$CI_MODE" = true ]; then
-    source "$SCRIPT_DIR/setup-ssh-pushgateway.sh"
-    setup_ssh_pushgateway
+    source "$SCRIPT_DIR/pushgateway-push.sh"
     if ! pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_ci_runner_queue"; then
         echo "ERROR: failed to push queue metrics" >&2
         exit 1

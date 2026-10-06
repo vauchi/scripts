@@ -142,7 +142,7 @@
       # that into a red job for a check that never ran. Retry, and fail
       # loudly rather than continuing without the tools.
       for attempt in 1 2 3; do
-          apk add --no-cache curl openssh-client bash grep git python3 && installed=yes && break
+          apk add --no-cache curl bash grep git python3 && installed=yes && break
           echo "apk add failed (attempt $attempt/3), retrying in 5s" >&2
           sleep 5
       done
@@ -325,13 +325,12 @@
       METRICS_TEXT="${METRICS_TEXT}vauchi_eng_design_drift_missing{repo=\"${REPO_LABEL}\"} ${MISSING_COUNT}\n"
       METRICS_TEXT="${METRICS_TEXT}vauchi_eng_design_drift_score{repo=\"${REPO_LABEL}\"} ${SCORE}\n"
 
-      # Push via shared helper (tries: direct URL → full SSH → restricted SSH)
-      if fetch_vauchi_script scripts/ci/setup-ssh-pushgateway.sh /tmp/setup-ssh-pushgateway.sh; then
-        . /tmp/setup-ssh-pushgateway.sh
-        setup_ssh_pushgateway
+      # Push via the shared helper (push.vauchi.app, bearer token)
+      if fetch_vauchi_script scripts/ci/pushgateway-push.sh /tmp/pushgateway-push.sh; then
+        . /tmp/pushgateway-push.sh
         METRICS_FLAT=$(printf '%b' "$METRICS_TEXT")
         if pushgateway_push "$METRICS_FLAT" "/metrics/job/vauchi_design_drift/repo/${REPO_LABEL}"; then
-          echo "✓ Design drift metrics pushed for ${REPO_LABEL} (${PUSHGATEWAY_SSH_MODE:-direct})"
+          echo "✓ Design drift metrics pushed for ${REPO_LABEL}"
         else
           echo "⚠ Pushgateway push failed (non-fatal)"
           printf '%b' "$METRICS_TEXT"

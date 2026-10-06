@@ -6,26 +6,20 @@
 # push-coverage.sh — Push coverage metrics from Cobertura XML to Pushgateway
 #
 # Parses a Cobertura XML artifact and pushes coverage metrics to Prometheus
-# Pushgateway via SSH. Designed to be called from individual CI coverage jobs.
+# Pushgateway. Designed to be called from individual CI coverage jobs.
 #
 # Usage:
-#   push-coverage.sh <cobertura-xml> <repo-name>            # Push via SSH
+#   push-coverage.sh <cobertura-xml> <repo-name>            # Push
 #   push-coverage.sh <cobertura-xml> <repo-name> --dry-run  # Print metrics only
 #
 # Environment variables:
-#   DEPLOY_SSH_PRIVATE_KEY  — Base64-encoded SSH private key (auto-set in CI)
-#   PUSHGATEWAY_URL         — Override push target (default: SSH to VPS localhost:9091)
+#   PUSHGATEWAY_URL         — the push endpoint (push.vauchi.app)
+#   PUSHGATEWAY_TOKEN       — its token, sent as a bearer
 
 set -euo pipefail
 
 # shellcheck source=../../lib/common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
-
-# ─── Pushgateway SSH target ─────────────────────────────────────
-# Override via group-level CI variables to change the VPS
-PUSHGATEWAY_SSH_HOST="${PUSHGATEWAY_SSH_HOST:-bold-hopper-vps}"
-PUSHGATEWAY_SSH_IP="${PUSHGATEWAY_SSH_IP:-87.106.25.46}"
-PUSHGATEWAY_SSH_USER="${PUSHGATEWAY_SSH_USER:-vauchi}"
 
 # ─── Argument Parsing ────────────────────────────────────────────
 
@@ -88,8 +82,7 @@ if $DRY_RUN; then
 fi
 
 # shellcheck disable=SC1091  # dynamic source path — not resolvable without -x
-source "$(dirname "$0")/setup-ssh-pushgateway.sh"
-setup_ssh_pushgateway
+source "$(dirname "$0")/pushgateway-push.sh"
 
 if pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_coverage/repo/${REPO_NAME}"; then
     log_success "push-coverage: metrics pushed for ${REPO_NAME}"

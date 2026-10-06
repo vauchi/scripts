@@ -6,19 +6,19 @@
 # push-mutation.sh — Push mutation test metrics to Pushgateway
 #
 # Parses mutation testing output directory and pushes metrics to Prometheus
-# Pushgateway via SSH. Designed to be called from CI mutation.yml jobs.
+# Pushgateway. Designed to be called from CI mutation.yml jobs.
 #
 # Usage:
-#   push-mutation.sh <mutants-output-dir> <repo-name>            # Push via SSH
+#   push-mutation.sh <mutants-output-dir> <repo-name>            # Push
 #   push-mutation.sh <mutants-output-dir> <repo-name> --dry-run  # Print metrics only
 #
 # Environment variables:
-#   DEPLOY_SSH_PRIVATE_KEY  — Base64-encoded SSH private key (auto-set in CI)
-#   PUSHGATEWAY_URL         — Override push target (default: SSH to VPS localhost:9091)
+#   PUSHGATEWAY_URL         — the push endpoint (push.vauchi.app)
+#   PUSHGATEWAY_TOKEN       — its token, sent as a bearer
 
 set -euo pipefail
 
-# Pushgateway target / SSH key handling lives in setup-ssh-pushgateway.sh
+# The push itself lives in pushgateway-push.sh
 # (sourced before the push). Override the host/IP/user there if the VPS
 # moves — single source of truth across every push site.
 
@@ -89,8 +89,7 @@ if $DRY_RUN; then
 fi
 
 # shellcheck disable=SC1091  # dynamic source path — not resolvable without -x
-source "$(dirname "$0")/setup-ssh-pushgateway.sh"
-setup_ssh_pushgateway
+source "$(dirname "$0")/pushgateway-push.sh"
 
 if pushgateway_push "$METRICS_TEXT" "/metrics/job/vauchi_mutation/repo/${REPO_NAME}"; then
     echo "push-mutation: metrics pushed for ${REPO_NAME}" >&2
