@@ -95,6 +95,12 @@ is_linux_qt_infrastructure_string() {
     return 1
 }
 
+# A Core protocol name (ReplaceSurface, Text) or a key sequence (Ctrl+K,
+# Alt+Down): one token, no spaces.
+is_linux_qt_key_string() {
+    printf '%s' "$1" | grep -Eq '^([A-Z][A-Za-z0-9]*|(Ctrl|Alt|Shift|Meta)(\+[A-Za-z0-9]+)+)$'
+}
+
 # Extract the contents of every double-quoted string literal from stdin.
 # Treats backslash-escaped quotes (\") as part of the literal so CSS
 # templates like "font-family: \"%1\";" are extracted whole.
@@ -169,13 +175,22 @@ count_linux_qt() {
     while IFS= read -r f; do
         # Skip test code: test fixtures are not shipped UI.
         case "$f" in */tests/*|*/test/*) continue ;; esac
-        # QStringLiteral fallback in tr_vauchi, and direct setText/setWindowTitle.
-        t=$(grep -E -o '(QStringLiteral|setText|setWindowTitle|setPlaceholderText)\([[:space:]]*"[^"]*"' "$f" 2>/dev/null | count_strings_from_stdin | while IFS= read -r s; do
+        # QStringLiteral fallback in tr_vauchi: one-word protocol keys and key
+        # sequences are skipped there, since the shell decodes Core's commands
+        # by name (vauchi/private#543).
+        t1=$(grep -E -o 'QStringLiteral\([[:space:]]*"[^"]*"' "$f" 2>/dev/null | count_strings_from_stdin | while IFS= read -r s; do
+            if looks_like_english "$s" && ! is_linux_qt_infrastructure_string "$s" \
+                && ! is_linux_qt_key_string "$s"; then
+                echo "$s"
+            fi
+        done | wc -l | tr -d ' ')
+        # Direct setters always receive copy, so a one-word label still counts.
+        t2=$(grep -E -o '(setText|setWindowTitle|setPlaceholderText)\([[:space:]]*"[^"]*"' "$f" 2>/dev/null | count_strings_from_stdin | while IFS= read -r s; do
             if looks_like_english "$s" && ! is_linux_qt_infrastructure_string "$s"; then
                 echo "$s"
             fi
         done | wc -l | tr -d ' ')
-        n=$((n + t))
+        n=$((n + t1 + t2))
     done < "$tmp_list"
     rm -f "$tmp_list"
     echo "$n"
