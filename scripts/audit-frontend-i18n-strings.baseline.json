@@ -6,7 +6,7 @@
     "linux_qt": 2,
     "linux_gtk": 0,
     "tui": 0,
-    "cli": 1,
-    "total": 3
+    "cli": 0,
+    "total": 2
   }
 }
