@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "captured_at": "2026-07-18T06:55:55Z",
+  "captured_at": "2026-10-07T13:05:25Z",
   "workspace_root": "<workspace-root>",
   "totals": {
-    "ios_mobile_type_refs":          57,
-    "android_mobile_refs":           59,
-    "macos_mobile_refs":             27,
+    "ios_mobile_type_refs":          59,
+    "android_mobile_refs":           96,
+    "macos_mobile_refs":             38,
     "hw_executor_domain_vocab":      0
   }
 }
