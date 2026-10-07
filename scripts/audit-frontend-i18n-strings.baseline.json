@@ -3,10 +3,10 @@
   "totals": {
     "android": 0,
     "windows": 0,
-    "linux_qt": 0,
+    "linux_qt": 2,
     "linux_gtk": 0,
     "tui": 0,
-    "cli": 0,
-    "total": 0
+    "cli": 1,
+    "total": 3
   }
 }
