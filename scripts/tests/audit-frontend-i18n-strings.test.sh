@@ -154,6 +154,34 @@ CPP
     rm -rf "$root"
 }
 
+# ── 4b. linux-qt protocol keys and shortcuts are not English ────────────────
+# The Qt shell decodes Core's commands by their protocol names
+# (QStringLiteral("ReplaceSurface"), ("Text")) and binds key sequences
+# (QStringLiteral("Ctrl+K")); 86 of those read as hardcoded English and kept
+# the nightly ratchet red (vauchi/private#543). A one-word label handed to a
+# setter is still copy and still counts.
+test_linux_qt_protocol_keys_guard() {
+    root=$(mktemp -d)
+    dir="$root/linux-qt/src"
+    mkdir -p "$dir"
+    cat >"$dir/decode.cpp" <<'CPP'
+void decode(const QJsonObject& command) {
+    if (command.contains(QStringLiteral("ReplaceSurface"))) {}
+    if (command.contains(QStringLiteral("SetContextBar"))) {}
+    auto node = command.value(QStringLiteral("Text"));
+    button->setShortcut(QKeySequence(QStringLiteral("Ctrl+K")));
+    button->setShortcut(QKeySequence(QStringLiteral("Alt+Down")));
+    // Counted: copy, even when it is one word.
+    auto label = new QLabel(QStringLiteral("Sync failed"));
+    cancel->setText("Cancel");
+}
+CPP
+    out=$("$SCRIPT" "$root")
+    assert_eq "linux_qt: protocol keys and shortcuts not counted, copy is" \
+        "2" "$(extract_counter "$out" linux_qt)"
+    rm -rf "$root"
+}
+
 # ── 5. linux-gtk sentinel — counts .label/.title/.placeholder_text ──────────
 test_linux_gtk_sentinel() {
     root=$(mktemp -d)
@@ -389,6 +417,7 @@ test_android_sentinel
 test_windows_sentinel
 test_windows_false_positive_guard
 test_linux_qt_sentinel
+test_linux_qt_protocol_keys_guard
 test_linux_gtk_sentinel
 test_tui_sentinel
 test_cli_sentinel
