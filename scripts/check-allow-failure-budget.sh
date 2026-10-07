@@ -12,18 +12,20 @@
 # Scans .gitlab-ci.yml files and ci-templates/*.yml for
 # allow_failure: true. Exits non-zero if count exceeds budget.
 #
-# Default budget: 63 — the whole workspace (with _private), measured
+# Default budget: 71 — the whole workspace (with _private). Measured 63 on
 # 2026-09-28 after the ios/macos/android design-token checks became
-# blocking (#407); 2026-09-27 set the rules: allow_failure on manual jobs
-# and manual rules does not count, ci/ includes do (#72). The nightly
-# root CI job cannot clone _private and enforces the public share, 59,
+# blocking (#407); raised to 71 on 2026-10-07 by owner decision for
+# deliberate advisory jobs, chiefly #476's check:pictogram-copies-current
+# (vauchi/private#543). 2026-09-27 set the rules: allow_failure on manual
+# jobs and manual rules does not count, ci/ includes do (#72). The nightly
+# root CI job cannot clone _private and enforces the public share, 67,
 # via --budget.
 # Ratchet both down as allow_failure entries are removed; never raise one
 # to make a check pass.
 
 set -euo pipefail
 
-BUDGET=63
+BUDGET=71
 
 # Parse --budget flag
 while [ $# -gt 0 ]; do
