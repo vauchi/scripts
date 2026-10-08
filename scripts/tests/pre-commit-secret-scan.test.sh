@@ -81,6 +81,42 @@ run_case "working tree scrubbed after staging" "config/keys.md"        scrub  bl
 run_case "working tree deleted after staging"  "config/keys.md"        delete block
 
 echo
+echo "== must block / warn: a large staged file with the secret near the top =="
+# Each pattern was tested with `printf "$staged" | grep -q` under pipefail.
+# grep -q stops at the first match; on content larger than the pipe buffer
+# printf is still writing, dies of SIGPIPE, and pipefail turned that into
+# "no match" — 0 of 20 detections for a 3 MB file (vauchi/private#562).
+large_case() {
+    label=$1; first_line=$2; want=$3   # want: block | warn
+
+    repo=$(mktemp -d)
+    git -C "$repo" init --quiet
+    git -C "$repo" config user.email t@example.com
+    git -C "$repo" config user.name Test
+    { printf '%s\n' "$first_line"; head -c 3000000 /dev/zero | tr '\0' 'a'; } > "$repo/big.md"
+    git -C "$repo" add big.md
+    out=$( (cd "$repo" && bash "$HOOK") 2>&1 )
+    code=$?
+
+    got=allow
+    if [ "$code" -ne 0 ] && printf '%s' "$out" | grep -q 'BLOCKING'; then
+        got=block
+    elif printf '%s' "$out" | grep -q 'WARNING: Potential secret'; then
+        got=warn
+    fi
+
+    if [ "$got" = "$want" ]; then
+        printf '  PASS %s\n' "$label"; pass=$((pass + 1))
+    else
+        printf '  FAIL %s — wanted %s, got %s\n' "$label" "$want" "$got" >&2
+        fail=$((fail + 1))
+    fi
+    rm -rf "$repo"
+}
+large_case "3 MB file, key on the first line"      "$SECRET"            block
+large_case "3 MB file, warning on the first line"  "PASSWORD = hunter2" warn
+
+echo
 echo "== must block: paths that merely contain a fixture word =="
 run_case "release-latest.md (contains 'test')" "docs/release-latest.md" keep  block
 run_case "protest.md (contains 'test')"        "docs/protest.md"        keep  block
