@@ -37,6 +37,53 @@
     paths:
       - target/criterion/
 
+# Hold the runner host alone while measuring (private#554). Close the
+# gate so no new self-hosted job starts here, wait for the running ones to
+# finish, then keep the CPU lock exclusively until this job's shell exits.
+# The entry side is rust-base.yml .self-hosted. The wait is bounded: past
+# BENCH_LOCK_WAIT seconds the benchmark measures anyway and says so, rather
+# than keep every new job on the host queued behind it.
+.bench-host-exclusive:
+  script:
+    - |
+      PACKAGE_FLAG="${BENCH_PACKAGE:+-p ${BENCH_PACKAGE}}"
+      cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} --no-run
+    - !reference [.bench-host-exclusive, script]
+    - |
+      # host-cpu-lock: exclusive
+      if command -v flock >/dev/null 2>&1; then
+        VAUCHI_LOCK_DIR="${VAUCHI_LOCK_DIR:-${HOME}/.cache/vauchi-ci-locks}"
+        mkdir -p "$VAUCHI_LOCK_DIR"
+        BENCH_LOCK_WAIT="${BENCH_LOCK_WAIT:-1800}"
+        rm -f "$VAUCHI_LOCK_DIR/gate.$$" "$VAUCHI_LOCK_DIR/excl.$$" "$VAUCHI_LOCK_DIR/open.$$"
+        flock -o -x "$VAUCHI_LOCK_DIR/gate" sh -c \
+          "touch '$VAUCHI_LOCK_DIR/gate.$$'; while kill -0 $$ 2>/dev/null && [ ! -e '$VAUCHI_LOCK_DIR/open.$$' ]; do sleep 1; done" \
+          </dev/null >/dev/null 2>&1 &
+        gate_holder=$!
+        while [ ! -e "$VAUCHI_LOCK_DIR/gate.$$" ] && kill -0 "$gate_holder" 2>/dev/null; do
+          sleep 1
+        done
+        # This job's own shared hold would block its exclusive one.
+        if [ -n "${VAUCHI_CPU_HOLDER:-}" ]; then
+          kill "$VAUCHI_CPU_HOLDER" 2>/dev/null || true
+        fi
+        flock -o -x -w "$BENCH_LOCK_WAIT" "$VAUCHI_LOCK_DIR/cpu" sh -c \
+          "touch '$VAUCHI_LOCK_DIR/excl.$$'; while kill -0 $$ 2>/dev/null; do sleep 1; done" \
+          </dev/null >/dev/null 2>&1 &
+        cpu_holder=$!
+        while [ ! -e "$VAUCHI_LOCK_DIR/excl.$$" ] && kill -0 "$cpu_holder" 2>/dev/null; do
+          sleep 1
+        done
+        if [ -e "$VAUCHI_LOCK_DIR/excl.$$" ]; then
+          echo "host-cpu-lock: measuring alone on $(hostname)"
+        else
+          echo "WARNING: host-cpu-lock: other jobs still held $(hostname) after ${BENCH_LOCK_WAIT}s; measuring beside them"
+        fi
+        touch "$VAUCHI_LOCK_DIR/open.$$"
+        wait "$gate_holder" 2>/dev/null || true
+        rm -f "$VAUCHI_LOCK_DIR/gate.$$" "$VAUCHI_LOCK_DIR/excl.$$" "$VAUCHI_LOCK_DIR/open.$$"
+      fi
+
 # Save baseline on scheduled pipeline (nightly)
 .bench-save-baseline:
   stage: test
@@ -47,6 +94,10 @@
     BENCH_PACKAGE: ""
     BENCH_TARGETS: ""
   script:
+    - |
+      PACKAGE_FLAG="${BENCH_PACKAGE:+-p ${BENCH_PACKAGE}}"
+      cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} --no-run
+    - !reference [.bench-host-exclusive, script]
     - |
       PACKAGE_FLAG="${BENCH_PACKAGE:+-p ${BENCH_PACKAGE}}"
       cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} -- --save-baseline main

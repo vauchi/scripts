@@ -266,6 +266,31 @@ workflow:
     # causing cargo to write to /.cargo/ (read-only on macOS).
     - export CARGO_HOME="${CI_PROJECT_DIR:-.}/.cargo"
     - |
+      # host-cpu-lock: entry
+      # Every self-hosted job holds the host's CPU lock shared while it
+      # runs; a benchmark takes it exclusively (benchmark.yml,
+      # .bench-host-exclusive), so criterion never samples beside another
+      # repo's build on the same host (private#554). Passing the gate first
+      # lets a waiting benchmark stop new jobs, so a steady stream of them
+      # cannot starve it. A holder process keeps the lock rather than a
+      # shell fd: an fd would be inherited by daemons the job starts
+      # (sccache) and outlive the job. macOS (nell) has no flock(1).
+      if command -v flock >/dev/null 2>&1; then
+        VAUCHI_LOCK_DIR="${HOME}/.cache/vauchi-ci-locks"
+        export VAUCHI_LOCK_DIR
+        mkdir -p "$VAUCHI_LOCK_DIR"
+        flock -s "$VAUCHI_LOCK_DIR/gate" true
+        rm -f "$VAUCHI_LOCK_DIR/shared.$$"
+        flock -o -s "$VAUCHI_LOCK_DIR/cpu" sh -c \
+          "touch '$VAUCHI_LOCK_DIR/shared.$$'; while kill -0 $$ 2>/dev/null; do sleep 1; done" \
+          </dev/null >/dev/null 2>&1 &
+        VAUCHI_CPU_HOLDER=$!
+        while [ ! -e "$VAUCHI_LOCK_DIR/shared.$$" ] && kill -0 "$VAUCHI_CPU_HOLDER" 2>/dev/null; do
+          sleep 1
+        done
+        rm -f "$VAUCHI_LOCK_DIR/shared.$$"
+      fi
+    - |
       # Clone/fetch via HTTPS using CI_JOB_TOKEN (no SSH keys needed)
       # GIT_STRATEGY: none preserves .git/ across runs. If the state is
       # corrupt (force push, stale shallow refs), nuke and start fresh.
