@@ -118,10 +118,95 @@ run_find_tests() {
     trap - EXIT
 }
 
+# The network paths, against a fake curl (vauchi/private#564). The VRT API
+# answered 502 for four weeks while every upload logged one easy-to-miss
+# "Build creation failed (HTTP 502)" line and its pre-check called 502
+# healthy (curl -s without -f), so nobody looked.
+run_network_tests() {
+    local tmp
+    tmp="$(mktemp -d 2>/dev/null || mktemp -d -t vrt-upload-test)"
+    trap 'rm -rf "$tmp"' EXIT
+    mkdir -p "$tmp/bin" "$tmp/shots"
+    : > "$tmp/shots/a.png"
+    : > "$tmp/shots/b.png"
+    cat > "$tmp/bin/curl" <<'FAKE'
+#!/usr/bin/env bash
+out="" fmt="" url=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -o) out=$2; shift ;;
+        -w) fmt=$2; shift ;;
+        -X|-H|-d|--max-time) shift ;;
+        -*) ;;
+        *) url=$1 ;;
+    esac
+    shift
+done
+echo "$url" >> "$FAKE_LOG"
+case "$url" in
+    */health) code=${FAKE_HEALTH:-200}; body='{"status":"ok"}' ;;
+    */builds) code=${FAKE_BUILD:-201}; body='{"id":"b1","projectId":"p1"}' ;;
+    */test-runs) code=201; body='{}' ;;
+    *) code=200; body='{}' ;;
+esac
+[ "$code" -ge 500 ] && body='<html><h1>502 Bad Gateway</h1></html>'
+if [ -n "$out" ]; then printf '%s' "$body" > "$out"; fmt=${fmt#\\n}; fi
+case "$fmt" in
+    '\n%{http_code}') printf '%s\n%s' "$body" "$code" ;;
+    '%{http_code}') printf '%s' "$code" ;;
+    '') [ -z "$out" ] && printf '%s' "$body" ;;
+esac
+exit 0
+FAKE
+    chmod +x "$tmp/bin/curl"
+
+    upload() { # extra env...
+        : > "$tmp/log"
+        local rc=0
+        env PATH="$tmp/bin:$PATH" FAKE_LOG="$tmp/log" VRT_API_KEY=k VRT_API_URL=https://vrt.test \
+            VRT_SCREENSHOT_DIR="$tmp/shots" VRT_PLATFORM=web-demo VRT_BRANCH=b VRT_CI_BUILD_ID=1 \
+            "$@" bash "$SCRIPT" > "$tmp/out" 2>&1 || rc=$?
+        echo "$rc"
+    }
+
+    assert_eq "healthy: exits 0" "0" "$(upload)"
+    assert_eq "healthy: uploads both screenshots" "2" "$(grep -c '/test-runs$' "$tmp/log")"
+
+    assert_eq "health 502: stays advisory (exit 0)" "0" "$(upload FAKE_HEALTH=502)"
+    assert_eq "health 502: says VRT is down with the status" "1" "$(grep -c 'VRT IS DOWN.*HTTP 502' "$tmp/out")"
+    assert_eq "health 502: names the lost screenshots" "1" "$(grep -c '2 screenshots from web-demo were NOT uploaded' "$tmp/out")"
+    assert_eq "health 502: creates no build" "0" "$(grep -c '/builds$' "$tmp/log")"
+
+    assert_eq "build 502: stays advisory (exit 0)" "0" "$(upload FAKE_BUILD=502)"
+    assert_eq "build 502: says VRT is down" "1" "$(grep -c 'VRT IS DOWN.*HTTP 502' "$tmp/out")"
+
+    # jq parses every API answer; without it the script used to die on
+    # `jq: command not found` after creating the build.
+    mkdir -p "$tmp/nojq"
+    local tool
+    for tool in bash base64 basename cat date find mktemp sed sort tail tr wc; do
+        ln -sf "$(command -v "$tool")" "$tmp/nojq/$tool"
+    done
+    ln -sf "$tmp/bin/curl" "$tmp/nojq/curl"
+    : > "$tmp/log"
+    local rc=0
+    env PATH="$tmp/nojq" FAKE_LOG="$tmp/log" VRT_API_KEY=k VRT_API_URL=https://vrt.test \
+        VRT_SCREENSHOT_DIR="$tmp/shots" VRT_PLATFORM=web-demo \
+        "$tmp/nojq/bash" "$SCRIPT" > "$tmp/out" 2>&1 || rc=$?
+    assert_eq "no jq: stays advisory (exit 0)" "0" "$rc"
+    assert_eq "no jq: says jq is missing" "1" "$(grep -c 'jq is not installed' "$tmp/out")"
+    assert_eq "no jq: makes no request" "0" "$(wc -l < "$tmp/log" | tr -d ' ')"
+
+    rm -rf "$tmp"
+    trap - EXIT
+}
+
 printf 'vrt-upload helper tests:\n'
 run_helper_tests
 printf 'vrt-upload find-walk tests:\n'
 run_find_tests
+printf 'vrt-upload network tests:\n'
+run_network_tests
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
