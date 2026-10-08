@@ -440,8 +440,11 @@ while IFS= read -r -d '' file; do
         is_fixture_path=1
     fi
 
+    # A here-string, not `printf | grep -q`: grep -q exits at the first
+    # match, the writer dies of SIGPIPE on large content, and pipefail
+    # turns that into "no match" (vauchi/private#562).
     for pattern in "${SECRET_PATTERNS_BLOCKING[@]}"; do
-        if printf '%s' "$staged" | grep -iEq "$pattern"; then
+        if grep -iEq "$pattern" <<<"$staged"; then
             echo "  BLOCKING: key material in $file (pattern: $pattern)"
             SECRET_BLOCKING=1
         fi
@@ -452,7 +455,7 @@ while IFS= read -r -d '' file; do
     fi
 
     for pattern in "${SECRET_PATTERNS_WARNING[@]}"; do
-        if printf '%s' "$staged" | grep -iEq "$pattern"; then
+        if grep -iEq "$pattern" <<<"$staged"; then
             echo "  WARNING: Potential secret in $file (pattern: $pattern)"
             SECRET_FOUND=1
         fi
