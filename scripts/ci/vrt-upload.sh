@@ -84,13 +84,36 @@ if [ "$PNG_COUNT" -eq 0 ]; then
     exit 0
 fi
 
+# jq reads every API answer below. Without it the script used to die on
+# `jq: command not found` after creating the build (web-demo's Playwright
+# image, vauchi/private#564).
+if ! command -v jq >/dev/null 2>&1; then
+    echo "[vrt-upload] ERROR: jq is not installed in this job's image — $PNG_COUNT screenshots from $VRT_PLATFORM were NOT uploaded"
+    exit 0
+fi
+
 echo "[vrt-upload] Uploading $PNG_COUNT screenshots from $VRT_PLATFORM"
 echo "[vrt-upload] Branch: $VRT_BRANCH | Build: $VRT_CI_BUILD_ID"
 
+# An outage stays advisory, but says so in one block no reader skims past:
+# from 2026-09-12 to 2026-10-08 the API answered 502 and every job logged a
+# single WARNING line nobody read (vauchi/private#564).
+vrt_down() {
+    echo "[vrt-upload] ================================================================"
+    echo "[vrt-upload] VRT IS DOWN: $1 at ${VRT_API_URL}"
+    echo "[vrt-upload] $PNG_COUNT screenshots from $VRT_PLATFORM were NOT uploaded."
+    echo "[vrt-upload] This job stays green (uploads are advisory). Alert: VrtApiDown;"
+    echo "[vrt-upload] recovery: journalctl -t vrt-health on the VRT host (vauchi/private#564)."
+    echo "[vrt-upload] ================================================================"
+}
+
 # ── Step 0: Health check ─────────────────────────────────────
 
-if ! curl -s --max-time 10 "${VRT_API_URL}/health" > /dev/null 2>&1; then
-    echo "[vrt-upload] WARNING: VRT not reachable at ${VRT_API_URL}/health — skipping upload"
+# The status is read, not inferred from curl's exit: `curl -s` exits 0 on a
+# 502, so the old check passed a dead API as reachable.
+HEALTH_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${VRT_API_URL}/health" 2>/dev/null) || HEALTH_CODE=000
+if [ "$HEALTH_CODE" != 200 ]; then
+    vrt_down "health check answered HTTP $HEALTH_CODE"
     exit 0
 fi
 
@@ -113,6 +136,10 @@ BUILD_RESPONSE=$(curl -s -X POST \
 HTTP_CODE=$(echo "$BUILD_RESPONSE" | tail -1)
 BUILD_BODY=$(echo "$BUILD_RESPONSE" | sed '$d')
 
+if [ "$HTTP_CODE" -ge 500 ] 2>/dev/null || [ "$HTTP_CODE" = 000 ]; then
+    vrt_down "build creation answered HTTP $HTTP_CODE"
+    exit 0
+fi
 if [ "$HTTP_CODE" -lt 200 ] 2>/dev/null || [ "$HTTP_CODE" -ge 300 ] 2>/dev/null; then
     echo "[vrt-upload] WARNING: Build creation failed (HTTP $HTTP_CODE)"
     echo "[vrt-upload]   Response: ${BUILD_BODY}"

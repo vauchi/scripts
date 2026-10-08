@@ -49,6 +49,14 @@
             chmod +x "$dest"
           }
         fi
+        # vrt-upload.sh parses every API answer with jq, which some job
+        # images lack (web-demo's Playwright image, vauchi/private#564).
+        # Best effort: if neither package manager works the script names it.
+        if ! command -v jq >/dev/null 2>&1; then
+          { apt-get update -qq && apt-get install -y -qq jq; } >/dev/null 2>&1 \
+            || apk add --no-cache jq >/dev/null 2>&1 \
+            || echo "[vrt] could not install jq"
+        fi
         fetch_vauchi_script scripts/ci/vrt-upload.sh vrt-upload.sh
         VRT_API_URL="${VRT_API_URL:-https://vrt.vauchi.app}" \
         VRT_PROJECT="${VRT_PROJECT:-vauchi}" \
