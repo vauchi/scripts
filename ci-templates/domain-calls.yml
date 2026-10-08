@@ -70,8 +70,11 @@
       # as sibling repo directories. Reconstruct that shape with only this
       # repo present: absent siblings count zero, which is correct here —
       # each repo is responsible for its own counter.
-      git clone --depth=1 --branch "$VAUCHI_SCRIPTS_REF" \
-        "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/scripts.git" /tmp/vauchi-scripts
+      # fetch, not `clone --branch`, so a commit-SHA pin works (private#556).
+      git init -q /tmp/vauchi-scripts
+      git -C /tmp/vauchi-scripts fetch -q --depth=1 \
+        "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/scripts.git" "$VAUCHI_SCRIPTS_REF"
+      git -C /tmp/vauchi-scripts checkout -q --detach FETCH_HEAD
 
       WS=/tmp/ws
       mkdir -p "$WS"

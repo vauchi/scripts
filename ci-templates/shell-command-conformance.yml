@@ -70,9 +70,12 @@
         echo "linux-gtk, linux-qt, windows, web-demo)." >&2
         exit 2
       fi
-    - git clone --depth=1 --branch "${VAUCHI_SCRIPTS_REF:-main}"
+    # fetch, not `clone --branch`, so a commit-SHA pin works (private#556).
+    - git init -q "${CI_PROJECT_DIR}/.vauchi-scripts"
+    - git -C "${CI_PROJECT_DIR}/.vauchi-scripts" fetch -q --depth=1
       "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/scripts.git"
-      "${CI_PROJECT_DIR}/.vauchi-scripts"
+      "${VAUCHI_SCRIPTS_REF:-main}"
+    - git -C "${CI_PROJECT_DIR}/.vauchi-scripts" checkout -q --detach FETCH_HEAD
   script:
     - echo "=== Shell command-pair conformance (${VAUCHI_SHELL}) ==="
     - python3 "${CI_PROJECT_DIR}/.vauchi-scripts/scripts/check-shell-command-conformance.py"
