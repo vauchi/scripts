@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "captured_at": "2026-10-07T13:07:19Z",
+  "captured_at": "2026-10-08T00:49:59Z",
   "workspace_root": "<workspace-root>",
   "totals": {
-    "ios_handwritten_loc":           12154,
-    "android_handwritten_loc":       13205,
+    "ios_handwritten_loc":           11925,
+    "android_handwritten_loc":       13029,
     "linux_gtk_handwritten_loc":     7315,
     "linux_qt_handwritten_loc":      5543,
-    "macos_handwritten_loc":         6308,
+    "macos_handwritten_loc":         6079,
     "windows_handwritten_loc":       5061,
     "tui_handwritten_loc":           6794,
     "web_demo_handwritten_loc":      2045,
-    "handwritten_loc_total":         58425
+    "handwritten_loc_total":         57791
   }
 }
