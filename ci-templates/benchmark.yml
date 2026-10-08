@@ -41,8 +41,11 @@
 # gate so no new self-hosted job starts here, wait for the running ones to
 # finish, then keep the CPU lock exclusively until this job's shell exits.
 # The entry side is rust-base.yml .self-hosted. The wait is bounded: past
-# BENCH_LOCK_WAIT seconds the benchmark measures anyway and says so, rather
-# than keep every new job on the host queued behind it.
+# BENCH_LOCK_WAIT seconds (default 10 min) the benchmark measures anyway and
+# says so, rather than keep every new job on the host queued behind it. The
+# gate is closed for the whole wait, release-tag pipelines included, so the
+# default trades isolation for throughput; the "measuring alone" / WARNING
+# lines in the job log show which side it lands on.
 .bench-host-exclusive:
   script:
     - |
@@ -54,7 +57,7 @@
       if command -v flock >/dev/null 2>&1; then
         VAUCHI_LOCK_DIR="${VAUCHI_LOCK_DIR:-${HOME}/.cache/vauchi-ci-locks}"
         mkdir -p "$VAUCHI_LOCK_DIR"
-        BENCH_LOCK_WAIT="${BENCH_LOCK_WAIT:-1800}"
+        BENCH_LOCK_WAIT="${BENCH_LOCK_WAIT:-600}"
         rm -f "$VAUCHI_LOCK_DIR/gate.$$" "$VAUCHI_LOCK_DIR/excl.$$" "$VAUCHI_LOCK_DIR/open.$$"
         flock -o -x "$VAUCHI_LOCK_DIR/gate" sh -c \
           "touch '$VAUCHI_LOCK_DIR/gate.$$'; while kill -0 $$ 2>/dev/null && [ ! -e '$VAUCHI_LOCK_DIR/open.$$' ]; do sleep 1; done" \
