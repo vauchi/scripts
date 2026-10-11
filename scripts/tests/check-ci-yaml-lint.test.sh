@@ -166,6 +166,73 @@ assert_eq "multi-job: exit 1" "1" "$rc"
 assert_eq "multi-job: names the bad job" "1" \
     "$(printf '%s' "$out" | grep -c 'bad')"
 
+# ── VCI05: own workflow rules drop the template's default-branch guard ─
+# e2e's shape on 2026-10-11 (vauchi/private#632): rust-base.yml sets
+# on_new_commit: interruptible, the repo replaces rules: without the
+# default-branch none rule, and a merge on e2e main canceled Core's
+# downstream verification pipelines, so Core's release tag never ran.
+run_yml vci05 'include:
+  - project: vauchi/scripts
+    file:
+      - /ci-templates/rust-base.yml
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "pipeline"'
+assert_eq "VCI05 template include: exit 1" "1" "$rc"
+assert_eq "VCI05: message carries ID" "1" \
+    "$(printf '%s' "$out" | grep -c 'VCI05')"
+
+# ── VCI05: an interruptible policy set in the file itself counts too ───
+run_yml vci05own 'workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"'
+assert_eq "VCI05 own policy: exit 1" "1" "$rc"
+
+# ── VCI05: the default-branch none rule passes ─────────────────────────
+run_yml vci05ok 'include:
+  - project: vauchi/scripts
+    file:
+      - /ci-templates/rust-base.yml
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      auto_cancel:
+        on_new_commit: none
+    - if: $CI_PIPELINE_SOURCE == "push"'
+assert_eq "VCI05 guarded: exit 0" "0" "$rc"
+
+# ── VCI05: setting only auto_cancel keeps the template rules → passes ──
+run_yml vci05merge 'include:
+  - project: vauchi/scripts
+    file:
+      - /ci-templates/rust-base.yml
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible'
+assert_eq "VCI05 policy only: exit 0" "0" "$rc"
+
+# ── VCI05: own rules with no auto-cancel policy in force pass ──────────
+run_yml vci05none 'workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"'
+assert_eq "VCI05 no policy: exit 0" "0" "$rc"
+
+# ── VCI05: suppression with a reason ───────────────────────────────────
+run_yml vci05sup 'include:
+  - project: vauchi/scripts
+    file:
+      - /ci-templates/rust-base.yml
+workflow:
+  # vci05-ok: this repo has no release tag and nothing waits on main
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"'
+assert_eq "VCI05 suppressed: exit 0" "0" "$rc"
+
 # ── non-tautology guard (CC-21): stub that always passes is caught ─────
 stub="$(mktemp)"; printf '#!/bin/sh\nexit 0\n' > "$stub"; chmod +x "$stub"
 ws="$(mktemp -d)"
