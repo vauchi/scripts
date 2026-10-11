@@ -193,6 +193,13 @@ run_yml vci05bare 'workflow:
     on_new_commit: interruptible'
 assert_eq "VCI05 own policy, no rules: exit 1" "1" "$rc"
 
+# A comment naming rust-base.yml is not an include (android and ios carry one).
+run_yml vci05comment '# Stub anchor required by perf.yml templates (defined in rust-base.yml)
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible'
+assert_eq "VCI05 comment is not an include: exit 1" "1" "$rc"
+
 run_yml vci05own 'workflow:
   auto_cancel:
     on_new_commit: interruptible

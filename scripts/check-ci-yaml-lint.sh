@@ -15,12 +15,12 @@
 #   VCI04  side-effecting merge/main jobs must reject schedules before
 #          testing the branch. Scheduled pipelines run on the default branch,
 #          so a branch-only rule also matches cron pipelines.
-#   VCI05  a repo including rust-base.yml that defines its own
-#          `workflow: rules:` but no auto-cancel policy of its own must
-#          keep the default branch out of auto-cancel. Its rules list replaces the template's, which
-#          carries that guard, while the template's interruptible policy
-#          stays; a merge then cancels main pipelines another repo's
-#          release waits on (#632).
+#   VCI05  a workflow under an interruptible auto-cancel policy (its own,
+#          or rust-base.yml's) must keep the default branch out of it. The
+#          template's rules carry that exemption, but a repo's own rules
+#          replace them, and a repo without the template has none; a merge
+#          then cancels main pipelines another repo's release waits on —
+#          Core's tag behind e2e, its bump MR behind android (#632).
 # Suppress per job with `# vci02-ok: <why>` / per line with
 # `# vci03-ok: <why>` / `# vci04-ok: <why>` / in the workflow block with
 # `# vci05-ok: <why>`.
@@ -65,16 +65,12 @@ check_file() {
             has_ext = 0; has_bs = 0; has_ref = 0; ok2 = 0; ok4 = 0
             schedule_rule = 0; schedule_never = 0; unsafe_main = 0; main_line = 0
         }
-        /rust-base\.yml/ { rust_base = 1 }
+        /^workflow:/ { wf_line = NR }
+        !/^[ \t]*#/ && /rust-base\.yml/ { rust_base = 1 }
         in_wf && /vci05-ok/ { ok5 = 1 }
-        in_wf && /^[ \t]+rules:/ { wf_rules = 1; wf_line = NR }
+        in_wf && /^[ \t]+rules:/ { wf_rules = 1 }
         in_wf && /on_new_commit:[ \t]*none/ { wf_none = 1 }
-        in_wf && /^[ \t]+auto_cancel:/ {
-            # The policy of the whole block sits at the first indent
-            # level; an auto_cancel inside a rule sits deeper.
-            indent = $0; sub(/[^ \t].*/, "", indent)
-            if (length(indent) <= 3) wf_policy = 1
-        }
+        in_wf && /on_new_commit:[ \t]*(interruptible|conservative)/ { wf_cancel = 1 }
         /vci02-ok/  { ok2 = 1 }
         /vci04-ok/  { ok4 = 1 }
         /^[ \t]+extends:/        { has_ext = 1 }
@@ -100,8 +96,12 @@ check_file() {
         }
         END {
             flush()
-            if (wf_rules && !wf_none && rust_base && !wf_policy && !ok5) {
-                printf "  %s:%d: VCI05: own workflow rules drop the default-branch auto-cancel guard — fix: add `- if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH` with `auto_cancel: on_new_commit: none` before the source rules (or annotate # vci05-ok: <why>). [_private/docs/lint-errors/vci05-workflow-rules-drop-main-guard.md]\n", FILENAME, wf_line
+            # The template cancels interruptibly; its own rules exempt the
+            # default branch only while the repo does not replace them.
+            cancels = wf_cancel || rust_base
+            exempt = wf_none || (rust_base && !wf_rules)
+            if (cancels && !exempt && !ok5) {
+                printf "  %s:%d: VCI05: main pipelines can be auto-canceled by a merge — fix: add `- if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH` with `auto_cancel: on_new_commit: none` to the workflow rules (or annotate # vci05-ok: <why> where canceling a superseded main pipeline is intended). [_private/docs/lint-errors/vci05-workflow-rules-drop-main-guard.md]\n", FILENAME, wf_line
                 bad = 1
             }
             exit bad
