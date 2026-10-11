@@ -88,4 +88,6 @@
         } catch {
           Write-Host "[vrt] Upload failed (advisory): $($_.Exception.Message)"
         }
+      } else {
+        Write-Host "[vrt] VRT_API_KEY not set in this pipeline — no upload"
       }
