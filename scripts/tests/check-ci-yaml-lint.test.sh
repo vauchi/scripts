@@ -184,14 +184,39 @@ assert_eq "VCI05 template include: exit 1" "1" "$rc"
 assert_eq "VCI05: message carries ID" "1" \
     "$(printf '%s' "$out" | grep -c 'VCI05')"
 
-# ── VCI05: a repo choosing its own policy without the template passes ─
-# (docs and features cancel superseded main deploys on purpose)
+# ── VCI05: an own interruptible policy without a main exemption ───────
+# android's shape on 2026-10-11 (#632): no rules at all, so the v0.80.2
+# release's triggered main pipeline was canceled by the next merge before
+# update:bindings-version opened the bump MR.
+run_yml vci05bare 'workflow:
+  auto_cancel:
+    on_new_commit: interruptible'
+assert_eq "VCI05 own policy, no rules: exit 1" "1" "$rc"
+
 run_yml vci05own 'workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"'
-assert_eq "VCI05 own policy: exit 0" "0" "$rc"
+assert_eq "VCI05 own policy with rules: exit 1" "1" "$rc"
+
+# ── VCI05: an own policy with the main exemption passes ────────────────
+run_yml vci05ownok 'workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      auto_cancel:
+        on_new_commit: none
+    - when: always'
+assert_eq "VCI05 own policy guarded: exit 0" "0" "$rc"
+
+# ── VCI05: canceling superseded main deploys on purpose is said so ─────
+run_yml vci05ownsup 'workflow:
+  # vci05-ok: a newer main deploy supersedes the old one; nothing waits on it
+  auto_cancel:
+    on_new_commit: interruptible'
+assert_eq "VCI05 own policy suppressed: exit 0" "0" "$rc"
 
 # ── VCI05: the default-branch none rule passes ─────────────────────────
 run_yml vci05ok 'include:
@@ -217,7 +242,7 @@ workflow:
     on_new_commit: interruptible'
 assert_eq "VCI05 policy only: exit 0" "0" "$rc"
 
-# ── VCI05: template + own policy + own rules passes (web-demo) ────────
+# ── VCI05: template + own policy + own rules, no exemption (web-demo) ─
 run_yml vci05chose 'include:
   - project: vauchi/scripts
     file:
@@ -227,7 +252,7 @@ workflow:
     on_new_commit: interruptible
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-assert_eq "VCI05 chose own policy: exit 0" "0" "$rc"
+assert_eq "VCI05 template + own policy: exit 1" "1" "$rc"
 
 # ── VCI05: own rules with no auto-cancel policy in force pass ──────────
 run_yml vci05none 'workflow:
