@@ -184,13 +184,14 @@ assert_eq "VCI05 template include: exit 1" "1" "$rc"
 assert_eq "VCI05: message carries ID" "1" \
     "$(printf '%s' "$out" | grep -c 'VCI05')"
 
-# ── VCI05: an interruptible policy set in the file itself counts too ───
+# ── VCI05: a repo choosing its own policy without the template passes ─
+# (docs and features cancel superseded main deploys on purpose)
 run_yml vci05own 'workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"'
-assert_eq "VCI05 own policy: exit 1" "1" "$rc"
+assert_eq "VCI05 own policy: exit 0" "0" "$rc"
 
 # ── VCI05: the default-branch none rule passes ─────────────────────────
 run_yml vci05ok 'include:

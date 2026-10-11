@@ -15,9 +15,16 @@
 #   VCI04  side-effecting merge/main jobs must reject schedules before
 #          testing the branch. Scheduled pipelines run on the default branch,
 #          so a branch-only rule also matches cron pipelines.
+#   VCI05  a repo including rust-base.yml that defines its own
+#          `workflow: rules:` must keep the default branch out of
+#          auto-cancel. Its rules list replaces the template's, which
+#          carries that guard, while the template's interruptible policy
+#          stays; a merge then cancels main pipelines another repo's
+#          release waits on (#632).
 # Suppress per job with `# vci02-ok: <why>` / per line with
-# `# vci03-ok: <why>` / `# vci04-ok: <why>`.
-# Rule pages: _private/docs/lint-errors/vci02-*.md, vci03-*.md, vci04-*.md
+# `# vci03-ok: <why>` / `# vci04-ok: <why>` / in the workflow block with
+# `# vci05-ok: <why>`.
+# Rule pages: _private/docs/lint-errors/vci02-*.md … vci05-*.md
 # Self-test: scripts/tests/check-ci-yaml-lint.test.sh
 # Called by: pre-commit (staged *.gitlab-ci.yml, ci-templates/*.yml)
 
@@ -52,11 +59,16 @@ check_file() {
         }
         /^[^ \t#][^:]*:/ {
             flush()
+            in_wf = ($0 ~ /^workflow:/)
             top_full = $0; sub(/:[ \t]*(#.*)?$/, "", top_full)
             top = top_full; sub(/:.*/, "", top)
             has_ext = 0; has_bs = 0; has_ref = 0; ok2 = 0; ok4 = 0
             schedule_rule = 0; schedule_never = 0; unsafe_main = 0; main_line = 0
         }
+        /rust-base\.yml/ { rust_base = 1 }
+        in_wf && /vci05-ok/ { ok5 = 1 }
+        in_wf && /^[ \t]+rules:/ { wf_rules = 1; wf_line = NR }
+        in_wf && /on_new_commit:[ \t]*none/ { wf_none = 1 }
         /vci02-ok/  { ok2 = 1 }
         /vci04-ok/  { ok4 = 1 }
         /^[ \t]+extends:/        { has_ext = 1 }
@@ -80,7 +92,14 @@ check_file() {
             printf "  %s:%d: VCI03: || true swallows a state-changing git failure in CI (job continues on stale state) — fix: let git fail the job; prefer fetch + reset --hard over pull (or annotate # vci03-ok: <why>). [_private/docs/lint-errors/vci03-or-true-in-ci.md]\n", FILENAME, NR
             bad = 1
         }
-        END { flush(); exit bad }
+        END {
+            flush()
+            if (wf_rules && !wf_none && rust_base && !ok5) {
+                printf "  %s:%d: VCI05: own workflow rules drop the default-branch auto-cancel guard — fix: add `- if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH` with `auto_cancel: on_new_commit: none` before the source rules (or annotate # vci05-ok: <why>). [_private/docs/lint-errors/vci05-workflow-rules-drop-main-guard.md]\n", FILENAME, wf_line
+                bad = 1
+            }
+            exit bad
+        }
     ' "$file"; then
         VIOLATIONS=$((VIOLATIONS + 1))
     fi
