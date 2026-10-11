@@ -64,3 +64,28 @@
         VRT_CI_BUILD_ID="${CI_PIPELINE_ID}" \
         ./vrt-upload.sh || echo "[vrt] Upload failed (advisory)"
       fi
+
+# PowerShell twin for Windows shell runners (executor shell pwsh), where the
+# block above fails to parse: it is POSIX sh, and pam has neither bash on
+# PATH nor jq (vauchi/private#592). Same contract: advisory, never fails
+# the job.
+#
+# Usage (windows):
+#   after_script:
+#     - !reference [.vrt-upload-script-pwsh, script]
+.vrt-upload-script-pwsh:
+  script:
+    - |
+      if ($env:VRT_API_KEY) {
+        try {
+          $uri = "$env:CI_API_V4_URL/projects/77957857/repository/files/scripts%2Fci%2Fvrt-upload.ps1/raw?ref=$env:VAUCHI_SCRIPTS_REF"
+          Invoke-WebRequest -Headers @{ 'JOB-TOKEN' = $env:CI_JOB_TOKEN } -Uri $uri -OutFile vrt-upload.ps1 -ErrorAction Stop
+          if (-not $env:VRT_API_URL) { $env:VRT_API_URL = 'https://vrt.vauchi.app' }
+          if (-not $env:VRT_PROJECT) { $env:VRT_PROJECT = 'vauchi' }
+          $env:VRT_BRANCH = if ($env:CI_MERGE_REQUEST_SOURCE_BRANCH_NAME) { $env:CI_MERGE_REQUEST_SOURCE_BRANCH_NAME } else { $env:CI_COMMIT_REF_NAME }
+          $env:VRT_CI_BUILD_ID = $env:CI_PIPELINE_ID
+          & ./vrt-upload.ps1
+        } catch {
+          Write-Host "[vrt] Upload failed (advisory): $($_.Exception.Message)"
+        }
+      }
