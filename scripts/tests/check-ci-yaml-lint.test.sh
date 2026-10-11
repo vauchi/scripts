@@ -217,6 +217,18 @@ workflow:
     on_new_commit: interruptible'
 assert_eq "VCI05 policy only: exit 0" "0" "$rc"
 
+# ── VCI05: template + own policy + own rules passes (web-demo) ────────
+run_yml vci05chose 'include:
+  - project: vauchi/scripts
+    file:
+      - /ci-templates/rust-base.yml
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+assert_eq "VCI05 chose own policy: exit 0" "0" "$rc"
+
 # ── VCI05: own rules with no auto-cancel policy in force pass ──────────
 run_yml vci05none 'workflow:
   rules:
