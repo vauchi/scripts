@@ -90,6 +90,10 @@ expect_category "dependency resolution" \
     "error: failed to select a version for \`libc\`" "dep-resolution"
 expect_category "npm dependency audit" \
     "1 moderate severity vulnerability" "dep-resolution"
+expect_category "cargo dependency audit" \
+    "error: 4 vulnerabilities found!" "dep-resolution"
+expect_escalate "cargo dependency audit does NOT escalate" \
+    "error: 1 vulnerability found!" "false"
 expect_category "missing tool (bash)" \
     "/bin/sh: cargo-nextest: command not found" "missing-tool"
 expect_category "missing tool (busybox)" \

@@ -67,7 +67,7 @@ PATS=(
   "(Vaultwarden item( name)? .* (does not contain|not found|is ambiguous|is missing|has neither|has no)|Vaultwarden item search (failed|returned invalid data)|could not extract .* from Vaultwarden item|^ERROR: '[^']+' has neither a .* custom field)"
   "(DNS: transient error \(try again later\)|Connection reset by peer)"
   "(exceeded maximum timeout|Job exceeded|execution took longer than [0-9]+[hms]|context deadline exceeded)"
-  "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities))"
+  "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities)|error: [0-9]+ (vulnerability|vulnerabilities) found!)"
   "(command not found|: not found)"
   "(error\\[E[0-9]+\\]|error CS[0-9]{4}:|error: missing argument for parameter|No value passed for parameter|cannot find '[^']+' in scope|undefined reference to)"
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
