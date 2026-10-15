@@ -70,7 +70,7 @@ PATS=(
   "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities)|error: [0-9]+ (vulnerability|vulnerabilities) found!)"
   "(command not found|: not found)"
   "(error\\[E[0-9]+\\]|error CS[0-9]{4}:|error: missing argument for parameter|No value passed for parameter|cannot find '[^']+' in scope|undefined reference to)"
-  "(clippy::|^Diff in |rustfmt|MD[0-9]{3})"
+  "(clippy::|^Diff in |rustfmt|MD[0-9]{3}|@implemented scenario\\(s\\) with no test naming them:)"
   "(test result: FAILED|assertion .*failed|panicked at|[0-9]+ tests completed, [1-9][0-9]* failed|[0-9]+ mutants tested.*[1-9][0-9]* missed|FAILED: [0-9]+ (hook )?self-test suite\(s\) red\.|FAIL: .* got exit [1-9][0-9]*|ValueError: expected (_private|private) git common directory)"
   "curl: \\(22\\) The requested URL returned error: 400"
   "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL|ERROR: mirror .* missing .* build:debug should have built it|Release v[^ ]+ is tagged but not consumable:)"
