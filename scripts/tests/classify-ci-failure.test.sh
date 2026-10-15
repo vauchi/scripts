@@ -131,7 +131,7 @@ expect_category "Swift missing symbol compile error" \
     "PresentationStateTests.swift:44:17: error: cannot find 'presentationContractFixtureJson' in scope" \
     "compile-error"
 expect_category "Rust unresolved import compile error" \
-    'error[E0432]: unresolved import `vauchi_app::ui::presentation_contract_fixture_json`' \
+    "error[E0432]: unresolved import \`vauchi_app::ui::presentation_contract_fixture_json\`" \
     "compile-error"
 expect_category "native linker compile error" \
     "undefined reference to vauchi_presentation_contract_fixture" \
@@ -203,12 +203,12 @@ expect_fix "required CI template variable preserves execution order" \
     "FETCH_SCRIPT_PATH: FETCH_SCRIPT_PATH must be set" \
     "Bind the required CI-template variable before the shared step; flatten nested !reference chains if ordering was lost."
 expect_category "minimum just syntax compatibility" \
-    'error: Recipe `create` has both shebang line and `[script]` attribute' \
+    "error: Recipe \`create\` has both shebang line and \`[script]\` attribute" \
     "just-syntax"
 expect_escalate "minimum just syntax compatibility does NOT escalate" \
-    'has both shebang line and `[script]` attribute' "false"
+    "has both shebang line and \`[script]\` attribute" "false"
 expect_fix "minimum just syntax chooses one interpreter contract" \
-    'has both shebang line and `[script]` attribute' \
+    "has both shebang line and \`[script]\` attribute" \
     "Use a shebang recipe or the [script] attribute, not both; verify with the minimum supported just version."
 
 expect_category "runner image missing" \
