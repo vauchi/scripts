@@ -151,6 +151,8 @@ expect_category "private workspace discovery failure" \
     "test-failure"
 expect_category "clippy/lint" \
     "error: this \`if\` has identical blocks (clippy::if_same_then_else)" "lint"
+expect_category "implemented scenario without mapped coverage" \
+    "1 @implemented scenario(s) with no test naming them:" "lint"
 expect_category "artifact gap" \
     "cp: cannot stat 'target/release/libvauchi.a': No such file or directory" "artifact-gap"
 expect_category "SPM mirror handoff gap" \
