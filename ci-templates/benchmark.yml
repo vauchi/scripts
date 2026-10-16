@@ -49,10 +49,6 @@
 .bench-host-exclusive:
   script:
     - |
-      PACKAGE_FLAG="${BENCH_PACKAGE:+-p ${BENCH_PACKAGE}}"
-      cargo bench ${PACKAGE_FLAG} ${BENCH_TARGETS} --no-run
-    - !reference [.bench-host-exclusive, script]
-    - |
       # host-cpu-lock: exclusive
       if command -v flock >/dev/null 2>&1; then
         VAUCHI_LOCK_DIR="${VAUCHI_LOCK_DIR:-${HOME}/.cache/vauchi-ci-locks}"
