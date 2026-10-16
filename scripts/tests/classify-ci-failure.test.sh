@@ -280,6 +280,9 @@ expect_category "immutable template pin mismatch" \
 expect_category "immutable runtime pin mismatch" \
     "FAIL: runtime scripts ref is 1e039df4a5488fdca44d7254cec79157dc408edf" "test-failure"
 
+expect_category "cucumber wired scenario coverage regression" \
+    "cucumber GATE failed: 134 wired scenario(s) passed, expected at least 135" "test-failure"
+
 # Unknown → escalate to the model
 expect_category "unknown signature" \
     "some totally novel error nobody has a rule for yet" "unknown"
