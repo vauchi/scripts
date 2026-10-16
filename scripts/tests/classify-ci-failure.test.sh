@@ -151,6 +151,8 @@ expect_category "private workspace discovery failure" \
     "test-failure"
 expect_category "clippy/lint" \
     "error: this \`if\` has identical blocks (clippy::if_same_then_else)" "lint"
+expect_category "cargo-machete unused dependency" \
+    "cargo-machete found the following unused dependencies in this directory:" "lint"
 expect_category "implemented scenario without mapped coverage" \
     "1 @implemented scenario(s) with no test naming them:" "lint"
 expect_category "cargo-deny reports vulnerable dependency" \

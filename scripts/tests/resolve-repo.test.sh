@@ -6,6 +6,7 @@
 set -euo pipefail
 
 test_root="$(mktemp -d)"
+test_root="$(cd "$test_root" && pwd -P)"
 trap 'rm -rf "$test_root"' EXIT
 
 workspace="$test_root/workspace"
