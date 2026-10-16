@@ -275,6 +275,11 @@ expect_category_with_failure_reason "specific trace beats generic runner metadat
     "error[E0433]: failed to resolve: use of undeclared crate" \
     "runner_system_failure" "compile-error"
 
+expect_category "immutable template pin mismatch" \
+    "FAIL: shared template ref is 1e039df4a5488fdca44d7254cec79157dc408edf" "test-failure"
+expect_category "immutable runtime pin mismatch" \
+    "FAIL: runtime scripts ref is 1e039df4a5488fdca44d7254cec79157dc408edf" "test-failure"
+
 # Unknown → escalate to the model
 expect_category "unknown signature" \
     "some totally novel error nobody has a rule for yet" "unknown"
