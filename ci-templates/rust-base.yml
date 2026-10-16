@@ -491,6 +491,34 @@ workflow:
         echo "sccache: not installed, building without it"
         export RUSTC_WRAPPER=
       fi
+    - |
+      # sccache-compile-probe: stats can answer while compilation stalls (#198).
+      if [ "${RUSTC_WRAPPER:-}" = sccache ] && command -v sccache >/dev/null 2>&1; then
+        _sccache_probe_timeout=()
+        if command -v timeout >/dev/null 2>&1; then
+          _sccache_probe_timeout=(timeout --kill-after=5s 30s)
+        elif command -v gtimeout >/dev/null 2>&1; then
+          _sccache_probe_timeout=(gtimeout --kill-after=5s 30s)
+        fi
+        if [ "${#_sccache_probe_timeout[@]}" -eq 0 ]; then
+          echo "WARNING: cannot bound the sccache compile probe; building without the cache."
+          export RUSTC_WRAPPER=
+        else
+          _sccache_probe_dir=$(mktemp -d)
+          printf 'pub fn probe() {}\n' > "$_sccache_probe_dir/probe.rs"
+          # Unique crate names prevent a cache hit from hiding a stalled compiler.
+          if "${_sccache_probe_timeout[@]}" sccache "$(rustup which rustc)" \
+              --crate-name "vauchi_cache_probe_${CI_JOB_ID:-$$}" \
+              --crate-type rlib --emit link "$_sccache_probe_dir/probe.rs" \
+              -o "$_sccache_probe_dir/probe.rlib"; then
+            echo "sccache: compile probe passed."
+          else
+            echo "WARNING: sccache compile probe failed; building without the cache. Required checks remain enabled."
+            export RUSTC_WRAPPER=
+          fi
+          rm -rf "$_sccache_probe_dir"
+        fi
+      fi
     # Helper: fetch a file from the vauchi/scripts repo (project 77957857).
     # Single point of change for URL pattern and auth. Uses HTTP Basic Auth
     # (same mechanism as git clone in before_script above). All templates
