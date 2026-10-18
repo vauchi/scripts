@@ -162,6 +162,70 @@ def test_write_baseline_lists_exactly_the_untested_scenarios() -> None:
         assert _run(root).returncode == 0
 
 
+# vauchi/private#620: annotations naming no scenario at all (a renamed or
+# deleted scenario, or one nobody wrote) counted toward nothing and went
+# unnoticed; 1,289 were on main. A second baseline lists them and may only
+# shrink.
+DANGLING_TESTS = {
+    "a.rs": "// @scenario: duress_pin :: Enable duress mode\n"
+            "// @scenario: duress_pin :: Unlock with <pin>\n"
+            "// @scenario: duress_pin :: Enable duress mod\n",
+}
+
+
+def test_an_annotation_naming_no_scenario_fails_and_is_named() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _tree(root, DANGLING_TESTS, baseline="")
+        (root / "dangling").write_text("")
+        run = _run(root, "--dangling-baseline", str(root / "dangling"))
+        assert run.returncode == 1, run.stdout + run.stderr
+        assert "1 @scenario annotation(s) naming no scenario" in run.stdout, run.stdout
+        assert "duress_pin :: enable duress mod" in run.stdout, run.stdout
+
+
+def test_a_baselined_dangling_annotation_passes() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _tree(root, DANGLING_TESTS, baseline="")
+        (root / "dangling").write_text("# grandfathered\nduress_pin :: Enable duress mod\n")
+        run = _run(root, "--dangling-baseline", str(root / "dangling"))
+        assert run.returncode == 0, run.stdout + run.stderr
+
+
+def test_an_annotation_naming_a_planned_scenario_is_not_dangling() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _tree(root, {**DANGLING_TESTS, "b.rs": "// @scenario: duress_pin :: Plan only\n"},
+              baseline="")
+        (root / "dangling").write_text("duress_pin :: Enable duress mod\n")
+        run = _run(root, "--dangling-baseline", str(root / "dangling"))
+        assert run.returncode == 0, run.stdout + run.stderr
+
+
+def test_without_the_flag_dangling_annotations_are_not_checked() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _tree(root, DANGLING_TESTS, baseline="")
+        run = _run(root)
+        assert run.returncode == 0, run.stdout + run.stderr
+
+
+def test_write_baseline_also_writes_the_dangling_baseline() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _tree(root, DANGLING_TESTS)
+        run = _run(root, "--dangling-baseline", str(root / "dangling"), "--write-baseline")
+        assert run.returncode == 0, run.stdout + run.stderr
+        entries = [
+            line
+            for line in (root / "dangling").read_text().splitlines()
+            if line and not line.startswith("#")
+        ]
+        assert entries == ["duress_pin :: enable duress mod"], entries
+        assert _run(root, "--dangling-baseline", str(root / "dangling")).returncode == 0
+
+
 def test_no_feature_files_is_an_error_not_a_pass() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
