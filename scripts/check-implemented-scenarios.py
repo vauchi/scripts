@@ -19,7 +19,10 @@ grow. Exit 0 pass, 1 an untested scenario outside the baseline (or, with
 
 Usage:
     check-implemented-scenarios.py --features DIR --baseline FILE
-        [--strict | --write-baseline] REPO_DIR [REPO_DIR ...]
+        [--dangling-baseline FILE] [--strict | --write-baseline] REPO_DIR [REPO_DIR ...]
+
+With --dangling-baseline, an @scenario annotation naming no scenario at
+all (any tag) fails unless that shrink-only list holds it (#620).
 """
 
 import argparse
@@ -115,6 +118,28 @@ def read_baseline(path: Path) -> dict[tuple[str, str], str]:
     return entries
 
 
+def every_scenario(features: Path) -> set[tuple[str, str]]:
+    """(stem, normalised name) for every scenario, whatever its tags."""
+    found: set[tuple[str, str]] = set()
+    for path in sorted(features.glob("*.feature")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            match = SCENARIO_LINE.match(line)
+            if match:
+                found.add((path.stem, normalise(match.group(1))))
+    return found
+
+
+DANGLING_HEADER = """\
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# @scenario annotations that named no scenario when this list arrived
+# (vauchi/private#620): a renamed or deleted scenario, or one nobody wrote.
+# This list may only shrink: correct the annotation to an existing scenario,
+# or remove it, then delete its line here.
+"""
+
+
 BASELINE_HEADER = """\
 # SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -135,6 +160,9 @@ def main() -> int:
                       help="also fail on baseline entries that no longer need to be there")
     mode.add_argument("--write-baseline", action="store_true",
                       help="rewrite the baseline to today's untested scenarios")
+    parser.add_argument("--dangling-baseline", type=Path,
+                        help="also fail on @scenario annotations naming no scenario "
+                             "that are not in this shrink-only list")
     parser.add_argument("repos", type=Path, nargs="+")
     args = parser.parse_args()
 
@@ -150,11 +178,31 @@ def main() -> int:
     annotated = annotated_scenarios(args.repos)
     untested = {key: shown for key, shown in implemented.items() if key not in annotated}
 
+    scenarios = every_scenario(args.features)
+    dangling = {key: f"{key[0]} :: {key[1]}" for key in annotated if key not in scenarios}
+
     if args.write_baseline:
         lines = sorted(untested.values(), key=str.lower)
         args.baseline.write_text(BASELINE_HEADER + "".join(f"{line}\n" for line in lines))
         print(f"Wrote {len(lines)} untested @implemented scenarios to {args.baseline}")
+        if args.dangling_baseline:
+            names = sorted(dangling.values())
+            args.dangling_baseline.write_text(
+                DANGLING_HEADER + "".join(f"{line}\n" for line in names))
+            print(f"Wrote {len(names)} annotations naming no scenario to {args.dangling_baseline}")
         return 0
+
+    new_dangling: list[str] = []
+    if args.dangling_baseline:
+        known = read_baseline(args.dangling_baseline)
+        new_dangling = sorted(shown for key, shown in dangling.items() if key not in known)
+        print(f"{len(dangling)} @scenario annotation(s) name no scenario; "
+              f"{len(known)} in the dangling baseline")
+        if new_dangling:
+            print(f"\n{len(new_dangling)} @scenario annotation(s) naming no scenario:")
+            for shown in new_dangling:
+                print(f"  {shown}")
+            print("\nCorrect the annotation to an existing scenario's name, or remove it.")
 
     baseline = read_baseline(args.baseline)
     new = sorted((shown for key, shown in untested.items() if key not in baseline), key=str.lower)
@@ -174,7 +222,7 @@ def main() -> int:
               "- remove from the baseline:")
         for shown in stale:
             print(f"  {shown}")
-    if new or (args.strict and stale):
+    if new or new_dangling or (args.strict and stale):
         return 1
     return 0
 
