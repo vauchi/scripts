@@ -51,7 +51,8 @@ test:selftests: # vci02-ok: .mr-or-main is rules-only, no before_script to prese
     # fail loud when it's missing — the silent-degradation variant is
     # what broke the first two runs of this job). jq: session-error
     # ledger parsing in gen-hook-from-pattern's auto-pick.
-    - apt-get update -qq >/dev/null && apt-get install -y -qq ripgrep jq python3 >/dev/null
+    # python3-yaml: check-ci-needs-rules.py (VCI06) parses resolved CI configs.
+    - apt-get update -qq >/dev/null && apt-get install -y -qq ripgrep jq python3 python3-yaml >/dev/null
     - npm install -g markdownlint-cli@0.41.0 >/dev/null 2>&1 || echo "markdownlint install failed — its suite self-skips"
   script:
     - |
