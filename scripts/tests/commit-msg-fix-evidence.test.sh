@@ -103,6 +103,35 @@ run_case 'fix: bundle the App SDK runtime
 Evidence: before: DllNotFoundException in job 16457652091; after: not yet observed' windows/Vauchi.csproj
 assert_eq "fix with unobserved after-state: exit 1" "1" "$rc"
 
+# ── a quoted tool message is an observation, whatever words it holds ──
+# YAML's own error reads "did not find expected ','" (#783).
+run_case 'fix: quote the cache key
+
+Evidence: before: lint ok; after: the hook printed "did not find expected '"','"' or '"']'"'" and exit 1' scripts/hooks/pre-push
+assert_eq "after quoting 'expected' in double quotes: exit 0" "0" "$rc"
+
+run_case 'fix: quote the cache key
+
+Evidence: before: lint ok; after: the job log reads `Job would be retried: no` at line 40' scripts/hooks/pre-push
+assert_eq "after quoting 'would' in backticks: exit 0" "0" "$rc"
+
+run_case 'fix: quote the cache key
+
+Evidence: before: lint ok; after: the hook printed '"'expected one of: a, b'"' and exit 1' scripts/hooks/pre-push
+assert_eq "after quoting 'expected' in single quotes: exit 0" "0" "$rc"
+
+# A prediction outside the quotes is still a prediction.
+run_case 'fix: quote the cache key
+
+Evidence: before: lint ok; after: printed "lint ok" and should pass in CI' scripts/hooks/pre-push
+assert_eq "prediction beside a quote: exit 1" "1" "$rc"
+
+# Apostrophes are not quotes: the words between two of them still count.
+run_case 'fix: quote the cache key
+
+Evidence: before: lint ok; after: main'"'"'s hook will pass now that it'"'"'s quoted' scripts/hooks/pre-push
+assert_eq "prediction between apostrophes: exit 1" "1" "$rc"
+
 # An after: outside the Evidence trailer does not count.
 run_case 'fix: bundle the App SDK runtime
 
