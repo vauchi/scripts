@@ -29,6 +29,22 @@ stages:
   - metrics
   - deploy
 
+test:architecture:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/rust:1.93.1
+  tags: [docker]
+  needs: []
+  before_script:
+    - rustup component add rustfmt clippy
+  script:
+    - cargo fmt --manifest-path tools/architecture-check/Cargo.toml --check
+    - cargo clippy --locked --manifest-path tools/architecture-check/Cargo.toml -j 8 --all-targets -- -D warnings
+    - cargo test --locked --manifest-path tools/architecture-check/Cargo.toml -j 8
+    - bash tools/architecture-check/tests/gate.test.sh
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
 # Detector and Python contract tests under scripts/tests/.
 # This is the "lint green in CI" gate the prose-deletion MR depends
 # on: a deleted rules-file section must map to a lint whose self-test

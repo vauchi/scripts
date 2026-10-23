@@ -22,7 +22,8 @@ impl Index {
             if std::env::var_os("VAUCHI_ARCHITECTURE_TRACE").is_some() {
                 eprintln!("{}:{} {}", raw.file, raw.line, raw.path.join("::"));
             }
-            let resolved = self.resolve(&raw.scope, &raw.path, &mut BTreeSet::new());
+            let mut via = BTreeSet::new();
+            let resolved = self.resolve(&raw.scope, &raw.path, &mut BTreeSet::new(), &mut via);
             let explicit = raw.path.first().is_some_and(|p| {
                 matches!(p.as_str(), "crate" | "self" | "super")
                     || CRATES.iter().any(|c| c.replace('-', "_") == *p)
@@ -51,6 +52,7 @@ impl Index {
                     file: raw.file.clone(),
                     owner: raw.owner.clone(),
                     symbol,
+                    via: via.clone(),
                     line: raw.line,
                     column: raw.column,
                 });
@@ -74,6 +76,7 @@ impl Index {
         scope: &str,
         path: &[String],
         visiting: &mut BTreeSet<String>,
+        via: &mut BTreeSet<String>,
     ) -> BTreeSet<String> {
         if path.is_empty() {
             return BTreeSet::new();
@@ -101,6 +104,12 @@ impl Index {
         }
         base.extend_from_slice(&path[offset..]);
         let absolute = base.join("::");
+        for end in 1..=base.len() {
+            let prefix = base[..end].join("::");
+            if self.modules.contains(&prefix) {
+                via.insert(top(&prefix));
+            }
+        }
         if !visiting.insert(absolute.clone()) {
             return BTreeSet::new();
         }
@@ -111,7 +120,7 @@ impl Index {
                 for import in imports {
                     let mut target = import.path.clone();
                     target.extend_from_slice(&base[end..]);
-                    result.extend(self.resolve(&import.scope, &target, visiting));
+                    result.extend(self.resolve(&import.scope, &target, visiting, via));
                 }
                 if !result.is_empty() {
                     break;
@@ -134,7 +143,7 @@ impl Index {
                         }
                         let mut target = glob.path.clone();
                         target.extend_from_slice(&base[end..]);
-                        result.extend(self.resolve(&glob.scope, &target, visiting));
+                        result.extend(self.resolve(&glob.scope, &target, visiting, via));
                         visiting.remove(&guard);
                     }
                 }

@@ -263,6 +263,7 @@ impl<'ast> Visit<'ast> for Collector<'_> {
         self.owner = previous;
     }
     fn visit_attribute(&mut self, _: &'ast Attribute) {}
+    fn visit_visibility(&mut self, _: &'ast syn::Visibility) {}
     fn visit_macro(&mut self, mac: &'ast syn::Macro) {
         if mac.path.is_ident("include") {
             self.error = Some(format!(

@@ -59,8 +59,11 @@ pub fn violations(report: &Report, policy: &Policy) -> Result<BTreeMap<String, u
         } else {
             policy.crates[source_crate] < policy.crates[target_crate]
         };
-        let compatibility =
-            policy.compatibility_modules.contains(&r.target) && !r.source.ends_with("/lib");
+        let compatibility = (policy.compatibility_modules.contains(&r.target)
+            || !policy.compatibility_modules.is_disjoint(&r.via))
+            && source_crate == target_crate
+            && !r.source.ends_with("/lib")
+            && !policy.compatibility_modules.contains(&r.source);
         if upward || compatibility {
             // Source locations aid diagnostics but line shifts must not grant new exceptions.
             let key = serde_json::to_string(&[&r.source, &r.target, &r.file, &r.owner, &r.symbol])
@@ -75,16 +78,28 @@ pub fn check(report: &Report, policy: &Policy, baseline: &Baseline) -> Result<()
     validate_baseline(baseline).map_err(|e| vec![e])?;
     let measured = violations(report, policy).map_err(|e| vec![e])?;
     let mut errors = Vec::new();
-    for (key, count) in measured {
-        let allowed = baseline.exceptions.get(&key).map_or(0, |a| a.count);
-        if count > allowed {
+    for (key, count) in &measured {
+        let allowed = baseline.exceptions.get(key).map_or(0, |a| a.count);
+        if *count > allowed {
             errors.push(format!("VRS06: {key}: {count} sites, {allowed} allowed; move the dependency to its owning lower layer"));
+        }
+    }
+    for (key, allowance) in &baseline.exceptions {
+        let count = measured.get(key).copied().unwrap_or(0);
+        if count < allowance.count {
+            errors.push(format!(
+                "VRS06: {key}: tighten baseline from {} to {count} sites in this change",
+                allowance.count
+            ));
         }
     }
     for api in report.apis.difference(&baseline.apis) {
         errors.push(format!(
             "VRS06: new legacy API {api}; use the Command/Event channel"
         ));
+    }
+    for api in baseline.apis.difference(&report.apis) {
+        errors.push(format!("VRS06: remove retired API {api} from the baseline"));
     }
     if errors.is_empty() {
         Ok(())
@@ -121,6 +136,31 @@ pub fn validate_tightening(before: &Baseline, after: &Baseline) -> Result<(), St
     }
     if !after.apis.is_subset(&before.apis) {
         return Err("VRS06: legacy API baseline widened".into());
+    }
+    Ok(())
+}
+
+pub fn validate_policy_tightening(before: &Policy, after: &Policy) -> Result<(), String> {
+    if before.schema_version != 1 || after.schema_version != 1 {
+        return Err("unsupported policy version".into());
+    }
+    for (name, level) in &before.crates {
+        if after.crates.get(name) != Some(level) {
+            return Err(format!("VRS06: crate policy changed for {name}"));
+        }
+    }
+    for (name, level) in &before.layers {
+        if after.layers.get(name) != Some(level) {
+            return Err(format!(
+                "VRS06: layer policy changed for {name}; retain the approved ownership model"
+            ));
+        }
+    }
+    if !before
+        .compatibility_modules
+        .is_subset(&after.compatibility_modules)
+    {
+        return Err("VRS06: compatibility policy weakened".into());
     }
     Ok(())
 }

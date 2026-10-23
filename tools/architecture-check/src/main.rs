@@ -22,11 +22,14 @@ fn run(args: &[String]) -> Result<u8, String> {
             println!("{}", serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?);
             Ok(0)
         }
-        [command, root, config, baseline, rest @ ..] if command == "check" && rest.len() <= 1 => {
+        [command, root, config, baseline, rest @ ..] if command == "check" && rest.len() <= 2 => {
             let policy: Policy = read(config)?;
             let baseline: Baseline = read(baseline)?;
             if let Some(previous) = rest.first() {
                 policy::validate_tightening(&read(previous)?, &baseline)?;
+            }
+            if let Some(previous) = rest.get(1) {
+                policy::validate_policy_tightening(&read(previous)?, &policy)?;
             }
             let report = analyze_with_generated(Path::new(root), generated)?;
             // Invalid coverage is an operational error, not an accepted empty graph.
@@ -39,7 +42,7 @@ fn run(args: &[String]) -> Result<u8, String> {
                 }
             }
         }
-        _ => Err("usage: vauchi-architecture-check scan ROOT | check ROOT POLICY BASELINE [PREVIOUS_BASELINE]".into()),
+        _ => Err("usage: vauchi-architecture-check scan ROOT | check ROOT POLICY BASELINE [PREVIOUS_BASELINE [PREVIOUS_POLICY]]".into()),
     }
 }
 

@@ -1,8 +1,7 @@
 #!/bin/bash
 # Pre-push hook: Runs format, lint, and test checks before every push.
 # Matches CI pipeline checks exactly.
-# Skip all checks: git push --no-verify
-# Skip tests only:  SKIP_TESTS=1 git push
+# Architecture checks run before cached and documentation-only fast paths.
 #
 # Fast path: If `just check` was run on the current HEAD, checks are skipped
 # (TDD stamp mechanism — see scripts/scripts/stamp.sh).
@@ -89,7 +88,7 @@ fi
 # ─── Main branch push guard ───────────────────────────────────────
 # Block direct pushes to main. GitLab Owner role bypasses server-side
 # branch protection — this hook enforces MR-only workflow locally.
-# Skip: --no-verify (escape hatch), or --tags (tag-only push).
+# Tag-only pushes are handled separately below.
 
 if [[ "$BRANCH" == "main" ]]; then
     # Allow tag-only pushes (no branch ref pushed)
@@ -109,7 +108,6 @@ if [[ "$BRANCH" == "main" ]]; then
         echo "  3. git push -u origin feature/<topic>"
         echo "  4. just gitlab mr-create"
         echo ""
-        echo "Escape hatch: git push --no-verify (not recommended)"
         exit 1
     fi
 fi
@@ -328,6 +326,9 @@ if [[ -n "$BRANCH" && "$BRANCH" != "main" ]]; then
 fi
 
 # ─── TDD stamp check ───────────────────────────────────────────────
+# A test stamp does not cover dependency policy or exception-baseline edits.
+bash "$HOOK_DIR/lib/architecture-guard.sh" "$REPO_ROOT" || exit $?
+
 # If `just check` already passed for this commit, skip all checks.
 
 STAMP_SH="$REPO_ROOT/../scripts/scripts/stamp.sh"

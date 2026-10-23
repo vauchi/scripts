@@ -25,6 +25,7 @@ fn report(caller: &str) -> Report {
             file: "vauchi-core/src/domain.rs".into(),
             owner: caller.into(),
             symbol: "vauchi_core::storage::Storage".into(),
+            via: Default::default(),
             line: 1,
             column: 1,
         }]),

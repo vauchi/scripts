@@ -19,6 +19,7 @@ pub struct Reference {
     pub file: String,
     pub owner: String,
     pub symbol: String,
+    pub via: BTreeSet<String>,
     pub line: usize,
     pub column: usize,
 }
