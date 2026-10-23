@@ -34,6 +34,11 @@ pub(crate) fn expand(mac: &syn::Macro, items: &[Item]) -> Result<Option<Vec<Item
         return Ok(None);
     }
     let pattern: Vec<_> = matcher.stream().into_iter().collect();
+    if pattern.is_empty() && mac.tokens.is_empty() {
+        let parsed: syn::File =
+            syn::parse2(body.stream()).map_err(|e| format!("macro expansion: {e}"))?;
+        return Ok(Some(parsed.items));
+    }
     let [TokenTree::Punct(dollar), TokenTree::Ident(variable), TokenTree::Punct(colon), TokenTree::Ident(kind)] =
         pattern.as_slice()
     else {

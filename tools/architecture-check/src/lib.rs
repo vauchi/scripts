@@ -8,6 +8,7 @@ use std::path::Path;
 mod collect;
 mod includes;
 mod macros;
+mod metadata;
 pub mod policy;
 mod resolve;
 mod syntax;

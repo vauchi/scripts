@@ -44,7 +44,16 @@ pub(crate) fn item_name(item: &Item) -> Option<String> {
         Item::TraitAlias(i) => i.ident.to_string(),
         Item::Type(i) => i.ident.to_string(),
         Item::Union(i) => i.ident.to_string(),
-        Item::Impl(i) => format!("impl[{}]", i.self_ty.to_token_stream()),
+        Item::Impl(i) => match &i.trait_ {
+            Some((_, path, _)) => format!(
+                "impl{}[{} for {}]{}",
+                i.generics.to_token_stream(),
+                path.to_token_stream(),
+                i.self_ty.to_token_stream(),
+                i.generics.where_clause.to_token_stream()
+            ),
+            None => format!("impl[{}]", i.self_ty.to_token_stream()),
+        },
         Item::Macro(i) => i.ident.as_ref()?.to_string(),
         _ => return None,
     })
@@ -123,14 +132,33 @@ pub(crate) fn module_path(attrs: &[Attribute]) -> Result<Option<String>, String>
 }
 
 pub(crate) fn uniffi_export(attrs: &[Attribute]) -> bool {
-    attrs.iter().any(|a| {
-        a.path()
+    fn exported(meta: &Meta) -> bool {
+        if meta
+            .path()
             .segments
             .iter()
             .map(|s| s.ident.to_string())
             .collect::<Vec<_>>()
             == ["uniffi", "export"]
-    })
+        {
+            return true;
+        }
+        if let Meta::List(list) = meta {
+            if list.path.is_ident("cfg_attr") {
+                if let Ok(args) = syn::punctuated::Punctuated::<Meta, Token![,]>::parse_terminated
+                    .parse2(list.tokens.clone())
+                {
+                    let mut args = args.iter();
+                    return args
+                        .next()
+                        .is_some_and(|condition| cfg_value(condition) != Some(false))
+                        && args.any(exported);
+                }
+            }
+        }
+        false
+    }
+    attrs.iter().any(|a| exported(&a.meta))
 }
 
 pub(crate) struct Collector<'a> {
@@ -243,6 +271,35 @@ impl<'ast> Visit<'ast> for Collector<'_> {
     fn visit_item_use(&mut self, item: &'ast syn::ItemUse) {
         self.import(&item.tree, vec![]);
     }
+    fn visit_item_extern_crate(&mut self, item: &'ast syn::ItemExternCrate) {
+        let name = item.ident.to_string();
+        let alias = item
+            .rename
+            .as_ref()
+            .map_or_else(|| name.clone(), |(_, id)| id.to_string());
+        let root = self.scope.split("::").next().unwrap();
+        let target = if name == "self" { root } else { &name };
+        if alias != target {
+            self.index
+                .crate_aliases
+                .insert(format!("{root}::{alias}"), target.into());
+        }
+        self.index
+            .imports
+            .entry(format!("{}::{alias}", self.scope))
+            .or_default()
+            .push(Import {
+                scope: self.scope.clone(),
+                path: vec![name.clone()],
+            });
+        self.index.reference(
+            &self.scope,
+            &self.file,
+            &self.owner,
+            vec![name],
+            item.ident.span(),
+        );
+    }
     fn visit_path(&mut self, path: &'ast syn::Path) {
         self.index.reference(
             &self.scope,
@@ -252,6 +309,37 @@ impl<'ast> Visit<'ast> for Collector<'_> {
             path.span(),
         );
         visit::visit_path(self, path);
+    }
+    fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
+        if item.content.is_none() {
+            self.error = Some("function-local module requires explicit analyzer support".into());
+            return;
+        }
+        visit::visit_item_mod(self, item);
+    }
+    fn visit_impl_item(&mut self, item: &'ast syn::ImplItem) {
+        let attrs = match item {
+            syn::ImplItem::Const(i) => &i.attrs,
+            syn::ImplItem::Fn(i) => &i.attrs,
+            syn::ImplItem::Type(i) => &i.attrs,
+            syn::ImplItem::Macro(i) => &i.attrs,
+            _ => return visit::visit_impl_item(self, item),
+        };
+        if !test_only(attrs) {
+            visit::visit_impl_item(self, item);
+        }
+    }
+    fn visit_trait_item(&mut self, item: &'ast syn::TraitItem) {
+        let attrs = match item {
+            syn::TraitItem::Const(i) => &i.attrs,
+            syn::TraitItem::Fn(i) => &i.attrs,
+            syn::TraitItem::Type(i) => &i.attrs,
+            syn::TraitItem::Macro(i) => &i.attrs,
+            _ => return visit::visit_trait_item(self, item),
+        };
+        if !test_only(attrs) {
+            visit::visit_trait_item(self, item);
+        }
     }
     fn visit_impl_item_fn(&mut self, item: &'ast syn::ImplItemFn) {
         if test_only(&item.attrs) {

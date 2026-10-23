@@ -48,6 +48,11 @@ trap 'rm -rf "$scratch"' EXIT
 cargo build --quiet --locked --release -j 8 --manifest-path "$tool_root/Cargo.toml" \
     --target-dir "$target_dir" || die 'analyzer build failed'
 [[ -x "$binary" ]] || die 'analyzer executable missing after build'
+if [[ -f "$source_root/Cargo.toml" ]]; then
+    cargo metadata --no-deps --format-version 1 --locked --manifest-path "$source_root/Cargo.toml" > "$scratch/cargo-metadata.json" || die 'Cargo metadata failed'
+    mkdir -p "$target_dir/generated"
+    cp "$scratch/cargo-metadata.json" "$target_dir/generated/cargo-metadata.json"
+fi
 
 if [[ -d "$source_root/vauchi-app/src" ]]; then
     [[ -f "$source_root/vauchi-app/build.rs" ]] || die 'app source generator missing'

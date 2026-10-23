@@ -81,6 +81,18 @@ impl Index {
         if path.is_empty() {
             return BTreeSet::new();
         }
+        let root = scope.split("::").next().unwrap();
+        let alias = format!("{root}::{}", path[0]);
+        if let Some(target) = self.crate_aliases.get(&alias) {
+            if !visiting.insert(format!("alias:{alias}")) {
+                return BTreeSet::new();
+            }
+            let mut rewritten = path.to_vec();
+            rewritten[0] = target.clone();
+            let result = self.resolve(scope, &rewritten, visiting, via);
+            visiting.remove(&format!("alias:{alias}"));
+            return result;
+        }
         let mut base: Vec<String> = scope.split("::").map(String::from).collect();
         let mut offset = 0;
         match path[0].as_str() {

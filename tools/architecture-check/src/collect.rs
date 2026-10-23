@@ -38,7 +38,11 @@ pub(crate) struct Index {
     pub globs: BTreeMap<String, Vec<Import>>,
     pub references: Vec<RawReference>,
     pub report: Report,
+    pub crate_aliases: BTreeMap<String, String>,
+    macro_definitions: BTreeMap<String, syn::ItemMacro>,
+    active_macros: BTreeSet<String>,
     active_files: BTreeSet<PathBuf>,
+    file_modules: BTreeSet<String>,
     generated: Option<PathBuf>,
 }
 
@@ -48,6 +52,7 @@ impl Index {
             .canonicalize()
             .map_err(|e| format!("source root: {e}"))?;
         let mut index = Self {
+            crate_aliases: crate::metadata::validate(&root, generated)?,
             generated: generated
                 .map(Path::canonicalize)
                 .transpose()
@@ -98,6 +103,7 @@ impl Index {
             return Err("source outside configured roots".into());
         };
         self.report.files.insert(relative.clone());
+        self.file_modules.insert(scope.into());
         let parent = canonical.parent().ok_or("module has no parent")?;
         let stem = canonical
             .file_stem()
@@ -135,6 +141,16 @@ impl Index {
         self.modules.insert(scope.into());
         self.report.modules.insert(crate::resolve::top(scope));
         for item in items {
+            if let Item::Macro(m) = item {
+                if m.mac.path.is_ident("macro_rules") && !syntax::test_only(&m.attrs) {
+                    if let Some(name) = &m.ident {
+                        self.macro_definitions
+                            .insert(format!("{scope}::{name}"), m.clone());
+                    }
+                }
+            }
+        }
+        for item in items {
             if syntax::test_only(syntax::attributes(item)) {
                 continue;
             }
@@ -152,8 +168,23 @@ impl Index {
                     self.file(root, &include_root, &child, scope)?;
                     continue;
                 }
-                if let Some(expanded) = crate::macros::expand(&mac.mac, items)? {
-                    self.items(root, source, file, module_dir, scope, relative, &expanded)?;
+                let name = mac.mac.path.segments.last().unwrap().ident.to_string();
+                let mut ancestor = Some(scope);
+                while let Some(parent) = ancestor {
+                    let key = format!("{parent}::{name}");
+                    if let Some(definition) = self.macro_definitions.get(&key).cloned() {
+                        if !self.active_macros.insert(key.clone()) {
+                            return Err(format!("recursive local macro: {key}"));
+                        }
+                        let expanded = crate::macros::expand(&mac.mac, &[Item::Macro(definition)])?
+                            .ok_or_else(|| format!("unsupported local macro: {key}"))?;
+                        self.items(root, source, file, module_dir, scope, relative, &expanded)?;
+                        self.active_macros.remove(&key);
+                        break;
+                    }
+                    ancestor = parent.rsplit_once("::").map(|(p, _)| p);
+                }
+                if ancestor.is_some() {
                     continue;
                 }
             }
@@ -172,8 +203,12 @@ impl Index {
                 } else {
                     let explicit = syntax::module_path(&module.attrs)?;
                     let child = if let Some(path) = explicit {
-                        // Rust #[path] on a file module is relative to the declaring file.
-                        file.parent().ok_or("module parent missing")?.join(path)
+                        let parent = if self.file_modules.contains(scope) {
+                            file.parent().ok_or("module parent missing")?
+                        } else {
+                            module_dir
+                        };
+                        parent.join(path)
                     } else {
                         let flat = module_dir.join(format!("{}.rs", module.ident));
                         let nested = module_dir.join(module.ident.to_string()).join("mod.rs");
@@ -221,7 +256,7 @@ impl Index {
                     .abi
                     .as_ref()
                     .and_then(|a| a.name.as_ref())
-                    .is_some_and(|n| n.value() == "C") =>
+                    .is_some_and(|n| matches!(n.value().as_str(), "C" | "C-unwind")) =>
             {
                 self.report
                     .apis
@@ -239,6 +274,20 @@ impl Index {
                                 i.self_ty.to_token_stream(),
                                 f.sig.ident
                             ));
+                        }
+                    }
+                }
+            }
+            Item::Trait(t) if syntax::uniffi_export(&t.attrs) => {
+                self.report
+                    .apis
+                    .insert(format!("{scope}::uniffi::{}", t.ident));
+                for member in &t.items {
+                    if let syn::TraitItem::Fn(f) = member {
+                        if !syntax::test_only(&f.attrs) {
+                            self.report
+                                .apis
+                                .insert(format!("{scope}::uniffi::{}::{}", t.ident, f.sig.ident));
                         }
                     }
                 }
