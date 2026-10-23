@@ -74,9 +74,14 @@ if echo "$SUBJECT" | grep -qE "^fix: "; then
         { i = index(tolower($0), "after:"); if (i) { v = substr($0, i + 6); sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+$/, "", v); print v } }
     ')
     PREDICTION='(^|[^a-z])(should|will|would|expected|expect|hopefully|pending|not yet|tbd|once ci)([^a-z]|$)'
+    # A quoted tool message is what was observed, whatever words it holds
+    # (YAML says "did not find expected ','", #783). Single quotes count only
+    # at word edges, so the text between two apostrophes is still read.
+    AFTER_UNQUOTED=$(printf '%s' "$AFTER_VALUE" |
+        sed -E "s/\"[^\"]*\"//g; s/\`[^\`]*\`//g; s/(^|[^[:alnum:]])'[^']*'([^[:alnum:]]|\$)/\1\2/g")
     EVIDENCE_OK=""
     if [ ${#EVIDENCE} -ge 30 ] && [ ${#AFTER_VALUE} -ge 10 ] \
-        && ! printf '%s' "$AFTER_VALUE" | grep -qiE "$PREDICTION"; then
+        && ! printf '%s' "$AFTER_UNQUOTED" | grep -qiE "$PREDICTION"; then
         EVIDENCE_OK=1
     fi
     if [ -n "$CODE_PATHS" ] && [ -z "$TEST_PATHS" ] && [ -z "$EVIDENCE_OK" ]; then
