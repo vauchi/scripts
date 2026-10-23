@@ -19,7 +19,7 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-HOOK="$DIR/hooks/pre-push"
+HOOK="$DIR/hooks/lib/ci-lint.sh"
 
 pass=0
 fail=0
