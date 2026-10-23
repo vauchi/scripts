@@ -6,6 +6,9 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 mod collect;
+mod includes;
+mod macros;
+pub mod policy;
 mod resolve;
 mod syntax;
 
@@ -29,6 +32,9 @@ pub struct Report {
 }
 
 pub fn analyze(root: &Path) -> Result<Report, String> {
-    let index = collect::Index::load(root)?;
-    index.report()
+    analyze_with_generated(root, None)
+}
+
+pub fn analyze_with_generated(root: &Path, generated: Option<&Path>) -> Result<Report, String> {
+    collect::Index::load(root, generated)?.report()
 }

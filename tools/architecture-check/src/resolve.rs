@@ -19,6 +19,9 @@ pub(crate) fn top(scope: &str) -> String {
 impl Index {
     pub fn report(mut self) -> Result<Report, String> {
         for raw in &self.references {
+            if std::env::var_os("VAUCHI_ARCHITECTURE_TRACE").is_some() {
+                eprintln!("{}:{} {}", raw.file, raw.line, raw.path.join("::"));
+            }
             let resolved = self.resolve(&raw.scope, &raw.path, &mut BTreeSet::new());
             let explicit = raw.path.first().is_some_and(|p| {
                 matches!(p.as_str(), "crate" | "self" | "super")
@@ -125,9 +128,14 @@ impl Index {
                 }
                 if let Some(globs) = self.globs.get(&prefix) {
                     for glob in globs {
+                        let guard = format!("glob:{prefix}:{}", glob.path.join("::"));
+                        if !visiting.insert(guard.clone()) {
+                            continue;
+                        }
                         let mut target = glob.path.clone();
                         target.extend_from_slice(&base[end..]);
                         result.extend(self.resolve(&glob.scope, &target, visiting));
+                        visiting.remove(&guard);
                     }
                 }
                 break;

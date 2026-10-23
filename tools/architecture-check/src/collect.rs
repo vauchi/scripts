@@ -39,14 +39,21 @@ pub(crate) struct Index {
     pub references: Vec<RawReference>,
     pub report: Report,
     active_files: BTreeSet<PathBuf>,
+    generated: Option<PathBuf>,
 }
 
 impl Index {
-    pub fn load(root: &Path) -> Result<Self, String> {
+    pub fn load(root: &Path, generated: Option<&Path>) -> Result<Self, String> {
         let root = root
             .canonicalize()
             .map_err(|e| format!("source root: {e}"))?;
-        let mut index = Self::default();
+        let mut index = Self {
+            generated: generated
+                .map(Path::canonicalize)
+                .transpose()
+                .map_err(|e| e.to_string())?,
+            ..Self::default()
+        };
         for name in CRATES {
             let source = root.join(name).join("src");
             if source.is_dir() {
@@ -77,11 +84,19 @@ impl Index {
         }
         let text = std::fs::read_to_string(&canonical).map_err(|e| e.to_string())?;
         let ast = syn::parse_file(&text).map_err(|e| format!("{}: {e}", file.display()))?;
-        let relative = canonical
-            .strip_prefix(root)
-            .map_err(|e| e.to_string())?
-            .to_string_lossy()
-            .replace('\\', "/");
+        let relative = if let Ok(relative) = canonical.strip_prefix(root) {
+            relative.to_string_lossy().replace('\\', "/")
+        } else if let Some(generated) = &self.generated {
+            format!(
+                "@generated/{}",
+                canonical
+                    .strip_prefix(generated)
+                    .map_err(|e| e.to_string())?
+                    .to_string_lossy()
+            )
+        } else {
+            return Err("source outside configured roots".into());
+        };
         self.report.files.insert(relative.clone());
         let parent = canonical.parent().ok_or("module has no parent")?;
         let stem = canonical
@@ -125,6 +140,22 @@ impl Index {
             }
             if let Some(name) = syntax::item_name(item) {
                 self.symbols.insert(format!("{scope}::{name}"));
+            }
+            if let Item::Macro(mac) = item {
+                if mac.mac.path.is_ident("include") {
+                    let (include_root, child) = crate::includes::resolve(
+                        &mac.mac,
+                        source,
+                        file,
+                        self.generated.as_deref(),
+                    )?;
+                    self.file(root, &include_root, &child, scope)?;
+                    continue;
+                }
+                if let Some(expanded) = crate::macros::expand(&mac.mac, items)? {
+                    self.items(root, source, file, module_dir, scope, relative, &expanded)?;
+                    continue;
+                }
             }
             if let Item::Mod(module) = item {
                 let child_scope = format!("{scope}::{}", module.ident);

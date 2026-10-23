@@ -1,0 +1,126 @@
+// SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+use crate::Report;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Policy {
+    pub schema_version: u32,
+    pub crates: BTreeMap<String, u32>,
+    pub layers: BTreeMap<String, u32>,
+    pub compatibility_modules: BTreeSet<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Allowance {
+    pub count: usize,
+    pub issue: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Baseline {
+    pub schema_version: u32,
+    pub exceptions: BTreeMap<String, Allowance>,
+    pub apis: BTreeSet<String>,
+}
+
+pub fn violations(report: &Report, policy: &Policy) -> Result<BTreeMap<String, usize>, String> {
+    if policy.schema_version != 1 {
+        return Err("unsupported policy version".into());
+    }
+    for name in policy.crates.keys() {
+        if !report.modules.contains(&format!("{name}/lib")) {
+            return Err(format!("missing configured crate {name}"));
+        }
+    }
+    for module in report.modules.iter().chain(
+        report
+            .references
+            .iter()
+            .flat_map(|r| [&r.source, &r.target]),
+    ) {
+        let (name, _) = module.split_once('/').ok_or("invalid module identity")?;
+        if !policy.crates.contains_key(name) || !policy.layers.contains_key(module) {
+            return Err(format!("unclassified module {module}"));
+        }
+    }
+    let mut result = BTreeMap::new();
+    for r in &report.references {
+        let source_crate = r.source.split('/').next().unwrap();
+        let target_crate = r.target.split('/').next().unwrap();
+        let upward = if source_crate == target_crate {
+            policy.layers[&r.source] < policy.layers[&r.target]
+        } else {
+            policy.crates[source_crate] < policy.crates[target_crate]
+        };
+        let compatibility =
+            policy.compatibility_modules.contains(&r.target) && !r.source.ends_with("/lib");
+        if upward || compatibility {
+            // Source locations aid diagnostics but line shifts must not grant new exceptions.
+            let key = serde_json::to_string(&[&r.source, &r.target, &r.file, &r.owner, &r.symbol])
+                .map_err(|e| e.to_string())?;
+            *result.entry(key).or_default() += 1;
+        }
+    }
+    Ok(result)
+}
+
+pub fn check(report: &Report, policy: &Policy, baseline: &Baseline) -> Result<(), Vec<String>> {
+    validate_baseline(baseline).map_err(|e| vec![e])?;
+    let measured = violations(report, policy).map_err(|e| vec![e])?;
+    let mut errors = Vec::new();
+    for (key, count) in measured {
+        let allowed = baseline.exceptions.get(&key).map_or(0, |a| a.count);
+        if count > allowed {
+            errors.push(format!("VRS06: {key}: {count} sites, {allowed} allowed; move the dependency to its owning lower layer"));
+        }
+    }
+    for api in report.apis.difference(&baseline.apis) {
+        errors.push(format!(
+            "VRS06: new legacy API {api}; use the Command/Event channel"
+        ));
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn validate_baseline(baseline: &Baseline) -> Result<(), String> {
+    if baseline.schema_version != 1 {
+        return Err("unsupported baseline version".into());
+    }
+    if baseline
+        .exceptions
+        .values()
+        .any(|a| a.count == 0 || a.issue.trim().is_empty() || a.reason.trim().is_empty())
+    {
+        return Err("each exception requires a positive count, issue and reason".into());
+    }
+    Ok(())
+}
+
+pub fn validate_tightening(before: &Baseline, after: &Baseline) -> Result<(), String> {
+    validate_baseline(before)?;
+    validate_baseline(after)?;
+    for (key, allowance) in &after.exceptions {
+        if before
+            .exceptions
+            .get(key)
+            .is_none_or(|old| allowance.count > old.count)
+        {
+            return Err(format!("VRS06: baseline widened for {key}"));
+        }
+    }
+    if !after.apis.is_subset(&before.apis) {
+        return Err("VRS06: legacy API baseline widened".into());
+    }
+    Ok(())
+}

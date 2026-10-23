@@ -3,7 +3,7 @@
 
 use std::{collections::BTreeSet, fs, path::Path};
 use tempfile::TempDir;
-use vauchi_architecture_check::{analyze, Report};
+use vauchi_architecture_check::{analyze, analyze_with_generated, Report};
 
 fn fixture(files: &[(&str, &str)]) -> TempDir {
     let temp = TempDir::new().unwrap();
@@ -164,4 +164,45 @@ fn malformed_missing_and_escaping_modules_are_errors() {
         assert!(analyze(root.path()).is_err(), "accepted {source}");
     }
     assert!(analyze(TempDir::new().unwrap().path()).is_err());
+}
+
+// @internal — generated source is parsed, never treated as an empty include.
+#[test]
+fn generated_include_requires_output_and_keeps_dependency_ownership() {
+    let root = fixture(&[
+        ("lib.rs", "mod api; mod storage;"),
+        (
+            "api.rs",
+            "include!(concat!(env!(\"OUT_DIR\"), \"/data.rs\"));",
+        ),
+        ("storage.rs", "pub struct Storage;"),
+    ]);
+    assert!(analyze(root.path()).is_err());
+    let generated = TempDir::new().unwrap();
+    fs::write(
+        generated.path().join("data.rs"),
+        "pub fn generated(_: crate::storage::Storage) {}",
+    )
+    .unwrap();
+    let report = analyze_with_generated(root.path(), Some(generated.path())).unwrap();
+    assert!(report
+        .references
+        .iter()
+        .any(|r| r.source == "vauchi-core/api" && r.target == "vauchi-core/storage"));
+    fs::write(generated.path().join("data.rs"), "mod missing;").unwrap();
+    assert!(analyze_with_generated(root.path(), Some(generated.path())).is_err());
+}
+
+// @internal — resolve identifiers produced by a local single-identifier macro.
+#[test]
+fn local_identifier_macro_keeps_generated_type_ownership() {
+    let root = fixture(&[
+        ("lib.rs", "mod api; mod storage;"),
+        ("api.rs", "use crate::storage::Generated;"),
+        (
+            "storage.rs",
+            "macro_rules! make { ($name:ident) => { pub struct $name; }; } make!(Generated);",
+        ),
+    ]);
+    has_edge(root.path(), "api", "storage");
 }
