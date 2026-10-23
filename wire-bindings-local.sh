@@ -41,7 +41,7 @@ while [[ $# -gt 0 ]]; do
             echo "Reverse with: wire-bindings-remote.sh"
             exit 0
             ;;
-        *) echo -e "${RED}Unknown option: $1${NC}"; exit 1 ;;
+        *) printf '%b\n' "${RED}Unknown option: $1${NC}"; exit 1 ;;
     esac
 done
 
@@ -58,22 +58,22 @@ wire_ios() {
     local gen_dir="$ios_dir/Vauchi/Generated"
     local libs_dir="$ios_dir/Vauchi/Libs"
 
-    echo -e "${BLUE}=== Wiring iOS local bindings ===${NC}"
+    printf '%b\n' "${BLUE}=== Wiring iOS local bindings ===${NC}"
 
     # Verify prerequisites
     if [[ ! -f "$gen_dir/vauchi_platform.swift" ]]; then
-        echo -e "${RED}Error: $gen_dir/vauchi_platform.swift not found.${NC}"
+        printf '%b\n' "${RED}Error: $gen_dir/vauchi_platform.swift not found.${NC}"
         echo "Run 'just bindings' first."
         exit 1
     fi
     if [[ ! -d "$spm_dir" ]]; then
-        echo -e "${RED}Error: $spm_dir not found.${NC}"
+        printf '%b\n' "${RED}Error: $spm_dir not found.${NC}"
         echo "Clone vauchi-platform-swift as a sibling repo."
         exit 1
     fi
 
     # 1. Copy Swift bindings to local SPM package
-    echo -e "${YELLOW}Copying Swift bindings to vauchi-platform-swift...${NC}"
+    printf '%b\n' "${YELLOW}Copying Swift bindings to vauchi-platform-swift...${NC}"
     cp "$gen_dir/vauchi_platform.swift" "$spm_dir/Sources/VauchiPlatform/vauchi_platform.swift"
 
     # 2. Update XCFramework with local static libs and headers
@@ -99,10 +99,10 @@ MODULEMAP
         # Copy the right static library into the framework binary
         if [[ "$slice_name" == *"simulator"* ]] && [[ -f "$libs_dir/libvauchi_platform_sim.a" ]]; then
             cp "$libs_dir/libvauchi_platform_sim.a" "$fw_dir/VauchiPlatformFFI"
-            echo -e "  ${GREEN}Updated $slice_name (simulator)${NC}"
+            printf '%b\n' "  ${GREEN}Updated $slice_name (simulator)${NC}"
         elif [[ -f "$libs_dir/libvauchi_platform_device.a" ]]; then
             cp "$libs_dir/libvauchi_platform_device.a" "$fw_dir/VauchiPlatformFFI"
-            echo -e "  ${GREEN}Updated $slice_name (device)${NC}"
+            printf '%b\n' "  ${GREEN}Updated $slice_name (device)${NC}"
         fi
     done
 
@@ -113,12 +113,12 @@ MODULEMAP
     #    a `path:` binaryTarget when the env var is set. This avoids the
     #    SwiftPM URLSession download path entirely without touching the file.
     if ! grep -q 'VAUCHI_PLATFORM_USE_LOCAL_XCFRAMEWORK' "$spm_dir/Package.swift"; then
-        echo -e "${RED}Error: $spm_dir/Package.swift is missing the env-var-aware binaryTarget.${NC}"
+        printf '%b\n' "${RED}Error: $spm_dir/Package.swift is missing the env-var-aware binaryTarget.${NC}"
         echo "Pull the latest vauchi-platform-swift main (must contain Fix C — see"
         echo "_private/docs/problems/2026-04-26-vauchi-platform-swift-resolve-hang/)."
         exit 1
     fi
-    echo -e "  ${GREEN}Package.swift uses env-var-aware binaryTarget (no patch needed)${NC}"
+    printf '%b\n' "  ${GREEN}Package.swift uses env-var-aware binaryTarget (no patch needed)${NC}"
 
     # 4. Create Xcode workspace that includes the local SPM package
     local ws_dir="$ios_dir/Vauchi.xcworkspace"
@@ -135,15 +135,15 @@ MODULEMAP
    </FileRef>
 </Workspace>
 WORKSPACE
-    echo -e "  ${GREEN}Created Vauchi.xcworkspace with local package${NC}"
+    printf '%b\n' "  ${GREEN}Created Vauchi.xcworkspace with local package${NC}"
 
     # 5. Drop cached SPM resolution so Xcode picks up the local package
     rm -f "$ios_dir/Vauchi.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
 
-    echo -e "${GREEN}iOS wired to local bindings.${NC}"
+    printf '%b\n' "${GREEN}iOS wired to local bindings.${NC}"
     echo ""
     echo "Build with:"
-    echo -e "  ${YELLOW}export VAUCHI_PLATFORM_USE_LOCAL_XCFRAMEWORK=1${NC}"
+    printf '%b\n' "  ${YELLOW}export VAUCHI_PLATFORM_USE_LOCAL_XCFRAMEWORK=1${NC}"
     echo "  xcodebuild -workspace Vauchi.xcworkspace -scheme Vauchi ..."
     echo ""
     echo "For Xcode IDE builds: add VAUCHI_PLATFORM_USE_LOCAL_XCFRAMEWORK=1 to"
@@ -156,25 +156,25 @@ wire_android() {
     local android_dir="$WORKSPACE_ROOT/android"
     local gradle="$android_dir/app/build.gradle.kts"
 
-    echo -e "${BLUE}=== Wiring Android local bindings ===${NC}"
+    printf '%b\n' "${BLUE}=== Wiring Android local bindings ===${NC}"
 
     # Verify prerequisites
     if [[ ! -d "$android_dir/app/src/main/jniLibs/arm64-v8a" ]] || \
        [[ ! -d "$android_dir/app/src/local-bindings/kotlin/uniffi" ]]; then
-        echo -e "${RED}Error: local bindings not found. Run 'just bindings' first.${NC}"
+        printf '%b\n' "${RED}Error: local bindings not found. Run 'just bindings' first.${NC}"
         exit 1
     fi
 
     # Verify build.gradle.kts has the localBindings flag
     if grep -q 'useLocalBindings' "$gradle"; then
-        echo -e "  ${GREEN}build.gradle.kts has localBindings support${NC}"
+        printf '%b\n' "  ${GREEN}build.gradle.kts has localBindings support${NC}"
     else
-        echo -e "${RED}Error: build.gradle.kts missing useLocalBindings flag.${NC}"
+        printf '%b\n' "${RED}Error: build.gradle.kts missing useLocalBindings flag.${NC}"
         echo "Add the conditional dependency block — see .claude/docs/local-bindings.md"
         exit 1
     fi
 
-    echo -e "${GREEN}Android ready for local bindings.${NC}"
+    printf '%b\n' "${GREEN}Android ready for local bindings.${NC}"
     echo ""
     echo "Build with:"
     echo "  cd android && ./gradlew assembleDebug -PlocalBindings"
@@ -182,13 +182,13 @@ wire_android() {
 
 # ── Main ─────────────────────────────────────────────────────────────
 
-echo -e "${YELLOW}╔════════════════════════════════════════╗${NC}"
-echo -e "${YELLOW}║    Wire Local UniFFI Bindings          ║${NC}"
-echo -e "${YELLOW}╚════════════════════════════════════════╝${NC}"
+printf '%b\n' "${YELLOW}╔════════════════════════════════════════╗${NC}"
+printf '%b\n' "${YELLOW}║    Wire Local UniFFI Bindings          ║${NC}"
+printf '%b\n' "${YELLOW}╚════════════════════════════════════════╝${NC}"
 echo ""
 
 if $WIRE_IOS; then wire_ios; fi
 if $WIRE_ANDROID; then wire_android; fi
 
 echo ""
-echo -e "${GREEN}Done. To revert: ./scripts/wire-bindings-remote.sh${NC}"
+printf '%b\n' "${GREEN}Done. To revert: ./scripts/wire-bindings-remote.sh${NC}"
