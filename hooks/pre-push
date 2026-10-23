@@ -393,32 +393,37 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
         echo ""
         echo "[0] Validating .gitlab-ci.yml..."
         if command -v glab &>/dev/null; then
-            # `glab ci lint` POSTs only the top-level file to the server —
-            # it cannot resolve `local:` includes (the file path is relative
-            # to the repo root on the server, not the client FS). If the
-            # top file uses local: includes, skip server-lint and verify
-            # instead that every referenced local file exists on disk.
-            # The real MR pipeline will do the full lint once pushed.
+            # Server lint resolves `local:` includes from the default
+            # branch, so it judges the file whenever every included file
+            # is already on main. Skipping it for any `local:` include let
+            # core!1945 out with two YAML errors (private#779); only an
+            # include new on this branch keeps it from running.
+            CI_SERVER_LINT=1
             if grep -qE '^\s*-\s*local:' "$REPO_ROOT/.gitlab-ci.yml"; then
-                echo "  (server lint skipped — local: includes present)"
-                local_missing=0
-                while read -r inc; do
-                    inc_path=$(printf '%s' "$inc" |
-                        sed -E 's/^[[:space:]]*-[[:space:]]*local:[[:space:]]*//; s/^["'\'']//; s/["'\'']$//')
-                    [ -z "$inc_path" ] && continue
-                    # local: paths are relative to the repo root (with optional leading slash)
-                    resolved="${REPO_ROOT}/${inc_path#/}"
-                    if [ ! -f "$resolved" ]; then
-                        echo "  MISSING local include: $inc_path (resolved to $resolved)"
-                        local_missing=1
-                    fi
-                done < <(grep -E '^\s*-\s*local:' "$REPO_ROOT/.gitlab-ci.yml")
-                if [ "$local_missing" = 1 ]; then
-                    echo ""
-                    echo "FAILED: one or more local: includes point to missing files."
-                    exit 1
-                fi
-                echo "  All local: includes resolve on disk"
+                includes_rc=0
+                sh "$HOOK_DIR/../scripts/check-ci-local-includes.sh" "$REPO_ROOT" ||
+                    includes_rc=$?
+                case "$includes_rc" in
+                    0) ;;
+                    3)
+                        CI_SERVER_LINT=0
+                        echo "  server lint skipped — it resolves local: includes from main"
+                        if ! sh "$HOOK_DIR/../scripts/check-ci-yaml-structure.sh" \
+                            "$REPO_ROOT/.gitlab-ci.yml"; then
+                            echo ""
+                            echo "FAILED: CI config has a structural defect (above)."
+                            exit 1
+                        fi
+                        ;;
+                    *)
+                        echo ""
+                        echo "FAILED: one or more local: includes point to missing files."
+                        exit 1
+                        ;;
+                esac
+            fi
+            if [ "$CI_SERVER_LINT" = 0 ]; then
+                :
             elif ! CI_LINT_OUT=$(glab ci lint "$REPO_ROOT/.gitlab-ci.yml" 2>&1); then
                 # `glab ci lint` POSTs to the project's lint endpoint, so a
                 # token without permission there fails exactly like a broken
