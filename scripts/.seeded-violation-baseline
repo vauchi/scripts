@@ -8,7 +8,6 @@ scripts/check-claude-md.sh
 scripts/check-context-budget.sh
 scripts/check-domain-named-views.sh
 scripts/check-ios-local-bindings.sh
-scripts/check-new-test-annotations.sh
 scripts/check-no-direct-clipboard-writes.sh
 scripts/check-no-domain-conditionals-in-views.sh
 scripts/check-no-isimported-in-views.sh
