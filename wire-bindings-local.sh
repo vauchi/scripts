@@ -77,7 +77,9 @@ wire_ios() {
     cp "$gen_dir/vauchi_platform.swift" "$spm_dir/Sources/VauchiPlatform/vauchi_platform.swift"
 
     # 2. Update XCFramework with local static libs and headers
-    for slice_dir in "$spm_dir"/VauchiPlatformFFI.xcframework/ios-*/; do
+    local xcframework="$spm_dir/VauchiPlatformFFI.xcframework"
+    local updated_slices=0
+    for slice_dir in "$xcframework"/ios-*/; do
         local fw_dir="$slice_dir/VauchiPlatformFFI.framework"
         [[ -d "$fw_dir" ]] || continue
 
@@ -99,12 +101,21 @@ MODULEMAP
         # Copy the right static library into the framework binary
         if [[ "$slice_name" == *"simulator"* ]] && [[ -f "$libs_dir/libvauchi_platform_sim.a" ]]; then
             cp "$libs_dir/libvauchi_platform_sim.a" "$fw_dir/VauchiPlatformFFI"
+            updated_slices=$((updated_slices + 1))
             printf '%b\n' "  ${GREEN}Updated $slice_name (simulator)${NC}"
         elif [[ -f "$libs_dir/libvauchi_platform_device.a" ]]; then
             cp "$libs_dir/libvauchi_platform_device.a" "$fw_dir/VauchiPlatformFFI"
+            updated_slices=$((updated_slices + 1))
             printf '%b\n' "  ${GREEN}Updated $slice_name (device)${NC}"
         fi
     done
+    # A dangling link here once left the published Core on a "wired"
+    # device build (private#785).
+    if [[ "$updated_slices" -eq 0 ]]; then
+        printf '%b\n' "${RED}Error: no slice of $xcframework was updated.${NC}" >&2
+        echo "It is missing or a dangling link; run 'just rebuild-ios' to package it." >&2
+        exit 1
+    fi
 
     # 3. Verify Package.swift carries the env-var-aware binaryTarget.
     #    Since 2026-04-26 (problem 2026-04-26-vauchi-platform-swift-resolve-hang),
