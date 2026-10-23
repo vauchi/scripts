@@ -341,7 +341,7 @@ core_ambient_now_secs=$(count_lines_matching \
 #   - `monotonic.rs` — the seam's own definition file (holds the one
 #     production `Instant::now()` in `SystemMonotonicClock::now`), same
 #     precedent as the `clock.rs`/`sleeper.rs` exclusions above.
-#   - determinism-exempt diagnostic perf-timers (`qr/scanner.rs`,
+#   - determinism-exempt diagnostic perf-timers (`qr_decode.rs`,
 #     `diagnostic/`, `exchange/transport/trace.rs`,
 #     `exchange/audio_cpal.rs`, `api/vauchi/security.rs`) — they measure
 #     elapsed-ms for logs and never feed a state transition, the same
@@ -358,7 +358,7 @@ do
     [ -d "$instant_root" ] || continue
     n=$(grep -rsE 'Instant::now\(\)' "$instant_root" 2>/dev/null \
         | grep -v '/monotonic\.rs:' \
-        | grep -v '/qr/scanner\.rs:' \
+        | grep -v '/vauchi-core/src/qr_decode\.rs:' \
         | grep -v '/diagnostic/' \
         | grep -v '/exchange/transport/trace\.rs:' \
         | grep -v '/exchange/audio_cpal\.rs:' \

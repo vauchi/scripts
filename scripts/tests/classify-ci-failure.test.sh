@@ -151,6 +151,8 @@ expect_category "private workspace discovery failure" \
     "test-failure"
 expect_category "clippy/lint" \
     "error: this \`if\` has identical blocks (clippy::if_same_then_else)" "lint"
+expect_category "pure functional core regression" \
+    "FAIL: pure-functional-core regression — vauchi-core state machines must own NO ambient time/rng/sleep, found: core_instant_now=3" "lint"
 expect_category "cargo-machete unused dependency" \
     "cargo-machete found the following unused dependencies in this directory:" "lint"
 expect_category "implemented scenario without mapped coverage" \

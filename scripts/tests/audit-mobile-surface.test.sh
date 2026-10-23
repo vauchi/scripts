@@ -456,6 +456,29 @@ test_check_core_purity_mode() {
     rm -rf "$dirty"
 }
 
+test_qr_performance_timer_owner() {
+    local root src out rc
+    root=$(mktemp -d)
+    src="$root/core/vauchi-core/src"
+    mkdir -p "$src/qr"
+    printf 'fn decode() { let decode_start = Instant::now(); }\n' >"$src/qr_decode.rs"
+    out=$("$SCRIPT" "$root")
+    assert_eq "QR decoder performance timer remains exempt" 0 \
+        "$(extract_counter "$out" core_instant_now)"
+    rc=0
+    "$SCRIPT" --check-core-purity "$root" >/dev/null 2>&1 || rc=$?
+    assert_eq "QR decoder fixture passes purity gate" 0 "$rc"
+
+    printf 'fn timeout() { let now = Instant::now(); }\n' >"$src/qr/scanner.rs"
+    out=$("$SCRIPT" "$root")
+    assert_eq "old scanner facade no longer has a timing exemption" 1 \
+        "$(extract_counter "$out" core_instant_now)"
+    rc=0
+    "$SCRIPT" --check-core-purity "$root" >/dev/null 2>&1 || rc=$?
+    assert_eq "ambient clock in old facade fails purity gate" 1 "$rc"
+    rm -rf "$root"
+}
+
 test_empty_workspace
 test_mobile_counters
 test_lib_rs_mobile_returns
@@ -467,6 +490,7 @@ test_capability_reporting_wired
 test_tui_screen_variants
 test_core_nondeterminism
 test_check_core_purity_mode
+test_qr_performance_timer_owner
 test_json_validity
 test_bad_workspace
 
