@@ -98,5 +98,17 @@ git -C "$repo" commit -qam "edit top file"
 expect_changed "top file and include changed → both" ".gitlab-ci.yml ci/a.yml " "$repo"
 rm -rf "$repo"
 
+# A change main made after this branch started is not this branch's: the
+# list compares against the merge base, not main's tip.
+repo=$(make_repo)
+git -C "$repo" switch -q -c topic
+git -C "$repo" switch -q -c main-ahead origin/main
+printf 'a:\n  script: [false]\n' > "$repo/ci/a.yml"
+git -C "$repo" commit -qam "main edits the include"
+git -C "$repo" update-ref refs/remotes/origin/main HEAD
+git -C "$repo" switch -q topic
+expect_changed "main moved on, branch touched no CI → no CI files" "" "$repo"
+rm -rf "$repo"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
