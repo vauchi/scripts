@@ -65,5 +65,38 @@ printf 'stages: [test]\n' > "$repo/.gitlab-ci.yml"
 expect_exit "no local includes → server lint can run" 0 "$repo"
 rm -rf "$repo"
 
+# Server lint reads main's copy of an include, so an edited one would be
+# judged by the version this push does not carry.
+repo=$(make_repo)
+printf 'a:\n  script: [false]\n' > "$repo/ci/a.yml"
+git -C "$repo" commit -qam "edit include"
+expect_exit "include edited on this branch → server lint cannot see it" 3 "$repo"
+rm -rf "$repo"
+
+# `changed` lists the CI files this branch touches — the top file and its
+# local includes — so the hook lints an include-only change too.
+expect_changed() {
+    local name="$1" want="$2" repo="$3" got
+    got=$(sh "$CHECK" "$repo" changed 2>/dev/null | tr '\n' ' ')
+    if [ "$got" = "$want" ]; then
+        printf '  PASS %s\n' "$name"; pass=$((pass + 1))
+    else
+        printf '  FAIL %s — got [%s], want [%s]\n' "$name" "$got" "$want" >&2
+        fail=$((fail + 1))
+    fi
+}
+
+repo=$(make_repo)
+expect_changed "nothing changed → no CI files" "" "$repo"
+printf 'a:\n  script: [false]\n' > "$repo/ci/a.yml"
+printf 'unrelated\n' > "$repo/README"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "edit include and an unrelated file"
+expect_changed "only an include changed → that include" "ci/a.yml " "$repo"
+printf '# note\n' >> "$repo/.gitlab-ci.yml"
+git -C "$repo" commit -qam "edit top file"
+expect_changed "top file and include changed → both" ".gitlab-ci.yml ci/a.yml " "$repo"
+rm -rf "$repo"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
