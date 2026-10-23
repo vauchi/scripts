@@ -43,7 +43,7 @@ while IFS= read -r file; do
     # the starting line number; we count added (+) and context ( ) lines to
     # track position.
     added_test_lines=$(
-        git diff "$BASE"..."$HEAD" -- "$file" 2>/dev/null |
+        git -c diff.renames=false diff "$BASE"..."$HEAD" -- "$file" 2>/dev/null |
         awk '
             /^@@ / {
                 s = $3
@@ -96,7 +96,7 @@ while IFS= read -r file; do
 # pairing). A rename with no content change adds no test functions
 # by definition; a rename-with-modifications (similarity ≥ 50%) still
 # gets caught by the CI gate, which runs without the path filter.
-done < <(git diff --name-only --diff-filter=AM "$BASE"..."$HEAD" -- '*.rs' 2>/dev/null \
+done < <(git -c diff.renames=false diff --name-only --diff-filter=AM "$BASE"..."$HEAD" -- '*.rs' 2>/dev/null \
     | grep -vE '(^|/)vendor/')
 
 echo "=== New Test Annotation Gate ==="
