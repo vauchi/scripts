@@ -24,7 +24,17 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
         echo "[0] Validating CI config: $(printf '%s ' $CI_CHANGED)"
         # Parsed locally first: server lint reads main's copy of every
         # include, so it never sees a syntax error in one this push edits.
-        if ! (cd "$REPO_ROOT" && sh "$HOOK_DIR/../scripts/check-ci-yaml-parse.sh" $CI_CHANGED); then
+        parse_rc=0
+        (cd "$REPO_ROOT" && sh "$HOOK_DIR/../scripts/check-ci-yaml-parse.sh" $CI_CHANGED) ||
+            parse_rc=$?
+        if [ "$parse_rc" = 2 ]; then
+            # A missing tool, not a verdict: saying "does not parse" sent
+            # people looking for a YAML error that was not there (#779).
+            echo ""
+            echo "FAILED: local parse unavailable — install PyYAML (pip install pyyaml)"
+            echo "or uv, so this push's CI files can be checked."
+            exit 1
+        elif [ "$parse_rc" != 0 ]; then
             echo ""
             echo "FAILED: CI config does not parse (above)."
             exit 1

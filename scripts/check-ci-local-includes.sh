@@ -37,13 +37,20 @@ local_includes() {
         sed -E 's/^[[:space:]]*-[[:space:]]*local:[[:space:]]*//; s/^["'\'']//; s/["'\'']$//; s#^/##' || true
 }
 
-changed_since_main() {
+# Differs from the copy server lint reads: main's tip.
+differs_from_main() {
     git -C "$ROOT" diff --name-only origin/main HEAD -- "$1"
+}
+
+# Changed by this branch: since the merge base, so what main changed after
+# the branch started is not counted.
+changed_by_branch() {
+    git -C "$ROOT" diff --name-only origin/main...HEAD -- "$1"
 }
 
 if [ "$MODE" = changed ]; then
     for path in .gitlab-ci.yml $(local_includes); do
-        [ -n "$(changed_since_main "$path")" ] && printf '%s\n' "$path"
+        [ -n "$(changed_by_branch "$path")" ] && printf '%s\n' "$path"
     done
     exit 0
 fi
@@ -57,8 +64,8 @@ for path in $(local_includes); do
     elif ! git -C "$ROOT" cat-file -e "origin/main:$path" 2>/dev/null; then
         printf '  local include not on origin/main yet: %s\n' "$path"
         branch_only=1
-    elif [ -n "$(changed_since_main "$path")" ]; then
-        printf '  local include edited on this branch: %s\n' "$path"
+    elif [ -n "$(differs_from_main "$path")" ]; then
+        printf '  local include differs from origin/main: %s\n' "$path"
         branch_only=1
     fi
 done
