@@ -12,6 +12,8 @@ pub struct Policy {
     pub crates: BTreeMap<String, u32>,
     pub layers: BTreeMap<String, u32>,
     pub compatibility_modules: BTreeSet<String>,
+    #[serde(default)]
+    pub acyclic_crates: BTreeSet<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -33,6 +35,11 @@ pub struct Baseline {
 pub fn violations(report: &Report, policy: &Policy) -> Result<BTreeMap<String, usize>, String> {
     if policy.schema_version != 1 {
         return Err("unsupported policy version".into());
+    }
+    for name in &policy.acyclic_crates {
+        if !policy.crates.contains_key(name) {
+            return Err(format!("unknown acyclic crate {name}"));
+        }
     }
     for name in policy.crates.keys() {
         if !report.modules.contains(&format!("{name}/lib")) {
@@ -78,6 +85,14 @@ pub fn check(report: &Report, policy: &Policy, baseline: &Baseline) -> Result<()
     validate_baseline(baseline).map_err(|e| vec![e])?;
     let measured = violations(report, policy).map_err(|e| vec![e])?;
     let mut errors = Vec::new();
+    for name in &policy.acyclic_crates {
+        for component in crate::cycles::components(report, name) {
+            errors.push(format!(
+                "VRS06: ownership cycle: {}; relocate composition to its consuming module",
+                component.into_iter().collect::<Vec<_>>().join(", ")
+            ));
+        }
+    }
     for (key, count) in &measured {
         let allowed = baseline.exceptions.get(key).map_or(0, |a| a.count);
         if *count > allowed {
@@ -143,6 +158,9 @@ pub fn validate_tightening(before: &Baseline, after: &Baseline) -> Result<(), St
 pub fn validate_policy_tightening(before: &Policy, after: &Policy) -> Result<(), String> {
     if before.schema_version != 1 || after.schema_version != 1 {
         return Err("unsupported policy version".into());
+    }
+    if !before.acyclic_crates.is_subset(&after.acyclic_crates) {
+        return Err("VRS06: acyclic ownership policy weakened".into());
     }
     for (name, level) in &before.crates {
         if after.crates.get(name) != Some(level) {

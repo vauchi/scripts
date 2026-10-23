@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 mod collect;
+mod cycles;
 mod includes;
 mod macros;
 mod metadata;
