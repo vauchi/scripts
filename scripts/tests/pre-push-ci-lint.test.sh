@@ -38,8 +38,16 @@ ln -s "$work/stub/glab" "$work/noparser/glab"
 # A repo whose origin/main has a tagged job in .gitlab-ci.yml and one in
 # the local include ci/a.yml; prints its path.
 make_repo() {
-    local repo
-    repo=$(mktemp -d "$work/repo.XXXX")
+    # Six X's: BusyBox mktemp rejects fewer. An empty path would aim every
+    # git command below at the current directory, so stop instead.
+    repo=$(mktemp -d "$work/repo.XXXXXX") || true
+    case "$repo" in
+        "$work"/repo.*) [ -d "$repo" ] || exit 2 ;;
+        *)
+            echo "make_repo: mktemp failed, stopping before git runs in the wrong place" >&2
+            exit 2
+            ;;
+    esac
     git -C "$repo" init -q
     git -C "$repo" config user.email test@example.invalid
     git -C "$repo" config user.name test
@@ -50,7 +58,6 @@ make_repo() {
     git -C "$repo" add -A
     git -C "$repo" commit -qm base
     git -C "$repo" update-ref refs/remotes/origin/main HEAD
-    printf '%s' "$repo"
 }
 
 commit_all() {
@@ -80,7 +87,7 @@ check() {
 has() { printf '%s' "$out" | grep -qF -- "$1" && echo yes || echo no; }
 
 # 1. A syntax error in the top file is blocked before server lint.
-repo=$(make_repo)
+make_repo
 printf 'broken:\n  tags: [docker]\n  cache:\n    fallback_keys: [x-${CI_DEFAULT_BRANCH}]\n  script: [echo ok]\n' \
     >> "$repo/.gitlab-ci.yml"
 commit_all "$repo" "top-file error"
@@ -89,7 +96,7 @@ check "top-file YAML error → blocked" \
     "$([ "$rc" = 1 ] && [ "$(has 'flow sequence')" = yes ] && echo yes || echo no)"
 
 # 2. An error only in an included file is blocked: it used to go unchecked.
-repo=$(make_repo)
+make_repo
 printf 'b:\n  tags: [docker]\n  script:\n    - test 1 = 1 || { echo "ERROR: x"; exit 1; }\n' \
     >> "$repo/ci/a.yml"
 commit_all "$repo" "include error"
@@ -98,7 +105,7 @@ check "error only in an include → blocked" \
     "$([ "$rc" = 1 ] && [ "$(has 'is not a string')" = yes ] && echo yes || echo no)"
 
 # 3. A harmless include edit passes, and server lint is not trusted with it.
-repo=$(make_repo)
+make_repo
 printf '# note\n' >> "$repo/ci/a.yml"
 commit_all "$repo" "include comment"
 run_lint "$repo"
@@ -106,7 +113,7 @@ check "harmless include edit → passes without server lint" \
     "$([ "$rc" = 0 ] && [ "$glab_calls" = 0 ] && [ "$(has 'server lint skipped')" = yes ] && echo yes || echo no)"
 
 # 4. A top-file change with includes unchanged goes to server lint.
-repo=$(make_repo)
+make_repo
 printf '# note\n' >> "$repo/.gitlab-ci.yml"
 commit_all "$repo" "top comment"
 run_lint "$repo"
@@ -119,7 +126,7 @@ check "server lint says invalid → blocked" \
     "$([ "$rc" = 1 ] && [ "$(has 'CI config is invalid')" = yes ] && echo yes || echo no)"
 
 # 6. A branch that touches no CI file is not linted.
-repo=$(make_repo)
+make_repo
 printf 'x\n' > "$repo/README"
 commit_all "$repo" "docs"
 run_lint "$repo"
@@ -127,7 +134,7 @@ check "no CI change → nothing linted" \
     "$([ "$rc" = 0 ] && [ "$glab_calls" = 0 ] && [ "$(has 'Validating')" = no ] && echo yes || echo no)"
 
 # 7. Main moving on is not this branch's change.
-repo=$(make_repo)
+make_repo
 git -C "$repo" switch -q -c topic
 printf 'x\n' > "$repo/README"
 commit_all "$repo" "docs"
@@ -141,7 +148,7 @@ check "main edited an include, branch did not → nothing linted" \
     "$([ "$rc" = 0 ] && [ "$(has 'Validating')" = no ] && echo yes || echo no)"
 
 # 8. A missing parser is named as such, not as a broken config.
-repo=$(make_repo)
+make_repo
 printf '# note\n' >> "$repo/.gitlab-ci.yml"
 commit_all "$repo" "top comment"
 run_lint "$repo" "$work/noparser"

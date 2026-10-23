@@ -31,8 +31,11 @@ expect_exit() {
 
 # A repo whose origin/main holds .gitlab-ci.yml including ci/a.yml.
 make_repo() {
-    local repo
-    repo=$(mktemp -d)
+    repo=$(mktemp -d) || true
+    if [ -z "$repo" ] || [ ! -d "$repo" ]; then
+        echo "make_repo: mktemp failed, stopping before git runs in the wrong place" >&2
+        exit 2
+    fi
     git -C "$repo" init -q
     git -C "$repo" config user.email test@example.invalid
     git -C "$repo" config user.name test
@@ -42,32 +45,31 @@ make_repo() {
     git -C "$repo" add -A
     git -C "$repo" commit -qm base
     git -C "$repo" update-ref refs/remotes/origin/main HEAD
-    printf '%s' "$repo"
 }
 
-repo=$(make_repo)
+make_repo
 expect_exit "every include already on main → server lint can run" 0 "$repo"
 rm -rf "$repo"
 
-repo=$(make_repo)
+make_repo
 printf '  - local: "/ci/gone.yml"\n' >> "$repo/.gitlab-ci.yml"
 expect_exit "include missing on disk → fail" 1 "$repo"
 rm -rf "$repo"
 
-repo=$(make_repo)
+make_repo
 printf 'b:\n  script: [true]\n' > "$repo/ci/b.yml"
 printf "  - local: 'ci/b.yml'\n" >> "$repo/.gitlab-ci.yml"
 expect_exit "include only on this branch → server lint cannot see it" 3 "$repo"
 rm -rf "$repo"
 
-repo=$(make_repo)
+make_repo
 printf 'stages: [test]\n' > "$repo/.gitlab-ci.yml"
 expect_exit "no local includes → server lint can run" 0 "$repo"
 rm -rf "$repo"
 
 # Server lint reads main's copy of an include, so an edited one would be
 # judged by the version this push does not carry.
-repo=$(make_repo)
+make_repo
 printf 'a:\n  script: [false]\n' > "$repo/ci/a.yml"
 git -C "$repo" commit -qam "edit include"
 expect_exit "include edited on this branch → server lint cannot see it" 3 "$repo"
@@ -86,7 +88,7 @@ expect_changed() {
     fi
 }
 
-repo=$(make_repo)
+make_repo
 expect_changed "nothing changed → no CI files" "" "$repo"
 printf 'a:\n  script: [false]\n' > "$repo/ci/a.yml"
 printf 'unrelated\n' > "$repo/README"
@@ -100,7 +102,7 @@ rm -rf "$repo"
 
 # A change main made after this branch started is not this branch's: the
 # list compares against the merge base, not main's tip.
-repo=$(make_repo)
+make_repo
 git -C "$repo" switch -q -c topic
 git -C "$repo" switch -q -c main-ahead origin/main
 printf 'a:\n  script: [false]\n' > "$repo/ci/a.yml"
