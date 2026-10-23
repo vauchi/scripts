@@ -147,6 +147,14 @@ run_lint "$repo"
 check "main edited an include, branch did not → nothing linted" \
     "$([ "$rc" = 0 ] && [ "$(has 'Validating')" = no ] && echo yes || echo no)"
 
+# 9. A job without runner tags in an include hangs like one in the top file.
+make_repo
+printf 'untagged:\n  script: [echo ok]\n' >> "$repo/ci/a.yml"
+commit_all "$repo" "untagged job in include"
+run_lint "$repo"
+check "untagged job only in an include → blocked" \
+    "$([ "$rc" = 1 ] && [ "$(has 'without runner tags')" = yes ] && [ "$(has 'untagged')" = yes ] && echo yes || echo no)"
+
 # 8. A missing parser is named as such, not as a broken config.
 make_repo
 printf '# note\n' >> "$repo/.gitlab-ci.yml"

@@ -56,6 +56,17 @@ job:
     - test 1 = 1 || { echo "ERROR: wrong"; exit 1; }
 EOF
 
+# The hook reads `local:` includes only from a list of mappings; any other
+# include form would quietly bypass its include checks, so it fails.
+printf 'include:\n  - local: ci/a.yml\n  - project: vauchi/scripts\n    file: /x.yml\n' > "$work/include-list.yml"
+printf "include: 'ci/a.yml'\n" > "$work/include-string.yml"
+printf 'include:\n  - ci/a.yml\n' > "$work/include-string-item.yml"
+printf 'include:\n  local: ci/a.yml\n' > "$work/include-mapping.yml"
+
+expect_exit "include as a list of mappings → 0" 0 "$work/include-list.yml"
+expect_exit "include as a bare string → 1" 1 "$work/include-string.yml"
+expect_exit "include list with a bare string item → 1" 1 "$work/include-string-item.yml"
+expect_exit "include as a single mapping → 1" 1 "$work/include-mapping.yml"
 expect_exit "valid file with !reference → 0" 0 "$work/valid.yml"
 expect_exit "unquoted \${...} in a flow sequence (#767) → 1" 1 "$work/flow-sequence.yml"
 expect_exit "unquoted ': ' in a script line (#767) → 1" 1 "$work/colon-in-script.yml"
