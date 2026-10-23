@@ -7,9 +7,10 @@
 # includes from the default branch, so a syntax error in an include this
 # branch edits never reaches it; core!1945 also shipped two syntax errors
 # in its top file while server lint was skipped (private#779). GitLab's
-# `!reference` tag is accepted. Beyond syntax it checks one thing: every
-# script line is a string, since an unquoted `: ` parses as a mapping. It
-# does not check keywords; server lint does.
+# `!reference` tag is accepted. Beyond syntax it checks two things: every
+# script line is a string, since an unquoted `: ` parses as a mapping; and
+# `include:` is a list of mappings, the only form the pre-push hook reads.
+# It does not check keywords; server lint does.
 #
 # Usage:
 #   check-ci-yaml-parse.sh <file>...
@@ -77,6 +78,24 @@ def script_problems(document):
                     )
 
 
+def include_problems(document):
+    """Include forms the hook cannot read.
+
+    The pre-push hook finds `local:` includes in a list of mappings
+    (`- local: path`); a bare string or a single mapping would bypass its
+    include checks without a word (#779)."""
+    if not isinstance(document, dict) or "include" not in document:
+        return
+    includes = document["include"]
+    if not isinstance(includes, list) or not all(
+        isinstance(entry, dict) for entry in includes
+    ):
+        yield (
+            "include: write it as a list of mappings, e.g. '- local: ci/x.yml';"
+            " the pre-push hook reads no other form"
+        )
+
+
 failed = False
 for path in sys.argv[1:]:
     try:
@@ -86,7 +105,7 @@ for path in sys.argv[1:]:
         print(f"  {path}: {error}".replace("\n", "\n    "))
         failed = True
         continue
-    for problem in script_problems(document):
+    for problem in [*include_problems(document), *script_problems(document)]:
         print(f"  {path}: {problem}")
         failed = True
 sys.exit(1 if failed else 0)

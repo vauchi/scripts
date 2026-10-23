@@ -113,7 +113,10 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
         # hang forever in CI with no runner to pick them up.
         # Safe to skip: extends: (inherits tags from template), trigger:
         # (runs on GitLab infra), no script: (template override via include:).
-        UNTAGGED=$(awk '
+        # Every changed CI file: a job in an include hangs the same (#779).
+        UNTAGGED=""
+        for ci_file in $CI_CHANGED; do
+            found=$(awk '
         /^[^[:space:]#%-]/ && /:/ {
             if (job != "" && has_script && !has_tags && !has_extends && !has_trigger && !is_reserved && !is_hidden)
                 print "  " job
@@ -131,7 +134,12 @@ if [[ -f "$REPO_ROOT/.gitlab-ci.yml" ]]; then
         END {
             if (job != "" && has_script && !has_tags && !has_extends && !has_trigger && !is_reserved && !is_hidden)
                 print "  " job
-        }' "$REPO_ROOT/.gitlab-ci.yml")
+        }' "$REPO_ROOT/$ci_file")
+            if [[ -n "$found" ]]; then
+                UNTAGGED+="$(printf '%s\n' "$found" | sed "s#^  #  $ci_file: #")"$'\n'
+            fi
+        done
+        UNTAGGED="${UNTAGGED%$'\n'}"
 
         if [[ -n "$UNTAGGED" ]]; then
             echo ""
