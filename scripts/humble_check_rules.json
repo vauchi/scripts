@@ -371,6 +371,13 @@
         "tests"
       ],
       "rules": {
+        "retired_gtk_domain_events": {
+          "message": "Core owns event classification; subscribe to opaque presentation invalidations instead of domain events (#764).",
+          "allow_exceptions": false,
+          "patterns": [
+            "\\b(?:VauchiEvent|affected_screens|add_event_handler|remove_event_handler)\\b"
+          ]
+        },
         "action_id_minting": {
           "message": "Frontend must not mint action ids; core must supply explicit action_id.",
           "patterns": [
