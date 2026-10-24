@@ -45,7 +45,7 @@ if [[ "$mode" == check ]]; then
 fi
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
-cargo build --quiet --locked --release -j 8 --manifest-path "$tool_root/Cargo.toml" \
+cargo build --quiet --locked --release -j "${CARGO_BUILD_JOBS:-8}" --manifest-path "$tool_root/Cargo.toml" \
     --target-dir "$target_dir" || die 'analyzer build failed'
 [[ -x "$binary" ]] || die 'analyzer executable missing after build'
 if [[ -f "$source_root/Cargo.toml" ]]; then

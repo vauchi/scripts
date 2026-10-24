@@ -37,6 +37,7 @@ struct Dependency {
 pub(crate) fn validate(
     root: &Path,
     generated: Option<&Path>,
+    report: &mut crate::Report,
 ) -> Result<BTreeMap<String, String>, String> {
     let expected: BTreeSet<_> = CRATES
         .iter()
@@ -85,6 +86,30 @@ pub(crate) fn validate(
             return Err(format!("unsupported Cargo library root: {}", package.name));
         }
         found.insert(package.name.as_str());
+        report.unscanned_targets.insert(
+            package.name.clone(),
+            package
+                .targets
+                .iter()
+                .filter(|target| {
+                    target.src_path != libraries[0].src_path
+                        && !target
+                            .kind
+                            .iter()
+                            .all(|kind| matches!(kind.as_str(), "test" | "bench"))
+                })
+                .map(|target| target.name.clone())
+                .collect(),
+        );
+        report.dependencies.insert(
+            package.name.clone(),
+            package
+                .dependencies
+                .iter()
+                .filter(|d| d.kind.as_deref() != Some("dev"))
+                .map(|d| d.name.clone())
+                .collect(),
+        );
         for dependency in &package.dependencies {
             if dependency.kind.as_deref() == Some("dev")
                 || !CRATES.contains(&dependency.name.as_str())

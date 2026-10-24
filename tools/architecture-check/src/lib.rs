@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 mod collect;
@@ -28,6 +28,8 @@ pub struct Reference {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Report {
+    pub dependencies: BTreeMap<String, BTreeSet<String>>,
+    pub unscanned_targets: BTreeMap<String, BTreeSet<String>>,
     pub modules: BTreeSet<String>,
     pub references: BTreeSet<Reference>,
     pub apis: BTreeSet<String>,

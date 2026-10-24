@@ -14,6 +14,10 @@ pub struct Policy {
     pub compatibility_modules: BTreeSet<String>,
     #[serde(default)]
     pub acyclic_crates: BTreeSet<String>,
+    #[serde(default)]
+    pub external_modules: BTreeMap<String, BTreeSet<String>>,
+    #[serde(default)]
+    pub dependencies: BTreeMap<String, BTreeSet<String>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -35,6 +39,40 @@ pub struct Baseline {
 pub fn violations(report: &Report, policy: &Policy) -> Result<BTreeMap<String, usize>, String> {
     if policy.schema_version != 1 {
         return Err("unsupported policy version".into());
+    }
+    for (name, allowed) in &policy.external_modules {
+        if !policy.crates.contains_key(name) {
+            return Err(format!("unknown restricted crate {name}"));
+        }
+        let unscanned = report
+            .unscanned_targets
+            .get(name)
+            .ok_or_else(|| format!("missing production target evidence for {name}"))?;
+        if !unscanned.is_empty() {
+            return Err(format!(
+                "VRS06: {name} has unscanned production targets: {unscanned:?}; extend analysis before adding targets"
+            ));
+        }
+        for module in allowed {
+            if !policy.layers.contains_key(module) {
+                return Err(format!("unclassified allowed module {module}"));
+            }
+        }
+    }
+    for (name, allowed) in &policy.dependencies {
+        if !policy.crates.contains_key(name) {
+            return Err(format!("unknown dependency-restricted crate {name}"));
+        }
+        let actual = report
+            .dependencies
+            .get(name)
+            .ok_or_else(|| format!("missing dependencies evidence for {name}"))?;
+        let forbidden: Vec<_> = actual.difference(allowed).collect();
+        if !forbidden.is_empty() {
+            return Err(format!(
+                "VRS06: {name} has unapproved dependencies: {forbidden:?}; keep native execution independent of domain and GUI crates"
+            ));
+        }
     }
     for name in &policy.acyclic_crates {
         if !policy.crates.contains_key(name) {
@@ -71,7 +109,12 @@ pub fn violations(report: &Report, policy: &Policy) -> Result<BTreeMap<String, u
             && source_crate == target_crate
             && !r.source.ends_with("/lib")
             && !policy.compatibility_modules.contains(&r.source);
-        if upward || compatibility {
+        let outside_boundary = source_crate != target_crate
+            && policy
+                .external_modules
+                .get(source_crate)
+                .is_some_and(|allowed| !allowed.contains(&r.target));
+        if upward || compatibility || outside_boundary {
             // Source locations aid diagnostics but line shifts must not grant new exceptions.
             let key = serde_json::to_string(&[&r.source, &r.target, &r.file, &r.owner, &r.symbol])
                 .map_err(|e| e.to_string())?;
@@ -158,6 +201,23 @@ pub fn validate_tightening(before: &Baseline, after: &Baseline) -> Result<(), St
 pub fn validate_policy_tightening(before: &Policy, after: &Policy) -> Result<(), String> {
     if before.schema_version != 1 || after.schema_version != 1 {
         return Err("unsupported policy version".into());
+    }
+    for (label, old, new) in [
+        (
+            "external modules",
+            &before.external_modules,
+            &after.external_modules,
+        ),
+        ("dependencies", &before.dependencies, &after.dependencies),
+    ] {
+        for (name, allowed) in old {
+            if new
+                .get(name)
+                .is_none_or(|updated| !updated.is_subset(allowed))
+            {
+                return Err(format!("VRS06: {label} policy widened for {name}"));
+            }
+        }
     }
     if !before.acyclic_crates.is_subset(&after.acyclic_crates) {
         return Err("VRS06: acyclic ownership policy weakened".into());

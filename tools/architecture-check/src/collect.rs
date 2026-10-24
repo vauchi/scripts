@@ -12,6 +12,7 @@ pub(crate) const CRATES: &[&str] = &[
     "vauchi-app",
     "vauchi-platform",
     "vauchi-cabi",
+    "vauchi-hardware",
 ];
 
 #[derive(Clone, Debug)]
@@ -51,8 +52,10 @@ impl Index {
         let root = root
             .canonicalize()
             .map_err(|e| format!("source root: {e}"))?;
+        let mut report = Report::default();
         let mut index = Self {
-            crate_aliases: crate::metadata::validate(&root, generated)?,
+            crate_aliases: crate::metadata::validate(&root, generated, &mut report)?,
+            report,
             generated: generated
                 .map(Path::canonicalize)
                 .transpose()
