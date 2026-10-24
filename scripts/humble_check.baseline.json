@@ -20,6 +20,7 @@
       "split_dispatch_api": 0
     },
     "ios": {
+      "retired_onboarding_preferences": 0,
       "action_id_minting": 0,
       "error_substring_classification": 0,
       "domain_screen_id_branch": 0,
@@ -35,6 +36,8 @@
       "split_dispatch_api": 0
     },
     "android": {
+      "retired_onboarding_preferences": 0,
+      "retired_android_sync_result": 0,
       "action_id_minting": 0,
       "error_substring_classification": 0,
       "domain_screen_id_branch": 0,

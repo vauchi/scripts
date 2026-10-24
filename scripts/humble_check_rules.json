@@ -150,6 +150,13 @@
             "\\bNotificationCategory\\b"
           ]
         },
+        "retired_onboarding_preferences": {
+          "message": "Core owns onboarding and demo state; do not restore retired shell preferences (#762).",
+          "allow_exceptions": false,
+          "patterns": [
+            "\\b(?:hasCompletedOnboarding|setOnboardingCompleted|hasDismissedDemoContact|setDemoContactDismissed|resetOnboarding|onboarding_completed|demo_contact_dismissed|KEY_ONBOARDING_COMPLETED|KEY_DEMO_CONTACT_DISMISSED)\\b"
+          ]
+        },
         "field_visibility_interpretation": {
           "message": "Core must emit prepared copy, state, and tokens; frontend must not interpret domain strings.",
           "patterns": [
@@ -212,6 +219,21 @@
           "message": "MobileNotificationCategory mapping to OS presentation belongs in core.",
           "patterns": [
             "\\bMobileNotificationCategory\\b"
+          ]
+        },
+        "retired_onboarding_preferences": {
+          "message": "Core owns onboarding and demo state; do not restore retired shell preferences (#762).",
+          "allow_exceptions": false,
+          "patterns": [
+            "\\b(?:hasCompletedOnboarding|setOnboardingCompleted|hasDismissedDemoContact|setDemoContactDismissed|resetOnboarding|onboarding_completed|demo_contact_dismissed|KEY_ONBOARDING_COMPLETED|KEY_DEMO_CONTACT_DISMISSED)\\b"
+          ]
+        },
+        "retired_android_sync_result": {
+          "message": "Core prepares sync outcomes; do not restore Android's retired domain-result sync path (#762).",
+          "allow_exceptions": false,
+          "patterns": [
+            "\\bMobileSyncResult\\b",
+            "\\bDomainCommand\\s*\\.\\s*Sync\\b"
           ]
         },
         "field_visibility_interpretation": {
