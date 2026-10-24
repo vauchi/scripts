@@ -17,17 +17,25 @@ if [ ! -d "$DIR/src" ]; then
 fi
 
 # Count non-blank, non-comment lines in src/
-SRC_LINES=$(find "$DIR/src" -name '*.rs' -exec grep -cve '^\s*$' -e '^\s*//' {} + 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
+SRC_LINES=$(find "$DIR/src" -name '*.rs' -exec awk '
+    /^[[:space:]]*$/ || /^[[:space:]]*\/\// {next}
+    {n++} END {print n+0}
+' {} + | awk '{s+=$1} END {print s+0}')
 
 # Count non-blank, non-comment lines in tests/
 if [ -d "$DIR/tests" ]; then
-    TEST_LINES=$(find "$DIR/tests" -name '*.rs' -exec grep -cve '^\s*$' -e '^\s*//' {} + 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
+    TEST_LINES=$(find "$DIR/tests" -name '*.rs' -exec awk '
+        /^[[:space:]]*$/ || /^[[:space:]]*\/\// {next}
+        {n++} END {print n+0}
+    ' {} + | awk '{s+=$1} END {print s+0}')
 else
     TEST_LINES=0
 fi
 
 # Inline tests (inside src/ behind #[cfg(test)])
-INLINE_TEST_LINES=$(find "$DIR/src" -name '*.rs' -exec grep -c '#\[test\]' {} + 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
+INLINE_TEST_LINES=$(find "$DIR/src" -name '*.rs' -exec awk '
+    /#\[test\]/ {n++} END {print n+0}
+' {} + | awk '{s+=$1} END {print s+0}')
 
 if [ "$SRC_LINES" -eq 0 ]; then
     RATIO="N/A"
