@@ -232,7 +232,7 @@ lint:links-external:
 # ============================================================
 
 # Catch wrong license references in prose (e.g., "licensed under MIT"
-# when the project uses GPL-3.0-or-later). REUSE checks SPDX headers
+# when the project uses AGPL/GPL-3.0-or-later). REUSE checks SPDX headers
 # but not body text — this fills the gap.
 check:license-text:
   stage: lint
@@ -274,7 +274,7 @@ check:license-text:
       if [ $ERRORS -gt 0 ]; then
         echo ""
         echo "Found $ERRORS wrong license reference(s) in documentation."
-        echo "This project is licensed under GPL-3.0-or-later."
+        echo "Vauchi is licensed under AGPL-3.0-or-later (core, relays) and GPL-3.0-or-later (apps)."
         exit 1
       fi
 
