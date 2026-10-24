@@ -231,6 +231,7 @@
         "retired_android_sync_result": {
           "message": "Core prepares sync outcomes; do not restore Android's retired domain-result sync path (#762).",
           "allow_exceptions": false,
+          "multiline": true,
           "patterns": [
             "\\bMobileSyncResult\\b",
             "\\bDomainCommand\\s*\\.\\s*Sync\\b"

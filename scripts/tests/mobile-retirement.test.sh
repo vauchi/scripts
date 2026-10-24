@@ -38,7 +38,7 @@ for repo in android ios; do
         expect_rejected "$repo" "$source_file" retired_onboarding_preferences "$symbol"
     done
     if [[ $repo == android ]]; then
-        for symbol in MobileSyncResult DomainCommand.Sync; do
+        for symbol in MobileSyncResult DomainCommand.Sync $'DomainCommand\n    .Sync'; do
             expect_rejected "$repo" "$source_file" retired_android_sync_result "$symbol"
         done
     fi

@@ -147,16 +147,19 @@ def scan_file(
     }
 
     findings = {name: [] for name in rules}
-    for idx, line in enumerate(lines):
-        for name, regex in compiled.items():
-            if not regex.search(line):
-                continue
+    for name, regex in compiled.items():
+        if rules[name].get("multiline", False):
+            text = "\n".join(lines)
+            matching_lines = sorted({text.count("\n", 0, match.start()) for match in regex.finditer(text)})
+        else:
+            matching_lines = [idx for idx, line in enumerate(lines) if regex.search(line)]
+        for idx in matching_lines:
             allow_exceptions = rules[name].get("allow_exceptions", True)
             if allow_exceptions and not ignore_exceptions and has_humble_exception(
                 lines, idx, lookback, lookahead
             ):
                 continue
-            findings[name].append((idx + 1, line.strip()))
+            findings[name].append((idx + 1, lines[idx].strip()))
     return findings
 
 
