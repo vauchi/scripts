@@ -151,6 +151,12 @@ expect_category "private workspace discovery failure" \
     "test-failure"
 expect_category "clippy/lint" \
     "error: this \`if\` has identical blocks (clippy::if_same_then_else)" "lint"
+expect_category "REUSE compliance failure with GitLab timestamp" \
+    "2026-10-25T04:27:25.318203Z 01O Unfortunately, your project is not compliant with version 3.3 of the REUSE Specification :-(" "lint"
+expect_escalate "REUSE compliance failure does NOT escalate" \
+    "Unfortunately, your project is not compliant with version 3.3 of the REUSE Specification :-(" "false"
+expect_category "REUSE success does not invent a failure" \
+    "Congratulations! Your project is compliant with version 3.3 of the REUSE Specification :-)" "unknown"
 expect_category "pure functional core regression" \
     "FAIL: pure-functional-core regression — vauchi-core state machines must own NO ambient time/rng/sleep, found: core_instant_now=3" "lint"
 expect_category "cargo-machete unused dependency" \
