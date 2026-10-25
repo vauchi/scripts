@@ -119,14 +119,22 @@ lint:reuse:
 # a maintainer re-running a contributor's pipeline must not sign for them.
 # Public projects only — the MR API answers anonymously there, and a
 # private project takes no outside contributions.
+#
+# In a contributor's fork the pipeline runs in the fork, where vauchi's
+# self-hosted runners and the group dependency proxy do not exist. There
+# the job takes a gitlab.com shared runner and Docker Hub's alpine, so the
+# contributor learns about the CLA before review instead of seeing a job
+# that never starts.
 check:cla:
   stage: lint
-  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
-  tags: [docker]
+  image: $CLA_IMAGE
+  tags: [$CLA_RUNNER_TAG]
   needs: []
   timeout: 3m
   variables:
     GIT_STRATEGY: fetch
+    CLA_IMAGE: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+    CLA_RUNNER_TAG: docker
   before_script:
     - |
       for attempt in 1 2 3; do
@@ -172,4 +180,8 @@ check:cla:
       fi
       sh "$check" "$signatures" "$author"
   rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_ROOT_NAMESPACE != "vauchi"
+      variables:
+        CLA_IMAGE: alpine:3.21
+        CLA_RUNNER_TAG: saas-linux-small-amd64
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_VISIBILITY == "public"
