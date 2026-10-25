@@ -9,8 +9,9 @@
 # Usage: check-cla.sh <cla-signatures.md> <gitlab-username>
 #
 # Exempt: the accounts in CLA_EXEMPT (space-separated, default: the
-# maintainer, who is the Licensor and does not sign) and the group's and
-# projects' access-token bots, which only maintainers can create.
+# maintainer, who is the Licensor and does not sign) and the vauchi
+# group's access-token bots (CLA_BOT_PREFIX), which only maintainers can
+# create.
 #
 # Exit: 0 signed or exempt, 1 not signed, 2 unusable input. A list that
 # does not contain the signature table is exit 2, never a pass: a login
@@ -43,7 +44,10 @@ for exempt in ${CLA_EXEMPT-megloff1}; do
         exit 0
     fi
 done
-if printf '%s' "$author" | grep -Eq '^(group|project)_[0-9]+_bot_[0-9a-f]+$'; then
+# Only this group's tokens: the public API has no bot flag, so a looser
+# pattern would exempt anyone who registers a bot-shaped username.
+bot_prefix="${CLA_BOT_PREFIX-group_122552022_bot_}"
+if [ -n "$bot_prefix" ] && printf '%s' "$author" | grep -Eq "^${bot_prefix}[0-9a-f]+\$"; then
     echo "check-cla: @$author is an access-token bot — exempt"
     exit 0
 fi
