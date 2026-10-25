@@ -374,8 +374,10 @@
         "retired_gtk_domain_events": {
           "message": "Core owns event classification; subscribe to opaque presentation invalidations instead of domain events (#764).",
           "allow_exceptions": false,
+          "multiline": true,
           "patterns": [
-            "\\b(?:VauchiEvent|affected_screens|add_event_handler|remove_event_handler)\\b"
+            "\\b(?:VauchiEvent|EventDispatcher|EventCallback|affected_screens|add_event_handler|remove_event_handler|clear_event_handlers)\\b",
+            "(?:\\.\\s*|\\bVauchi\\s*::\\s*)events\\s*\\("
           ]
         },
         "action_id_minting": {
