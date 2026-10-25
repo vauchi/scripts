@@ -153,9 +153,10 @@ check:cla:
       fetch "${CI_API_V4_URL}/projects/${CI_MERGE_REQUEST_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}" mr.json
       author=$(jq -r '.author.username // empty' mr.json)
 
-      # In vauchi/docs the MR may be the signature itself, so read the
-      # list from the MR's own checkout.
-      if [ "$CI_PROJECT_PATH" = "vauchi/docs" ]; then
+      # An MR into vauchi/docs may be the signature itself, so read the
+      # list from its own checkout. The target path, not CI_PROJECT_PATH:
+      # a contributor signs from a fork, whose pipeline runs in the fork.
+      if [ "$CI_MERGE_REQUEST_PROJECT_PATH" = "vauchi/docs" ]; then
         signatures=src/developers/cla-signatures.md
       else
         signatures=cla-signatures.md
