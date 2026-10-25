@@ -110,3 +110,65 @@ lint:reuse:
     - reuse lint
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Contributor License Agreement check (private#804)
+#
+# The MR author must have a row in docs/src/developers/cla-signatures.md.
+# The logic lives in ci-templates/check-cla.sh; this job only gathers its
+# two inputs. The author comes from the MR itself, not GITLAB_USER_LOGIN:
+# a maintainer re-running a contributor's pipeline must not sign for them.
+# Public projects only — the MR API answers anonymously there, and a
+# private project takes no outside contributions.
+check:cla:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  needs: []
+  timeout: 3m
+  variables:
+    GIT_STRATEGY: fetch
+  before_script:
+    - |
+      for attempt in 1 2 3; do
+          apk add --no-cache curl jq && installed=yes && break
+          echo "apk add failed (attempt $attempt/3), retrying in 5s" >&2
+          sleep 5
+      done
+      if [ "${installed:-}" != yes ]; then
+          echo "apk add failed after 3 attempts" >&2
+          exit 1
+      fi
+  script:
+    - |
+      set -eu
+      fetch() { # $1 = URL, $2 = output file; fails with the HTTP status
+        status=$(curl -sS -o "$2" -w '%{http_code}' "$1") || status="000"
+        if [ "$status" != "200" ]; then
+          echo "check:cla: $1 → HTTP $status" >&2
+          cat "$2" >&2 2>/dev/null || true
+          exit 2
+        fi
+      }
+
+      fetch "${CI_API_V4_URL}/projects/${CI_MERGE_REQUEST_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}" mr.json
+      author=$(jq -r '.author.username // empty' mr.json)
+
+      # In vauchi/docs the MR may be the signature itself, so read the
+      # list from the MR's own checkout.
+      if [ "$CI_PROJECT_PATH" = "vauchi/docs" ]; then
+        signatures=src/developers/cla-signatures.md
+      else
+        signatures=cla-signatures.md
+        fetch "${CI_API_V4_URL}/projects/vauchi%2Fdocs/repository/files/src%2Fdevelopers%2Fcla-signatures.md/raw?ref=main" "$signatures"
+      fi
+
+      # The scripts repo tests its own copy; consumers fetch the pinned one.
+      if [ -f ci-templates/check-cla.sh ]; then
+        check=ci-templates/check-cla.sh
+      else
+        check=check-cla.sh
+        fetch "${CI_API_V4_URL}/projects/77957857/repository/files/ci-templates%2Fcheck-cla.sh/raw?ref=${VAUCHI_SCRIPTS_REF:-main}" "$check"
+      fi
+      sh "$check" "$signatures" "$author"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_VISIBILITY == "public"
