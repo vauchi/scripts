@@ -65,8 +65,10 @@ run "$LIST" megloff1
 assert_eq "maintainer: exit 0" "0" "$rc"
 run "$LIST" group_122552022_bot_8430d9b80c28569925c8bfab4807c95f
 assert_eq "group token bot: exit 0" "0" "$rc"
+run "$LIST" group_999_bot_0123abcd
+assert_eq "another group's bot is not exempt: exit 1" "1" "$rc"
 run "$LIST" project_77957857_bot_0123abcd
-assert_eq "project token bot: exit 0" "0" "$rc"
+assert_eq "project token bot is not exempt: exit 1" "1" "$rc"
 run "$LIST" mallory_bot
 assert_eq "bot-looking name is not exempt: exit 1" "1" "$rc"
 EXEMPT="" run "$LIST" megloff1
