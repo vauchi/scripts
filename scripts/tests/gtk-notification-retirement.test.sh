@@ -32,6 +32,7 @@ done
 printf '%s\n' 'engine.dispatch(Event::WakeupFired);' \
     'Command::PostNotification { notification };' \
     'NotificationUrgency::Urgent;' \
+    'gio::NotificationPriority::Urgent;' \
     'application.send_notification(notification.notification_id.as_deref(), &native);' > "$fixture/linux-gtk/src/app.rs"
 python3 "$checker" --repo linux-gtk --repo-path "$fixture/linux-gtk" \
     --config "$config" --check "$fixture/baseline.json"

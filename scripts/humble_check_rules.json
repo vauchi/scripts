@@ -380,6 +380,14 @@
             "(?:\\.\\s*|\\bVauchi\\s*::\\s*)events\\s*\\("
           ]
         },
+        "retired_gtk_notification_collection": {
+          "message": "Report Event::WakeupFired and execute PostNotification; Core owns notification collection and preparation (#764).",
+          "allow_exceptions": false,
+          "multiline": true,
+          "patterns": [
+            "\\b(?:on_wakeup|poll_notifications|drain_pending_notifications|PendingNotification|notification_types)\\b"
+          ]
+        },
         "action_id_minting": {
           "message": "Frontend must not mint action ids; core must supply explicit action_id.",
           "patterns": [
