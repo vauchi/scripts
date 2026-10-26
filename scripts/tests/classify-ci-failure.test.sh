@@ -159,6 +159,13 @@ expect_category "REUSE success does not invent a failure" \
     "Congratulations! Your project is compliant with version 3.3 of the REUSE Specification :-)" "unknown"
 expect_category "pure functional core regression" \
     "FAIL: pure-functional-core regression — vauchi-core state machines must own NO ambient time/rng/sleep, found: core_instant_now=3" "lint"
+expect_category "vendored locale drift with GitLab timestamp" \
+    "2026-10-26T12:14:00Z 01E vendor-locales: the vendored catalogue has drifted from locales." "lint"
+expect_fix "vendored locale drift points to the companion update" \
+    "vendor-locales: the vendored catalogue has drifted from locales." \
+    "Check for the companion locale-sync MR; refresh core's vendored catalogue with scripts/vendor-locales.sh and validate it before retrying. Never skip the drift gate."
+expect_category "current vendored locales do not invent a failure" \
+    "vendor-locales: catalogue already current — no MR needed" "unknown"
 expect_category "cargo-machete unused dependency" \
     "cargo-machete found the following unused dependencies in this directory:" "lint"
 expect_category "implemented scenario without mapped coverage" \

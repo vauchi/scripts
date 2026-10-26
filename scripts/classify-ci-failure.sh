@@ -49,7 +49,7 @@ fi
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
   "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "authorization" "target-health" "runner-infrastructure" "toolchain-compatibility" "filesystem-permission" "external-config-drift" "transient-network" "timeout" "dep-resolution"
-  "missing-tool" "compile-error" "lint" "test-failure" "duplicate-publish" "artifact-gap"
+  "missing-tool" "compile-error" "lint" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
   "(failure method_parameter_count_changed:|Summary semver requires new major version:)"
@@ -70,6 +70,7 @@ PATS=(
   "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities)|error: [0-9]+ (vulnerability|vulnerabilities) found!|error\\[vulnerability\\]:)"
   "(command not found|: not found)"
   "(error\\[E[0-9]+\\]|error CS[0-9]{4}:|error: missing argument for parameter|No value passed for parameter|cannot find '[^']+' in scope|undefined reference to)"
+  "vendor-locales: the vendored catalogue has drifted from locales\\."
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3}|@implemented scenario\\(s\\) with no test naming them:|cargo-machete found the following unused dependencies|pure-functional-core regression|not compliant with version [0-9.]+ of the REUSE Specification)"
   "(test result: FAILED|cucumber GATE failed:|assertion .*failed|panicked at|[0-9]+ tests completed, [1-9][0-9]* failed|[0-9]+ mutants tested.*[1-9][0-9]* missed|FAILED: [0-9]+ (hook )?self-test suite\(s\) red\.|FAIL: .* got exit [1-9][0-9]*|FAIL: (shared template ref is|runtime scripts ref is)|ValueError: expected (_private|private) git common directory)"
   "curl: \\(22\\) The requested URL returned error: 400"
@@ -94,6 +95,7 @@ FIXES=(
   "Refresh the dependency constraint or lockfile so it selects a patched compatible version."
   "Install the tool in before_script (prefer cargo-binstall) or fix the runner image."
   "Read the rustc diagnostic; fix the source. Reproduce with cargo check -p <crate>."
+  "Check for the companion locale-sync MR; refresh core's vendored catalogue with scripts/vendor-locales.sh and validate it before retrying. Never skip the drift gate."
   "Run the matching just check/lint locally and fix the source (never suppress — CC-21)."
   "Read the failing assertion; fix code or test. Never retry without a root-cause fix (CC-18)."
   "Registry rejected the upload — usually a rerun at an already-published version (triggered/scheduled pipeline missing a source guard). Exclude that source from the publish job; never delete the published package to let a rerun pass."
