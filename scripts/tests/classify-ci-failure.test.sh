@@ -141,6 +141,14 @@ expect_category "Windows native library artifact gap" \
     "artifact-gap"
 expect_category "test failure" \
     "test result: FAILED. 3 passed; 1 failed" "test-failure"
+expect_category "pytest assertion with GitLab timestamp" \
+    "2026-10-26T15:43:09.706888Z 01O FAILED test_presentation_controls.py::test_editable_input - AssertionError: assert '' == 'Original text'" \
+    "test-failure"
+expect_category "pytest fixture failure" \
+    "ERROR tests/atspi/test_fixture_a11y.py::test_label - AssertionError: missing widget" \
+    "test-failure"
+expect_category "pytest passing summary is not a failure" \
+    "112 passed, 9 deselected in 58.02s" "unknown"
 expect_category "custom runner nonzero exit" \
     "FAIL: iPhone onboarding without Home markers must fail; got exit 127" \
     "test-failure"
