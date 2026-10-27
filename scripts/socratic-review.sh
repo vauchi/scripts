@@ -121,6 +121,9 @@ Rules:
   demonstrate.
 - Prefer questions that cannot be answered from the diff alone.
 - Where a question implies a concrete risk, name that risk in one clause.
+- Start each question with the file it concerns in square brackets, e.g.
+  \`[core/vauchi-app/src/lib.rs]\`; write \`[branch]\` for a question
+  about the change as a whole. The tags are compared across reviewers.
 - No praise. No summary of what the diff does. No verdict. No patches.
 - If the change looks sound, ask harder questions rather than approving.
 
@@ -250,5 +253,41 @@ done
 
 if [[ "$FAILED" -ne 0 ]]; then
     exit 1
+fi
+
+# Two reviewers who question different files are not seeing the same
+# risk, and nothing in two separate lists says so. The file tags each
+# question carries make agreement countable: files named by both. A
+# reviewer that tagged nothing cannot be scored — say so rather than
+# print a zero that reads as disagreement. `[branch]` is a whole-change
+# question, not a file, so it never counts as agreement.
+tagged_files() {
+    grep -o '\[[^]]*\]' "$1" 2>/dev/null | tr -d '[]' | grep -v '^branch$' | sort -u || true
+}
+if [[ "$REVIEWERS" == "codex kimi" ]]; then
+    echo "───────────── agreement ─────────────"
+    tagged_files "$WORK/codex.out" > "$WORK/codex.files"
+    tagged_files "$WORK/kimi.out" > "$WORK/kimi.files"
+    codex_n=$(grep -c . "$WORK/codex.files" || true)
+    kimi_n=$(grep -c . "$WORK/kimi.files" || true)
+    if [[ "$codex_n" -eq 0 || "$kimi_n" -eq 0 ]]; then
+        for r in codex kimi; do
+            if [[ "$(grep -c . "$WORK/$r.files" || true)" -eq 0 ]]; then
+                echo "  $r tagged no files — overlap not computable; ask it to prefix questions with [path]."
+            fi
+        done
+    else
+        comm -12 "$WORK/codex.files" "$WORK/kimi.files" > "$WORK/both.files"
+        both_n=$(grep -c . "$WORK/both.files" || true)
+        if [[ "$both_n" -gt 0 ]]; then
+            echo "  files questioned: codex $codex_n, kimi $kimi_n, both $both_n ($(paste -sd, "$WORK/both.files" | sed 's/,/, /g'))"
+        else
+            echo "  files questioned: codex $codex_n, kimi $kimi_n, both 0"
+            echo "  LOW OVERLAP: the reviewers questioned different files — they are not"
+            echo "               seeing the same risk. Read both lists before deciding;"
+            echo "               this branch deserves a human look."
+        fi
+    fi
+    echo ""
 fi
 echo "Advisory only — questions are not a gate. Answer them or record why not."
