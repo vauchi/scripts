@@ -50,8 +50,9 @@ class WasmGateTests(unittest.TestCase):
                 phases = [line.split()[0] for line in calls]
                 ran = expected[:expected.index(failing) + 1] if failing else expected
                 self.assertEqual(phases, ran)
-                crate = str((repo / "wasm").resolve())
-                self.assertTrue(all(line.endswith(crate) for line in calls), calls)
+                crate = (repo / "wasm").resolve()
+                directories = {Path(line.split(" ", 1)[1]).resolve() for line in calls}
+                self.assertEqual(directories, {crate})
 
     # @internal — a repo without the crate fails instead of passing vacuously
     def test_a_repo_without_the_wasm_crate_fails(self):
