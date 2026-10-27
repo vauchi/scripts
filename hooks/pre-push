@@ -1276,8 +1276,14 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
             time_step "$test_script" bash "$test_script" || test_status=$?
             [[ "$test_status" = 0 || "$test_status" = 77 ]] || exit "$test_status"
         done
+        # uv only when PyYAML is missing and uv exists, as lint-ci-needs
+        # does (private#490); otherwise the test names the missing module.
+        python_run=(python3)
+        if ! python3 -c 'import yaml' 2>/dev/null && command -v uv >/dev/null 2>&1; then
+            python_run=(uv run -q --with pyyaml python3)
+        fi
         for test_script in scripts/tests/*.test.py; do
-            time_step "$test_script" python3 "$test_script"
+            time_step "$test_script" "${python_run[@]}" "$test_script"
         done
 
     elif [[ -f "$REPO_ROOT/justfile" && -d "$REPO_ROOT/tests" ]]; then
