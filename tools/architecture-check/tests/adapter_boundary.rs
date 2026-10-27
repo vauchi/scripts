@@ -147,3 +147,67 @@ fn extra_production_targets_cannot_escape_the_adapter_boundary() {
         assert!(check(&root).unwrap_err().join("\n").contains("unscanned"));
     }
 }
+
+fn widened(added: &[&str], records: serde_json::Value) -> Policy {
+    let mut after = serde_json::to_value(policy()).unwrap();
+    for entry in added {
+        after["dependencies"]["vauchi-hardware"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!(entry));
+    }
+    after["ratified_widenings"] = records;
+    serde_json::from_value(after).unwrap()
+}
+
+fn record(added: &[&str], issue: &str, reason: &str) -> serde_json::Value {
+    json!({"policy":"dependencies","name":"vauchi-hardware","added":added,"issue":issue,"reason":reason})
+}
+
+// @internal — an owner-ratified native dependency lands only with its issue and reason in the same change.
+#[test]
+fn a_widening_needs_a_new_record_naming_every_added_entry_with_issue_and_reason() {
+    let before = policy();
+    let ratified = widened(
+        &["zbus", "uuid"],
+        json!([record(
+            &["zbus", "uuid"],
+            "private#770",
+            "BlueZ D-Bus discovery"
+        )]),
+    );
+    assert_eq!(
+        policy::validate_policy_tightening(&before, &ratified),
+        Ok(())
+    );
+
+    let partial = widened(
+        &["zbus", "gtk4"],
+        json!([record(&["zbus"], "private#770", "BlueZ D-Bus discovery")]),
+    );
+    let error = policy::validate_policy_tightening(&before, &partial).unwrap_err();
+    assert!(error.contains("gtk4") && !error.contains("zbus"), "{error}");
+
+    for (issue, reason) in [("", "BlueZ D-Bus discovery"), ("private#770", " ")] {
+        let unexplained = widened(&["zbus"], json!([record(&["zbus"], issue, reason)]));
+        let error = policy::validate_policy_tightening(&before, &unexplained).unwrap_err();
+        assert!(error.contains("issue and reason"), "{error}");
+    }
+}
+
+// @internal — a record already on main cannot authorize a later widening, nor any removal.
+#[test]
+fn an_existing_record_authorizes_nothing_new_and_no_record_permits_removal() {
+    let records = json!([record(&["zbus"], "private#770", "BlueZ D-Bus discovery")]);
+    let mut before = serde_json::to_value(policy()).unwrap();
+    before["ratified_widenings"] = records.clone();
+    let before: Policy = serde_json::from_value(before).unwrap();
+    let error = policy::validate_policy_tightening(&before, &widened(&["zbus"], records.clone()))
+        .unwrap_err();
+    assert!(error.contains("zbus"), "{error}");
+
+    let mut removed = serde_json::to_value(widened(&[], records)).unwrap();
+    removed["dependencies"] = json!({});
+    let removed: Policy = serde_json::from_value(removed).unwrap();
+    assert!(policy::validate_policy_tightening(&policy(), &removed).is_err());
+}
