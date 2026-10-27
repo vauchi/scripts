@@ -429,6 +429,13 @@
         "tests"
       ],
       "rules": {
+        "retired_qt_domain_import": {
+          "message": "Activate Core's prepared menu action and report FilePickedFromUser; Core owns import policy and result text (#764).",
+          "allow_exceptions": false,
+          "patterns": [
+            "\\bvauchi_app_import_contacts_from_vcf\\b"
+          ]
+        },
         "action_id_minting": {
           "message": "Frontend must not mint action ids; core must supply explicit action_id.",
           "patterns": [

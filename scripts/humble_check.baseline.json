@@ -92,6 +92,7 @@
       "split_dispatch_api": 0
     },
     "linux-qt": {
+      "retired_qt_domain_import": 0,
       "action_id_minting": 0,
       "domain_screen_id_branch": 0,
       "app_screen_enum_branch": 0,
