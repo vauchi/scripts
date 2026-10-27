@@ -489,9 +489,11 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         local name="$1"
         shift
         "$@"
+        local step_status=$?
         local elapsed=$((SECONDS - step_start))
         STEP_NAMES+=("$name")
         STEP_TIMES+=("${elapsed}s")
+        return "$step_status"
     }
 
     # ─── Check for gate-push dedup ──────────────────────────────────────
@@ -1250,11 +1252,39 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         }
         time_step "ADR paths" run_adr_paths_check
 
+    elif [[ -f "$REPO_ROOT/CMakeLists.txt" ]]; then
+        CMAKE_CHECK="$(dirname "$REPO_ROOT")/scripts/scripts/cmake-check.sh"
+        [[ -f "$CMAKE_CHECK" ]] || {
+            echo "FAILED: missing shared CMake gate: $CMAKE_CHECK" >&2
+            exit 1
+        }
+        time_step "CMake/CTest" bash "$CMAKE_CHECK" "$REPO_ROOT"
+
+    elif [[ "$REPO_DIR" == "scripts" ]]; then
+        time_step "ShellCheck" shellcheck -S warning scripts/*.sh
+        time_step "Seeded violations" bash scripts/check-seeded-violation-tests.sh
+        for test_script in scripts/tests/*.test.sh; do
+            test_status=0
+            time_step "$test_script" bash "$test_script" || test_status=$?
+            [[ "$test_status" = 0 || "$test_status" = 77 ]] || exit "$test_status"
+        done
+        for test_script in scripts/tests/*.test.py; do
+            time_step "$test_script" python3 "$test_script"
+        done
+
+    elif [[ -f "$REPO_ROOT/justfile" && -d "$REPO_ROOT/tests" ]]; then
+        time_step "Just syntax" just --list
+        [[ -f tests/test_check_recipe_fail_closed.py ]] || {
+            echo "FAILED: workspace check regression suite is missing; update the workspace." >&2
+            exit 1
+        }
+        time_step "Check recipe regressions" python3 tests/test_check_recipe_fail_closed.py
+
     # ─── Unknown repo type ───────────────────────────────────────────────
 
     else
-        echo "  No recognized project type, skipping checks."
-        exit 0
+        echo "FAILED: no check runner for this project type; add one before pushing code." >&2
+        exit 1
     fi
 
 fi # end _STAMP_SKIP guard

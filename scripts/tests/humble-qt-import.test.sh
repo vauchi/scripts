@@ -30,7 +30,7 @@ with tempfile.TemporaryDirectory() as directory:
         report = json.loads(subprocess.check_output(command[:-2], text=True))
         assert report["totals"]["retired_qt_domain_import"] == 1, report
 
-    source.write_text('dispatchEvent({{"FilePickedFromUser", payload}});\n')
+    source.write_text('dispatchEvent({{"FilePickCompleted", payload}});\n')
     result = subprocess.run(command, text=True, capture_output=True)
     assert result.returncode == 0, (result.stdout, result.stderr)
     report = json.loads(subprocess.check_output(command[:-2], text=True))

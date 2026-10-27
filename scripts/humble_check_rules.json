@@ -430,7 +430,7 @@
       ],
       "rules": {
         "retired_qt_domain_import": {
-          "message": "Activate Core's prepared menu action and report FilePickedFromUser; Core owns import policy and result text (#764).",
+          "message": "Activate Core's prepared menu action and report the correlated FilePickCompleted outcome; Core owns import policy and result text (#764).",
           "allow_exceptions": false,
           "patterns": [
             "\\bvauchi_app_import_contacts_from_vcf\\b"
