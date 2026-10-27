@@ -9,11 +9,13 @@ fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT
 mkdir -p "$fixture/core" "$fixture/bin"
 ln -s "$(command -v dirname)" "$fixture/bin/dirname"
+# macOS has no /bin/true; a dangling stub would read as a missing tool.
+true_bin=$(type -P true)
 for missing in cargo rustc git; do
     for tool in cargo rustc git; do
         rm -f "$fixture/bin/$tool"
         if [[ "$tool" != "$missing" ]]; then
-            ln -s /bin/true "$fixture/bin/$tool"
+            ln -s "$true_bin" "$fixture/bin/$tool"
         fi
     done
     actual=0
