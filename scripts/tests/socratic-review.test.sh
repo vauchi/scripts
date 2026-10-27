@@ -63,15 +63,17 @@ if [ "\$last" = "-" ]; then
 else
     printf '%s' "\$last" > "$WORK/codex.prompt"
 fi
-echo "1. codex question?" > "\$outfile"
+cat "$WORK/codex.answer" > "\$outfile"
 EOF
 cat > "$WORK/bin/kimi" <<EOF
 #!/bin/sh
 for a in "\$@"; do last="\$a"; done
 printf '%s' "\$last" > "$WORK/kimi.prompt"
-echo "1. kimi question?"
+cat "$WORK/kimi.answer"
 EOF
 chmod +x "$WORK/bin/codex" "$WORK/bin/kimi"
+echo "1. codex question?" > "$WORK/codex.answer"
+echo "1. kimi question?" > "$WORK/kimi.answer"
 
 run() { out="$(PATH="$WORK/bin:$PATH" "$SCRIPT" "$@" 2>&1)"; rc=$?; }
 
@@ -198,6 +200,54 @@ assert_eq "oversize brief: kimi brief fits one argv entry" "1" \
     "$([ "$(wc -c < "$WORK/kimi.prompt" | tr -d ' ')" -lt 131072 ] && echo 1 || echo 0)"
 assert_eq "oversize brief: clamp is announced" "1" \
     "$(printf '%s' "$out" | grep -qF 'reviewers saw only the first' && echo 1 || echo 0)"
+
+# --- reviewer overlap is reported, never left to the reader -----------
+# Two reviewers who question different files are not seeing the same
+# risk. The brief asks each question to carry its file in square
+# brackets, and the script counts the files both reviewers named. That
+# count is the agreement signal; a silent disagreement is the failure
+# mode this skill exists to break.
+run() { out="$(PATH="$WORK/bin:$PATH" "$SCRIPT" "$@" 2>&1)"; rc=$?; }
+printf '1. [a.txt] codex asks about a?\n2. [b.txt] codex asks about b?\n' > "$WORK/codex.answer"
+printf '1. [a.txt] kimi asks about a?\n' > "$WORK/kimi.answer"
+run "$WORK/repo"
+assert_eq "overlap: brief asks for file tags" "1" \
+    "$(grep -qF 'square brackets' "$WORK/codex.prompt" && echo 1 || echo 0)"
+assert_eq "overlap: counts files each reviewer named and the shared ones" "1" \
+    "$(printf '%s' "$out" | grep -qF 'files questioned: codex 2, kimi 1, both 1 (a.txt)' && echo 1 || echo 0)"
+assert_eq "overlap: no warning when a file is shared" "0" \
+    "$(printf '%s' "$out" | grep -qF 'LOW OVERLAP' && echo 1 || echo 0)"
+
+printf '1. [c.txt] kimi asks elsewhere?\n' > "$WORK/kimi.answer"
+run "$WORK/repo"
+assert_eq "disjoint: still advisory, exit 0" "0" "$rc"
+assert_eq "disjoint: reports zero shared files" "1" \
+    "$(printf '%s' "$out" | grep -qF 'files questioned: codex 2, kimi 1, both 0' && echo 1 || echo 0)"
+assert_eq "disjoint: warns LOW OVERLAP" "1" \
+    "$(printf '%s' "$out" | grep -qF 'LOW OVERLAP' && echo 1 || echo 0)"
+assert_eq "disjoint: both outputs still shown" "1" \
+    "$(printf '%s' "$out" | grep -qF 'kimi asks elsewhere?' && echo 1 || echo 0)"
+
+# A reviewer that ignored the tag format cannot be scored; say so rather
+# than reporting a false zero.
+printf '1. untagged kimi question?\n' > "$WORK/kimi.answer"
+run "$WORK/repo"
+assert_eq "untagged: names the reviewer that tagged nothing" "1" \
+    "$(printf '%s' "$out" | grep -qF 'kimi tagged no files' && echo 1 || echo 0)"
+assert_eq "untagged: no LOW OVERLAP on an unscorable run" "0" \
+    "$(printf '%s' "$out" | grep -qF 'LOW OVERLAP' && echo 1 || echo 0)"
+
+# [branch] marks a whole-change question; it is not a file and never
+# counts as agreement.
+printf '1. [branch] kimi asks about the whole change?\n' > "$WORK/kimi.answer"
+run "$WORK/repo"
+assert_eq "branch tag only: treated as tagging no files" "1" \
+    "$(printf '%s' "$out" | grep -qF 'kimi tagged no files' && echo 1 || echo 0)"
+
+printf '1. [a.txt] kimi asks about a?\n' > "$WORK/kimi.answer"
+run "$WORK/repo" codex
+assert_eq "single reviewer: no agreement section" "0" \
+    "$(printf '%s' "$out" | grep -qF 'files questioned' && echo 1 || echo 0)"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
