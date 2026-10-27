@@ -18,6 +18,21 @@ pub struct Policy {
     pub external_modules: BTreeMap<String, BTreeSet<String>>,
     #[serde(default)]
     pub dependencies: BTreeMap<String, BTreeSet<String>>,
+    #[serde(default)]
+    pub ratified_widenings: Vec<Widening>,
+}
+
+/// An owner-ratified widening of `dependencies` or `external_modules`. Only a
+/// record introduced by the same change authorizes it, so an old record never
+/// re-opens a boundary later (private#770).
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Widening {
+    pub policy: String,
+    pub name: String,
+    pub added: BTreeSet<String>,
+    pub issue: String,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -202,20 +217,51 @@ pub fn validate_policy_tightening(before: &Policy, after: &Policy) -> Result<(),
     if before.schema_version != 1 || after.schema_version != 1 {
         return Err("unsupported policy version".into());
     }
-    for (label, old, new) in [
+    if after
+        .ratified_widenings
+        .iter()
+        .any(|w| w.added.is_empty() || w.issue.trim().is_empty() || w.reason.trim().is_empty())
+    {
+        return Err(
+            "VRS06: each ratified widening requires added entries, an issue and reason".into(),
+        );
+    }
+    let new_records: Vec<_> = after
+        .ratified_widenings
+        .iter()
+        .filter(|w| !before.ratified_widenings.contains(w))
+        .collect();
+    for (field, label, old, new) in [
         (
+            "external_modules",
             "external modules",
             &before.external_modules,
             &after.external_modules,
         ),
-        ("dependencies", &before.dependencies, &after.dependencies),
+        (
+            "dependencies",
+            "dependencies",
+            &before.dependencies,
+            &after.dependencies,
+        ),
     ] {
         for (name, allowed) in old {
-            if new
+            let updated = new
                 .get(name)
-                .is_none_or(|updated| !updated.is_subset(allowed))
-            {
-                return Err(format!("VRS06: {label} policy widened for {name}"));
+                .ok_or_else(|| format!("VRS06: {label} policy removed for {name}"))?;
+            let ratified: BTreeSet<&String> = new_records
+                .iter()
+                .filter(|w| w.policy == field && &w.name == name)
+                .flat_map(|w| &w.added)
+                .collect();
+            let unratified: Vec<_> = updated
+                .difference(allowed)
+                .filter(|entry| !ratified.contains(entry))
+                .collect();
+            if !unratified.is_empty() {
+                return Err(format!(
+                    "VRS06: {label} policy widened for {name}: {unratified:?} needs a new ratified_widenings record with issue and reason"
+                ));
             }
         }
     }
