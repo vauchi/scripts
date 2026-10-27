@@ -772,11 +772,11 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
 
     # ─── Swift/iOS repo ──────────────────────────────────────────────────
 
-    elif [[ -f "$REPO_ROOT/Package.swift" ]] || [[ "$REPO_DIR" == "ios" ]]; then
+    elif [[ -f "$REPO_ROOT/Package.swift" || "$REPO_DIR" == "ios" || "$REPO_DIR" == "macos" ]]; then
         cd "$REPO_ROOT"
 
         run_xcodegen() {
-            if [[ "$REPO_DIR" == "ios" ]] && command -v xcodegen &>/dev/null; then
+            if [[ -f project.yml ]] && command -v xcodegen &>/dev/null; then
                 echo ""
                 echo "[0] Regenerating Xcode project..."
                 xcodegen generate 2>&1
