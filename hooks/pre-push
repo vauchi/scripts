@@ -344,7 +344,7 @@ fi
 
 # ─── Non-code change detection ─────────────────────────────────────
 # If only docs/config files changed (no source code), skip compile/lint/test
-# checks. Doc repos (_private, docs) are exempt — their "code" IS markdown,
+# checks. Doc repos (_private, docs, spec) are exempt — their "code" IS markdown,
 # so they fall through to the full doc check block (markdownlint, REUSE,
 # doc naming, plan companions).
 
@@ -363,7 +363,7 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         HAS_BUILD=$(echo "$CHANGED_FILES" | grep -E "$BUILD_PATTERN" || true)
         if [[ -z "$HAS_CODE" && -z "$HAS_BUILD" ]]; then
             # Doc repos (_private, docs) treat .md as code — run full doc checks
-            if [[ "$REPO_DIR" == "_private" || "$REPO_DIR" == "docs" ]]; then
+            if [[ "$REPO_DIR" == "_private" || "$REPO_DIR" == "docs" || "$REPO_DIR" == "spec" ]]; then
                 echo ""
                 echo "  Only markdown/config files changed — running doc checks"
             else
@@ -376,7 +376,7 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
 fi
 
 # REUSE is a repository-wide invariant, including data/config files.
-if [[ "$REPO_DIR" != "_private" && "$REPO_DIR" != "docs" && -n "$(command -v reuse 2>/dev/null || true)" ]]; then
+if [[ "$REPO_DIR" != "_private" && "$REPO_DIR" != "docs" && "$REPO_DIR" != "spec" && -n "$(command -v reuse 2>/dev/null || true)" ]]; then
     echo ""
     echo "  Checking REUSE compliance before non-code fast path..."
     if ! reuse lint >/dev/null 2>&1; then
@@ -902,7 +902,7 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
 
     # ─── Docs/markdown repos (_private, docs) ───────────────────────────
 
-    elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]]; then
+    elif [[ "$REPO_DIR" == "_private" ]] || [[ "$REPO_DIR" == "docs" ]] || [[ "$REPO_DIR" == "spec" ]]; then
         cd "$REPO_ROOT"
 
         run_markdownlint_check() {

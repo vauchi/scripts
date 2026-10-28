@@ -81,6 +81,7 @@ if [[ ${#REPO_REGISTRY[@]} -eq 0 ]]; then
         "android:android:gradle"
         "ios:ios:xcode"
         "docs:docs:mdbook"
+        "spec:spec:mdbook"
         "locales:locales:python"
         "themes:themes:python"
         "features:features:gherkin"
@@ -101,10 +102,10 @@ if [[ ${#REPO_REGISTRY[@]} -eq 0 ]]; then
 fi
 
 # ── Which repos support which operations ────────────────────────────
-REPOS_BUILD="core cli relay ohttp-relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo"
+REPOS_BUILD="core cli relay ohttp-relay tui e2e android ios docs spec linux-gtk macos windows linux-qt web-demo"
 REPOS_TEST="core cli relay ohttp-relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo"
 REPOS_FMT="core cli relay ohttp-relay tui e2e ios linux-gtk"
-REPOS_LINT="core cli relay ohttp-relay tui e2e android ios docs locales themes features scripts linux-gtk macos"
+REPOS_LINT="core cli relay ohttp-relay tui e2e android ios docs spec locales themes features scripts linux-gtk macos"
 REPOS_FIX="core cli relay ohttp-relay tui e2e ios linux-gtk"
 REPOS_COVERAGE="core cli relay ohttp-relay tui e2e ios android linux-gtk"
 REPOS_BENCH="core relay"
