@@ -155,6 +155,16 @@ check:no-private-refs:
         echo "VDC02: public docs reference _private/ paths — fix: inline the needed content or drop the pointer; _private cross-references belong only in _private."
         exit 1
       fi
+      # A private problem record or design named by its dated slug in
+      # backticks is a dead reference for outsiders (VISIBILITY_POLICY.md,
+      # private#885). Tracker numbers (vauchi/private#N) stay allowed.
+      SLUGS=$(grep -rnE '`20[0-9]{2}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+`' --include='*.md' . 2>/dev/null | grep -v '^\./\.git/' || true)
+      if [ -n "$SLUGS" ]; then
+        echo "$SLUGS"
+        echo ""
+        echo "VDC02: public docs name a private record or design by its dated slug — fix: cite the vauchi/private#N issue instead, or describe the gap in prose."
+        exit 1
+      fi
       echo "No _private references in public docs."
   rules:
     - if: $CI_PROJECT_PATH == "vauchi/private"
