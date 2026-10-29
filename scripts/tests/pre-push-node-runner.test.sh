@@ -38,7 +38,9 @@ if [ -n "$runner_line" ] && [ -n "$else_line" ]; then
     # The error message may name 'npm ci' as the fix; a command line must not.
     check "the runner does not install dependencies itself" bash -c '! grep -vE "echo" <<<"$1" | grep -qE "npm (ci|install)"' _ "$branch"
     check "the runner regenerates the pages before the suite" grep -q 'build-pages.py' <<<"$branch"
-    check "the runner runs the Playwright suite" grep -qE 'npx playwright test' <<<"$branch"
+    check "the runner runs the suite through npm test, so the pretest asset setup runs" grep -qE 'time_step "Playwright" npm test' <<<"$branch"
+    check "a branch that changes blog/ rebuilds the blog with zola or fails naming it" bash -c 'grep -q "grep -qE .\^blog/." <<<"$1" && grep -q "zola --root" <<<"$1" && grep -q "zola is not installed" <<<"$1"' _ "$branch"
+    check "a branch that leaves blog/ alone leaves the blog suite to CI" grep -qE "grep-invert 'blog" <<<"$branch"
 fi
 
 echo "$PASS passed, $FAIL failed"
