@@ -103,6 +103,37 @@ if echo "$SUBJECT" | grep -qE "^fix: "; then
     fi
 fi
 
+# VGT12: a behaviour change on a protocol path says what it means for the
+# spec (vauchi/private#874). The name checks catch a renamed function and
+# the claim annotations a deleted test; neither catches a function that
+# keeps its name and no longer does what the chapter says. Only the
+# person changing the behaviour knows that, so the commit says it:
+# `Spec: unchanged`, or the claims and sections it moves.
+# Page: _private/docs/lint-errors/vgt12-spec-trailer.md
+if echo "$SUBJECT" | grep -qE "^(feat|fix|refactor): "; then
+    STAGED_FOR_SPEC=$(git diff --cached --name-only 2>/dev/null || true)
+    REPO_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+    case "$REPO_NAME" in
+        relay|ohttp-relay) SPEC_PATHS='^src/' ;;
+        *) SPEC_PATHS='^(vauchi-core/src/(crypto|exchange|network|backup|recovery|sync)/|vauchi-core/verification/|vauchi-protocol/src/)' ;;
+    esac
+    SPEC_TOUCHED=$(echo "$STAGED_FOR_SPEC" | grep -E "$SPEC_PATHS" | grep -vE '\.md$' || true)
+    SPEC_TRAILER=$(grep -vE '^#' "$MSG_FILE" | grep -E '^Spec: [^[:space:]]' | head -1 || true)
+    if [ -n "$SPEC_TOUCHED" ] && [ -z "$SPEC_TRAILER" ]; then
+        echo ""
+        echo "  VGT12: $(echo "$SUBJECT" | cut -d: -f1) commit touches a protocol path without a Spec: trailer — fix: end the message with 'Spec: unchanged' if the spec's claims and chapters still describe the code, or 'Spec: <claim ids, chapter sections, spec!N>' naming what this moves. [_private/docs/lint-errors/vgt12-spec-trailer.md]"
+        echo ""
+        echo "  Protocol paths staged:"
+        echo "$SPEC_TOUCHED" | sed 's/^/    /'
+        echo ""
+        echo "  Example trailers:"
+        echo "    Spec: unchanged"
+        echo "    Spec: S4, relay B5, update-and-sync C1 (spec!9)"
+        echo ""
+        exit 1
+    fi
+fi
+
 # Check subject line length (soft warning at 72 chars)
 SUBJECT_LEN=${#SUBJECT}
 if [ "$SUBJECT_LEN" -gt 72 ]; then
