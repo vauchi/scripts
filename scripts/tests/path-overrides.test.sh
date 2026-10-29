@@ -87,6 +87,11 @@ test_apply_writes_fence() {
     # Patches should reference the right relative paths
     assert_contains "cli patches vauchi-app to ../core" \
         '../core/vauchi-app' "$(cat "$root/cli/Cargo.toml")"
+    # linux-gtk scans through vauchi-hardware (private#770); unpatched, its
+    # tests build against the released tag, not the local core under test.
+    assert_contains "linux-gtk patches vauchi-hardware to ../core" \
+        'vauchi-hardware = { path = "../core/vauchi-hardware" }' \
+        "$(cat "$root/linux-gtk/Cargo.toml")"
     # web-demo pins its core deps to an exact released version, which a
     # [patch] can never satisfy — cargo would discard the block and warn
     # "patch was not used in the crate graph" on every build. Guards
