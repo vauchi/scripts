@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Manages local Cargo path overrides that redirect `vauchi-core`,
-# `vauchi-app`, `vauchi-protocol`, and `vauchi-relay` from git deps
-# to the sibling repos in the workspace.
+# `vauchi-app`, `vauchi-protocol`, `vauchi-hardware` and `vauchi-relay`
+# from git deps to the sibling repos in the workspace.
 #
 # Why this script (not the previous `.cargo/config.toml` writer)?
 # Modern cargo silently ignores `[patch.<source>]` in `.cargo/config.toml`
@@ -38,7 +38,7 @@ END_MARKER="# <<< setup-path-overrides END"
 #   <consumer-dir>     repo dir relative to workspace root
 #   <core-relative>    relative path FROM consumer/Cargo.toml back to ../core/
 #   <relay-relative>   same, for ../relay/ (empty if consumer doesn't patch relay)
-#   <deps-csv>         comma-separated set of `vauchi-core,vauchi-app,vauchi-protocol`
+#   <deps-csv>         comma-separated set of `vauchi-core,vauchi-app,vauchi-protocol,vauchi-hardware`
 #                      (whichever ones this consumer depends on)
 #
 # web-demo/wasm is deliberately absent. It pins its core deps with an
@@ -51,7 +51,7 @@ END_MARKER="# <<< setup-path-overrides END"
 CONSUMERS=(
     "cli|../core||vauchi-core,vauchi-app"
     "tui|../core||vauchi-core,vauchi-app"
-    "linux-gtk|../core||vauchi-core,vauchi-app"
+    "linux-gtk|../core||vauchi-core,vauchi-app,vauchi-hardware"
     "relay|../core||vauchi-protocol"
     "e2e|../core|../relay|vauchi-core,vauchi-app,vauchi-protocol"
 )
@@ -63,6 +63,7 @@ dep_line() {
     case "$dep" in
         vauchi-core)     echo "vauchi-core = { path = \"$core_rel/vauchi-core\" }" ;;
         vauchi-app)      echo "vauchi-app = { path = \"$core_rel/vauchi-app\" }" ;;
+        vauchi-hardware) echo "vauchi-hardware = { path = \"$core_rel/vauchi-hardware\" }" ;;
         vauchi-protocol) echo "vauchi-protocol = { path = \"$core_rel/vauchi-protocol\" }" ;;
         *) echo "  ERROR: unknown dep '$dep'" >&2; exit 1 ;;
     esac
