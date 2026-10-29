@@ -1294,6 +1294,21 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         }
         time_step "Check recipe regressions" python3 tests/test_check_recipe_fail_closed.py
 
+    elif [[ -f "$REPO_ROOT/package.json" && -f "$REPO_ROOT/playwright.config.js" ]]; then
+        # Static site with a Playwright suite (website). The pages are
+        # generated from templates first, so the suite sees this branch's
+        # markup and not a stale public/ copy; dependencies are never
+        # installed here, a missing node_modules names the fix
+        # (vauchi/private#922).
+        [[ -d "$REPO_ROOT/node_modules" ]] || {
+            echo "FAILED: node_modules is missing in $REPO_DIR; run 'npm ci' there first." >&2
+            exit 1
+        }
+        if [[ -f "$REPO_ROOT/scripts/build-pages.py" ]]; then
+            time_step "Build pages" python3 "$REPO_ROOT/scripts/build-pages.py"
+        fi
+        time_step "Playwright" npx playwright test
+
     # ─── Unknown repo type ───────────────────────────────────────────────
 
     else
