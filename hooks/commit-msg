@@ -134,6 +134,41 @@ if echo "$SUBJECT" | grep -qE "^(feat|fix|refactor): "; then
     fi
 fi
 
+# VGT13: a behaviour change to how exchange codes are read or drawn says
+# how it ran on the rig at both ends of the 7–14 cm target. Generated
+# test codes do not stand in for a phone camera: core 57e1e7770 passed
+# them, was run at 7–10 cm only, and Hover failed 17 of 17 at 13.5 cm
+# (vauchi/private#450, post-mortem 2026-10-30).
+# Page: _private/docs/lint-errors/vgt13-rig-trailer.md
+if echo "$SUBJECT" | grep -qE "^(feat|fix|refactor): "; then
+    STAGED_FOR_RIG=$(git diff --cached --name-only 2>/dev/null || true)
+    REPO_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+    case "$REPO_NAME" in
+        core) RIG_PATHS='^vauchi-core/src/(qr_decode\.rs|qr/|exchange/multistage/(qr_codec|chunker|link_trainer|training_header|session|base45)\.rs)' ;;
+        android) RIG_PATHS='^app/src/main/kotlin/app/vauchi/ui/(components/QrCodeAnalyzer|presentation/QrPrimitives)\.kt$' ;;
+        ios) RIG_PATHS='^Vauchi/CoreUI/MultipartCameraPreview\.swift$' ;;
+        *) RIG_PATHS='' ;;
+    esac
+    RIG_TOUCHED=""
+    [ -n "$RIG_PATHS" ] && RIG_TOUCHED=$(echo "$STAGED_FOR_RIG" | grep -E "$RIG_PATHS" || true)
+    RIG_TRAILER=$(grep -vE '^#' "$MSG_FILE" | grep -E '^Rig: ' | head -1 | sed 's/^Rig: *//' || true)
+    RIG_OK=0
+    if echo "$RIG_TRAILER" | grep -qE '^n/a +— +[^[:space:]]'; then
+        RIG_OK=1
+    elif echo "$RIG_TRAILER" | grep -qE '(^|[^0-9])7 ?cm' && echo "$RIG_TRAILER" | grep -qE '(^|[^0-9])14 ?cm'; then
+        RIG_OK=1
+    fi
+    if [ -n "$RIG_TOUCHED" ] && [ "$RIG_OK" = 0 ]; then
+        echo ""
+        echo "  VGT13: $(echo "$SUBJECT" | cut -d: -f1) commit changes how exchange codes are read or drawn without a Rig: trailer naming 7 cm and 14 cm — fix: run the rig at both ends (vauchi-gui-test.sh hover-bench) and end the message with 'Rig: 7 cm <n>/<n>, 14 cm <n>/<n> (<date>)', or 'Rig: n/a — <why no frame or timing changes>'. [_private/docs/lint-errors/vgt13-rig-trailer.md]"
+        echo ""
+        echo "  Paths staged:"
+        echo "$RIG_TOUCHED" | sed 's/^/    /'
+        echo ""
+        exit 1
+    fi
+fi
+
 # Check subject line length (soft warning at 72 chars)
 SUBJECT_LEN=${#SUBJECT}
 if [ "$SUBJECT_LEN" -gt 72 ]; then
