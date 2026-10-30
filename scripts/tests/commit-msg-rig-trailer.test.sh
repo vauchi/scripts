@@ -57,7 +57,7 @@ assert_eq "feat on qr/ without Rig: cites the page" "1" "$(has 'lint-errors/vgt1
 # ── both ends of the range → accepted ─────────────────────────────────
 run_case core 'fix: read with the cpp-port detector again
 
-Evidence: before: 9 of 40 frames read; after: 30 of 40
+Evidence: before: 9 of 40 frames read; after: 30 of 40 frames read
 Rig: 7 cm 5/5, 14 cm 5/5 (2026-10-30)' vauchi-core/src/qr_decode.rs
 assert_eq "fix with Rig: 7 cm … 14 cm …: exit 0" "0" "$rc"
 run_case core 'feat: one multi pass
@@ -118,7 +118,7 @@ run_case android 'feat: analyse at 720p' app/src/main/kotlin/app/vauchi/ui/compo
 assert_eq "android analyzer feat without Rig: exit 1" "1" "$rc"
 run_case android 'fix: camera binds once
 
-Evidence: before: two binds in the log; after: one' app/src/main/kotlin/app/vauchi/ui/presentation/QrPrimitives.kt
+Evidence: before: two binds in the log; after: one bind in the log' app/src/main/kotlin/app/vauchi/ui/presentation/QrPrimitives.kt
 assert_eq "android QR primitives fix without Rig: exit 1" "1" "$rc"
 assert_eq "android QR primitives fix without Rig: VGT13" "1" "$(has 'VGT13:')"
 run_case ios 'feat: 1280x720 capture' Vauchi/CoreUI/MultipartCameraPreview.swift
