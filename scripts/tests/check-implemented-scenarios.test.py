@@ -226,6 +226,87 @@ def test_write_baseline_also_writes_the_dangling_baseline() -> None:
         assert _run(root, "--dangling-baseline", str(root / "dangling")).returncode == 0
 
 
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+def _git_repo(root: Path, base: dict[str, str], added: dict[str, str]) -> str:
+    """A repo whose first commit holds `base`; `added` lands in a second commit.
+    Returns the first commit's sha, the merge-request diff base."""
+    _tree(root, base)
+    repo = root / "repo"
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "t@example.invalid")
+    _git(repo, "config", "user.name", "t")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "base")
+    sha = _git(repo, "rev-parse", "HEAD")
+    for rel, body in added.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(body)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "mr")
+    return sha
+
+
+def _run_added_since(root: Path, base: str) -> subprocess.CompletedProcess:
+    args = [sys.executable, str(SCRIPT), "--features", str(root / "features"),
+            "--added-since", base, str(root / "repo")]
+    return subprocess.run(args, check=False, capture_output=True, text=True)
+
+
+# The gate a core or relay MR runs (vauchi/private#994): an @scenario
+# annotation the MR adds must name a scenario features main has.
+def test_an_added_annotation_naming_a_scenario_passes_without_a_baseline() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        base = _git_repo(root, {}, {
+            "a.rs": "// @scenario: duress_pin :: Enable duress mode\n#[test]\nfn a() {}\n",
+            "b.rs": "// @scenario: duress_pin :: Plan only\n#[test]\nfn b() {}\n",
+        })
+        run = _run_added_since(root, base)
+        assert run.returncode == 0, run.stdout + run.stderr
+        assert "2 added @scenario annotation(s) name a scenario" in run.stdout, run.stdout
+
+
+def test_an_added_annotation_naming_no_scenario_fails_and_is_named() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        base = _git_repo(root, {}, {
+            "a.rs": "// @scenario: duress_pin :: Enable duress mode\n",
+            "b.rs": "// @scenario: relay_exchange :: A code is claimed once\n",
+        })
+        run = _run_added_since(root, base)
+        assert run.returncode == 1, run.stdout + run.stderr
+        assert "1 added @scenario annotation(s) name no scenario" in run.stdout, run.stdout
+        assert "relay_exchange :: a code is claimed once" in run.stdout, run.stdout
+        assert "enable duress mode" not in run.stdout.split("no scenario")[-1], run.stdout
+
+
+def test_a_dangling_annotation_the_mr_did_not_add_is_not_its_problem() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        base = _git_repo(
+            root,
+            {"old.rs": "// @scenario: duress_pin :: Enable duress mod\n"},
+            {"new.rs": "// @internal\n#[test]\nfn n() {}\n"},
+        )
+        run = _run_added_since(root, base)
+        assert run.returncode == 0, run.stdout + run.stderr
+        assert "0 added @scenario annotation(s)" in run.stdout, run.stdout
+
+
+def test_a_diff_base_git_does_not_know_is_an_error_not_a_pass() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _git_repo(root, {}, {"a.rs": "// @scenario: duress_pin :: Enable duress mode\n"})
+        run = _run_added_since(root, "0" * 40)
+        assert run.returncode == 2, run.stdout + run.stderr
+        assert "git diff" in run.stderr, run.stderr
+
+
 def test_no_feature_files_is_an_error_not_a_pass() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
