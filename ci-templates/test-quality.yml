@@ -14,6 +14,8 @@
 # Provides:
 #   - quality:zero-assertions: Fails if any #[test] function has zero assertions
 #   - quality:test-ratio: Reports test-to-code ratio as CI metric
+#   - quality:scenario-names: Fails an MR whose added @scenario annotations
+#     name no scenario on features main (vauchi/private#994)
 #
 # Both jobs fetch scripts via GitLab API (no git clone needed),
 # so consuming repos don't need to vendor the scripts.
@@ -211,6 +213,40 @@ quality:new-test-annotations:
     - |
       fetch_vauchi_script scripts/check-new-test-annotations.sh /tmp/check-new-test-annotations.sh
       /tmp/check-new-test-annotations.sh "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+  timeout: 5 minutes
+
+# ============================================================
+# Scenario Names Gate (vauchi/private#994)
+# ============================================================
+# Hard gate: every @scenario annotation an MR adds must name a scenario
+# features main already has. Merging a test that named a scenario still
+# on a features branch turned features' lint:implemented-scenarios red on
+# every MR, three times on 2026-10-30, until one combined MR broke the
+# deadlock. The scenario lands in features first; this is the order that
+# check already assumes. Only added lines are checked, so a rename in
+# features does not block unrelated MRs here.
+
+quality:scenario-names:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/python:3.12-slim
+  tags: [docker]
+  needs: []
+  allow_failure: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates wget > /dev/null
+    # fetch, not `clone --branch`: core pins VAUCHI_SCRIPTS_REF to a commit
+    # SHA, which `--branch` rejects (private#556).
+    - git init -q /tmp/scripts
+    - git -C /tmp/scripts fetch -q --depth=1 https://gitlab.com/vauchi/scripts.git "${VAUCHI_SCRIPTS_REF}"
+    - git -C /tmp/scripts checkout -q --detach FETCH_HEAD
+    - mkdir -p /tmp/roots
+    - wget -qO /tmp/features.tar.gz "https://gitlab.com/vauchi/features/-/archive/main/features-main.tar.gz"
+    - tar -xzf /tmp/features.tar.gz -C /tmp/roots
+    # GIT_DEPTH is 1, so the diff base is not in the checkout until fetched.
+    - git fetch -q --depth=1 origin "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+    - python3 /tmp/scripts/scripts/check-implemented-scenarios.py --features /tmp/roots/features-main --added-since "$CI_MERGE_REQUEST_DIFF_BASE_SHA" .
   timeout: 5 minutes
 
 # ============================================================

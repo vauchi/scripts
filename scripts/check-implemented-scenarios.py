@@ -20,14 +20,22 @@ grow. Exit 0 pass, 1 an untested scenario outside the baseline (or, with
 Usage:
     check-implemented-scenarios.py --features DIR --baseline FILE
         [--dangling-baseline FILE] [--strict | --write-baseline] REPO_DIR [REPO_DIR ...]
+    check-implemented-scenarios.py --features DIR --added-since BASE_SHA REPO_DIR
 
 With --dangling-baseline, an @scenario annotation naming no scenario at
 all (any tag) fails unless that shrink-only list holds it (#620).
+
+With --added-since, only the annotations the lines added between BASE_SHA
+and HEAD of one repository carry are checked, and each must name a
+scenario (any tag): the gate a core or relay merge request runs against
+features main, so a scenario lands in features before the test that
+names it (#994). No baseline applies, and exit 2 when git cannot diff.
 """
 
 import argparse
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -104,6 +112,44 @@ def annotated_scenarios(repos: list[Path]) -> set[tuple[str, str]]:
     return found
 
 
+def added_annotations(repo: Path, base_sha: str) -> list[tuple[str, str]]:
+    """The annotations on lines `git diff base_sha HEAD` adds, in diff order."""
+    diff = subprocess.run(
+        ["git", "-C", str(repo), "diff", "--unified=0", "--no-color", base_sha, "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    found: list[tuple[str, str]] = []
+    for line in diff.splitlines():
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        match = ANNOTATION.search(line)
+        if match:
+            parsed = parse_annotation(match.group(1))
+            if parsed:
+                found.append(parsed)
+    return found
+
+
+def check_added(features: Path, repo: Path, base_sha: str) -> int:
+    try:
+        added = added_annotations(repo, base_sha)
+    except subprocess.CalledProcessError as error:
+        print(f"ERROR: git diff {base_sha} HEAD failed in {repo}: {error.stderr.strip()}",
+              file=sys.stderr)
+        return 2
+    scenarios = every_scenario(features)
+    dangling = [f"{stem} :: {name}" for stem, name in added if (stem, name) not in scenarios]
+    print(f"{len(added) - len(dangling)} added @scenario annotation(s) name a scenario")
+    if dangling:
+        print(f"\n{len(dangling)} added @scenario annotation(s) name no scenario:")
+        for shown in dangling:
+            print(f"  {shown}")
+        print("\nLand the scenario in features first, or correct the annotation "
+              "to an existing scenario's name.")
+        return 1
+    return 0
+
+
 def read_baseline(path: Path) -> dict[tuple[str, str], str]:
     entries: dict[tuple[str, str], str] = {}
     if not path.exists():
@@ -154,7 +200,9 @@ BASELINE_HEADER = """\
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--features", type=Path, required=True)
-    parser.add_argument("--baseline", type=Path, required=True)
+    parser.add_argument("--baseline", type=Path,
+                        help="untested @implemented scenarios, shrink-only; "
+                             "required unless --added-since")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--strict", action="store_true",
                       help="also fail on baseline entries that no longer need to be there")
@@ -163,6 +211,9 @@ def main() -> int:
     parser.add_argument("--dangling-baseline", type=Path,
                         help="also fail on @scenario annotations naming no scenario "
                              "that are not in this shrink-only list")
+    mode.add_argument("--added-since", metavar="BASE_SHA",
+                      help="check only the annotations added since this commit in the "
+                           "one given repository; each must name a scenario")
     parser.add_argument("repos", type=Path, nargs="+")
     args = parser.parse_args()
 
@@ -173,6 +224,13 @@ def main() -> int:
         if not repo.is_dir():
             print(f"ERROR: {repo} is not a directory", file=sys.stderr)
             return 2
+    if args.added_since:
+        if len(args.repos) != 1:
+            print("ERROR: --added-since takes exactly one repository", file=sys.stderr)
+            return 2
+        return check_added(args.features, args.repos[0], args.added_since)
+    if args.baseline is None:
+        parser.error("--baseline is required unless --added-since is given")
 
     implemented = implemented_scenarios(args.features)
     annotated = annotated_scenarios(args.repos)
