@@ -15,6 +15,12 @@
 #   fix/feat ratio                   rework per feature
 #   closed as already fixed          intake that never verified against code
 #
+# and three for VPR13's planning gate (private#1012), over all records:
+#
+#   assumption to evidence           days from a Knowns 'refuted if:' to ## Evidence
+#   wrongness found                  alternatives adopted vs records sent back
+#   spikes with criteria first       ## Selection Criteria committed before 'spiked:'
+#
 # Usage: workflow-accuracy-metrics.sh [--root DIR] [--days N]
 
 set -u
@@ -128,5 +134,64 @@ if [ "$done_touched" -eq 0 ]; then
     echo "  closed as already fixed/duplicate: n/a (no done records touched in window)"
 else
     echo "  closed as already fixed/duplicate: $done_already/$done_touched of done records touched in window"
+fi
+
+# VPR13 (private#1012): how fast a plan's assumption meets evidence, and
+# where wrongness is found. Read from git history, not the window: the
+# rule is recent and its records are few.
+first_commit_time() { # $1 = record path relative to _private, $2 = string
+    git -C "$PRIVATE" log --reverse --format=%ct -S"$2" -- "$1" 2>/dev/null | head -1
+}
+
+section() { # $1 = README, $2 = heading word: that ## section's body
+    awk -v h="$2" '/^## / { inside = (index($0, "## " h) == 1); next } inside' "$1"
+}
+
+refuted=0; with_evidence=0; adopted=0; reopened=0; spiked=0; criteria_first=0; gaps=""
+while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    section "$r" Knowns | grep -qiE 'refuted if *:' || continue
+    rel="${r#"$PRIVATE"/}"
+    refuted=$((refuted + 1))
+    alternative="$(section "$r" 'Strongest Alternative')"
+    assumed="$(first_commit_time "$rel" 'refuted if')"
+    evidenced="$(first_commit_time "$rel" '## Evidence')"
+    if [ -n "$assumed" ] && [ -n "$evidenced" ]; then
+        with_evidence=$((with_evidence + 1))
+        gaps="$gaps $(( (evidenced - assumed) / 86400 ))"
+    fi
+    printf '%s\n' "$alternative" | grep -qiE 'adopted *:' && adopted=$((adopted + 1))
+    # A commit that turns a planning/planned/implementing Status into investigating.
+    if git -C "$PRIVATE" log -p --format='@@commit %h' -- "$rel" 2>/dev/null | awk '
+        /^@@commit / { if (from && to) found = 1; from = 0; to = 0; next }
+        /^-.*\*\*Status\*\*.*(planning|planned|implementing)/ { from = 1 }
+        /^\+.*\*\*Status\*\*.*investigating/ { to = 1 }
+        END { if (from && to) found = 1; exit !found }'; then
+        reopened=$((reopened + 1))
+    fi
+    if printf '%s\n' "$alternative" | grep -qiE 'spiked *:'; then
+        spiked=$((spiked + 1))
+        criteria="$(first_commit_time "$rel" '## Selection Criteria')"
+        report="$(first_commit_time "$rel" 'spiked:')"
+        [ -n "$criteria" ] && [ -n "$report" ] && [ "$criteria" -lt "$report" ] \
+            && criteria_first=$((criteria_first + 1))
+    fi
+done <<EOF
+$(find "$PROBLEMS" -name README.md 2>/dev/null)
+EOF
+
+if [ "$refuted" -eq 0 ]; then
+    echo "  assumption to evidence: n/a (no refuted-if records)"
+elif [ "$with_evidence" -eq 0 ]; then
+    echo "  assumption to evidence: n/a (0 of $refuted refuted-if records have evidence)"
+else
+    median="$(printf '%s' "$gaps" | tr ' ' '\n' | grep . | sort -n | awk '{ v[NR] = $1 } END { m = (NR % 2) ? v[(NR + 1) / 2] : (v[NR / 2] + v[NR / 2 + 1]) / 2; printf "%g", m }')"
+    echo "  assumption to evidence: median ${median}d ($with_evidence of $refuted refuted-if records have evidence)"
+fi
+echo "  wrongness found: $adopted at the alternative (adopted:), $reopened in implementation (back to investigating)"
+if [ "$spiked" -eq 0 ]; then
+    echo "  spikes with criteria committed first: n/a (no spiked alternatives)"
+else
+    echo "  spikes with criteria committed first: $criteria_first/$spiked"
 fi
 exit 0
