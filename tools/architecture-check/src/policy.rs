@@ -231,6 +231,28 @@ pub fn validate_policy_tightening(before: &Policy, after: &Policy) -> Result<(),
         .iter()
         .filter(|w| !before.ratified_widenings.contains(w))
         .collect();
+    // A crate that left the workspace (ADR-077: vauchi-hardware moved to
+    // linux-hw) retires its policy: every entry for it goes in the same
+    // change, which is a tightening. Retiring a crate that still exists is
+    // refused elsewhere, since its modules then read as unclassified.
+    let retired: BTreeSet<&String> = before
+        .crates
+        .keys()
+        .filter(|name| !after.crates.contains_key(*name))
+        .collect();
+    for name in &retired {
+        let prefix = format!("{name}/");
+        let lingering = after.layers.keys().any(|k| k.starts_with(&prefix))
+            || after.external_modules.contains_key(*name)
+            || after.dependencies.contains_key(*name)
+            || after.acyclic_crates.contains(*name)
+            || after.ratified_widenings.iter().any(|w| &w.name == *name);
+        if lingering {
+            return Err(format!(
+                "VRS06: {name} left the crates policy but keeps entries; retire a crate by removing all of them at once"
+            ));
+        }
+    }
     for (field, label, old, new) in [
         (
             "external_modules",
@@ -246,6 +268,9 @@ pub fn validate_policy_tightening(before: &Policy, after: &Policy) -> Result<(),
         ),
     ] {
         for (name, allowed) in old {
+            if retired.contains(name) {
+                continue;
+            }
             let updated = new
                 .get(name)
                 .ok_or_else(|| format!("VRS06: {label} policy removed for {name}"))?;
@@ -265,15 +290,28 @@ pub fn validate_policy_tightening(before: &Policy, after: &Policy) -> Result<(),
             }
         }
     }
-    if !before.acyclic_crates.is_subset(&after.acyclic_crates) {
+    if before
+        .acyclic_crates
+        .difference(&after.acyclic_crates)
+        .any(|name| !retired.contains(name))
+    {
         return Err("VRS06: acyclic ownership policy weakened".into());
     }
     for (name, level) in &before.crates {
+        if retired.contains(name) {
+            continue;
+        }
         if after.crates.get(name) != Some(level) {
             return Err(format!("VRS06: crate policy changed for {name}"));
         }
     }
     for (name, level) in &before.layers {
+        if retired
+            .iter()
+            .any(|crate_name| name.starts_with(&format!("{crate_name}/")))
+        {
+            continue;
+        }
         if after.layers.get(name) != Some(level) {
             return Err(format!(
                 "VRS06: layer policy changed for {name}; retain the approved ownership model"
