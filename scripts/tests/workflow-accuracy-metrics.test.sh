@@ -118,6 +118,75 @@ assert_eq "missing ledger: says so" "1" \
 
 rm -rf "$WS"
 
+# ── VPR13: assumption to evidence, where wrongness is found, criteria
+#    before a spike (private#1012) — read from _private's git history ──
+record_commit() { # $1=repo $2=record dir $3=ISO date $4=README content
+    mkdir -p "$1/docs/problems/$2"
+    printf '%s\n' "$4" > "$1/docs/problems/$2/README.md"
+    git -C "$1" add -A
+    GIT_AUTHOR_DATE="$3" GIT_COMMITTER_DATE="$3" git -C "$1" commit -q -m "$2 $3"
+}
+
+V="$(mktemp -d)"
+P="$V/_private"
+mkdir -p "$P/scripts"
+git -C "$P" init -q
+git -C "$P" config user.email t@example.com
+git -C "$P" config user.name t
+known='- the restart clears it — assumed: last time; refuted if: it sticks again'
+# a: assumption on day 0, evidence on day 4
+record_commit "$P" 2026-11-01-a 2026-11-01T10:00:00Z "| **Status** | planning |
+$known"
+record_commit "$P" 2026-11-01-a 2026-11-05T10:00:00Z "| **Status** | testing |
+$known
+## Evidence
+- before/after"
+# b: assumption, no evidence yet
+record_commit "$P" 2026-11-01-b 2026-11-02T10:00:00Z "| **Status** | implementing |
+$known"
+# c: implementation refuted the assumption and sent the record back
+record_commit "$P" 2026-11-01-c 2026-11-02T10:00:00Z "| **Status** | implementing |
+$known"
+record_commit "$P" 2026-11-01-c 2026-11-03T10:00:00Z "| **Status** | investigating |
+$known"
+# d: the strongest alternative won before any code
+record_commit "$P" 2026-11-01-d 2026-11-02T10:00:00Z "| **Status** | planning |
+$known
+## Strongest Alternative
+Re-register — adopted: the restart left it stuck"
+# e: criteria committed a day before the spike report
+record_commit "$P" 2026-11-01-e 2026-11-02T10:00:00Z "| **Status** | planning |
+$known
+## Selection Criteria
+- three green pipelines"
+record_commit "$P" 2026-11-01-e 2026-11-03T10:00:00Z "| **Status** | planning |
+$known
+## Selection Criteria
+- three green pipelines
+## Strongest Alternative
+Re-register — spiked: spike/1-b, two green"
+# f: criteria written in the same commit as the spike report
+record_commit "$P" 2026-11-01-f 2026-11-02T10:00:00Z "| **Status** | planning |
+$known
+## Selection Criteria
+- three green pipelines
+## Strongest Alternative
+Re-register — spiked: spike/2-b, two green"
+printf 'print("RESULT: PASS")\n' > "$P/scripts/check-problem-records.py"
+
+out="$("$SCRIPT" --root "$V" --days 30 2>&1)"; rc=$?
+assert_eq "vpr13 workspace: exit 0" "0" "$rc"
+assert_eq "assumption to evidence: median days over records that reached evidence" \
+    "  assumption to evidence: median 4d (1 of 6 refuted-if records have evidence)" \
+    "$(printf '%s\n' "$out" | grep 'assumption to evidence')"
+assert_eq "wrongness found: at the alternative and in implementation" \
+    "  wrongness found: 1 at the alternative (adopted:), 1 in implementation (back to investigating)" \
+    "$(printf '%s\n' "$out" | grep 'wrongness found')"
+assert_eq "spikes with criteria committed first: same-commit criteria do not count" \
+    "  spikes with criteria committed first: 1/2" \
+    "$(printf '%s\n' "$out" | grep 'spikes with criteria')"
+rm -rf "$V"
+
 # ── the live workspace runs (numbers vary; shape must not) ────────────
 LIVE="$(cd "$SCRIPT_DIR/../.." && pwd)"
 if [ -f "$LIVE/_private/docs/intervention-ledger.md" ]; then
