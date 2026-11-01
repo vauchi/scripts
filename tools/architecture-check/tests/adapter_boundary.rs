@@ -259,12 +259,9 @@ fn retiring_a_crate_removes_every_entry_at_once() {
 #[test]
 fn retiring_a_crate_but_keeping_an_entry_is_refused() {
     let before = policy();
-    for keep in [
-        "layers",
-        "external_modules",
-        "dependencies",
-        "acyclic_crates",
-    ] {
+    // The fixture lists the crate under these three; keeping any one of them
+    // behind is the lingering entry the rule refuses.
+    for keep in ["layers", "external_modules", "dependencies"] {
         let mut partial = serde_json::to_value(&before).unwrap();
         let fields: Vec<&str> = [
             "crates",
