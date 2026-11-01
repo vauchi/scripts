@@ -97,16 +97,39 @@
       git -C .core-parity remote add origin https://gitlab.com/vauchi/core.git
       git -C .core-parity sparse-checkout init --no-cone
       git -C .core-parity sparse-checkout set \
+        Cargo.toml \
         vauchi-app/src/ui/component.rs \
         vauchi-app/src/ui/component \
         vauchi-core/src/platform/presentation/surface/nodes.rs
       git -C .core-parity fetch -q --depth 1 origin "$CORE_REF"
       git -C .core-parity checkout -q FETCH_HEAD
 
+      # ADR-078 (vauchi/private#1013) moved the presentation nodes to the
+      # contract crate, which Core pins by tag in its workspace Cargo.toml.
+      # A Core ref without vauchi-core's copy reads the contract's at that
+      # tag; older refs keep vauchi-core's (vauchi/private#1030).
+      PRESENTATION_NODES=".core-parity/vauchi-core/src/platform/presentation/surface/nodes.rs"
+      if [ "$PARSER_PROTOCOL" = "presentation" ] && [ ! -f "$PRESENTATION_NODES" ]; then
+        CONTRACT_REF=$(sed -n 's/^vauchi-contract *=.*tag *= *"\([^"]*\)".*/\1/p' .core-parity/Cargo.toml)
+        if [ -z "$CONTRACT_REF" ]; then
+          echo "ERROR: Core $CORE_REF has no presentation nodes and pins no vauchi-contract tag"
+          exit 2
+        fi
+        echo "Presentation nodes from vauchi/contract $CONTRACT_REF (pinned by Core $CORE_REF)"
+        mkdir -p .contract-parity
+        git -C .contract-parity init -q
+        git -C .contract-parity remote add origin https://gitlab.com/vauchi/contract.git
+        git -C .contract-parity sparse-checkout init --no-cone
+        git -C .contract-parity sparse-checkout set src/presentation/surface/nodes.rs
+        git -C .contract-parity fetch -q --depth 1 origin "refs/tags/$CONTRACT_REF"
+        git -C .contract-parity checkout -q FETCH_HEAD
+        PRESENTATION_NODES=".contract-parity/src/presentation/surface/nodes.rs"
+      fi
+
       # Prefer the post-Tier-0 layout; fall back to the pre-Tier-0
       # single-file layout for older refs.
       if [ "$PARSER_PROTOCOL" = "presentation" ]; then
-        ENUM_FILE=".core-parity/vauchi-core/src/platform/presentation/surface/nodes.rs"
+        ENUM_FILE="$PRESENTATION_NODES"
       elif [ -f .core-parity/vauchi-app/src/ui/component/mod.rs ]; then
         ENUM_FILE=".core-parity/vauchi-app/src/ui/component/mod.rs"
       elif [ -f .core-parity/vauchi-app/src/ui/component.rs ]; then
