@@ -211,3 +211,74 @@ fn an_existing_record_authorizes_nothing_new_and_no_record_permits_removal() {
     let removed: Policy = serde_json::from_value(removed).unwrap();
     assert!(policy::validate_policy_tightening(&policy(), &removed).is_err());
 }
+
+fn without_hardware(value: &mut serde_json::Value, fields: &[&str]) {
+    for field in fields {
+        match field {
+            &"crates" | &"external_modules" | &"dependencies" => {
+                value[field]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("vauchi-hardware");
+            }
+            &"layers" => value["layers"]
+                .as_object_mut()
+                .unwrap()
+                .retain(|k, _| !k.starts_with("vauchi-hardware/")),
+            &"acyclic_crates" => value["acyclic_crates"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|c| c != "vauchi-hardware"),
+            other => panic!("unknown field {other}"),
+        }
+    }
+}
+
+// @internal — a crate that left the workspace (ADR-077: vauchi-hardware to
+// linux-hw) retires its policy in one change; nothing of it may linger.
+#[test]
+fn retiring_a_crate_removes_every_entry_at_once() {
+    let before = policy();
+    let mut retired = serde_json::to_value(&before).unwrap();
+    without_hardware(
+        &mut retired,
+        &[
+            "crates",
+            "layers",
+            "external_modules",
+            "dependencies",
+            "acyclic_crates",
+        ],
+    );
+    let after: Policy = serde_json::from_value(retired).unwrap();
+    assert_eq!(policy::validate_policy_tightening(&before, &after), Ok(()));
+}
+
+// @internal — dropping a crate from `crates` while its layers or guards stay
+// is neither a retirement nor a tightening.
+#[test]
+fn retiring_a_crate_but_keeping_an_entry_is_refused() {
+    let before = policy();
+    for keep in [
+        "layers",
+        "external_modules",
+        "dependencies",
+        "acyclic_crates",
+    ] {
+        let mut partial = serde_json::to_value(&before).unwrap();
+        let fields: Vec<&str> = [
+            "crates",
+            "layers",
+            "external_modules",
+            "dependencies",
+            "acyclic_crates",
+        ]
+        .into_iter()
+        .filter(|f| *f != keep)
+        .collect();
+        without_hardware(&mut partial, &fields);
+        let after: Policy = serde_json::from_value(partial).unwrap();
+        let err = policy::validate_policy_tightening(&before, &after).unwrap_err();
+        assert!(err.contains("retire"), "{keep}: {err}");
+    }
+}
