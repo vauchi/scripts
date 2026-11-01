@@ -38,6 +38,9 @@ impl Index {
                 ));
             }
             for symbol in resolved {
+                if symbol.starts_with("extern::") {
+                    continue;
+                }
                 let source = top(&raw.scope);
                 let target = self
                     .owner_module(&symbol)
@@ -59,6 +62,29 @@ impl Index {
             }
         }
         Ok(self.report)
+    }
+
+    /// Whether a path's first segment names a Cargo dependency of the scope's
+    /// crate that the analyzer does not scan.
+    fn is_dependency_path(&self, scope: &str, path: &[String]) -> bool {
+        let Some(first) = path.first() else {
+            return false;
+        };
+        if matches!(first.as_str(), "crate" | "self" | "super")
+            || CRATES.iter().any(|c| c.replace('-', "_") == *first)
+        {
+            return false;
+        }
+        let owner = scope
+            .split("::")
+            .next()
+            .unwrap_or_default()
+            .replace('_', "-");
+        let dependency = first.replace('_', "-");
+        self.report
+            .dependencies
+            .get(&owner)
+            .is_some_and(|deps| deps.contains(&dependency))
     }
 
     fn owner_module(&self, symbol: &str) -> Option<String> {
@@ -92,6 +118,12 @@ impl Index {
             let result = self.resolve(scope, &rewritten, visiting, via);
             visiting.remove(&format!("alias:{alias}"));
             return result;
+        }
+        if self.is_dependency_path(scope, path) {
+            // A name under a Cargo dependency the analyzer does not scan, reached
+            // through `pub use vauchi_contract::*` or a named re-export (ADR-078):
+            // resolved, not an unresolved internal path, and it draws no edge.
+            return BTreeSet::from([format!("extern::{}", path.join("::"))]);
         }
         let mut base: Vec<String> = scope.split("::").map(String::from).collect();
         let mut offset = 0;
