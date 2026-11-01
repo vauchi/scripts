@@ -94,6 +94,7 @@ if [[ ${#REPO_REGISTRY[@]} -eq 0 ]]; then
         "windows:windows:dotnet"
         "linux-gtk:linux-gtk:rust"
         "contract:contract:rust"
+        "linux-hw:linux-hw:rust"
         "linux-qt:linux-qt:cmake"
         "web-demo:web-demo:npm"
         "assets:assets:none"
@@ -103,12 +104,12 @@ if [[ ${#REPO_REGISTRY[@]} -eq 0 ]]; then
 fi
 
 # ── Which repos support which operations ────────────────────────────
-REPOS_BUILD="core cli relay ohttp-relay tui e2e android ios docs spec linux-gtk macos windows linux-qt web-demo contract"
-REPOS_TEST="core cli relay ohttp-relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo contract"
-REPOS_FMT="core cli relay ohttp-relay tui e2e ios linux-gtk contract"
-REPOS_LINT="core cli relay ohttp-relay tui e2e android ios docs spec locales themes features scripts linux-gtk macos contract"
-REPOS_FIX="core cli relay ohttp-relay tui e2e ios linux-gtk contract"
-REPOS_COVERAGE="core cli relay ohttp-relay tui e2e ios android linux-gtk contract"
+REPOS_BUILD="core cli relay ohttp-relay tui e2e android ios docs spec linux-gtk macos windows linux-qt web-demo contract linux-hw"
+REPOS_TEST="core cli relay ohttp-relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo contract linux-hw"
+REPOS_FMT="core cli relay ohttp-relay tui e2e ios linux-gtk contract linux-hw"
+REPOS_LINT="core cli relay ohttp-relay tui e2e android ios docs spec locales themes features scripts linux-gtk macos contract linux-hw"
+REPOS_FIX="core cli relay ohttp-relay tui e2e ios linux-gtk contract linux-hw"
+REPOS_COVERAGE="core cli relay ohttp-relay tui e2e ios android linux-gtk contract linux-hw"
 REPOS_BENCH="core relay"
 
 # ── Functions ───────────────────────────────────────────────────────
