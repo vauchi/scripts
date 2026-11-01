@@ -19,6 +19,9 @@ Usage:
     repo-registry.py publish          # space-separated repos that publish artifacts
     repo-registry.py dir <repo>       # directory path for repo
     repo-registry.py toolchain <repo> # ecosystem for repo
+    repo-registry.py ops <op>         # repos a just recipe accepts (build, test, fmt, lint, fix, coverage, bench)
+    repo-registry.py scenario-roots   # repos features' lint:implemented-scenarios clones
+    repo-registry.py check [<root>]   # the root .gitignore and README and the group README agree with the registry
 """
 
 from __future__ import annotations
@@ -107,6 +110,29 @@ def _parse_flag_query(query: str) -> dict[str, Any]:
     return result
 
 
+def check_workspace(root: Path, repos: list[dict[str, Any]]) -> list[str]:
+    """The three hand-kept lists a new repository used to need: the root
+    .gitignore (every clone's directory), the root README's table (every
+    public repository) and the group README (every repository with
+    `profile = true`). Each line names the file and the missing entry."""
+    problems: list[str] = []
+    gitignore = root / ".gitignore"
+    ignored = gitignore.read_text(encoding="utf-8").splitlines() if gitignore.is_file() else []
+    readme = root / "README.md"
+    readme_text = readme.read_text(encoding="utf-8") if readme.is_file() else ""
+    profile = root / "gitlab-profile" / "README.md"
+    profile_text = profile.read_text(encoding="utf-8") if profile.is_file() else ""
+    for repo in repos:
+        name, path = repo["name"], repo.get("path", "")
+        if path and path != "." and f"/{path}/" not in ignored:
+            problems.append(f".gitignore lacks /{path}/ ({name})")
+        if repo.get("public") and f"| [{path}/]({path}/) |" not in readme_text:
+            problems.append(f"README.md table lacks a row for {name}")
+        if repo.get("profile") and f"| [{name}](https://gitlab.com/vauchi/{name})" not in profile_text:
+            problems.append(f"gitlab-profile/README.md lacks a row for {name}")
+    return problems
+
+
 def main(argv: list[str]) -> int:
     if not argv:
         print("ERROR: missing command", file=sys.stderr)
@@ -139,6 +165,22 @@ def main(argv: list[str]) -> int:
     if cmd == "tooling":
         print(" ".join(r["name"] for r in _repos() if r.get("clone_url")))
         return 0
+    if cmd == "ops":
+        if len(argv) != 2:
+            print("ERROR: ops requires a recipe name (build, test, fmt, lint, fix, coverage, bench)", file=sys.stderr)
+            return 2
+        print(" ".join(r["name"] for r in _repos() if argv[1] in r.get("ops", [])))
+        return 0
+    if cmd == "scenario-roots":
+        print(" ".join(r["name"] for r in _repos() if r.get("scenario_root")))
+        return 0
+    if cmd == "check":
+        root = Path(argv[1]).resolve() if len(argv) > 1 else _find_repos_toml().parent
+        problems = check_workspace(root, _repos())
+        for line in problems:
+            print(f"REGISTRY: {line}")
+        print(f"{len(problems)} registry mismatch(es) under {root}")
+        return 1 if problems else 0
 
     if cmd == "list":
         for r in _repos():

@@ -104,13 +104,34 @@ if [[ ${#REPO_REGISTRY[@]} -eq 0 ]]; then
 fi
 
 # ── Which repos support which operations ────────────────────────────
-REPOS_BUILD="core cli relay ohttp-relay tui e2e android ios docs spec linux-gtk macos windows linux-qt web-demo contract linux-hw"
-REPOS_TEST="core cli relay ohttp-relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo contract linux-hw"
-REPOS_FMT="core cli relay ohttp-relay tui e2e ios linux-gtk contract linux-hw"
-REPOS_LINT="core cli relay ohttp-relay tui e2e android ios docs spec locales themes features scripts linux-gtk macos contract linux-hw"
-REPOS_FIX="core cli relay ohttp-relay tui e2e ios linux-gtk contract linux-hw"
-REPOS_COVERAGE="core cli relay ohttp-relay tui e2e ios android linux-gtk contract linux-hw"
-REPOS_BENCH="core relay"
+# The registry (repos.toml, `ops = [...]` per repository) says which repos
+# each recipe accepts; the literals below are the fallback for a checkout
+# without the registry, as for the table above (private#1013).
+_registry_ops() {
+    local helper="$WORKSPACE_ROOT/scripts/scripts/lib/repo-registry.py"
+    [[ -x "$helper" ]] || helper="$WORKSPACE_ROOT/root/scripts/scripts/lib/repo-registry.py"
+    local toml="$WORKSPACE_ROOT/repos.toml"
+    [[ -f "$toml" ]] || toml="$WORKSPACE_ROOT/root/repos.toml"
+    if [[ -x "$helper" && -f "$toml" ]]; then
+        (cd "$(dirname "$toml")" && python3 "$helper" ops "$1") 2>/dev/null
+    fi
+}
+REPOS_BUILD="$(_registry_ops build)"
+REPOS_TEST="$(_registry_ops test)"
+REPOS_FMT="$(_registry_ops fmt)"
+REPOS_LINT="$(_registry_ops lint)"
+REPOS_FIX="$(_registry_ops fix)"
+REPOS_COVERAGE="$(_registry_ops coverage)"
+REPOS_BENCH="$(_registry_ops bench)"
+if [[ -z "$REPOS_BUILD" ]]; then
+    REPOS_BUILD="core cli relay ohttp-relay tui e2e android ios docs spec linux-gtk macos windows linux-qt web-demo contract linux-hw"
+    REPOS_TEST="core cli relay ohttp-relay tui e2e android ios docs linux-gtk macos windows linux-qt web-demo contract linux-hw"
+    REPOS_FMT="core cli relay ohttp-relay tui e2e ios linux-gtk contract linux-hw"
+    REPOS_LINT="core cli relay ohttp-relay tui e2e android ios docs spec locales themes features scripts linux-gtk macos contract linux-hw"
+    REPOS_FIX="core cli relay ohttp-relay tui e2e ios linux-gtk contract linux-hw"
+    REPOS_COVERAGE="core cli relay ohttp-relay tui e2e ios android linux-gtk contract linux-hw"
+    REPOS_BENCH="core relay"
+fi
 
 # ── Functions ───────────────────────────────────────────────────────
 
