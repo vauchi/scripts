@@ -133,7 +133,8 @@ mkdir -p "$P/scripts"
 git -C "$P" init -q
 git -C "$P" config user.email t@example.com
 git -C "$P" config user.name t
-known='- the restart clears it — assumed: last time; refuted if: it sticks again'
+known='## Knowns
+- the restart clears it — assumed: last time; refuted if: it sticks again'
 # a: assumption on day 0, evidence on day 4
 record_commit "$P" 2026-11-01-a 2026-11-01T10:00:00Z "| **Status** | planning |
 $known"
@@ -172,12 +173,16 @@ $known
 - three green pipelines
 ## Strongest Alternative
 Re-register — spiked: spike/2-b, two green"
+# g: the markers named in prose, outside Strongest Alternative, count for nothing
+record_commit "$P" 2026-11-01-g 2026-11-02T10:00:00Z "| **Status** | planning |
+| **Next slice** | check that criteria predate a spiked: report; count adopted: ones |
+$known"
 printf 'print("RESULT: PASS")\n' > "$P/scripts/check-problem-records.py"
 
 out="$("$SCRIPT" --root "$V" --days 30 2>&1)"; rc=$?
 assert_eq "vpr13 workspace: exit 0" "0" "$rc"
 assert_eq "assumption to evidence: median days over records that reached evidence" \
-    "  assumption to evidence: median 4d (1 of 6 refuted-if records have evidence)" \
+    "  assumption to evidence: median 4d (1 of 7 refuted-if records have evidence)" \
     "$(printf '%s\n' "$out" | grep 'assumption to evidence')"
 assert_eq "wrongness found: at the alternative and in implementation" \
     "  wrongness found: 1 at the alternative (adopted:), 1 in implementation (back to investigating)" \
