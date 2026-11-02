@@ -37,3 +37,31 @@ for shell in bash zsh; do
 
     echo "PASS ($shell): gitlab_repo_dir canonicalizes symlinked worktree paths"
 done
+
+# Repos under utils/ (vauchi/utils, private#1034) resolve through the
+# registry's directory column: the GitLab project is vauchi/utils/<name>
+# and the working directory is utils/<name>, for every registered fork,
+# not only the names a case statement once listed.
+mkdir -p "$workspace/utils/somefork/.git" "$workspace/core/.git"
+for shell in bash zsh; do
+    command -v "$shell" >/dev/null 2>&1 || continue
+    out="$(
+        "$shell" -c '
+            cd "$1"
+            source "$1/scripts/scripts/resolve-repo.sh"
+            REPO_REGISTRY=("somefork:utils/somefork:none" "core:core:rust")
+            resolve_gitlab_project somefork
+            resolve_gitlab_project core
+            gitlab_repo_dir somefork
+        ' _ "$workspace"
+    )"
+    expected="vauchi/utils/somefork
+vauchi/core
+$workspace/utils/somefork"
+    if [[ "$out" != "$expected" ]]; then
+        echo "FAIL ($shell): utils/ repos resolve through the registry; got:"
+        printf '%s\n' "$out"
+        exit 1
+    fi
+    echo "PASS ($shell): utils/ repos resolve to vauchi/utils/<name> and utils/<name>"
+done
