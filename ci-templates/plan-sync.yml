@@ -34,7 +34,7 @@
   interruptible: false  # Must run even if new commit pushes within 5 min delay
   before_script:
     - apt-get update -qq && apt-get install -y -qq git curl python3 > /dev/null 2>&1
-    - cd drift-detector && npm ci --silent && npm run build && cd ..
+    - cd utils/drift-detector && npm ci --silent && npm run build && cd ../..
   script:
     - |
       set -euo pipefail
@@ -49,9 +49,9 @@
       fi
 
       # --- Run drift-detector sync ---
-      cd drift-detector
-      node dist/index.js sync --since "$SINCE" --output ../changeset.json --root ..
-      cd ..
+      cd utils/drift-detector
+      node dist/index.js sync --since "$SINCE" --output ../../changeset.json --root ../..
+      cd ../..
 
       # --- Check if changeset is empty ---
       UPDATES=$(python3 -c "
@@ -83,9 +83,9 @@
       git remote set-url origin "https://vauchi-gitlab-runner:${PROJECT_ACCESS_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
 
       # --- Apply changeset ---
-      cd drift-detector
-      node dist/index.js sync --since "$SINCE" --apply --root ..
-      cd ..
+      cd utils/drift-detector
+      node dist/index.js sync --since "$SINCE" --apply --root ../..
+      cd ../..
 
       # --- Build MR description from changeset ---
       MR_BODY=$(python3 << 'PYEOF'
