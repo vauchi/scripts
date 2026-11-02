@@ -381,7 +381,9 @@ gitlab_repo_dir() {
     # Detect from pwd
     local detected
     if detected=$(_detect_repo_from_pwd); then
-        repo_dir "$detected"
+        # Detection names the workspace root "root", which the registry
+        # does not list; the explicit branch above maps it.
+        gitlab_repo_dir "$detected"
         return 0
     fi
 
