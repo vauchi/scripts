@@ -306,7 +306,7 @@ resolve_gitlab_project() {
     # _dir_to_gitlab_name "" produced — which made the project "vauchi/").
     name=$(resolve_gitlab_repo "${1:-}") || return 1
     case "$name" in
-        drift-detector|markdown-plan)   echo "megloff1/$name" ;;
+        drift-detector|markdown-plan)   echo "vauchi/utils/$name" ;;
         *)                              echo "vauchi/$name" ;;
     esac
 }

@@ -79,7 +79,7 @@ find_stalled_plans() {
             pct=$(python3 << PYEOF 2>/dev/null || echo "?"
 import sys, types
 sys.modules.setdefault('pygit2', types.ModuleType('pygit2'))
-sys.path.insert(0, '$WORKSPACE_ROOT/markdown-plan/python/src')
+sys.path.insert(0, '$WORKSPACE_ROOT/utils/markdown-plan/python/src')
 from mdplan.count import count_all_tasks, count_remaining_tasks
 with open('$file') as f:
     text = f.read()

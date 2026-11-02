@@ -246,7 +246,7 @@ collect_escaped_defects() {
 
 # --- Drift score (if drift-detector is available) ---
 collect_drift_score() {
-    local drift_dir="$VAUCHI_ROOT/drift-detector"
+    local drift_dir="$VAUCHI_ROOT/utils/drift-detector"
     if [ -d "$drift_dir" ] && [ -f "$drift_dir/dist/index.js" ]; then
         local result
         result=$(cd "$VAUCHI_ROOT" && node "$drift_dir/dist/index.js" audit --ci 2>/dev/null || echo '{}')
