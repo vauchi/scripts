@@ -61,5 +61,19 @@ fi
 out=$(printf 'docs/good.md\n' | bash "$LINT" "$REPO" 2>&1); rc=$?
 check "a clean push passes" 0 "Markdown lint OK" "$rc" "$out"
 
+# A repository nested below the workspace root (utils/<tool>, cloned from
+# vauchi/utils, private#1034) lints with the workspace's config, found by
+# walking up to repos.toml, not with markdownlint's defaults: the parent
+# directory is utils/, which has no config.
+WS="$WORK/ws"
+NESTED="$WS/utils/tool"
+mkdir -p "$WS/_private" "$NESTED"
+git init --quiet "$NESTED"
+: > "$WS/repos.toml"
+printf '{ "MD041": false }\n' > "$WS/_private/.markdownlint.json"
+printf 'Notes without a heading.\n' > "$NESTED/notes.md"
+out=$(printf 'notes.md\n' | bash "$LINT" "$NESTED" 2>&1); rc=$?
+check "a repo under utils/ lints with the workspace config" 0 "Markdown lint OK" "$rc" "$out"
+
 printf '\nmd-lint: %d passed, %d failed\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
