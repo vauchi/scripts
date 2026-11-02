@@ -127,7 +127,7 @@ find_stale_problems() {
         dirname=$(basename "$dir")
         local date_part="${dirname:0:10}"
         local created
-        created=$(date -d "$date_part" +%s 2>/dev/null || date -jf "%Y-%m-%d" "$date_part" +%s 2>/dev/null || echo 0)
+        created=$(python3 -c 'import sys, datetime as d; print(int(d.datetime.strptime(sys.argv[1], "%Y-%m-%d").replace(tzinfo=d.timezone.utc).timestamp()))' "$date_part" 2>/dev/null || echo 0)
         [[ "$created" == "0" ]] && continue
 
         local age_days=$(( (NOW - created) / 86400 ))
@@ -227,7 +227,7 @@ check_blocker_chains() {
     local max_layer=0
     while IFS= read -r line; do
         local layer_num
-        layer_num=$(echo "$line" | sed -n 's/^LAYER \([0-9]\+\).*/\1/p')
+        layer_num=$(echo "$line" | sed -nE 's/^LAYER ([0-9]+).*/\1/p')
         [[ -n "$layer_num" && "$layer_num" -gt "$max_layer" ]] && max_layer=$layer_num
     done < <(grep -E "^LAYER [0-9]" "$master_plan" 2>/dev/null || true)
 
@@ -316,7 +316,7 @@ check_mr_age() {
     # Parse session-init output for open MRs (avoid slow glab calls per repo)
     local mr_count=0
     while IFS= read -r line; do
-        if echo "$line" | grep -qE "^\s+\S+\s+!"; then
+        if echo "$line" | grep -qE "^[[:space:]]+[^[:space:]]+[[:space:]]+!"; then
             local repo mr_info
             repo=$(echo "$line" | awk '{print $1}')
             mr_info="${line#"${line%%[![:space:]]*}"}"

@@ -203,7 +203,7 @@ collect_test_count() {
         for search_dir in "$dir/src" "$dir/tests"; do
             [ -d "$search_dir" ] || continue
             local count
-            count=$(grep -r '#\[test\]' "$search_dir" --include="*.rs" 2>/dev/null | wc -l | tr -d ' ')
+            count=$(find "$search_dir" -type f -name '*.rs' -exec grep -h '#\[test\]' {} + 2>/dev/null | wc -l | tr -d ' ')
             total=$((total + count))
         done
     done
@@ -314,9 +314,9 @@ else:
         local pid
         pid=$(urlencode "${GITLAB_PROJECTS[$project]}")
         local all_count
-        all_count=$(gitlab_get "/projects/${pid}/pipelines?per_page=100&ref=main&updated_after=$(date -d '30 days ago' +%Y-%m-%dT00:00:00Z 2>/dev/null || date -v-30d +%Y-%m-%dT00:00:00Z 2>/dev/null)" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+        all_count=$(gitlab_get "/projects/${pid}/pipelines?per_page=100&ref=main&updated_after=$(python3 -c 'import datetime as d; print((d.datetime.now(d.timezone.utc) - d.timedelta(days=30)).strftime("%Y-%m-%dT00:00:00Z"))')" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
         local ok_count
-        ok_count=$(gitlab_get "/projects/${pid}/pipelines?per_page=100&ref=main&status=success&updated_after=$(date -d '30 days ago' +%Y-%m-%dT00:00:00Z 2>/dev/null || date -v-30d +%Y-%m-%dT00:00:00Z 2>/dev/null)" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+        ok_count=$(gitlab_get "/projects/${pid}/pipelines?per_page=100&ref=main&status=success&updated_after=$(python3 -c 'import datetime as d; print((d.datetime.now(d.timezone.utc) - d.timedelta(days=30)).strftime("%Y-%m-%dT00:00:00Z"))')" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
         total_pipelines=$((total_pipelines + all_count))
         success_pipelines=$((success_pipelines + ok_count))
     done
