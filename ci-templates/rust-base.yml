@@ -757,14 +757,15 @@ workflow:
     - !reference [.git-credentials, before_script]
   cache: {}
 
-# macOS self-hosted runner (nell)
-# Tags: macos, self-hosted
+# macOS self-hosted runner (nell): its shell runner, with the host's Rust
+# toolchain and cargo caches. Since vauchi/private#309 that runner carries
+# only macos-host + self-hosted; Xcode test jobs run in Tart guests
+# (macos-tart) instead.
 # Resources: 8 CPU, 16GB RAM, Apple Silicon
-# Use for: iOS, Xcode, Swift builds
 .macos-runner:
   extends: .self-hosted
   tags:
-    - macos
+    - macos-host
     - self-hosted
   cache:
     key:

@@ -20,7 +20,7 @@
 #       ORPHAN_STYLE: swift            # swift | compose
 #       ORPHAN_BASELINE_ROOT: VauchiSnapshotTests/__Snapshots__
 #       ORPHAN_TEST_SRC: VauchiSnapshotTests
-#     tags: [macos, self-hosted]      # match where the repo checks out
+#     tags: [docker]                 # ios runs it in alpine on docker
 
 .check-orphan-baselines:
   stage: lint
