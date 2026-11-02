@@ -30,7 +30,8 @@ for_each_repo() {
     fi
 
     local dir
-    for dir in */; do
+    # Tools and forks are cloned one level down, under utils/ (private#1034).
+    for dir in */ utils/*/; do
         [[ -e "${dir}.git" ]] || continue
         "$callback" "${dir%/}" "${dir%/}"
     done
@@ -54,7 +55,8 @@ for_each_repo_parallel() {
     fi
 
     local dir
-    for dir in */; do
+    # Tools and forks are cloned one level down, under utils/ (private#1034).
+    for dir in */ utils/*/; do
         [[ -e "${dir}.git" ]] || continue
         "$callback" "${dir%/}" "${dir%/}" &
     done

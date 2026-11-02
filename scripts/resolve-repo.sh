@@ -297,17 +297,30 @@ _dir_to_gitlab_name() {
     esac
 }
 
+# The directory the registry gives a repo name, relative to WORKSPACE_ROOT.
+_registry_dir() {
+    local entry rest
+    for entry in "${REPO_REGISTRY[@]}"; do
+        [[ "${entry%%:*}" == "$1" ]] || continue
+        rest=${entry#*:}
+        echo "${rest%%:*}"
+        return 0
+    done
+    return 1
+}
+
 # Resolve a repo name to a full GitLab project path (namespace/project).
-# Most repos are under the vauchi group; exceptions listed below.
+# Repos cloned under utils/ live in the vauchi/utils subgroup (tools and
+# forks, private#1034); the rest are directly under vauchi.
 resolve_gitlab_project() {
     local name
     # Route through resolve_gitlab_repo so an empty arg gets pwd detection
     # (at workspace root this yields "vauchi", not the empty name that
     # _dir_to_gitlab_name "" produced — which made the project "vauchi/").
     name=$(resolve_gitlab_repo "${1:-}") || return 1
-    case "$name" in
-        drift-detector|markdown-plan)   echo "vauchi/utils/$name" ;;
-        *)                              echo "vauchi/$name" ;;
+    case "$(_registry_dir "$name" || true)" in
+        utils/*) echo "vauchi/utils/$name" ;;
+        *)       echo "vauchi/$name" ;;
     esac
 }
 
@@ -351,7 +364,7 @@ gitlab_repo_dir() {
                     repo_path="$WORKSPACE_ROOT/root"
                 fi
                 ;;
-            *)            repo_path="$WORKSPACE_ROOT/$arg" ;;
+            *)            repo_path="$WORKSPACE_ROOT/$(_registry_dir "$arg" || echo "$arg")" ;;
         esac
         # Worktree groups use sibling symlinks. Passing a logical symlink path
         # to `git -C` makes hooks inherit the coordinator worktree as their
