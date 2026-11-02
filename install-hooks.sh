@@ -28,7 +28,8 @@ chmod +x "$HOOKS_DIR"/*
 
 # All repos that get hooks (auto-discover all .git dirs, skip archived)
 REPOS=()
-for dir in "$REPO_ROOT" "$REPO_ROOT"/*/; do
+# Tools and forks are cloned one level down, under utils/ (private#1034).
+for dir in "$REPO_ROOT" "$REPO_ROOT"/*/ "$REPO_ROOT"/utils/*/; do
     dir="${dir%/}"
     [[ -d "$dir/.git" ]] || continue
     name="$(basename "$dir")"
