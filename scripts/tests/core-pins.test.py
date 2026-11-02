@@ -301,6 +301,28 @@ def test_fetch_reads_the_table_after_fetching_core():
         assert "cli" in run.stdout and "current" in run.stdout
 
 
+PINS_ENV = """\
+# The pinned set e2e tests (vauchi/private#1032).
+CORE_TAG=v0.96.1
+RELAY_SHA=5f3fff43919199602aa316ed6bc68d3ac25bfaef
+CLI_SHA=f3b4a851aae4ef902ffb714160077e06138b07f6
+"""
+
+
+def test_a_pins_env_names_its_core_tag():
+    # e2e's ci/pins.env carries the Core tag its pinned set runs on, and it
+    # must move with e2e's Cargo.toml on every Core release (private#1034).
+    assert PINS.read_pin("pins-env", PINS_ENV) == "v0.96.1"
+    assert "no CORE_TAG" in expect_error(PINS.read_pin, "pins-env", "# nothing\nRELAY_SHA=abc\n")
+
+
+def test_bumping_a_pins_env_moves_only_its_core_tag():
+    text, crates = PINS.bump_pin("pins-env", PINS_ENV, "0.97.0")
+    assert crates == []
+    assert text == PINS_ENV.replace("CORE_TAG=v0.96.1", "CORE_TAG=v0.97.0")
+    assert "no CORE_TAG" in expect_error(PINS.bump_pin, "pins-env", "RELAY_SHA=abc\n", "0.97.0")
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
