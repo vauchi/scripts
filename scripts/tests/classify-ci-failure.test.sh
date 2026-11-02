@@ -157,6 +157,12 @@ expect_category "hook self-test suite failure" \
 expect_category "private workspace discovery failure" \
     "ValueError: expected _private git common directory, got /builds/vauchi/private" \
     "test-failure"
+expect_category "lychee missing local link" \
+    "[ERROR] file:///builds/vauchi/private/.codex/docs/reference/pilot/README.md | Cannot find file: File not found. Check if file exists and path is correct" "lint"
+expect_escalate "lychee missing local link does not escalate" \
+    "2026-11-02T15:00:52Z 01O [ERROR] file:///builds/vauchi/private/missing.md | Cannot find file: File not found." "false"
+expect_category "lychee success does not invent a failure" \
+    "3935 Total (in 0s) 1381 OK 0 Errors 2554 Excluded" "unknown"
 expect_category "clippy/lint" \
     "error: this \`if\` has identical blocks (clippy::if_same_then_else)" "lint"
 expect_category "REUSE compliance failure with GitLab timestamp" \
