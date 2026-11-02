@@ -42,7 +42,7 @@ HARDCODED_CI_REF = re.compile(r"""^\s*(?:VAUCHI_)?CORE_REF:\s*["']?v\d+\.\d+\.\d
 # publishes their artifact (update:swift-bindings, trigger:ios/macos/
 # android/windows), because the pin carries data only that pipeline has
 # (a signed checksum, a published binary).
-BUMPABLE = {"cargo", "ref-file"}
+BUMPABLE = {"cargo", "ref-file", "pins-env"}
 FAILING = {"error", "behind", "hardcoded-ci-ref"}
 
 
@@ -93,6 +93,24 @@ def _read_ref_file(text: str) -> str:
     raise PinError("no Core ref in this file")
 
 
+PINS_ENV_CORE_TAG = re.compile(r"^CORE_TAG=(\S+)\s*$")
+
+
+def _pins_env_core_line(text: str) -> int:
+    """e2e's ci/pins.env names the Core tag of its pinned set (private#1034)."""
+    for i, line in enumerate(text.splitlines()):
+        if PINS_ENV_CORE_TAG.match(line):
+            return i
+    raise PinError("no CORE_TAG line in this pins file")
+
+
+def _read_pins_env(text: str) -> str:
+    line = text.splitlines()[_pins_env_core_line(text)]
+    match = PINS_ENV_CORE_TAG.match(line)
+    assert match
+    return match.group(1)
+
+
 def _read_cabi_json(text: str) -> str:
     try:
         version = json.loads(text)["version"]
@@ -131,6 +149,7 @@ def _read_swift_let_version(text: str) -> str:
 READERS: dict[str, Callable[[str], str]] = {
     "cargo": _read_cargo,
     "ref-file": _read_ref_file,
+    "pins-env": _read_pins_env,
     "cabi-json": _read_cabi_json,
     "xcode-spm": _read_xcode_spm,
     "gradle": _read_gradle,
@@ -176,6 +195,13 @@ def _bump_ref_file(text: str, version: str) -> tuple[str, list[str]]:
     raise PinError("no Core ref in this file")
 
 
+def _bump_pins_env(text: str, version: str) -> tuple[str, list[str]]:
+    lines = text.splitlines(keepends=True)
+    i = _pins_env_core_line(text)
+    lines[i] = f"CORE_TAG={_tag(version)}" + ("\n" if lines[i].endswith("\n") else "")
+    return "".join(lines), []
+
+
 def bump_pin(kind: str, text: str, version: str) -> tuple[str, list[str]]:
     """Return the rewritten file and, for Cargo, the crates to `cargo update -p`."""
     if kind not in READERS:
@@ -184,6 +210,8 @@ def bump_pin(kind: str, text: str, version: str) -> tuple[str, list[str]]:
         raise PinError(f"a {kind} pin is bumped by its own pipeline, not by this tool")
     if kind == "cargo":
         return _bump_cargo(text, version)
+    if kind == "pins-env":
+        return _bump_pins_env(text, version)
     return _bump_ref_file(text, version)
 
 
