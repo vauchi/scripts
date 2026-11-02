@@ -105,7 +105,11 @@ class RepoRegistryTest(unittest.TestCase):
 
     def test_private_and_tooling_repos_need_no_readme_row(self) -> None:
         result = run(self.root, "check", str(self.root))
-        self.assertNotIn("private", result.stdout.replace("0 registry", ""))
+        # On macOS the temp root resolves to /private/tmp/...; the repo named
+        # private must not appear, the path may.
+        output = result.stdout.replace(str(self.root.resolve()), "<root>")
+        output = output.replace(str(self.root), "<root>")
+        self.assertNotIn("private", output.replace("0 registry", ""))
 
 
 if __name__ == "__main__":
