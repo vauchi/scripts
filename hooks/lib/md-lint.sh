@@ -16,7 +16,18 @@
 set -uo pipefail
 
 REPO_ROOT="$1"
+# The workspace root holds repos.toml; a repo may sit below it, as the
+# tools under utils/ do (private#1034). Fall back to the parent directory
+# for a checkout outside a workspace.
 WS_ROOT="$REPO_ROOT/.."
+probe=$(cd "$REPO_ROOT" && pwd)
+while [[ "$probe" != "/" ]]; do
+    probe=$(dirname "$probe")
+    if [[ -f "$probe/repos.toml" ]]; then
+        WS_ROOT="$probe"
+        break
+    fi
+done
 FILES=$(grep -v '^$' || true)
 [[ -z "$FILES" ]] && exit 0
 
