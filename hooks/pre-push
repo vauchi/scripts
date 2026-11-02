@@ -1324,6 +1324,31 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
             time_step "Playwright" npm test -- --grep-invert 'blog\.spec\.js'
         fi
 
+    # ─── Python project (vauchi/utils: markdown-plan) ────────────────────
+    # pyproject.toml at the root or in python/. The project's own .venv
+    # when present, so its dependencies are its own; nothing is installed
+    # here (private#1034).
+
+    elif [[ -f "$REPO_ROOT/pyproject.toml" || -f "$REPO_ROOT/python/pyproject.toml" ]]; then
+        py_dir="$REPO_ROOT"
+        [[ -f "$py_dir/pyproject.toml" ]] || py_dir="$REPO_ROOT/python"
+        py_bin=python3
+        [[ -x "$py_dir/.venv/bin/python" ]] && py_bin="$py_dir/.venv/bin/python"
+        "$py_bin" -m pytest --version >/dev/null 2>&1 || {
+            echo "FAILED: pytest is not installed for $py_bin; create $py_dir/.venv and install the project with its test extras." >&2
+            exit 1
+        }
+        time_step "pytest" bash -c 'cd "$1" && "$2" -m pytest -q' _ "$py_dir" "$py_bin"
+
+    # ─── npm project with a check script (vauchi/utils: drift-detector) ──
+
+    elif [[ -f "$REPO_ROOT/package.json" ]] && grep -q '"check":' "$REPO_ROOT/package.json"; then
+        [[ -d "$REPO_ROOT/node_modules" ]] || {
+            echo "FAILED: node_modules is missing; run npm ci in $REPO_ROOT first." >&2
+            exit 1
+        }
+        time_step "npm run check" npm --prefix "$REPO_ROOT" run check
+
     # ─── Unknown repo type ───────────────────────────────────────────────
 
     else
