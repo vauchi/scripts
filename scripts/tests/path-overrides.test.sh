@@ -87,9 +87,10 @@ test_apply_writes_fence() {
     # Patches should reference the right relative paths
     assert_contains "cli patches vauchi-app to ../core" \
         '../core/vauchi-app' "$(cat "$root/cli/Cargo.toml")"
-    # linux-gtk scans through vauchi-hardware (private#770); unpatched, its
-    # tests build against the released tag, not the local core under test.
-    assert_contains "linux-gtk patches vauchi-hardware to ../core" \
+    # vauchi-hardware left Core for vauchi/linux-hw (private#1026); a Core
+    # path patch for it points at a directory that no longer exists and
+    # stops every linux-gtk build (private#1029).
+    assert_not_contains "linux-gtk no longer patches vauchi-hardware to ../core" \
         'vauchi-hardware = { path = "../core/vauchi-hardware" }' \
         "$(cat "$root/linux-gtk/Cargo.toml")"
     # web-demo pins its core deps to an exact released version, which a
