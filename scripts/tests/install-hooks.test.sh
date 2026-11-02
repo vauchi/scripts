@@ -33,7 +33,7 @@ scripts_worktree="$workspace/.worktrees/installer/scripts"
 canonical_hooks="$canonical_scripts/hooks"
 disposable_hooks="$scripts_worktree/hooks"
 
-mkdir -p "$canonical_scripts/hooks" "$workspace/core"
+mkdir -p "$canonical_scripts/hooks" "$workspace/core" "$workspace/utils/fork"
 cp "$INSTALLER" "$canonical_scripts/install-hooks.sh"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$canonical_hooks/pre-push"
 
@@ -46,6 +46,8 @@ mkdir -p "$(dirname "$scripts_worktree")"
 git -C "$canonical_scripts" worktree add -q -b installer "$scripts_worktree"
 
 git -C "$workspace/core" init -q
+# Tools and forks are cloned under utils/ (private#1034).
+git -C "$workspace/utils/fork" init -q
 git -C "$canonical_scripts" config core.hooksPath "$disposable_hooks"
 git -C "$workspace/core" config core.hooksPath "$disposable_hooks"
 
@@ -57,6 +59,10 @@ assert_eq "worktree invocation heals sibling repository hooks" \
 assert_eq "worktree invocation heals shared scripts hooks" \
     "$canonical_hooks" \
     "$(git -C "$canonical_scripts" config --local --get core.hooksPath)"
+
+assert_eq "a clone under utils/ gets the shared hooks" \
+    "$canonical_hooks" \
+    "$(git -C "$workspace/utils/fork" config --local --get core.hooksPath || true)"
 
 printf '\ninstall-hooks.test: %d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
