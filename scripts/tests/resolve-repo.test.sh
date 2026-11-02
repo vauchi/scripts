@@ -65,3 +65,28 @@ $workspace/utils/somefork"
     fi
     echo "PASS ($shell): utils/ repos resolve to vauchi/utils/<name> and utils/<name>"
 done
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+
+# At the workspace root with no repo argument, the GitLab directory is the
+# root checkout itself. Detection names it "root", which the registry does
+# not list, so `just gitlab mr-create` failed with "cd: null directory".
+mkdir -p "$workspace/.git"
+for shell in bash zsh; do
+    command -v "$shell" >/dev/null 2>&1 || continue
+    out="$(
+        "$shell" -c '
+            cd "$1"
+            source "$1/scripts/scripts/resolve-repo.sh"
+            REPO_REGISTRY=("core:core:rust")
+            gitlab_repo_dir
+        ' _ "$workspace" 2>&1
+    )" || true
+    if [[ "$out" != "$workspace" ]]; then
+        echo "FAIL ($shell): gitlab_repo_dir at the root must name the root; got: $out"
+        exit 1
+    fi
+    echo "PASS ($shell): gitlab_repo_dir with no argument at the root names the root checkout"
+done
