@@ -121,14 +121,20 @@ def check_workspace(root: Path, repos: list[dict[str, Any]]) -> list[str]:
     readme = root / "README.md"
     readme_text = readme.read_text(encoding="utf-8") if readme.is_file() else ""
     profile = root / "gitlab-profile" / "README.md"
-    profile_text = profile.read_text(encoding="utf-8") if profile.is_file() else ""
+    profile_text = profile.read_text(encoding="utf-8") if profile.is_file() else None
+    if profile_text is None:
+        print("NOTE: gitlab-profile/README.md not cloned; group README unchecked")
     for repo in repos:
         name, path = repo["name"], repo.get("path", "")
         if path and path != "." and f"/{path}/" not in ignored:
             problems.append(f".gitignore lacks /{path}/ ({name})")
         if repo.get("public") and f"| [{path}/]({path}/) |" not in readme_text:
             problems.append(f"README.md table lacks a row for {name}")
-        if repo.get("profile") and f"| [{name}](https://gitlab.com/vauchi/{name})" not in profile_text:
+        if (
+            repo.get("profile")
+            and profile_text is not None
+            and f"| [{name}](https://gitlab.com/vauchi/{name})" not in profile_text
+        ):
             problems.append(f"gitlab-profile/README.md lacks a row for {name}")
     return problems
 
