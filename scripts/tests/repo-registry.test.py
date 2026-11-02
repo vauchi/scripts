@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -94,6 +95,13 @@ class RepoRegistryTest(unittest.TestCase):
         self.assertIn("REGISTRY: README.md table lacks a row for docs", result.stdout)
         self.assertIn("REGISTRY: gitlab-profile/README.md lacks a row for docs", result.stdout)
         self.assertIn("3 registry mismatch(es)", result.stdout)
+
+    def test_check_skips_the_group_readme_when_gitlab_profile_is_not_cloned(self) -> None:
+        shutil.rmtree(self.root / "gitlab-profile")
+        result = run(self.root, "check", str(self.root))
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertNotIn("gitlab-profile/README.md lacks", result.stdout)
+        self.assertIn("gitlab-profile/README.md not cloned; group README unchecked", result.stdout)
 
     def test_private_and_tooling_repos_need_no_readme_row(self) -> None:
         result = run(self.root, "check", str(self.root))
