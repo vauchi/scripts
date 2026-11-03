@@ -1,0 +1,134 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Auto-Tag Template
+#
+# A version bump merged to main creates the release tag. Self-contained:
+# unlike release.yml, whose dev/rc templates extend rust-base.yml and
+# security.yml, this file needs no other template (private#1045).
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: <pinned ref>
+#       file: '/ci-templates/auto-tag.yml'
+#   auto-tag:version:
+#     extends: .auto-tag
+#
+# ============================================================
+# Auto-Tag (merge to main → create version tag)
+# ============================================================
+# Reads version from Cargo.toml and creates a git tag if it doesn't exist.
+# Uses Docker runner with Alpine for minimal footprint.
+#
+# Variables:
+#   AUTO_TAG_VERSION_CMD:     Shell command to extract version (default: single crate)
+#   AUTO_TAG_SKIP_PRERELEASE: "true" to skip dev/rc versions (default: "true")
+#   AUTO_TAG_DEV_FALLBACK:    "true" to auto-create dev tag when version tag exists (default: "false")
+#
+# Example:
+#   auto-tag:version:
+#     extends: .auto-tag
+#
+#   # Workspace repo with dev-fallback (e.g. core):
+#   auto-tag:version:
+#     extends: .auto-tag
+#     variables:
+#       AUTO_TAG_VERSION_CMD: "grep -A5 '^\\[workspace\\.package\\]' Cargo.toml | grep '^version' | sed 's/.*\"\\(.*\\)\"/\\1/'"
+#       AUTO_TAG_SKIP_PRERELEASE: "false"
+#       AUTO_TAG_DEV_FALLBACK: "true"
+
+.auto-tag:
+  stage: auto-tag
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    # Skip on triggered pipelines (core triggering downstream for compat check).
+    # Auto-tag only makes sense when THIS repo's code was merged to main.
+    - if: $CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    GIT_STRATEGY: clone
+    GIT_DEPTH: "1"
+    AUTO_TAG_VERSION_CMD: "grep '^version' Cargo.toml | head -1 | sed 's/.*\"\\(.*\\)\"/\\1/'"
+    AUTO_TAG_SKIP_PRERELEASE: "true"
+    AUTO_TAG_DEV_FALLBACK: "false"
+  script:
+    - |
+      # The Alpine CDN fails intermittently and a bare `apk add` turns
+      # that into a red job for a check that never ran. Retry, and fail
+      # loudly rather than continuing without the tools.
+      for attempt in 1 2 3; do
+          apk add --no-cache git curl && installed=yes && break
+          echo "apk add failed (attempt $attempt/3), retrying in 5s" >&2
+          sleep 5
+      done
+      if [ "${installed:-}" != yes ]; then
+          echo "apk add failed after 3 attempts" >&2
+          exit 1
+      fi
+    - |
+      VERSION=$(eval "${AUTO_TAG_VERSION_CMD}")
+      TAG="v${VERSION}"
+      echo "Cargo.toml version: ${VERSION}"
+      echo "Expected tag: ${TAG}"
+
+      if [ "${AUTO_TAG_SKIP_PRERELEASE}" = "true" ]; then
+        if echo "$VERSION" | grep -qE -- '-(dev|rc)\.'; then
+          echo "⚠ Pre-release version ${VERSION} detected — skipping auto-tag"
+          echo "  Use 'just release-dev' or 'just release-rc' to create pre-release tags"
+          exit 0
+        fi
+      fi
+
+      # Commit as the token's own bot user. The group push rule "commit author
+      # must be a GitLab user" rejects a hardcoded noreply@vauchi.app address
+      # that belongs to nobody (core pipeline 2842810001, 2026-09-12). The
+      # /user endpoint answers with the member the token acts as; plain sed
+      # keeps this portable across the alpine, debian and node images.
+      BOT_USER_JSON=$(curl --silent --fail --header "PRIVATE-TOKEN: ${PROJECT_ACCESS_TOKEN}" "${CI_API_V4_URL}/user")
+      BOT_NAME=$(printf '%s' "$BOT_USER_JSON" | sed -n 's/.*"username":"\([^"]*\)".*/\1/p')
+      BOT_EMAIL=$(printf '%s' "$BOT_USER_JSON" | sed -n 's/.*"commit_email":"\([^"]*\)".*/\1/p')
+      [ -n "$BOT_NAME" ] && [ -n "$BOT_EMAIL" ] || { echo "ERROR: could not resolve the bot identity from PROJECT_ACCESS_TOKEN" >&2; exit 1; }
+      git config user.name "$BOT_NAME"
+      git config user.email "$BOT_EMAIL"
+
+      # Use project access token for push — CI_JOB_TOKEN cannot be used here
+      # because pushes via CI_JOB_TOKEN do not trigger new pipelines, and the
+      # tag push must trigger the release pipeline (build/package/publish stages).
+      # PROJECT_ACCESS_TOKEN is set at group level in Settings > CI/CD > Variables.
+      git remote set-url origin "https://vauchi-gitlab-runner:${PROJECT_ACCESS_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+
+      # Check if tag already exists
+      if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+        if [ "${AUTO_TAG_DEV_FALLBACK}" = "true" ]; then
+          echo "Tag ${TAG} already exists — creating dev tag instead"
+          BASE_VERSION=$(echo "${VERSION}" | sed 's/-.*//')
+          LAST_DEV=$(git ls-remote --tags origin "refs/tags/v${BASE_VERSION}-dev.*" \
+            | sed 's|.*/||' | sort -V | tail -1 || true)
+          if [ -n "${LAST_DEV}" ]; then
+            N=$(echo "${LAST_DEV}" | grep -oE '[0-9]+$')
+            N=$((N + 1))
+          else
+            N=1
+          fi
+          DEV_TAG="v${BASE_VERSION}-dev.${N}"
+          echo "Creating dev tag: ${DEV_TAG}"
+          git tag -a "${DEV_TAG}" -m "Dev build ${DEV_TAG}"
+          git push origin "${DEV_TAG}"
+          echo "✓ Created and pushed dev tag ${DEV_TAG}"
+        else
+          echo "✓ Tag ${TAG} already exists — nothing to do"
+        fi
+        exit 0
+      fi
+
+      echo "Tag ${TAG} does not exist — creating it..."
+
+      git tag -a "${TAG}" -m "Release ${TAG}"
+      git push origin "${TAG}"
+      echo "✓ Created and pushed tag ${TAG}"
