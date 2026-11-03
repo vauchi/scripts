@@ -142,6 +142,7 @@ strip_excluded() {
 strip_sanctioned_boundary_calls() {
     grep -vE '\.save_to_png_bytes\(' \
         | grep -vE '(^|[^A-Za-z0-9_])pixmap\.save\(' \
+        | grep -vE '(^|[^A-Za-z0-9_])grab\(\)\.save\(' \
         | grep -vE '\.save_exchanged_contact\(' \
         | grep -vE '\.save_key\(' \
         | grep -vE '(^|[^A-Za-z0-9_])saveBackupToFile\(' \
