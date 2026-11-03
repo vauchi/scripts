@@ -67,6 +67,20 @@ for item in "pub trait AccelerometerBackend: Send {}" \
 done
 
 core=$(make_core)
+printf 'pub struct Vauchi {\n    sync: Box<dyn Transport>,\n}\n' > "$core/vauchi-core/src/api.rs"
+assert_eq "Vauchi without a type parameter passes" "0" "$(rc "$core")"
+rm -rf "$core"
+
+for item in "pub struct Vauchi<T: Transport> {" "pub struct AppEngine<T> {"; do
+    core=$(make_core)
+    printf '%s\n}\n' "$item" > "$core/vauchi-core/src/api.rs"
+    assert_eq "'$item' fails" "1" "$(rc "$core")"
+    assert_eq "it names the Transport rule for '$item'" "1" \
+        "$(says "$core" "no Transport generic")"
+    rm -rf "$core"
+done
+
+core=$(make_core)
 mkdir -p "$core/vauchi-core/tests"
 printf 'pub trait Platform {}\npub struct MockBLEVerifier;\n' \
     > "$core/vauchi-core/tests/fixture.rs"
