@@ -159,7 +159,9 @@ strip_sanctioned_boundary_calls() {
 count_calls() {
     root="$1"; ext_re="$2"; content_re="$3"
     [ -d "$root" ] || { printf '0'; return; }
-    n=$(grep -rsnE "$content_re" "$root" 2>/dev/null \
+    # A tree with no match is the normal case. Under sh, errexit and
+    # pipefail reach into `$(...)`, so grep's exit 1 would end the audit.
+    n=$({ grep -rsnE "$content_re" "$root" 2>/dev/null || true; } \
         | { grep -E "$ext_re" || true; } \
         | strip_excluded \
         | strip_sanctioned_boundary_calls \
