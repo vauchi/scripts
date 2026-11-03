@@ -11,6 +11,7 @@
 #   - hardware depends on Core, never the reverse (owner 2026-10-30, #957)
 #   - no hardware trait or mock hardware type in core (ADR-031, ADR-077);
 #     a strategy seam's double such as MockProximityVerifier is not hardware
+#   - no Transport generic on the user-facing Vauchi and AppEngine (ADR-030)
 #
 # Exits 1 naming each broken rule; exits 1 when the checkout is missing,
 # so a wrong path cannot pass as "clean".
@@ -58,6 +59,9 @@ report "hardware depends on Core, never the reverse (#957): a core crate names a
 
 report "no hardware trait or mock hardware type in core (ADR-031, ADR-077)" \
     "$(grep_sources "pub[[:space:]]+(trait|struct)[[:space:]]+(Mock)?($HARDWARE_WORDS)[A-Za-z0-9_]*($HARDWARE_ROLES)([^A-Za-z0-9_]|$)")"
+
+report "no Transport generic on user-facing types (ADR-030): Vauchi and AppEngine take no type parameter" \
+    "$(grep_sources 'pub[[:space:]]+struct[[:space:]]+(Vauchi|AppEngine)[[:space:]]*<')"
 
 if [ "$failures" -gt 0 ]; then
     echo "check-adr-constraints: $failures rule(s) broken; see _private/.claude/rules/adr-constraints.md" >&2
