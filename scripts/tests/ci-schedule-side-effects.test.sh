@@ -41,7 +41,7 @@ require_schedule_guard() {
     fi
 }
 
-require_schedule_guard ci-templates/release.yml .auto-tag
+require_schedule_guard ci-templates/auto-tag.yml .auto-tag
 require_schedule_guard ci-templates/github-mirror.yml .github-mirror
 require_schedule_guard ci-templates/badges.yml .badges-pages
 
