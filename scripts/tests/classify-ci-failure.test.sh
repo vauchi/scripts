@@ -98,6 +98,15 @@ expect_category "missing tool (bash)" \
     "/bin/sh: cargo-nextest: command not found" "missing-tool"
 expect_category "missing tool (busybox)" \
     "sh: mold: not found" "missing-tool"
+expect_category "Python before 3.11 lacks tomllib" \
+    "ModuleNotFoundError: No module named 'tomllib'" "toolchain-compatibility"
+expect_escalate "missing tomllib does NOT escalate" \
+    "2026-11-03T12:00:00Z 01E ModuleNotFoundError: No module named 'tomllib'" "false"
+expect_fix "missing tomllib names the runtime or backport fix" \
+    "ModuleNotFoundError: No module named 'tomllib'" \
+    "Use Python 3.11+ or install a pinned tomli backport and fall back to it when tomllib is unavailable."
+expect_category "unrelated Python module is not a tomllib runtime mismatch" \
+    "ModuleNotFoundError: No module named 'other_module'" "unknown"
 expect_category "timeout" \
     "ERROR: Job exceeded maximum timeout of 3600 seconds" "timeout"
 expect_category "runner package-index DNS failure" \

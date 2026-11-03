@@ -48,10 +48,12 @@ fi
 # Order matters — a compile error line can also contain the word "failed",
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
+  "toolchain-compatibility"
   "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "authorization" "target-health" "runner-infrastructure" "toolchain-compatibility" "filesystem-permission" "external-config-drift" "transient-network" "timeout" "dep-resolution"
   "missing-tool" "compile-error" "lint" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
+  "ModuleNotFoundError: No module named 'tomllib'"
   "(failure method_parameter_count_changed:|Summary semver requires new major version:)"
   "could not find expected ':'[[:space:]]*$"
   "has both shebang line and .*\\[script\\].* attribute"
@@ -77,6 +79,7 @@ PATS=(
   "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL|ERROR: mirror .* missing .* build:debug should have built it|Release v[^ ]+ is tagged but not consumable:)"
 )
 FIXES=(
+  "Use Python 3.11+ or install a pinned tomli backport and fall back to it when tomllib is unavailable."
   "Restore the public API compatibility or intentionally bump the major version; never suppress the semver lint."
   "Fix the invalid YAML indentation or syntax, then rerun the CI lint; never suppress the lint."
   "Use a shebang recipe or the [script] attribute, not both; verify with the minimum supported just version."
