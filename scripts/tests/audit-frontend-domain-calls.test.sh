@@ -135,6 +135,11 @@ void render(const QPixmap &pixmap, const QString &path) {
     pixmap.save(path);
 }
 CPP
+    cat >"$root/linux-qt/src/display_abi.cpp" <<'CPP'
+void snapshotIfAsked() {
+    grab().save(QString::fromUtf8(path));
+}
+CPP
     out=$("$SCRIPT" "$root")
     assert_eq "native image export: gtk == 0" \
         "0" "$(extract_counter "$out" domain_calls_linux_gtk)"
