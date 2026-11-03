@@ -6,13 +6,8 @@
 # (VCI01, ADR-025) arrived on 2026-11-03, one line per occurrence as
 # "<repo> <file> <command>". This list may only shrink: delete a line
 # with the build it names.
-#   android: the two host-library builds and verify:reproducible-so's two
-#     builds; android!771 removes all four (Core publishes the host library
-#     and runs the reproducibility check itself).
+#   android: none since android!771 (2026-11-03): Core publishes the host
+#     library and runs the reproducibility check itself.
 #   linux-qt: the vauchi-cabi build; it goes when the Qt pairing moves into
 #     linux-app and linux-qt becomes qt-display (ADR-078, private#1029).
-android .gitlab-ci.yml cargo build -p vauchi-platform --release --manifest-path "$CORE_DIR/Cargo.toml"
-android .gitlab-ci.yml cargo build -p vauchi-platform --release --manifest-path "$CORE_DIR/Cargo.toml"
-android .gitlab-ci.yml cargo ndk -t aarch64-linux-android build -p vauchi-platform --release \
-android .gitlab-ci.yml cargo ndk -t aarch64-linux-android build -p vauchi-platform --release \
 linux-qt .gitlab-ci.yml cargo build --release -p vauchi-cabi --features secure-storage
