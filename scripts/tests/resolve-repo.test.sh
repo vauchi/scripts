@@ -65,10 +65,6 @@ $workspace/utils/somefork"
     fi
     echo "PASS ($shell): utils/ repos resolve to vauchi/utils/<name> and utils/<name>"
 done
-# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
-#
-# SPDX-License-Identifier: GPL-3.0-or-later
-
 
 # At the workspace root with no repo argument, the GitLab directory is the
 # root checkout itself. Detection names it "root", which the registry does
