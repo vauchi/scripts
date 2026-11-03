@@ -649,12 +649,14 @@ RS
 # alpine). There errexit and pipefail reach into `$(...)`, so a grep that
 # matches nothing must not end the run: the C# and C++ shells have no
 # form-factor branch, and the audit has to say 0, not exit silently.
+# `bash --posix` has the same errexit rule on every runner; a bare `sh`
+# does not: on node:20 it is dash, which rejects `set -o pipefail` first.
 test_sh_run_with_no_match_reports() {
     root=$(mktemp -d)
     mkdir -p "$root/windows/Vauchi" "$root/linux-qt/src"
     printf 'public void Run() { LoadState(); }\n' >"$root/windows/Vauchi/App.cs"
     printf 'void f() { load(); }\n' >"$root/linux-qt/src/app.cpp"
-    out=$(sh "$SCRIPT" "$root" 2>&1) || true
+    out=$(bash --posix "$SCRIPT" "$root" 2>&1) || true
     assert_eq "sh: windows form_factor reported" \
         "0" "$(extract_counter "$out" form_factor_windows)"
     assert_eq "sh: linux_qt form_factor reported" \
