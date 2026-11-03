@@ -644,6 +644,24 @@ RS
     rm -rf "$root"
 }
 
+# ── 20. Run as `sh`, a shell without a match still reports ───────────
+# ci-templates/domain-calls.yml runs the audit with `sh` (busybox ash on
+# alpine). There errexit and pipefail reach into `$(...)`, so a grep that
+# matches nothing must not end the run: the C# and C++ shells have no
+# form-factor branch, and the audit has to say 0, not exit silently.
+test_sh_run_with_no_match_reports() {
+    root=$(mktemp -d)
+    mkdir -p "$root/windows/Vauchi" "$root/linux-qt/src"
+    printf 'public void Run() { LoadState(); }\n' >"$root/windows/Vauchi/App.cs"
+    printf 'void f() { load(); }\n' >"$root/linux-qt/src/app.cpp"
+    out=$(sh "$SCRIPT" "$root" 2>&1) || true
+    assert_eq "sh: windows form_factor reported" \
+        "0" "$(extract_counter "$out" form_factor_windows)"
+    assert_eq "sh: linux_qt form_factor reported" \
+        "0" "$(extract_counter "$out" form_factor_linux_qt)"
+    rm -rf "$root"
+}
+
 # ── run ───────────────────────────────────────────────────────────────
 test_empty_workspace
 test_rust_sentinel
@@ -669,6 +687,7 @@ test_rust_inline_test_module_excluded
 test_cfg_test_use_does_not_blind_file
 test_indented_cfg_test_does_not_blind_file
 test_cfg_test_free_function_does_not_blind_file
+test_sh_run_with_no_match_reports
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
