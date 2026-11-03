@@ -142,3 +142,42 @@
       tar -xJf "$TMP_DIR/shellcheck.tar.xz" -C "$TMP_DIR" "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
       install -m 755 "$TMP_DIR/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
       command -v shellcheck >/dev/null 2>&1
+
+# linuxdeploy and its GTK plugin, for AppImage packaging. The release and
+# the plugin commit are pinned, not `continuous` and `master`. They go into
+# the job's own directory because the shell runner's user cannot write
+# /usr/local/bin (linux-gtk v0.6.0 tag pipeline, curl exit 23). Extract-and-
+# run spares the runner FUSE, which an AppImage otherwise needs.
+.install-linuxdeploy:
+  variables:
+    APPIMAGE_EXTRACT_AND_RUN: "1"
+  before_script:
+    - |
+      set -euo pipefail
+      LINUXDEPLOY_RELEASE="1-alpha-20251107-1"
+      LINUXDEPLOY_SHA256="c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d"
+      LINUXDEPLOY_GTK_COMMIT="3b67a1d1c1b0c8268f57f2bce40fe2d33d409cea"
+      LINUXDEPLOY_GTK_SHA256="b0f4cbc684a0103a9651f0955b635eaea0096b3a66c0f5a2c2aa337960375171"
+      TOOLS_DIR="${CI_PROJECT_DIR}/.ci-tools/bin"
+      mkdir -p "$TOOLS_DIR"
+      fetch_verified() {
+          url=$1
+          out=$2
+          sum=$3
+          status=$(curl -sSL --retry 3 --retry-max-time 60 --max-time 120 \
+              -o "$out" -w '%{http_code}' "$url") || status="000"
+          if [ "$status" != "200" ]; then
+              echo "ERROR: $url -> HTTP $status" >&2
+              exit 1
+          fi
+          printf '%s  %s\n' "$sum" "$out" | sha256sum -c -
+          chmod +x "$out"
+      }
+      fetch_verified \
+          "https://github.com/linuxdeploy/linuxdeploy/releases/download/${LINUXDEPLOY_RELEASE}/linuxdeploy-x86_64.AppImage" \
+          "$TOOLS_DIR/linuxdeploy" "$LINUXDEPLOY_SHA256"
+      fetch_verified \
+          "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/${LINUXDEPLOY_GTK_COMMIT}/linuxdeploy-plugin-gtk.sh" \
+          "$TOOLS_DIR/linuxdeploy-plugin-gtk.sh" "$LINUXDEPLOY_GTK_SHA256"
+    - export PATH="${CI_PROJECT_DIR}/.ci-tools/bin:${PATH}"
+    - command -v linuxdeploy
