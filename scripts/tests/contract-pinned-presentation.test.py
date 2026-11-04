@@ -36,7 +36,7 @@ class ContractPinnedPresentation(unittest.TestCase):
         ("design-drift.yml", ".design-drift-job"),
     )
 
-    def run_job(self, template, job, *, missing=False, tagged=True, legacy=False):
+    def run_job(self, template, job, *, missing=False, tagged=True, legacy=False, nodes=True):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             binary_dir = work / "bin"
@@ -59,7 +59,7 @@ class ContractPinnedPresentation(unittest.TestCase):
                 "import json, os, pathlib, shutil, sys\n"
                 "with open(os.environ['GIT_CALLS'], 'a') as log:\n"
                 "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-                "if 'checkout' in sys.argv:\n"
+                "if 'checkout' in sys.argv and os.environ['OMIT_NODES'] != '1':\n"
                 "    target = pathlib.Path(sys.argv[sys.argv.index('-C') + 1])\n"
                 "    for relative in ('src/presentation/surface/nodes.rs',\n"
                 "                     'vauchi-core/src/platform/presentation/surface/nodes.rs'):\n"
@@ -81,6 +81,7 @@ class ContractPinnedPresentation(unittest.TestCase):
                 "PATH": str(binary_dir) + os.pathsep + os.environ["PATH"],
                 "GIT_CALLS": str(work / "git.jsonl"),
                 "FIXTURE_NODES": str(work / "nodes.rs"),
+                "OMIT_NODES": "0" if nodes else "1",
                 "PARSER_CHECKER": str(ROOT / "scripts/check-component-parser-parity.py"),
                 "FRONTEND_NAME": "linux-gtk",
                 "PARSER_FILE": "renderer.rs",
@@ -99,7 +100,7 @@ class ContractPinnedPresentation(unittest.TestCase):
             # The metrics service is outside the presentation-check contract.
             script = "fetch_vauchi_script() { return 1; }\n" + job_script(template, job)
             result = subprocess.run(
-                ["bash", "-c", script], cwd=work, env=env,
+                [os.environ.get("PRESENTATION_TEST_SHELL", "bash"), "-c", script], cwd=work, env=env,
                 capture_output=True, text=True, check=False,
             )
             calls = work / "git.jsonl"
@@ -132,6 +133,14 @@ class ContractPinnedPresentation(unittest.TestCase):
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
                 self.assertIn("no vauchi-contract tag", result.stdout + result.stderr)
                 self.assertEqual(calls, [])
+
+    # @internal — an absent enum cannot report complete renderer coverage.
+    def test_missing_enum_file_is_rejected(self):
+        for template, job in self.jobs:
+            with self.subTest(job=job):
+                result, _ = self.run_job(template, job, nodes=False)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("missing", (result.stdout + result.stderr).lower())
 
     # @internal — existing Core-pinned consumers keep their behavior.
     def test_legacy_core_reference_remains_supported(self):

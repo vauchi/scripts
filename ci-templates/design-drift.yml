@@ -24,6 +24,8 @@
 #   DESIGN_DRIFT_MATCH_MODE:     "file" (default) = one file per component, "grep" = grep in renderer file
 #   DESIGN_DRIFT_GREP_FILE:      Path to renderer file (required when MATCH_MODE=grep)
 #   DESIGN_DRIFT_PROTOCOL:       "component" (design specs) or "presentation"
+#   CONTRACT_PIN_FILE:        Cargo manifest of a contract-only display shell;
+#                            its vauchi-contract tag supplies the enum.
 #   CORE_REF:                    Core ref used in presentation mode
 #   CORE_PIN_FILE / CORE_PIN_KIND: the consumer's own Core pin (e.g.
 #                   cabi-version.json / cabi-json). When set, CORE_REF is
@@ -134,6 +136,7 @@
     DESIGN_DRIFT_PROTOCOL: "component"
     CORE_REF: "main"
     CORE_PIN_FILE: ""
+    CONTRACT_PIN_FILE: ""
     CORE_PIN_KIND: ""
     CORE_PINS_SCRIPT_REF: "main"
   before_script:
@@ -187,21 +190,41 @@
       EXPECTED_COMPONENTS=""
       EXPECTED_COUNT=0
       if [ "$DESIGN_DRIFT_PROTOCOL" = "presentation" ]; then
-        # Same step as parser-parity.yml: the pin, not a constant, names Core.
-        if [ -n "$CORE_PIN_FILE" ]; then
-          curl --fail-with-body -sS -o /tmp/core-pins.py \
-            "https://gitlab.com/vauchi/scripts/-/raw/${CORE_PINS_SCRIPT_REF}/scripts/core-pins.py"
-          CORE_REF=$(python3 /tmp/core-pins.py read --kind "$CORE_PIN_KIND" "$CORE_PIN_FILE")
-          echo "Core ref from $CORE_PIN_FILE: $CORE_REF"
+        if [ -n "$CONTRACT_PIN_FILE" ]; then
+          CONTRACT_REF=$(python3 -c 'import pathlib, sys, tomllib; print(tomllib.loads(pathlib.Path(sys.argv[1]).read_text())["dependencies"]["vauchi-contract"].get("tag", ""))' "$CONTRACT_PIN_FILE")
+          if [ -z "$CONTRACT_REF" ]; then
+            echo "ERROR: $CONTRACT_PIN_FILE has no vauchi-contract tag" >&2
+            exit 2
+          fi
+          CONTRACT_DIR=$(mktemp -d)
+          git -C "$CONTRACT_DIR" init -q
+          git -C "$CONTRACT_DIR" remote add origin https://gitlab.com/vauchi/contract.git
+          git -C "$CONTRACT_DIR" sparse-checkout init --no-cone
+          git -C "$CONTRACT_DIR" sparse-checkout set src/presentation/surface/nodes.rs
+          git -C "$CONTRACT_DIR" fetch -q --depth 1 origin "refs/tags/$CONTRACT_REF"
+          git -C "$CONTRACT_DIR" checkout -q FETCH_HEAD
+          ENUM_FILE="$CONTRACT_DIR/src/presentation/surface/nodes.rs"
+        else
+          # Same step as parser-parity.yml: the pin, not a constant, names Core.
+          if [ -n "$CORE_PIN_FILE" ]; then
+            curl --fail-with-body -sS -o /tmp/core-pins.py \
+              "https://gitlab.com/vauchi/scripts/-/raw/${CORE_PINS_SCRIPT_REF}/scripts/core-pins.py"
+            CORE_REF=$(python3 /tmp/core-pins.py read --kind "$CORE_PIN_KIND" "$CORE_PIN_FILE")
+            echo "Core ref from $CORE_PIN_FILE: $CORE_REF"
+          fi
+          CORE_DIR=$(mktemp -d)
+          git -C "$CORE_DIR" init -q
+          git -C "$CORE_DIR" remote add origin https://gitlab.com/vauchi/core.git
+          git -C "$CORE_DIR" sparse-checkout init --no-cone
+          git -C "$CORE_DIR" sparse-checkout set vauchi-core/src/platform/presentation/surface/nodes.rs
+          git -C "$CORE_DIR" fetch -q --depth 1 origin "$CORE_REF"
+          git -C "$CORE_DIR" checkout -q FETCH_HEAD
+          ENUM_FILE="$CORE_DIR/vauchi-core/src/platform/presentation/surface/nodes.rs"
         fi
-        CORE_DIR=$(mktemp -d)
-        git -C "$CORE_DIR" init -q
-        git -C "$CORE_DIR" remote add origin https://gitlab.com/vauchi/core.git
-        git -C "$CORE_DIR" sparse-checkout init --no-cone
-        git -C "$CORE_DIR" sparse-checkout set vauchi-core/src/platform/presentation/surface/nodes.rs
-        git -C "$CORE_DIR" fetch -q --depth 1 origin "$CORE_REF"
-        git -C "$CORE_DIR" checkout -q FETCH_HEAD
-        ENUM_FILE="$CORE_DIR/vauchi-core/src/platform/presentation/surface/nodes.rs"
+        if [ ! -f "$ENUM_FILE" ]; then
+          echo "ERROR: missing canonical enum file: $ENUM_FILE" >&2
+          exit 2
+        fi
         for name in $(awk '
           /^pub enum PresentationNode / { in_enum=1; next }
           in_enum && /^}/ { exit }

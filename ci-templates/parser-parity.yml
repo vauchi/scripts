@@ -24,6 +24,8 @@
 #   CORE_REF:       Git ref of vauchi/core to check against (default:
 #                   main). Pin to a specific tag/commit for reproducible
 #                   runs.
+#   CONTRACT_PIN_FILE: Cargo manifest of a contract-only display shell;
+#                      its vauchi-contract tag supplies the presentation enum.
 #   PARSER_PROTOCOL: "component" (legacy) or "presentation".
 #   CORE_PIN_FILE / CORE_PIN_KIND: the consumer's own Core pin (e.g.
 #                   cabi-version.json / cabi-json). When set, CORE_REF is
@@ -46,6 +48,7 @@
     PARSER_PROTOCOL: "component"
     PARSER_SCRIPT_REF: "main"
     CORE_PIN_FILE: ""
+    CONTRACT_PIN_FILE: ""
     CORE_PIN_KIND: ""
   before_script:
     - |
@@ -75,47 +78,12 @@
         exit 2
       fi
 
-      # Same step as design-drift.yml: the pin, not a constant, names Core.
-      if [ -n "$CORE_PIN_FILE" ]; then
-        wget -q -O /tmp/core-pins.py \
-          "https://gitlab.com/vauchi/scripts/-/raw/${PARSER_SCRIPT_REF}/scripts/core-pins.py"
-        CORE_REF=$(python3 /tmp/core-pins.py read --kind "$CORE_PIN_KIND" "$CORE_PIN_FILE")
-        echo "Core ref from $CORE_PIN_FILE: $CORE_REF"
-      fi
-
-      # Fetch only the canonical enum file from core via shallow clone +
-      # sparse-checkout — avoids a full clone of the core repo just to
-      # read one source file.
-      #
-      # Wire Humble Tier 0 (2026-05-04, core 0.41.0) split the single
-      # `component.rs` into `component/{mod,list,preview}.rs` to keep the
-      # file under the size warn threshold. Fetch both paths so this
-      # template works against pre-Tier-0 refs (tagged binding versions
-      # still pinned to 0.39.0 etc.) and post-Tier-0 main alike.
-      mkdir -p .core-parity
-      git -C .core-parity init -q
-      git -C .core-parity remote add origin https://gitlab.com/vauchi/core.git
-      git -C .core-parity sparse-checkout init --no-cone
-      git -C .core-parity sparse-checkout set \
-        Cargo.toml \
-        vauchi-app/src/ui/component.rs \
-        vauchi-app/src/ui/component \
-        vauchi-core/src/platform/presentation/surface/nodes.rs
-      git -C .core-parity fetch -q --depth 1 origin "$CORE_REF"
-      git -C .core-parity checkout -q FETCH_HEAD
-
-      # ADR-078 (vauchi/private#1013) moved the presentation nodes to the
-      # contract crate, which Core pins by tag in its workspace Cargo.toml.
-      # A Core ref without vauchi-core's copy reads the contract's at that
-      # tag; older refs keep vauchi-core's (vauchi/private#1030).
-      PRESENTATION_NODES=".core-parity/vauchi-core/src/platform/presentation/surface/nodes.rs"
-      if [ "$PARSER_PROTOCOL" = "presentation" ] && [ ! -f "$PRESENTATION_NODES" ]; then
-        CONTRACT_REF=$(sed -n 's/^vauchi-contract *=.*tag *= *"\([^"]*\)".*/\1/p' .core-parity/Cargo.toml)
+      if [ -n "$CONTRACT_PIN_FILE" ]; then
+        CONTRACT_REF=$(python3 -c 'import pathlib, sys, tomllib; print(tomllib.loads(pathlib.Path(sys.argv[1]).read_text())["dependencies"]["vauchi-contract"].get("tag", ""))' "$CONTRACT_PIN_FILE")
         if [ -z "$CONTRACT_REF" ]; then
-          echo "ERROR: Core $CORE_REF has no presentation nodes and pins no vauchi-contract tag"
+          echo "ERROR: $CONTRACT_PIN_FILE has no vauchi-contract tag" >&2
           exit 2
         fi
-        echo "Presentation nodes from vauchi/contract $CONTRACT_REF (pinned by Core $CORE_REF)"
         mkdir -p .contract-parity
         git -C .contract-parity init -q
         git -C .contract-parity remote add origin https://gitlab.com/vauchi/contract.git
@@ -124,6 +92,57 @@
         git -C .contract-parity fetch -q --depth 1 origin "refs/tags/$CONTRACT_REF"
         git -C .contract-parity checkout -q FETCH_HEAD
         PRESENTATION_NODES=".contract-parity/src/presentation/surface/nodes.rs"
+      else
+        # Same step as design-drift.yml: the pin, not a constant, names Core.
+        if [ -n "$CORE_PIN_FILE" ]; then
+          wget -q -O /tmp/core-pins.py \
+            "https://gitlab.com/vauchi/scripts/-/raw/${PARSER_SCRIPT_REF}/scripts/core-pins.py"
+          CORE_REF=$(python3 /tmp/core-pins.py read --kind "$CORE_PIN_KIND" "$CORE_PIN_FILE")
+          echo "Core ref from $CORE_PIN_FILE: $CORE_REF"
+        fi
+
+        # Fetch only the canonical enum file from core via shallow clone +
+        # sparse-checkout — avoids a full clone of the core repo just to
+        # read one source file.
+        #
+        # Wire Humble Tier 0 (2026-05-04, core 0.41.0) split the single
+        # `component.rs` into `component/{mod,list,preview}.rs` to keep the
+        # file under the size warn threshold. Fetch both paths so this
+        # template works against pre-Tier-0 refs (tagged binding versions
+        # still pinned to 0.39.0 etc.) and post-Tier-0 main alike.
+        mkdir -p .core-parity
+        git -C .core-parity init -q
+        git -C .core-parity remote add origin https://gitlab.com/vauchi/core.git
+        git -C .core-parity sparse-checkout init --no-cone
+        git -C .core-parity sparse-checkout set \
+          Cargo.toml \
+          vauchi-app/src/ui/component.rs \
+          vauchi-app/src/ui/component \
+          vauchi-core/src/platform/presentation/surface/nodes.rs
+        git -C .core-parity fetch -q --depth 1 origin "$CORE_REF"
+        git -C .core-parity checkout -q FETCH_HEAD
+
+        # ADR-078 (vauchi/private#1013) moved the presentation nodes to the
+        # contract crate, which Core pins by tag in its workspace Cargo.toml.
+        # A Core ref without vauchi-core's copy reads the contract's at that
+        # tag; older refs keep vauchi-core's (vauchi/private#1030).
+        PRESENTATION_NODES=".core-parity/vauchi-core/src/platform/presentation/surface/nodes.rs"
+        if [ "$PARSER_PROTOCOL" = "presentation" ] && [ ! -f "$PRESENTATION_NODES" ]; then
+          CONTRACT_REF=$(sed -n 's/^vauchi-contract *=.*tag *= *"\([^"]*\)".*/\1/p' .core-parity/Cargo.toml)
+          if [ -z "$CONTRACT_REF" ]; then
+            echo "ERROR: Core $CORE_REF has no presentation nodes and pins no vauchi-contract tag"
+            exit 2
+          fi
+          echo "Presentation nodes from vauchi/contract $CONTRACT_REF (pinned by Core $CORE_REF)"
+          mkdir -p .contract-parity
+          git -C .contract-parity init -q
+          git -C .contract-parity remote add origin https://gitlab.com/vauchi/contract.git
+          git -C .contract-parity sparse-checkout init --no-cone
+          git -C .contract-parity sparse-checkout set src/presentation/surface/nodes.rs
+          git -C .contract-parity fetch -q --depth 1 origin "refs/tags/$CONTRACT_REF"
+          git -C .contract-parity checkout -q FETCH_HEAD
+          PRESENTATION_NODES=".contract-parity/src/presentation/surface/nodes.rs"
+        fi
       fi
 
       # Prefer the post-Tier-0 layout; fall back to the pre-Tier-0
