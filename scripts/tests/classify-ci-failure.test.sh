@@ -239,6 +239,14 @@ expect_fix "YAML syntax preserves the lint gate" \
 expect_category "required CI template variable" \
     "/usr/bin/bash: line 222: FETCH_SCRIPT_PATH: FETCH_SCRIPT_PATH must be set" \
     "template-contract"
+expect_category "parser path moved during extraction" \
+    "ERROR: PARSER_FILE not found: src/ui/presentation_renderer" \
+    "template-contract"
+expect_escalate "missing parser path does NOT escalate" \
+    "ERROR: PARSER_FILE not found: src/ui/presentation_renderer" "false"
+expect_fix "missing parser path names the consumer variable" \
+    "ERROR: PARSER_FILE not found: src/ui/presentation_renderer" \
+    "Point PARSER_FILE at the consuming shell's current parser path; preserve the parity check after moving files."
 expect_escalate "required CI template variable does NOT escalate" \
     "FETCH_SCRIPT_PATH: FETCH_SCRIPT_PATH must be set" "false"
 expect_fix "required CI template variable preserves execution order" \
