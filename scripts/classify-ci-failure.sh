@@ -48,12 +48,15 @@ fi
 # Order matters — a compile error line can also contain the word "failed",
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
+  "runner-infrastructure" "dep-resolution"
   "template-contract"
   "toolchain-compatibility"
   "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "authorization" "target-health" "runner-infrastructure" "toolchain-compatibility" "filesystem-permission" "external-config-drift" "transient-network" "timeout" "dep-resolution"
   "missing-tool" "compile-error" "lint" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
+  "sccache: error: Timed out waiting for server startup"
+  "FAIL: .* pins Core crates at another tag than (the )?set's v"
   "ERROR: PARSER_FILE not found:"
   "ModuleNotFoundError: No module named 'tomllib'"
   "(failure method_parameter_count_changed:|Summary semver requires new major version:)"
@@ -81,6 +84,8 @@ PATS=(
   "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL|ERROR: mirror .* missing .* build:debug should have built it|Release v[^ ]+ is tagged but not consumable:)"
 )
 FIXES=(
+  "Inspect the sccache version and daemon startup logs; use a version with the startup notification race fixed, and preserve the cache-hit probe."
+  "Select successful relay and CLI commits that pin the set's Core tag, then update the cohort pins and lockfile together; preserve the pin guard."
   "Point PARSER_FILE at the consuming shell's current parser path; preserve the parity check after moving files."
   "Use Python 3.11+ or install a pinned tomli backport and fall back to it when tomllib is unavailable."
   "Restore the public API compatibility or intentionally bump the major version; never suppress the semver lint."

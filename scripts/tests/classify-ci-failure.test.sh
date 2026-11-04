@@ -88,6 +88,10 @@ expect_category "C FFI cross-compile" \
     "  = note: fatal error: 'openssl/ssl.h' file not found" "c-ffi-cross"
 expect_category "dependency resolution" \
     "error: failed to select a version for \`libc\`" "dep-resolution"
+expect_category "pinned release cohort mismatch" \
+    "FAIL: relay/Cargo.toml pins Core crates at another tag than the set's v0.99.1:" "dep-resolution"
+expect_category "sccache daemon startup timeout" \
+    "sccache: error: Timed out waiting for server startup" "runner-infrastructure"
 expect_category "npm dependency audit" \
     "1 moderate severity vulnerability" "dep-resolution"
 expect_category "cargo dependency audit" \
