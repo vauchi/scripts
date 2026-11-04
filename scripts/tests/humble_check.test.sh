@@ -745,6 +745,44 @@ RS
     rm -rf "$root"
 }
 
+# test_shell_accessibility_copy — adr-constraints: accessibility copy is
+# Core-prepared; a shell maps the label Core sends and writes none itself.
+test_shell_accessibility_copy() {
+    root=$(mktemp -d)
+    mkdir -p "$root/android/app/src/main/kotlin" "$root/ios/Vauchi" \
+        "$root/linux-qt/src" "$root/windows/Vauchi" "$root/linux-gtk/src"
+    cat >"$root/android/app/src/main/kotlin/Row.kt" <<'KT'
+Icon(Icons.Default.Delete, contentDescription = "Delete contact")
+Icon(icon, contentDescription = stringResource(R.string.delete))
+Icon(icon, contentDescription = node.accessibilityLabel)
+KT
+    cat >"$root/ios/Vauchi/Row.swift" <<'SW'
+.accessibilityLabel("Row actions")
+.accessibilityHint(NSLocalizedString("opens", comment: ""))
+.accessibilityLabel(node.accessibility.label)
+SW
+    cat >"$root/linux-qt/src/row.cpp" <<'CPP'
+button->setAccessibleName(QStringLiteral("Delete"));
+button->setAccessibleDescription(tr("Removes the contact"));
+button->setAccessibleName(node.accessibilityLabel);
+CPP
+    cat >"$root/windows/Vauchi/Row.xaml" <<'XAML'
+<Button AutomationProperties.Name="Delete" />
+<Button AutomationProperties.Name="{x:Bind Node.AccessibilityLabel}" />
+XAML
+    cat >"$root/linux-gtk/src/row.rs" <<'RS'
+button.update_property(&[gtk::accessible::Property::Label("Delete")]);
+button.update_property(&[gtk::accessible::Property::Label(&node.accessibility_label)]);
+RS
+    for spec in android:2 ios:2 linux-qt:2 windows:1 linux-gtk:1; do
+        repo=${spec%:*}; want=${spec#*:}
+        out=$(python3 "$SCRIPT" --repo "$repo" --workspace-root "$root" --config "$CONFIG")
+        assert_eq "a11y copy: $repo counts $want" "$want" \
+            "$(extract_counter "$out" shell_accessibility_copy)"
+    done
+    rm -rf "$root"
+}
+
 # test_vocabulary_covers_rule_types — the Core schema test reads the shared
 # vocabulary instead of restating it, which only holds while the vocabulary
 # covers every type the rules grep for
@@ -821,6 +859,7 @@ test_tighten_refuses_incomplete_checkout
 test_vocabulary_covers_rule_types
 test_vocabulary_allows_entries_without_a_rule
 test_frontend_image_encoding
+test_shell_accessibility_copy
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
