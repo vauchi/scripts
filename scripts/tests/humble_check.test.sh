@@ -586,9 +586,14 @@ test_require_zero_rejects_nonzero_stored_baseline() {
     root=$(mktemp -d)
     mkdir -p "$root/ios/Vauchi/CoreUI"
     baseline="$root/baseline.json"
-    python3 - "$BASELINE" "$baseline" <<'PY'
+    zero="$root/zero.json"
+    # The real baseline may carry recorded ios debt, so the zero case gets
+    # its own all-zero copy.
+    python3 - "$BASELINE" "$baseline" "$zero" <<'PY'
 import json, sys
 baseline = json.load(open(sys.argv[1], encoding="utf-8"))
+baseline["repos"]["ios"] = {rule: 0 for rule in baseline["repos"]["ios"]}
+json.dump(baseline, open(sys.argv[3], "w", encoding="utf-8"))
 baseline["repos"]["ios"]["action_id_minting"] = 1
 json.dump(baseline, open(sys.argv[2], "w", encoding="utf-8"))
 PY
@@ -597,7 +602,7 @@ PY
         --check "$baseline" --require-zero >/dev/null 2>&1
     rc=$?
     python3 "$SCRIPT" --repo ios --workspace-root "$root" --config "$CONFIG" \
-        --check "$BASELINE" --require-zero >/dev/null 2>&1
+        --check "$zero" --require-zero >/dev/null 2>&1
     zero_rc=$?
     set -e
     assert_eq "require-zero: nonzero stored baseline exits 1" "1" "$rc"

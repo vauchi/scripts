@@ -103,6 +103,13 @@
             "ImageFormat::(WebP|Jpeg)\\b",
             "imageops::(resize|thumbnail)\\b"
           ]
+        },
+        "shell_accessibility_copy": {
+          "message": "adr-constraints: accessibility copy is Core-prepared; map the label, hint and value Core sends, and write none in the shell.",
+          "patterns": [
+            "Property::(Label|Description)\\(\\s*\\\"",
+            "set_accessible_(name|description)\\(\\s*Some\\(\\s*\\\""
+          ]
         }
       }
     },
@@ -189,6 +196,12 @@
             "\\.heicData\\(",
             "\\bCGImageDestinationCreate",
             "UTType\\.(webP|jpeg|heic)\\b"
+          ]
+        },
+        "shell_accessibility_copy": {
+          "message": "adr-constraints: accessibility copy is Core-prepared; map the label, hint and value Core sends, and write none in the shell.",
+          "patterns": [
+            "\\.accessibility(Label|Hint|Value)\\(\\s*(Text\\()?(\\\"|NSLocalizedString\\(|String\\(localized)"
           ]
         }
       }
@@ -278,6 +291,12 @@
             "CompressFormat\\.(WEBP|WEBP_LOSSY|WEBP_LOSSLESS|JPEG)",
             "\\bcreateScaledBitmap\\("
           ]
+        },
+        "shell_accessibility_copy": {
+          "message": "adr-constraints: accessibility copy is Core-prepared; map the label, hint and value Core sends, and write none in the shell.",
+          "patterns": [
+            "\\b(contentDescription|stateDescription)\\s*=\\s*(\\\"|stringResource\\(|context\\.getString\\(|getString\\()"
+          ]
         }
       }
     },
@@ -346,6 +365,12 @@
             "\\bCGImageDestinationCreate",
             "UTType\\.(webP|jpeg|heic)\\b"
           ]
+        },
+        "shell_accessibility_copy": {
+          "message": "adr-constraints: accessibility copy is Core-prepared; map the label, hint and value Core sends, and write none in the shell.",
+          "patterns": [
+            "\\.accessibility(Label|Hint|Value)\\(\\s*(Text\\()?(\\\"|NSLocalizedString\\(|String\\(localized)"
+          ]
         }
       }
     },
@@ -397,6 +422,13 @@
           "patterns": [
             "BitmapEncoder\\.(Jpeg|JpegXR|Heif|Webp)EncoderId",
             "\\bWebp(Encoder|Encode)\\b"
+          ]
+        },
+        "shell_accessibility_copy": {
+          "message": "adr-constraints: accessibility copy is Core-prepared; map the label, hint and value Core sends, and write none in the shell.",
+          "patterns": [
+            "AutomationProperties\\.(Name|HelpText)=\\\"[^{]",
+            "AutomationProperties\\.Set(Name|HelpText)\\([^,]+,\\s*\\\""
           ]
         }
       }
@@ -463,6 +495,13 @@
             "ImageFormat::(WebP|Jpeg)\\b",
             "imageops::(resize|thumbnail)\\b"
           ]
+        },
+        "shell_accessibility_copy": {
+          "message": "adr-constraints: accessibility copy is Core-prepared; map the label, hint and value Core sends, and write none in the shell.",
+          "patterns": [
+            "Property::(Label|Description)\\(\\s*\\\"",
+            "set_accessible_(name|description)\\(\\s*Some\\(\\s*\\\""
+          ]
         }
       }
     },
@@ -514,6 +553,12 @@
           "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
           "patterns": [
             "\\.save\\([^)]*\\\"(WEBP|webp|JPG|jpg|JPEG|jpeg|HEIC|heic)\\\""
+          ]
+        },
+        "shell_accessibility_copy": {
+          "message": "adr-constraints: accessibility copy is Core-prepared; map the label, hint and value Core sends, and write none in the shell.",
+          "patterns": [
+            "setAccessible(Name|Description)\\(\\s*(QStringLiteral\\(|tr\\(|\\\")"
           ]
         }
       }
@@ -572,6 +617,13 @@
             "ImageFormat::(WebP|Jpeg)\\b",
             "imageops::(resize|thumbnail)\\b"
           ]
+        },
+        "shell_accessibility_copy": {
+          "message": "adr-constraints: accessibility copy is Core-prepared; map the label, hint and value Core sends, and write none in the shell.",
+          "patterns": [
+            "Property::(Label|Description)\\(\\s*\\\"",
+            "set_accessible_(name|description)\\(\\s*Some\\(\\s*\\\""
+          ]
         }
       }
     },
@@ -617,6 +669,13 @@
           "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
           "patterns": [
             "\\b(toBlob|toDataURL|convertToBlob)\\([^)]*image/(webp|jpeg)"
+          ]
+        },
+        "shell_accessibility_copy": {
+          "message": "adr-constraints: accessibility copy is Core-prepared; map the label, hint and value Core sends, and write none in the shell.",
+          "patterns": [
+            "aria-(label|description)=\\\"[^{]",
+            "\\b(ariaLabel|aria-label)\\s*[:=]\\s*\\\""
           ]
         }
       }

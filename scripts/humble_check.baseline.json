@@ -33,7 +33,8 @@
       "retired_action_result": 0,
       "retired_domain_components": 0,
       "retired_visibility_labels": 0,
-      "split_dispatch_api": 0
+      "split_dispatch_api": 0,
+      "shell_accessibility_copy": 2
     },
     "android": {
       "retired_onboarding_preferences": 0,
@@ -64,7 +65,8 @@
       "retired_action_result": 0,
       "retired_domain_components": 0,
       "retired_visibility_labels": 0,
-      "split_dispatch_api": 0
+      "split_dispatch_api": 0,
+      "shell_accessibility_copy": 2
     },
     "windows": {
       "action_id_minting": 0,
@@ -127,7 +129,8 @@
       "retired_action_result": 0,
       "retired_domain_components": 0,
       "retired_visibility_labels": 0,
-      "split_dispatch_api": 0
+      "split_dispatch_api": 0,
+      "shell_accessibility_copy": 1
     }
   }
 }
