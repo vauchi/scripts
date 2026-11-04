@@ -67,6 +67,8 @@ def verify_identity(project, name):
 
 def verify_settings(project, visibility):
     for key, expected in {**SETTINGS, "visibility": visibility}.items():
+        if key not in project:
+            raise ApiError(f"Cannot verify {key}: missing from API response; use a Maintainer account")
         actual = project.get(key)
         if type(actual) is not type(expected) or actual != expected:
             raise ApiError(f"Project setting {key} does not match required value {expected!r}")
@@ -82,9 +84,9 @@ def roles_safe(entries, push=False):
                ("user_id", "group_id", "deploy_key_id", "member_role_id")):
             return False
         level = entry.get("access_level")
-        if type(level) is not int or (level != 0 and (push or level < 40)):
+        if type(level) is not int or level not in ({0} if push else {0, 40, 50, 60}):
             return False
-    return push or any(entry["access_level"] >= 40 for entry in entries)
+    return True
 
 
 def protection_safe(rule, require_owner=False):
@@ -94,6 +96,9 @@ def protection_safe(rule, require_owner=False):
         and (not require_owner or rule.get("code_owner_approval_required") is True)
         and roles_safe(rule.get("push_access_levels"), push=True)
         and roles_safe(rule.get("merge_access_levels"))
+        and (not require_owner or any(
+            entry["access_level"] >= 40 for entry in rule["merge_access_levels"]
+        ))
     )
 
 

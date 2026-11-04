@@ -106,6 +106,13 @@ class ProvisionTests(unittest.TestCase):
             repo.provision("apple-display", api=api)
         self.assertEqual(api.writes, [])
 
+    def test_hidden_settings_require_maintainer_visibility(self):
+        api = GitLab(existing=True)
+        del api.project["auto_devops_enabled"]
+        with self.assertRaisesRegex(repo.ApiError, "Maintainer"):
+            repo.provision("apple-display", api=api)
+        self.assertEqual(api.writes, [])
+
     def test_existing_unprotected_main_is_rejected_without_mutation(self):
         api = GitLab(existing=True)
         api.rules = []
@@ -135,11 +142,21 @@ class ProvisionTests(unittest.TestCase):
             repo.provision("apple-display", api=api)
         self.assertEqual(api.writes, [])
 
+    def test_more_restrictive_wildcard_does_not_block_safe_main(self):
+        api = GitLab(existing=True)
+        rule = protection("*")
+        rule["merge_access_levels"] = [{"access_level": 0}]
+        rule["code_owner_approval_required"] = False
+        api.rules.append(rule)
+        self.assertEqual(repo.provision("apple-display", api=api)["id"], 123)
+        self.assertEqual(api.writes, [])
+
     def test_force_push_or_direct_user_grant_is_rejected(self):
         for change in [
             {"allow_force_push": True},
             {"push_access_levels": [{"user_id": 7, "access_level": None}]},
             {"merge_access_levels": [{"access_level": 30}]},
+            {"merge_access_levels": [{"access_level": 1000}]},
             {"code_owner_approval_required": False},
         ]:
             with self.subTest(change=change):

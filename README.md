@@ -292,6 +292,7 @@ These scripts integrate with the workspace justfile:
 
 ```bash
 just setup             # setup-workspace.sh
+just create-repo NAME  # Create a project and verify merge/main protection
 just build             # Build Rust workspace
 just check             # Format, lint, test
 just test              # run-tests.sh
@@ -302,6 +303,12 @@ just dev-relay         # local-relay.sh
 just dev-cli <name>    # multi-cli.sh
 just dev-clean         # cleanup.sh
 ```
+
+`create-repo` needs a Maintainer account to read all project settings. It
+reconciles settings only for a newly created project, checks existing
+projects without writes, and never deletes a partially created project.
+Use `--description "text"` and `--visibility private` when appropriate;
+the default visibility is public in the `vauchi` group.
 
 ## CI Template Pitfalls
 
