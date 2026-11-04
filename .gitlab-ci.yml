@@ -243,6 +243,36 @@ secret_detection:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
+# One click releases the templates: the next dated ci-templates tag at this
+# main commit (private#1068). Manual, because a templates tag decides what
+# every repo's CI runs once its pin moves; the click is that decision.
+# PROJECT_ACCESS_TOKEN must be allowed to create protected tags here.
+tag:ci-templates:
+  stage: deploy
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  interruptible: false
+  resource_group: ci-templates-tag
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE != "schedule"
+      when: manual
+  allow_failure: true
+  before_script:
+    - |
+      # The Alpine CDN fails intermittently; retry, and fail loudly rather
+      # than tagging without the tools.
+      for attempt in 1 2 3; do
+          apk add --no-cache bash curl python3 && installed=yes && break
+          echo "apk add failed (attempt $attempt/3), retrying in 5s" >&2
+          sleep 5
+      done
+      if [ "${installed:-}" != yes ]; then
+          echo "apk add failed after 3 attempts" >&2
+          exit 1
+      fi
+  script:
+    - bash scripts/ci/create-ci-templates-tag.sh
+
 # Cancel stuck jobs in ios-spm-v* / macos-spm-v* resource groups.
 # Detects jobs held by the GitLab "cancelled job doesn't release
 # resource_group" bug (observed 2026-04-11, -19 x2, -21) and cancels
