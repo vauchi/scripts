@@ -727,11 +727,16 @@ CPP
 var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, stream);
 var png = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
 CS
+    mkdir -p "$root/web-demo/src"
+    cat >"$root/web-demo/src/avatar.ts" <<'TS'
+const shrunk = canvas.toDataURL("image/webp", 0.8);
+const shown = `data:image/webp;base64,${btoa(binary)}`;
+TS
     cat >"$root/linux-gtk/src/avatar.rs" <<'RS'
 let webp = webp::Encoder::from_image(&img).unwrap().encode(80.0);
 let png = texture.save_to_png_bytes();
 RS
-    for spec in android:2 ios:1 linux-qt:1 windows:1 linux-gtk:1; do
+    for spec in android:2 ios:1 linux-qt:1 windows:1 linux-gtk:1 web-demo:1; do
         repo=${spec%:*}; want=${spec#*:}
         out=$(python3 "$SCRIPT" --repo "$repo" --workspace-root "$root" --config "$CONFIG")
         assert_eq "image encoding: $repo counts $want" "$want" \

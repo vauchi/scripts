@@ -94,7 +94,17 @@
         "target",
         "tests"
       ],
-      "rules": {}
+      "rules": {
+        "frontend_image_encoding": {
+          "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
+          "patterns": [
+            "\\bwebp::Encoder\\b",
+            "codecs::(webp|jpeg)::",
+            "ImageFormat::(WebP|Jpeg)\\b",
+            "imageops::(resize|thumbnail)\\b"
+          ]
+        }
+      }
     },
     "ios": {
       "source_roots": [
@@ -170,6 +180,15 @@
           "patterns": [
             "case\\s+AppScreen\\.",
             "[=!]=\\s*AppScreen\\."
+          ]
+        },
+        "frontend_image_encoding": {
+          "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
+          "patterns": [
+            "\\.jpegData\\(",
+            "\\.heicData\\(",
+            "\\bCGImageDestinationCreate",
+            "UTType\\.(webP|jpeg|heic)\\b"
           ]
         }
       }
@@ -252,6 +271,13 @@
             "\\bScreen\\.\\w+\\s*->",
             "=\\s*Screen\\."
           ]
+        },
+        "frontend_image_encoding": {
+          "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
+          "patterns": [
+            "CompressFormat\\.(WEBP|WEBP_LOSSY|WEBP_LOSSLESS|JPEG)",
+            "\\bcreateScaledBitmap\\("
+          ]
         }
       }
     },
@@ -311,6 +337,15 @@
             "case\\s+AppScreen\\.",
             "[=!]=\\s*AppScreen\\."
           ]
+        },
+        "frontend_image_encoding": {
+          "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
+          "patterns": [
+            "\\.jpegData\\(",
+            "\\.heicData\\(",
+            "\\bCGImageDestinationCreate",
+            "UTType\\.(webP|jpeg|heic)\\b"
+          ]
         }
       }
     },
@@ -355,6 +390,13 @@
           "patterns": [
             "case\\s+AppScreen\\.",
             "[=!]=\\s*AppScreen\\."
+          ]
+        },
+        "frontend_image_encoding": {
+          "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
+          "patterns": [
+            "BitmapEncoder\\.(Jpeg|JpegXR|Heif|Webp)EncoderId",
+            "\\bWebp(Encoder|Encode)\\b"
           ]
         }
       }
@@ -412,6 +454,15 @@
             "\\|\\s*AppScreen::",
             "(?:navigate_to|goto)\\s*\\(\\s*AppScreen::"
           ]
+        },
+        "frontend_image_encoding": {
+          "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
+          "patterns": [
+            "\\bwebp::Encoder\\b",
+            "codecs::(webp|jpeg)::",
+            "ImageFormat::(WebP|Jpeg)\\b",
+            "imageops::(resize|thumbnail)\\b"
+          ]
         }
       }
     },
@@ -457,6 +508,12 @@
             "case\\s+AppScreen::",
             "AppScreen::from_screen_id",
             "navigate_to\\s*\\(\\s*AppScreen::"
+          ]
+        },
+        "frontend_image_encoding": {
+          "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
+          "patterns": [
+            "\\.save\\([^)]*\\\"(WEBP|webp|JPG|jpg|JPEG|jpeg|HEIC|heic)\\\""
           ]
         }
       }
@@ -506,6 +563,15 @@
             "\\|\\s*AppScreen::",
             "(?:navigate_to|goto)\\s*\\(\\s*AppScreen::"
           ]
+        },
+        "frontend_image_encoding": {
+          "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
+          "patterns": [
+            "\\bwebp::Encoder\\b",
+            "codecs::(webp|jpeg)::",
+            "ImageFormat::(WebP|Jpeg)\\b",
+            "imageops::(resize|thumbnail)\\b"
+          ]
         }
       }
     },
@@ -545,6 +611,12 @@
           "patterns": [
             "case\\s+AppScreen\\.",
             "[=!]=\\s*AppScreen\\."
+          ]
+        },
+        "frontend_image_encoding": {
+          "message": "ADR-042: a shell passes raw image bytes and Core converts avatars to WebP <= 32 KB; do not encode or resize an image before handing it on.",
+          "patterns": [
+            "\\b(toBlob|toDataURL|convertToBlob)\\([^)]*image/(webp|jpeg)"
           ]
         }
       }
