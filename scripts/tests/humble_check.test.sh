@@ -702,6 +702,44 @@ test_tighten_refuses_incomplete_checkout() {
     rm -rf "$root"
 }
 
+# test_frontend_image_encoding — ADR-042: a shell passes raw image bytes
+# and Core converts avatars; encoding to WebP, JPEG or HEIF or resizing a
+# bitmap before handing it on is conversion. PNG export for screenshot
+# tools and scaling a pixmap for display are not.
+test_frontend_image_encoding() {
+    root=$(mktemp -d)
+    mkdir -p "$root/android/app/src/main/kotlin" "$root/ios/Vauchi" \
+        "$root/linux-qt/src" "$root/windows/Vauchi" "$root/linux-gtk/src"
+    cat >"$root/android/app/src/main/kotlin/Avatar.kt" <<'KT'
+fun shrink(b: Bitmap) = Bitmap.createScaledBitmap(b, 64, 64, true)
+fun pack(b: Bitmap, out: OutputStream) = b.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, out)
+KT
+    cat >"$root/ios/Vauchi/Avatar.swift" <<'SW'
+let bytes = image.jpegData(compressionQuality: 0.8)
+let raw = try Data(contentsOf: pickedURL)
+SW
+    cat >"$root/linux-qt/src/avatar.cpp" <<'CPP'
+image.save(&buffer, "WEBP");
+grab().save(path);
+label->setPixmap(pixmap.scaled(32, 32, Qt::KeepAspectRatio));
+CPP
+    cat >"$root/windows/Vauchi/Avatar.cs" <<'CS'
+var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, stream);
+var png = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
+CS
+    cat >"$root/linux-gtk/src/avatar.rs" <<'RS'
+let webp = webp::Encoder::from_image(&img).unwrap().encode(80.0);
+let png = texture.save_to_png_bytes();
+RS
+    for spec in android:2 ios:1 linux-qt:1 windows:1 linux-gtk:1; do
+        repo=${spec%:*}; want=${spec#*:}
+        out=$(python3 "$SCRIPT" --repo "$repo" --workspace-root "$root" --config "$CONFIG")
+        assert_eq "image encoding: $repo counts $want" "$want" \
+            "$(extract_counter "$out" frontend_image_encoding)"
+    done
+    rm -rf "$root"
+}
+
 # test_vocabulary_covers_rule_types — the Core schema test reads the shared
 # vocabulary instead of restating it, which only holds while the vocabulary
 # covers every type the rules grep for
@@ -777,6 +815,7 @@ test_tighten_never_raises_stored_counts
 test_tighten_refuses_incomplete_checkout
 test_vocabulary_covers_rule_types
 test_vocabulary_allows_entries_without_a_rule
+test_frontend_image_encoding
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
