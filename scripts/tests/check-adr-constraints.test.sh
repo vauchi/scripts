@@ -87,6 +87,39 @@ printf 'pub trait Platform {}\npub struct MockBLEVerifier;\n' \
 assert_eq "test code is not production code" "0" "$(rc "$core")"
 rm -rf "$core"
 
+for crate in btleplug cpal nokhwa pcsc; do
+    core=$(make_core)
+    printf '%s = "1"\n' "$crate" >> "$core/vauchi-core/Cargo.toml"
+    assert_eq "a core dependency on the OS hardware crate $crate fails" "1" "$(rc "$core")"
+    assert_eq "it names the never-calls-hardware rule for $crate" "1" \
+        "$(says "$core" "Core never calls hardware")"
+    rm -rf "$core"
+done
+
+core=$(make_core)
+printf 'cpal-free = "1"\nzbus = "4"\n' >> "$core/vauchi-core/Cargo.toml"
+assert_eq "a crate whose name only starts like a hardware crate passes" "0" "$(rc "$core")"
+rm -rf "$core"
+
+for item in "struct MockCipher;" "pub struct FakeSigner { k: [u8; 32] }" \
+    "struct StubRng(u64);" "impl RngCore for CountingRng {" \
+    "impl Aead for NullAead {"; do
+    core=$(make_core)
+    mkdir -p "$core/vauchi-core/tests"
+    printf '%s\n' "$item" > "$core/vauchi-core/tests/crypto_tests.rs"
+    assert_eq "'$item' in a test fails" "1" "$(rc "$core")"
+    assert_eq "it names the no-crypto-mock rule for '$item'" "1" \
+        "$(says "$core" "never mock crypto")"
+    rm -rf "$core"
+done
+
+core=$(make_core)
+mkdir -p "$core/vauchi-core/tests"
+printf 'pub struct FakeKeychain { items: Vec<u8> }\nstruct MockRelay;\n' \
+    > "$core/vauchi-core/tests/support.rs"
+assert_eq "a storage or relay double is not a crypto mock" "0" "$(rc "$core")"
+rm -rf "$core"
+
 assert_eq "a missing directory fails rather than passing" "1" "$(rc /nonexistent/core)"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
