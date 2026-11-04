@@ -189,7 +189,10 @@ repo_test_features() {
         # `vauchi-app/testing` is its own flag: `vauchi-core/testing` does
         # not set `cfg(feature = "testing")` inside vauchi-app's tests, so
         # without it 14 gated tests compiled out and ran nowhere.
-        core) echo "--features vauchi-core/testing,vauchi-core/test-kdf,vauchi-app/testing" ;;
+        # `vauchi-app/network-http` matches core CI's test:app job; without
+        # it `just test-name <p> core vauchi-app it` fails to compile
+        # (schedule_wakeup_tests calls the HTTP-gated set_next_sync_allowed).
+        core) echo "--features vauchi-core/testing,vauchi-core/test-kdf,vauchi-app/testing,vauchi-app/network-http" ;;
         # `test-utils` gates the shared state constructors that
         # router_integration, server_lifecycle and client_ip need. Cargo
         # silently skips a target whose required-features are absent, so
