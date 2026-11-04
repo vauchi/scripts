@@ -110,6 +110,12 @@
             "Property::(Label|Description)\\(\\s*\\\"",
             "set_accessible_(name|description)\\(\\s*Some\\(\\s*\\\""
           ]
+        },
+        "error_substring_classification": {
+          "message": "Core must return typed error codes; frontend must not classify errors by substring.",
+          "patterns": [
+            "\\b(if|else if)\\b[^;{]*\\b(err|e|error)\\.to_string\\(\\)\\.(contains|starts_with|ends_with)\\("
+          ]
         }
       }
     },
@@ -502,6 +508,12 @@
             "Property::(Label|Description)\\(\\s*\\\"",
             "set_accessible_(name|description)\\(\\s*Some\\(\\s*\\\""
           ]
+        },
+        "error_substring_classification": {
+          "message": "Core must return typed error codes; frontend must not classify errors by substring.",
+          "patterns": [
+            "\\b(if|else if)\\b[^;{]*\\b(err|e|error)\\.to_string\\(\\)\\.(contains|starts_with|ends_with)\\("
+          ]
         }
       }
     },
@@ -559,6 +571,12 @@
           "message": "adr-constraints: accessibility copy is Core-prepared; map the label, hint and value Core sends, and write none in the shell.",
           "patterns": [
             "setAccessible(Name|Description)\\(\\s*(QStringLiteral\\(|tr\\(|\\\")"
+          ]
+        },
+        "error_substring_classification": {
+          "message": "Core must return typed error codes; frontend must not classify errors by substring.",
+          "patterns": [
+            "\\b(if|else if)\\s*\\([^;{]*\\b(err|error|message|msg)[A-Za-z]*(\\(\\))?\\.(contains|startsWith|endsWith)\\("
           ]
         }
       }
