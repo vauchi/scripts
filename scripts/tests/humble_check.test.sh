@@ -788,6 +788,35 @@ RS
     rm -rf "$root"
 }
 
+# test_error_substring_classification_desktop_shells — ADR-045 Amendment 1:
+# a shell never picks UI by matching an error's text. linux-gtk, cli and
+# linux-qt had no such rule; a test assertion on an error message is not
+# classification.
+test_error_substring_classification_desktop_shells() {
+    root=$(mktemp -d)
+    mkdir -p "$root/linux-gtk/src" "$root/cli/src" "$root/linux-qt/src"
+    cat >"$root/linux-gtk/src/errors.rs" <<'RS'
+if err.to_string().contains("locked") { show_unlock(); }
+assert!(err.to_string().contains("locked"), "{err}");
+RS
+    cat >"$root/cli/src/errors.rs" <<'RS'
+} else if e.to_string().starts_with("network") { retry(); }
+    err.to_string().contains("VAUCHI_PIN"),
+RS
+    cat >"$root/linux-qt/src/errors.cpp" <<'CPP'
+if (error.contains(QStringLiteral("locked"))) { showUnlock(); }
+if (message.startsWith("network")) { retry(); }
+QVERIFY(errorText.contains("locked"));
+CPP
+    for spec in linux-gtk:1 cli:1 linux-qt:2; do
+        repo=${spec%:*}; want=${spec#*:}
+        out=$(python3 "$SCRIPT" --repo "$repo" --workspace-root "$root" --config "$CONFIG")
+        assert_eq "error substring: $repo counts $want" "$want" \
+            "$(extract_counter "$out" error_substring_classification)"
+    done
+    rm -rf "$root"
+}
+
 # test_vocabulary_covers_rule_types — the Core schema test reads the shared
 # vocabulary instead of restating it, which only holds while the vocabulary
 # covers every type the rules grep for
@@ -865,6 +894,7 @@ test_vocabulary_covers_rule_types
 test_vocabulary_allows_entries_without_a_rule
 test_frontend_image_encoding
 test_shell_accessibility_copy
+test_error_substring_classification_desktop_shells
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
