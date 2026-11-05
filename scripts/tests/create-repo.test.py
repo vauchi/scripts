@@ -46,6 +46,10 @@ class GitLab:
         self.ignore_update = False
         self.failed_method = None
         self.default_protection = None
+        self.ignore_approval_update = False
+        self.approvals = ([{"id": 9, "name": "All Members", "rule_type": "any_approver",
+                            "approvals_required": 1, "protected_branches": [],
+                            "applies_to_all_protected_branches": False}] if existing else [])
 
     def __call__(self, method, endpoint, fields=None):
         if method == self.failed_method:
@@ -62,6 +66,15 @@ class GitLab:
             if self.default_protection:
                 self.rules = [copy.deepcopy(self.default_protection)]
             return copy.deepcopy(self.project)
+        if "/approval_rules" in endpoint:
+            if method == "POST":
+                self.approvals = [{"id": 9, "protected_branches": [],
+                                   "applies_to_all_protected_branches": False, **fields}]
+                return copy.deepcopy(self.approvals[0])
+            if method == "PUT" and not self.ignore_approval_update:
+                self.approvals[0].update(fields)
+                return copy.deepcopy(self.approvals[0])
+            return copy.deepcopy(self.approvals)
         if "/protected_branches" in endpoint:
             if method == "POST":
                 self.rules.append(protection())
@@ -83,6 +96,56 @@ class GitLab:
 
 
 class ProvisionTests(unittest.TestCase):
+    def test_new_project_requires_member_approval_like_reference_repo(self):
+        api = GitLab()
+        repo.provision("apple-display", api=api)
+        self.assertEqual([(r["name"], r["rule_type"], r["approvals_required"])
+                          for r in api.approvals], [("All Members", "any_approver", 1)])
+
+    def test_existing_project_without_required_approval_is_read_only_failure(self):
+        api = GitLab(existing=True)
+        api.approvals = []
+        with self.assertRaisesRegex(repo.ApiError, "approval"):
+            repo.provision("apple-display", api=api)
+        self.assertEqual(api.writes, [])
+
+    def test_zero_approval_default_is_raised_for_new_project(self):
+        api = GitLab(existing=True)
+        api.project = None
+        api.approvals[0]["approvals_required"] = 0
+        repo.provision("apple-display", api=api)
+        self.assertEqual(api.approvals[0]["approvals_required"], 1)
+
+    def test_stronger_existing_approval_is_preserved(self):
+        api = GitLab(existing=True)
+        api.approvals[0]["approvals_required"] = 2
+        self.assertEqual(repo.provision("apple-display", api=api)["id"], 123)
+        self.assertEqual(api.approvals[0]["approvals_required"], 2)
+        self.assertEqual(api.writes, [])
+
+    def test_approval_for_another_branch_does_not_cover_main(self):
+        api = GitLab(existing=True)
+        api.approvals[0]["protected_branches"] = [{"name": "release"}]
+        with self.assertRaisesRegex(repo.ApiError, "approval"):
+            repo.provision("apple-display", api=api)
+        self.assertEqual(api.writes, [])
+
+    def test_wildcard_approval_covering_main_is_preserved_without_writes(self):
+        for pattern in ("*", "ma*"):
+            with self.subTest(pattern=pattern):
+                api = GitLab(existing=True)
+                api.approvals[0]["protected_branches"] = [{"name": pattern}]
+                self.assertEqual(repo.provision("apple-display", api=api)["id"], 123)
+                self.assertEqual(api.writes, [])
+
+    def test_ignored_approval_update_cannot_report_success(self):
+        api = GitLab(existing=True)
+        api.project = None
+        api.approvals[0]["approvals_required"] = 0
+        api.ignore_approval_update = True
+        with self.assertRaisesRegex(repo.ApiError, "approval"):
+            repo.provision("apple-display", api=api)
+
     def test_creation_reconciles_ignored_flag_and_protects_main(self):
         api = GitLab()
         result = repo.provision("apple-display", api=api)

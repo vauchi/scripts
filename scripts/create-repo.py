@@ -146,6 +146,45 @@ def ensure_protection(api, endpoint, created):
             raise ApiError(f"Matching protection rule {other['name']!r} allows unsafe access")
 
 
+def approval_covers_main(rule):
+    if not isinstance(rule, dict) or rule.get("rule_type") != "any_approver":
+        return False
+    count = rule.get("approvals_required")
+    branches = rule.get("protected_branches")
+    return (
+        type(count) is int and count >= 1 and isinstance(branches, list)
+        and (rule.get("applies_to_all_protected_branches") is True or not branches
+             or any(isinstance(branch, dict) and isinstance(branch.get("name"), str)
+                    and fnmatch.fnmatchcase("main", branch["name"]) for branch in branches))
+    )
+
+
+def ensure_approval(api, endpoint, created):
+    approval_endpoint = f"{endpoint}/approval_rules"
+    rules = api("GET", f"{approval_endpoint}?per_page=100")
+    if not isinstance(rules, list) or len(rules) >= 100 or any(not isinstance(r, dict) for r in rules):
+        raise ApiError("Cannot verify all approval rules; manual review required")
+    if any(approval_covers_main(rule) for rule in rules):
+        return
+    if not created:
+        raise ApiError("Existing project needs at least one member approval on main; left unchanged")
+    default = next((rule for rule in rules if rule.get("rule_type") == "any_approver"), None)
+    fields = {"approvals_required": 1, "applies_to_all_protected_branches": False,
+              "protected_branch_ids": []}
+    if default is None:
+        api("POST", approval_endpoint, {**fields, "name": "All Members", "rule_type": "any_approver"})
+    else:
+        count = default.get("approvals_required")
+        if not positive_id(default.get("id")) or type(count) is not int or count < 0 or default.get("inherited"):
+            raise ApiError("Invalid or inherited default approval rule; left unchanged")
+        api("PUT", f"{approval_endpoint}/{default['id']}", {**fields, "approvals_required": max(count, 1)})
+    verified = api("GET", f"{approval_endpoint}?per_page=100")
+    if not isinstance(verified, list) or len(verified) >= 100 or not any(
+        approval_covers_main(rule) for rule in verified
+    ):
+        raise ApiError("Required member approval was not applied")
+
+
 def provision(name, description="", visibility="public", api=request):
     if len(name) > 100 or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name):
         raise ApiError("Repository name must be 1–100 lowercase letters, digits or separated hyphens")
@@ -174,6 +213,7 @@ def provision(name, description="", visibility="public", api=request):
     verify_identity(project, name)
     verify_settings(project, visibility)
     ensure_protection(api, endpoint, created)
+    ensure_approval(api, endpoint, created)
     return project
 
 
@@ -188,7 +228,7 @@ def main():
     except ApiError as error:
         print(f"ERROR: {error}. No project is automatically deleted; inspect before retrying.", file=sys.stderr)
         return 1
-    print(f"Verified https://gitlab.com/{project['path_with_namespace']}: merge policy and main protection")
+    print(f"Verified https://gitlab.com/{project['path_with_namespace']}: merge policy, approval and main protection")
     return 0
 
 

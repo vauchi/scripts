@@ -104,6 +104,14 @@ expect_category "missing tool (busybox)" \
     "sh: mold: not found" "missing-tool"
 expect_category "Python before 3.11 lacks tomllib" \
     "ModuleNotFoundError: No module named 'tomllib'" "toolchain-compatibility"
+expect_category "just script feature flag missing in CI" \
+    'error: The `[script]` attribute is currently unstable. Invoke `just` with `--unstable`.' \
+    "just-syntax"
+expect_category "stale shared CI template tag" \
+    '.gitlab-ci.yml: VSP01: pinned ci-templates-v2026.10.08 is not among the latest ci-template tags' \
+    "lint"
+expect_category "successful freshness check is not a stale pin" \
+    '.gitlab-ci.yml: VSP01 check passed, no stale ci-template pins' "unknown"
 expect_escalate "missing tomllib does NOT escalate" \
     "2026-11-03T12:00:00Z 01E ModuleNotFoundError: No module named 'tomllib'" "false"
 expect_fix "missing tomllib names the runtime or backport fix" \

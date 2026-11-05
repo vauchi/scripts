@@ -305,7 +305,8 @@ just dev-clean         # cleanup.sh
 ```
 
 `create-repo` needs a Maintainer account to read all project settings. It
-reconciles settings only for a newly created project, checks existing
+requires at least one member approval, reconciles settings only for a
+newly created project, checks existing
 projects without writes, and never deletes a partially created project.
 Use `--description "text"` and `--visibility private` when appropriate;
 the default visibility is public in the `vauchi` group.

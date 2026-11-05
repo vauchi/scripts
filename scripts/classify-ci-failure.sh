@@ -49,6 +49,7 @@ fi
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
   "runner-infrastructure" "dep-resolution"
+  "just-syntax" "lint"
   "template-contract"
   "toolchain-compatibility"
   "semver-api-compatibility" "yaml-syntax" "just-syntax" "template-contract" "secret-decoding" "c-ffi-cross" "branch-protection" "authorization" "target-health" "runner-infrastructure" "toolchain-compatibility" "filesystem-permission" "external-config-drift" "transient-network" "timeout" "dep-resolution"
@@ -57,6 +58,8 @@ CATS=(
 PATS=(
   "sccache: error: Timed out waiting for server startup"
   "FAIL: .* pins Core crates at another tag than (the )?set's v"
+  "The .?\\[script\\].? attribute is currently unstable"
+  "VSP01: pinned ci-templates-v[0-9]+\\.[0-9]+\\.[0-9]+ is not among the latest ci-template tags"
   "ERROR: PARSER_FILE not found:"
   "ModuleNotFoundError: No module named 'tomllib'"
   "(failure method_parameter_count_changed:|Summary semver requires new major version:)"
@@ -86,6 +89,8 @@ PATS=(
 FIXES=(
   "Inspect the sccache version and daemon startup logs; use a version with the startup notification race fixed, and preserve the cache-hit probe."
   "Select successful relay and CLI commits that pin the set's Core tag, then update the cohort pins and lockfile together; preserve the pin guard."
+  "Enable JUST_UNSTABLE=1 for the CI command or pass --unstable; preserve the minimum supported just version."
+  "Move the shared CI include and runtime ref to the current verified ci-templates release commit, then rerun local checks."
   "Point PARSER_FILE at the consuming shell's current parser path; preserve the parity check after moving files."
   "Use Python 3.11+ or install a pinned tomli backport and fall back to it when tomllib is unavailable."
   "Restore the public API compatibility or intentionally bump the major version; never suppress the semver lint."
