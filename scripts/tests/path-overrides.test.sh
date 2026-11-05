@@ -17,12 +17,12 @@ fail=0
 
 mk_workspace() {
     local root="$1"
-    mkdir -p "$root/cli" "$root/tui" "$root/linux-gtk" \
+    mkdir -p "$root/cli" "$root/tui" "$root/linux-gtk" "$root/linux-app" \
              "$root/web-demo/wasm" "$root/relay" "$root/e2e" \
              "$root/core/vauchi-core" "$root/core/vauchi-app" \
              "$root/core/vauchi-protocol" "$root/scripts/scripts"
     # Minimal Cargo.toml stubs — apply only appends, doesn't parse.
-    for d in cli tui linux-gtk web-demo/wasm relay e2e; do
+    for d in cli tui linux-gtk linux-app web-demo/wasm relay e2e; do
         printf '[package]\nname = "test-%s"\nversion = "0.1.0"\nedition = "2021"\n' \
             "$(echo "$d" | tr '/' '-')" > "$root/$d/Cargo.toml"
     done
@@ -78,7 +78,7 @@ test_apply_writes_fence() {
     set -e
 
     assert_exit "apply exit 0" 0 "$rc"
-    for d in cli tui linux-gtk relay e2e; do
+    for d in cli tui linux-app relay e2e; do
         local cargo
         cargo=$(cat "$root/$d/Cargo.toml")
         assert_contains "$d has BEGIN fence" "# >>> setup-path-overrides BEGIN" "$cargo"
@@ -87,11 +87,17 @@ test_apply_writes_fence() {
     # Patches should reference the right relative paths
     assert_contains "cli patches vauchi-app to ../core" \
         '../core/vauchi-app' "$(cat "$root/cli/Cargo.toml")"
-    # vauchi-hardware left Core for vauchi/linux-hw (private#1026); a Core
-    # path patch for it points at a directory that no longer exists and
-    # stops every linux-gtk build (private#1029).
-    assert_not_contains "linux-gtk no longer patches vauchi-hardware to ../core" \
+    assert_contains "linux-app patches vauchi-core" \
+        'vauchi-core = { path = "../core/vauchi-core" }' \
+        "$(cat "$root/linux-app/Cargo.toml")"
+    assert_contains "linux-app patches vauchi-app" \
+        'vauchi-app = { path = "../core/vauchi-app" }' \
+        "$(cat "$root/linux-app/Cargo.toml")"
+    assert_not_contains "linux-app does not patch the removed Core hardware crate" \
         'vauchi-hardware = { path = "../core/vauchi-hardware" }' \
+        "$(cat "$root/linux-app/Cargo.toml")"
+    assert_not_contains "contract-only GTK receives no Core overrides (#1029)" \
+        '# >>> setup-path-overrides BEGIN' \
         "$(cat "$root/linux-gtk/Cargo.toml")"
     # web-demo pins its core deps to an exact released version, which a
     # [patch] can never satisfy — cargo would discard the block and warn
@@ -142,7 +148,7 @@ test_clean_removes_fence() {
     set -e
 
     assert_exit "clean exit 0" 0 "$rc"
-    for d in cli tui linux-gtk relay e2e; do
+    for d in cli tui linux-app relay e2e; do
         assert_not_contains "$d fence stripped" \
             "# >>> setup-path-overrides BEGIN" \
             "$(cat "$root/$d/Cargo.toml")"
@@ -336,12 +342,13 @@ test_clean_round_trip_is_byte_exact() {
     printf '[package]\nname = "test-tui"\n\n' > "$root/tui/Cargo.toml"
     cp "$root/cli/Cargo.toml" "$root/cli.before"
     cp "$root/tui/Cargo.toml" "$root/tui.before"
+    cp "$root/linux-app/Cargo.toml" "$root/linux-app.before"
 
     (cd "$root" && bash ./path-overrides.sh apply >/dev/null 2>&1)
     (cd "$root" && bash ./path-overrides.sh clean >/dev/null 2>&1)
 
     local ending
-    for ending in cli tui; do
+    for ending in cli tui linux-app; do
         if cmp -s "$root/$ending.before" "$root/$ending/Cargo.toml"; then
             printf '  PASS apply→clean is byte-exact (%s)\n' "$ending"
             pass=$((pass + 1))
