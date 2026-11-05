@@ -327,6 +327,17 @@ expect_category "generic self-test suite failure" \
 expect_category "connection reset by peer" \
     "urllib.error.URLError: <urlopen error [Errno 54] Connection reset by peer>" \
     "transient-network"
+for gateway_status in 502 503 504; do
+    expect_category "curl gateway failure $gateway_status" \
+        "curl: (22) The requested URL returned error: $gateway_status" \
+        "transient-network"
+    expect_escalate "curl gateway failure $gateway_status does NOT escalate" \
+        "curl: (22) The requested URL returned error: $gateway_status" "false"
+done
+expect_category "HTTP status boundary is exact" \
+    "curl: (22) The requested URL returned error: 5040" "unknown"
+expect_category "unrelated numeric output is not a curl gateway failure" \
+    "Processed 504 records successfully" "unknown"
 expect_category "release package is not consumable" \
     "Release v0.59.2 is tagged but not consumable: spm" "artifact-gap"
 expect_category "downstream trigger authorization" \

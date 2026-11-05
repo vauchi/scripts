@@ -75,7 +75,7 @@ PATS=(
   "(JdkImageTransform|androidJdkImage|Failed to transform core-for-system-modules\\.jar)"
   "Permission denied \(os error 13\)"
   "(Vaultwarden item( name)? .* (does not contain|not found|is ambiguous|is missing|has neither|has no)|Vaultwarden item search (failed|returned invalid data)|could not extract .* from Vaultwarden item|^ERROR: '[^']+' has neither a .* custom field)"
-  "(DNS: transient error \(try again later\)|Connection reset by peer)"
+  "(DNS: transient error \(try again later\)|Connection reset by peer|curl: \\(22\\) The requested URL returned error: (502|503|504)([[:space:]]|$))"
   "(exceeded maximum timeout|Job exceeded|execution took longer than [0-9]+[hms]|context deadline exceeded)"
   "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities)|error: [0-9]+ (vulnerability|vulnerabilities) found!|error: [0-9]+ denied warnings? found!|error\\[vulnerability\\]:)"
   "(command not found|: not found)"
