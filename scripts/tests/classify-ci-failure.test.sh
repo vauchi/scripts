@@ -98,6 +98,12 @@ expect_category "cargo dependency audit" \
     "error: 4 vulnerabilities found!" "dep-resolution"
 expect_escalate "cargo dependency audit does NOT escalate" \
     "error: 1 vulnerability found!" "false"
+expect_category "cargo audit denied maintenance warning" \
+    "error: 1 denied warning found!" "dep-resolution"
+expect_category "cargo audit denied multiple warnings" \
+    "2026-11-05T13:51:58.873257Z 01E error: 2 denied warnings found!" "dep-resolution"
+expect_category "an allowed maintenance warning does not fail the audit" \
+    "Warning: unmaintained" "unknown"
 expect_category "missing tool (bash)" \
     "/bin/sh: cargo-nextest: command not found" "missing-tool"
 expect_category "missing tool (busybox)" \
