@@ -90,6 +90,11 @@ expect_category "dependency resolution" \
     "error: failed to select a version for \`libc\`" "dep-resolution"
 expect_category "pinned release cohort mismatch" \
     "FAIL: relay/Cargo.toml pins Core crates at another tag than the set's v0.99.1:" "dep-resolution"
+expect_category "Git checkout DNS failure" \
+    "fatal: unable to access 'https://gitlab.com/vauchi/linux-qt.git/': Could not resolve host: gitlab.com" \
+    "transient-network"
+expect_escalate "Git checkout DNS failure does not escalate" \
+    "fatal: Could not resolve host: gitlab.com" "false"
 expect_category "sccache daemon startup timeout" \
     "sccache: error: Timed out waiting for server startup" "runner-infrastructure"
 expect_category "npm dependency audit" \
