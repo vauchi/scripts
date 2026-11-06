@@ -168,6 +168,11 @@ expect_category "Windows native library artifact gap" \
     "artifact-gap"
 expect_category "test failure" \
     "test result: FAILED. 3 passed; 1 failed" "test-failure"
+expect_category "C++ assertion with GitLab timestamp" \
+    '2026-11-06T14:58:56Z 01O file_picker_test.cpp:169: Assertion events.size() == 1 failed.' \
+    "test-failure"
+expect_escalate "C++ assertion does not escalate" \
+    'file_picker_test.cpp:169: Assertion events.size() == 1 failed.' "false"
 expect_category "pytest assertion with GitLab timestamp" \
     "2026-10-26T15:43:09.706888Z 01O FAILED test_presentation_controls.py::test_editable_input - AssertionError: assert '' == 'Original text'" \
     "test-failure"
