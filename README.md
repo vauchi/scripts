@@ -112,9 +112,12 @@ From the workspace root:
 just quality-scan                       # All locally checked-out repos
 just quality-scan core cli              # Selected repos (root is supported)
 just quality-scan core --json > quality-review.json
+just quality-scan core --complexity     # Rust function metrics
+just quality-scan --complexity --json > quality-with-metrics.json
 ```
 
-The scanner requires Python 3 and Git, with no packages or network calls.
+The default scanner requires Python 3 and Git, with no packages or network
+calls.
 It reads tracked working-tree source, including staged files and local
 edits. Untracked files are outside the scan. Reports include repository
 HEADs, tracked-change status, source counts, exclusions and candidate
@@ -137,9 +140,32 @@ inventory makes the command fail instead of claiming complete coverage.
 
 Exit 0 means the advisory scan completed, even with candidates; exit 2
 means an invocation or scan error. Results do not establish defects or
-AI authorship. The tool does not change files, install packages, run
+AI authorship. The scanner does not change source files, run
 Semgrep/mutations, suppress checks or feed security dashboards. Existing
 quality rules and mutation tools remain complementary checks.
+
+With `--complexity`, the recipe builds the existing Syn 2 Rust analyzer
+with its locked dependencies; Cargo can fetch those dependencies on a
+fresh machine. It does not build application crates or add dependencies.
+The analyzer reports each Rust function, method and closure separately:
+
+- Syntactic cyclomatic complexity starts at 1; adds 1 per `if`, loop,
+  short-circuit Boolean operator and `?`; adds match alternatives beyond
+  the first and each match guard.
+- Maximum control-flow AST nesting counts nested `if`, loop and match
+  nodes. An `else if` is nested in the AST. Nested functions and closures
+  receive separate scores and do not inflate their parent's score.
+- File coverage, parser failures and unexpanded macro counts are explicit.
+  Macro-generated functions and decisions inside macros are not measured.
+
+These are structural review signals, not the cognitive-complexity metric
+from the `complexity` crate and not quality thresholds. Other languages
+receive lexical candidates but no Rust metrics. Parse failures retain
+partial JSON evidence and make the command exit 2. The text report ranks
+the ten largest branch scores; JSON retains every measured function.
+`VAUCHI_COMPLEXITY_BIN` can select a prebuilt analyzer; direct scanner
+invocation otherwise expects the native debug binary in the tool's target
+directory (respecting `CARGO_TARGET_DIR`).
 
 The scanner's behavioral tests run automatically in the scripts
 `test:selftests` job. To run only that suite locally:
