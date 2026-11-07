@@ -104,6 +104,50 @@ Interactive commit across multiple repositories:
 # q/Q = Quit
 ```
 
+### Advisory quality scan
+
+From the workspace root:
+
+```bash
+just quality-scan                       # All locally checked-out repos
+just quality-scan core cli              # Selected repos (root is supported)
+just quality-scan core --json > quality-review.json
+```
+
+The scanner requires Python 3 and Git, with no packages or network calls.
+It reads tracked working-tree source, including staged files and local
+edits. Untracked files are outside the scan. Reports include repository
+HEADs, tracked-change status, source counts, exclusions and candidate
+locations. JSON contains every candidate; text shows the first 20.
+
+Patterns identify review candidates: literal tautologies, empty Rust test
+bodies (including async attributes), conditional success checks,
+success/presence assertions, discarded results, empty error handlers,
+skips, placeholders and sleeps. Comments, fixtures, asserting helpers,
+unit-valued results and intentional fallback paths require human review.
+Test scope is inferred from paths and inline test markers; a match in a
+mixed file can belong to production code. Empty-test detection does not
+claim to find every test without a meaningful oracle.
+
+Only selected source extensions are scanned. Generated first lines,
+tracked dependency/build paths, symlinks, binary/non-UTF8 files and files
+over 2 MB are excluded with reasons. Handwritten generators containing
+generated examples are included. Missing tracked source or a broken Git
+inventory makes the command fail instead of claiming complete coverage.
+
+Exit 0 means the advisory scan completed, even with candidates; exit 2
+means an invocation or scan error. Results do not establish defects or
+AI authorship. The tool does not change files, install packages, run
+Semgrep/mutations, suppress checks or feed security dashboards. Existing
+quality rules and mutation tools remain complementary checks.
+
+The scanner's behavioral tests run automatically in the scripts
+`test:selftests` job. To run only that suite locally:
+
+```bash
+just exec-in-repo scripts 'python3 scripts/tests/quality-scan.test.py'
+```
+
 ### Testing
 
 | Script | Purpose |
