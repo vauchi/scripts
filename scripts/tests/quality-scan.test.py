@@ -6,55 +6,14 @@
 """The advisory scan reports tracked candidates, coverage, and failures."""
 
 import json
-import os
 import subprocess
-import sys
-import tempfile
 import unittest
 from pathlib import Path
 
-SCANNER = Path(__file__).resolve().parents[1] / "quality-scan.py"
+from quality_scan_fixture import ScanFixture
 
 
-class QualityScanTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name) / "workspace"
-        self.root.mkdir()
-        self.init_repo(self.root)
-
-    def git(self, repo, *args):
-        return subprocess.check_output(
-            ["git", "-C", str(repo), *args], text=True, stderr=subprocess.PIPE
-        ).strip()
-
-    def init_repo(self, path):
-        path.mkdir(exist_ok=True)
-        self.git(path, "init", "-q")
-        self.git(path, "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
-                 "commit", "--allow-empty", "-qm", "fixture")
-        return path
-
-    def tracked(self, repo, relative, source):
-        path = repo / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(source, encoding="utf-8")
-        self.git(repo, "add", "--", relative)
-        return path
-
-    def run_scan(self, *args):
-        return subprocess.run(
-            [sys.executable, str(SCANNER), "--workspace", str(self.root), *args],
-            capture_output=True, text=True, check=False,
-            env={**os.environ, **getattr(self, "extra_env", {})},
-        )
-
-    def report(self, *args):
-        result = self.run_scan(*args, "--json")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return json.loads(result.stdout)
-
+class QualityScanTests(ScanFixture):
     def test_tracks_root_and_child_repositories_without_scanning_untracked_files(self):
         core = self.init_repo(self.root / "core")
         self.tracked(self.root, "root.py", "value = 1\n")
@@ -195,17 +154,6 @@ class QualityScanTests(unittest.TestCase):
         self.assertIn("review", result.stdout.lower())
         self.assertIn("src/main.rs:1", result.stdout)
 
-    def complexity_helper(self, response, exit_code=0):
-        helper = self.root / "scripts/tools/architecture-check/target/debug/vauchi-quality-complexity"
-        helper.parent.mkdir(parents=True)
-        self.capture = Path(self.temp.name) / "request.json"
-        helper.write_text(
-            "#!/usr/bin/env python3\nimport json, pathlib, sys\n"
-            f"pathlib.Path({str(self.capture)!r}).write_text(sys.stdin.read())\n"
-            f"print({json.dumps(response)!r})\nsys.exit({exit_code})\n"
-        )
-        helper.chmod(0o755)
-
     def test_complexity_receives_only_scanned_rust_and_is_a_separate_signal(self):
         self.tracked(self.root, "src/a.rs", "fn nested() { if a { if b {} } }\n")
         self.tracked(self.root, "src/b.py", "print(1)\n")
@@ -254,6 +202,70 @@ class QualityScanTests(unittest.TestCase):
         self.extra_env = {"VAUCHI_COMPLEXITY_BIN": str(unexpected)}
         self.assertEqual(self.report("--complexity")["complexity"]["files_analyzed"], 1)
         self.assertFalse(marker.exists())
+
+    def test_scanned_workspace_cannot_select_the_executable(self):
+        self.tracked(self.root, "a.rs", "struct A;\n")
+        self.complexity_helper({"files_analyzed": 1, "macro_invocations": 0,
+                                "functions": [], "failures": []})
+        unexpected = self.root / "scripts/tools/architecture-check/target/debug/vauchi-quality-complexity"
+        unexpected.parent.mkdir(parents=True)
+        marker = Path(self.temp.name) / "workspace-executed"
+        unexpected.write_text("#!/usr/bin/env python3\nfrom pathlib import Path\n"
+                              f"Path({str(marker)!r}).touch()\nprint('wrong helper')\n")
+        unexpected.chmod(0o755)
+        self.assertEqual(self.report("--complexity")["complexity"]["files_analyzed"], 1)
+        self.assertFalse(marker.exists())
+
+    def test_bare_except_and_filename_substrings_have_independent_controls(self):
+        self.tracked(self.root, "tests/a.py", "try:\n save()\nexcept:\n pass\n")
+        self.tracked(self.root, "src/attestation.rs", "std::thread::sleep(d);\n")
+        repo = self.init_repo(self.root / "test-service")
+        self.tracked(repo, "src/inspector.rs", "assert!(value.is_ok());\n")
+        self.assertEqual([(x["rule"], x["path"]) for x in self.report()["candidates"]],
+                         [("empty-error-handler", "tests/a.py")])
+
+    def test_reserved_repository_name_cannot_hide_workspace_coverage(self):
+        self.init_repo(self.root / "root")
+        result = self.run_scan("--json")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Reserved repository", result.stderr)
+
+    def test_conflict_index_entries_do_not_duplicate_scanned_files(self):
+        path = "tests/conflict.rs"
+        self.tracked(self.root, path, "assert!(true);\n")
+        blob = self.git(self.root, "rev-parse", ":" + path)
+        entries = f"0 {'0' * 40}\t{path}\n" + "".join(
+            f"100644 {blob} {stage}\t{path}\n" for stage in (1, 2, 3))
+        subprocess.run(["git", "-C", str(self.root), "update-index", "--index-info"],
+                       input=entries, text=True, check=True)
+        data = self.report()
+        self.assertEqual((data["scanned_files"], data["candidate_count"]), (1, 1))
+
+    def test_stale_or_malformed_complexity_reports_are_operational_errors(self):
+        self.tracked(self.root, "a.rs", "fn a() {}\n")
+        base = {"files_analyzed": 1, "macro_invocations": 0, "functions": [], "failures": []}
+        cases = [{**base, "formula_version": 999},
+                 {**base, "analyzed_paths": ["outside.rs"]},
+                 {**base, "functions": [{"path": "a.rs", "name": "missing score"}]}]
+        for response in cases:
+            with self.subTest(response=response):
+                self.complexity_helper(response)
+                result = self.run_scan("--complexity", "--json")
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("complexity", result.stderr.lower())
+
+    def test_symlinked_installed_helper_is_rejected_before_execution(self):
+        self.tracked(self.root, "a.rs", "struct A;\n")
+        self.complexity_helper({"files_analyzed": 1, "macro_invocations": 0,
+                                "functions": [], "failures": []})
+        moved = Path(self.temp.name) / "other-helper"
+        self.helper.rename(moved)
+        self.helper.symlink_to(moved)
+        result = self.run_scan("--complexity")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("symlink", result.stderr)
+        self.assertFalse(self.capture.exists())
 
 
 if __name__ == "__main__":

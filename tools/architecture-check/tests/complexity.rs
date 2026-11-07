@@ -104,3 +104,31 @@ fn invalid_rust_is_a_coverage_failure_instead_of_a_zero_score() {
     assert_eq!(report.failures[0].path, "fixture.rs");
     assert!(!report.failures[0].error.is_empty());
 }
+
+// @internal
+#[test]
+fn let_else_is_a_branch_and_closure_macros_belong_to_the_closure() {
+    let report =
+        report("fn outer() { let Some(x) = value else { return; }; let f = || { opaque!(); }; }");
+    assert_eq!(report.functions[0].cyclomatic, 2);
+    assert_eq!(report.functions[0].max_nesting, 1);
+    assert_eq!(report.functions[0].macro_invocations, 0);
+    assert_eq!(report.functions[1].macro_invocations, 1);
+    assert_eq!(report.macro_invocations, 1);
+}
+
+// @internal
+#[test]
+fn top_level_and_nested_function_macros_are_not_charged_to_the_parent() {
+    let report =
+        report("opaque!(); fn outer() { opaque!(); fn inner() { opaque!(); } let f = || {}; }");
+    assert_eq!(report.macro_invocations, 3);
+    assert_eq!(
+        report
+            .functions
+            .iter()
+            .map(|f| f.macro_invocations)
+            .collect::<Vec<_>>(),
+        [1, 1, 0]
+    );
+}
