@@ -16,6 +16,7 @@ from pathlib import Path
 from quality_scan_patterns import (
     DEPENDENCY_PARTS, GENERATED_HEADER, SOURCE_EXTENSIONS, candidates,
 )
+from quality_scan_complexity import measure
 
 MAX_SOURCE_BYTES = 2_000_000
 
@@ -68,8 +69,8 @@ def source_text(path, relative):
     return text, None
 
 
-def scan(workspace, requested):
-    inventory, findings = [], []
+def scan(workspace, requested, complexity=False):
+    inventory, findings, rust_sources = [], [], []
     for name, repo in repositories(workspace, requested):
         actual_root = Path(os.fsdecode(git(repo, "rev-parse", "--show-toplevel")).strip())
         if actual_root.resolve() != repo.resolve():
@@ -95,9 +96,11 @@ def scan(workspace, requested):
             row["scanned_files"] += 1
             row["extensions"][path.suffix] += 1
             findings.extend(candidates(text, display))
+            if complexity and path.suffix == ".rs":
+                rust_sources.append({"path": display, "source": text})
         inventory.append(row)
     findings.sort(key=lambda hit: (hit["path"], hit["line"], hit["rule"]))
-    return {
+    report = {
         "schema_version": 1, "advisory": True,
         "scope": "tracked local working-tree source; candidates require review",
         "repositories": inventory,
@@ -105,6 +108,9 @@ def scan(workspace, requested):
         "candidate_count": len(findings), "candidates": findings,
         "rule_counts": collections.Counter(hit["rule"] for hit in findings),
     }
+    if complexity:
+        report["complexity"] = measure(workspace, rust_sources)
+    return report
 
 
 def print_summary(report):
@@ -123,6 +129,16 @@ def print_summary(report):
         print(f"  {hit['path']}:{hit['line']}: {hit['rule']}")
     if len(report["candidates"]) > 20:
         print("  Showing first 20 candidates; use --json for the complete report.")
+    if "complexity" in report:
+        metric = report["complexity"]
+        print(f"Rust complexity: {metric['files_analyzed']}/{metric['files_requested']} files, "
+              f"{len(metric['functions'])} functions/closures; macros are unexpanded.")
+        ranked = sorted(metric["functions"], key=lambda f: (-f["cyclomatic"], -f["max_nesting"]))
+        for function in ranked[:10]:
+            print(f"  {function['path']}:{function['line']}: {function['name']} "
+                  f"cyclomatic={function['cyclomatic']} nesting={function['max_nesting']}")
+        for failure in metric["failures"]:
+            print(f"  complexity unavailable: {failure['path']}: {failure['error']}")
 
 
 def main():
@@ -131,9 +147,11 @@ def main():
                         help="all (default), root, or local repository names")
     parser.add_argument("--workspace", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--json", action="store_true", help="emit full machine-readable report")
+    parser.add_argument("--complexity", action="store_true",
+                        help="add Rust function complexity (requires the built analyzer)")
     args = parser.parse_args()
     try:
-        report = scan(args.workspace.resolve(), args.repo)
+        report = scan(args.workspace.resolve(), args.repo, args.complexity)
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
         print(f"quality-scan: {error}", file=sys.stderr)
         return 2
@@ -141,6 +159,9 @@ def main():
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
         print_summary(report)
+    if args.complexity and report["complexity"]["failures"]:
+        print("quality-scan: complexity coverage is incomplete; see failures", file=sys.stderr)
+        return 2
     return 0
 
 

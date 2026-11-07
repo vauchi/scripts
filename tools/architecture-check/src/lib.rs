@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 mod collect;
+pub mod complexity;
 mod cycles;
 mod includes;
 mod macros;
