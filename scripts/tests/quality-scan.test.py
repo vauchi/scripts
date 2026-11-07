@@ -6,6 +6,7 @@
 """The advisory scan reports tracked candidates, coverage, and failures."""
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -46,6 +47,7 @@ class QualityScanTests(unittest.TestCase):
         return subprocess.run(
             [sys.executable, str(SCANNER), "--workspace", str(self.root), *args],
             capture_output=True, text=True, check=False,
+            env={**os.environ, **getattr(self, "extra_env", {})},
         )
 
     def report(self, *args):
@@ -192,6 +194,53 @@ class QualityScanTests(unittest.TestCase):
         self.assertIn("1 candidate", result.stdout)
         self.assertIn("review", result.stdout.lower())
         self.assertIn("src/main.rs:1", result.stdout)
+
+    def complexity_helper(self, response, exit_code=0):
+        helper = Path(self.temp.name) / "complexity-helper"
+        self.capture = Path(self.temp.name) / "request.json"
+        helper.write_text(
+            "#!/usr/bin/env python3\nimport json, pathlib, sys\n"
+            f"pathlib.Path({str(self.capture)!r}).write_text(sys.stdin.read())\n"
+            f"print({json.dumps(response)!r})\nsys.exit({exit_code})\n"
+        )
+        helper.chmod(0o755)
+        self.extra_env = {"VAUCHI_COMPLEXITY_BIN": str(helper)}
+
+    def test_complexity_receives_only_scanned_rust_and_is_a_separate_signal(self):
+        self.tracked(self.root, "src/a.rs", "fn nested() { if a { if b {} } }\n")
+        self.tracked(self.root, "src/b.py", "print(1)\n")
+        metric = {"files_analyzed": 1, "macro_invocations": 0, "failures": [],
+                  "functions": [{"path": "src/a.rs", "name": "nested", "line": 1,
+                                 "column": 1, "cyclomatic": 3, "max_nesting": 2,
+                                 "macro_invocations": 0}]}
+        self.complexity_helper(metric)
+        data = self.report("--complexity")
+        self.assertEqual(json.loads(self.capture.read_text()), [
+            {"path": "src/a.rs", "source": "fn nested() { if a { if b {} } }\n"}
+        ])
+        self.assertEqual(data["candidate_count"], 0)
+        self.assertEqual(data["complexity"]["functions"], metric["functions"])
+        self.assertEqual(data["complexity"]["metric"], "syntactic-cyclomatic")
+
+    def test_complexity_parse_failures_emit_partial_coverage_and_exit_two(self):
+        self.tracked(self.root, "invalid.rs", "fn incomplete(\n")
+        metric = {"files_analyzed": 0, "macro_invocations": 0, "functions": [],
+                  "failures": [{"path": "invalid.rs", "error": "unexpected end"}]}
+        self.complexity_helper(metric, exit_code=2)
+        result = self.run_scan("--complexity", "--json")
+        self.assertEqual(result.returncode, 2)
+        data = json.loads(result.stdout)
+        self.assertEqual(data["complexity"]["failures"], metric["failures"])
+        self.assertEqual(data["complexity"]["files_requested"], 1)
+
+    def test_complexity_cannot_claim_success_when_the_helper_omits_a_file(self):
+        self.tracked(self.root, "a.rs", "fn a() {}\n")
+        self.complexity_helper({"files_analyzed": 0, "macro_invocations": 0,
+                                "functions": [], "failures": []})
+        result = self.run_scan("--complexity", "--json")
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("coverage", result.stderr.lower())
 
 
 if __name__ == "__main__":
