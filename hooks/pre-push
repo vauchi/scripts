@@ -168,6 +168,8 @@ if [[ -f "$REPO_ROOT/Cargo.toml" ]]; then
     fi
 fi
 
+sh "$HOOK_DIR/lib/core-release-pin-warning.sh" "$REPO_ROOT"
+
 # ─── Cargo.lock git-source guard ──────────────────────────────────────
 # Local dev uses .cargo/config.toml path overrides that resolve git
 # dependencies to an in-workspace path. Running `cargo update` (or any

@@ -8,7 +8,11 @@ consumer's native Core pin (ADR-026 amendment 2026-09-30, #434)."""
 
 import importlib.util
 import json
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "core-pins.py"
 SPEC = importlib.util.spec_from_file_location("core_pins", MODULE_PATH)
@@ -321,6 +325,89 @@ def test_bumping_a_pins_env_moves_only_its_core_tag():
     assert crates == []
     assert text == PINS_ENV.replace("CORE_TAG=v0.96.1", "CORE_TAG=v0.97.0")
     assert "no CORE_TAG" in expect_error(PINS.bump_pin, "pins-env", "RELAY_SHA=abc\n", "0.97.0")
+
+
+def release_lock(tag="v0.68.0"):
+    return f'''version = 4
+[[package]]
+name = "vauchi-core"
+version = "0.68.0"
+source = "git+https://gitlab.com/vauchi/core.git?tag={tag}#{'a' * 40}"
+'''
+
+
+def test_merge_gate_accepts_stable_core_and_ignores_other_prereleases():
+    text = CARGO + '\nfork = { git = "https://gitlab.com/vauchi/utils/spake2.git", tag = "v0.4.0+vauchi.1" }\n'
+    assert PINS.require_release("cargo", text, release_lock()) == "v0.68.0"
+
+
+def test_merge_gate_rejects_all_non_release_core_tags():
+    for tag in ["v0.68.0-dev.6", "v0.69.0-rc.1", "nightly", "main", "v0.68.0+build.1"]:
+        text = CARGO.replace('tag = "v0.68.0"', f'tag = "{tag}"')
+        assert "not a stable Core release" in expect_error(PINS.require_release, "cargo", text, release_lock(tag))
+
+
+def test_merge_gate_rejects_a_development_or_mismatched_lock_even_with_stable_manifest():
+    for tag in ["v0.68.0-dev.6", "v0.67.0"]:
+        assert "locked Core source" in expect_error(PINS.require_release, "cargo", CARGO, release_lock(tag))
+    branch_lock = release_lock().replace("tag=v0.68.0", "branch=main")
+    assert "locked Core source" in expect_error(PINS.require_release, "cargo", CARGO, branch_lock)
+
+
+def test_merge_gate_fails_closed_without_a_usable_lock():
+    for lock in [None, "not toml", 'version = 4\n', release_lock().replace('a' * 40, 'bad')]:
+        assert expect_error(PINS.require_release, "cargo", CARGO, lock)
+
+
+def test_merge_gate_checks_every_locked_core_source():
+    lock = release_lock() + release_lock("v0.68.0-dev.6").removeprefix("version = 4\n")
+    assert "locked Core source" in expect_error(PINS.require_release, "cargo", CARGO, lock)
+
+
+def test_merge_gate_rejects_a_development_commit_relabeled_as_a_stable_tag():
+    assert PINS.require_release("cargo", CARGO, release_lock(), "a" * 40) == "v0.68.0"
+    assert "locked Core source" in expect_error(PINS.require_release, "cargo", CARGO, release_lock(), "b" * 40)
+
+
+def test_published_release_resolution_handles_lightweight_and_annotated_tags():
+    ref = "refs/tags/v0.68.0"
+    for output, expected in [
+        (f"{'a' * 40}\t{ref}\n", "a" * 40),
+        (f"{'a' * 40}\t{ref}\n{'b' * 40}\t{ref}^{{}}\n", "b" * 40),
+    ]:
+        result = subprocess.CompletedProcess([], 0, stdout=output, stderr="")
+        with patch.object(PINS.subprocess, "run", return_value=result):
+            assert PINS.release_tag_commit("v0.68.0") == expected
+    for status, output in [(1, ""), (0, ""), (0, f"bad\t{ref}\n")]:
+        result = subprocess.CompletedProcess([], status, stdout=output, stderr="")
+        with patch.object(PINS.subprocess, "run", return_value=result):
+            assert "could not verify" in expect_error(PINS.release_tag_commit, "v0.68.0")
+    with patch.object(PINS.subprocess, "run", side_effect=subprocess.TimeoutExpired("git", 30)):
+        assert "could not verify" in expect_error(PINS.release_tag_commit, "v0.68.0")
+
+
+def test_merge_gate_command_fails_on_development_pins_and_passes_after_restoring_both_files():
+    with tempfile.TemporaryDirectory() as directory:
+        manifest = Path(directory) / "Cargo.toml"
+        lock = Path(directory) / "Cargo.lock"
+        for tag, locked_tag, status, message in [
+            ("v0.68.0-dev.6", "v0.68.0-dev.6", 2, "not a stable Core release"),
+            ("v0.68.0", "v0.68.0-dev.6", 2, "locked Core source"),
+            ("v0.68.0", "v0.68.0", 0, "Stable Core pin: v0.68.0"),
+        ]:
+            manifest.write_text(CARGO.replace('tag = "v0.68.0"', f'tag = "{tag}"'))
+            lock.write_text(release_lock(locked_tag))
+            result = subprocess.run(
+                [sys.executable, str(MODULE_PATH), "require-release", "--kind", "cargo", str(manifest), "--lockfile", str(lock)],
+                capture_output=True, text=True, check=False,
+            )
+            assert result.returncode == status, result.stderr
+            assert message in result.stdout + result.stderr
+
+
+def test_merge_gate_supports_other_native_core_pin_files():
+    assert PINS.require_release("ref-file", "v0.68.0\n") == "v0.68.0"
+    assert "not a stable Core release" in expect_error(PINS.require_release, "pins-env", "CORE_TAG=v0.68.0-dev.6\n")
 
 
 if __name__ == "__main__":

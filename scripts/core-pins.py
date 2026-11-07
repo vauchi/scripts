@@ -14,6 +14,7 @@ workspace checkers (`check`).
 
 Usage:
     core-pins.py read --kind KIND FILE
+    core-pins.py require-release --kind KIND FILE [--lockfile Cargo.lock]
     core-pins.py bump --kind KIND --version X.Y.Z FILE
     core-pins.py consumers --table FILE [--bumped-by JOB]
     core-pins.py check --root DIR [--ref origin/main] [--table FILE] [--fetch] [--strict]
@@ -26,8 +27,10 @@ import json
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Callable, NamedTuple, Optional
+from urllib.parse import parse_qs, urlsplit
 
 CORE_GIT_LINE = re.compile(r'git\s*=\s*"https://gitlab\.com/vauchi/core(?:\.git)?"')
 CRATE_NAME = re.compile(r"^\s*([A-Za-z0-9_-]+)\s*=")
@@ -162,6 +165,61 @@ def read_pin(kind: str, text: str) -> str:
     if reader is None:
         raise PinError(f"unknown pin kind: {kind}")
     return reader(text)
+
+
+def require_release(kind: str, text: str, lock: Optional[str] = None,
+                    expected_commit: Optional[str] = None) -> str:
+    pin = read_pin(kind, text)
+    if not RELEASE_TAG.fullmatch(pin):
+        raise PinError(f"{pin!r} is not a stable Core release (expected vX.Y.Z)")
+    if kind != "cargo":
+        return pin
+    if lock is None:
+        raise PinError("Cargo.lock is required to verify the locked Core source")
+    try:
+        packages = tomllib.loads(lock).get("package", [])
+    except tomllib.TOMLDecodeError as err:
+        raise PinError("Cargo.lock is not valid TOML") from err
+    if not isinstance(packages, list) or any(not isinstance(p, dict) for p in packages):
+        raise PinError("Cargo.lock has an invalid package list")
+    found = False
+    for package in packages:
+        source = package.get("source", "")
+        if not isinstance(source, str):
+            raise PinError("Cargo.lock has an invalid package source")
+        try:
+            parsed = urlsplit(source.removeprefix("git+"))
+        except ValueError as err:
+            raise PinError("Cargo.lock has an invalid source URL") from err
+        if parsed.netloc != "gitlab.com" or parsed.path not in {"/vauchi/core", "/vauchi/core.git"}:
+            continue
+        found = True
+        if (not source.startswith("git+https://")
+                or parse_qs(parsed.query, keep_blank_values=True) != {"tag": [pin]}
+                or not re.fullmatch(r"[0-9a-f]{40}", parsed.fragment)
+                or (expected_commit is not None and parsed.fragment != expected_commit)):
+            raise PinError(f"locked Core source does not match stable tag {pin}")
+    if not found:
+        raise PinError("Cargo.lock has no locked Core source")
+    return pin
+
+
+def release_tag_commit(pin: str) -> str:
+    if not RELEASE_TAG.fullmatch(pin):
+        raise PinError("only stable Core tags may be resolved")
+    ref = f"refs/tags/{pin}"
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", "https://gitlab.com/vauchi/core.git", ref, ref + "^{}"],
+            capture_output=True, text=True, check=False, timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as err:
+        raise PinError(f"could not verify published Core tag {pin}") from err
+    refs = dict(line.split()[::-1] for line in result.stdout.splitlines() if len(line.split()) == 2)
+    commit = refs.get(ref + "^{}", refs.get(ref, ""))
+    if result.returncode or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise PinError(f"could not verify published Core tag {pin}")
+    return commit
 
 
 def _bump_cargo(text: str, version: str) -> tuple[str, list[str]]:
@@ -328,6 +386,13 @@ def _main(argv: list[str]) -> int:
     read_cmd.add_argument("--kind", required=True)
     read_cmd.add_argument("file", type=Path)
 
+    release_cmd = sub.add_parser("require-release", help="reject non-stable or mismatched Core pins before merge")
+    release_cmd.add_argument("--kind", required=True)
+    release_cmd.add_argument("file", type=Path)
+    release_cmd.add_argument("--lockfile", type=Path)
+    release_cmd.add_argument("--verify-tag", action="store_true", help="verify lock SHA against the published Core tag")
+    release_cmd.add_argument("--if-present", action="store_true", help="skip Cargo manifests without Core git dependencies")
+
     bump_cmd = sub.add_parser("bump", help="rewrite a pin file to a Core release")
     bump_cmd.add_argument("--kind", required=True)
     bump_cmd.add_argument("--version", required=True)
@@ -348,6 +413,15 @@ def _main(argv: list[str]) -> int:
     try:
         if args.command == "read":
             print(read_pin(args.kind, args.file.read_text(encoding="utf-8")))
+        elif args.command == "require-release":
+            text = args.file.read_text(encoding="utf-8")
+            if args.if_present and args.kind == "cargo" and not _core_lines(text):
+                return 0
+            lock = args.lockfile.read_text(encoding="utf-8") if args.lockfile else None
+            pin = require_release(args.kind, text, lock)
+            if args.verify_tag:
+                require_release(args.kind, text, lock, release_tag_commit(pin))
+            print(f"Stable Core pin: {pin}")
         elif args.command == "bump":
             text, crates = bump_pin(args.kind, args.file.read_text(encoding="utf-8"), args.version)
             args.file.write_text(text, encoding="utf-8")
