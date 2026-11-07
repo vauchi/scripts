@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""The advisory scan reports tracked candidates, coverage, and failures."""
+
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+SCANNER = Path(__file__).resolve().parents[1] / "quality-scan.py"
+
+
+class QualityScanTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name) / "workspace"
+        self.root.mkdir()
+        self.init_repo(self.root)
+
+    def git(self, repo, *args):
+        return subprocess.check_output(
+            ["git", "-C", str(repo), *args], text=True, stderr=subprocess.PIPE
+        ).strip()
+
+    def init_repo(self, path):
+        path.mkdir(exist_ok=True)
+        self.git(path, "init", "-q")
+        self.git(path, "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                 "commit", "--allow-empty", "-qm", "fixture")
+        return path
+
+    def tracked(self, repo, relative, source):
+        path = repo / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+        self.git(repo, "add", "--", relative)
+        return path
+
+    def run_scan(self, *args):
+        return subprocess.run(
+            [sys.executable, str(SCANNER), "--workspace", str(self.root), *args],
+            capture_output=True, text=True, check=False,
+        )
+
+    def report(self, *args):
+        result = self.run_scan(*args, "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_tracks_root_and_child_repositories_without_scanning_untracked_files(self):
+        core = self.init_repo(self.root / "core")
+        self.tracked(self.root, "root.py", "value = 1\n")
+        self.tracked(core, "tests/value.rs", "#[test]\nfn value() { assert!(true); }\n")
+        (core / "untracked.rs").write_text("todo!();\n")
+        data = self.report()
+        self.assertTrue(data["advisory"])
+        self.assertEqual([r["name"] for r in data["repositories"]], ["root", "core"])
+        self.assertEqual(data["scanned_files"], 2)
+        self.assertEqual(data["candidate_count"], 1)
+        self.assertEqual(data["candidates"], [{
+            "rule": "literal-tautology", "path": "core/tests/value.rs",
+            "line": 2, "test_like_file": True,
+        }])
+        row = data["repositories"][1]
+        self.assertEqual(row["head"], self.git(core, "rev-parse", "HEAD"))
+        self.assertTrue(row["dirty"])
+
+    def test_supports_a_named_repository_without_other_repository_findings(self):
+        core = self.init_repo(self.root / "core")
+        other = self.init_repo(self.root / "other")
+        self.tracked(core, "src/lib.rs", "fn value() { todo!(); }\n")
+        self.tracked(other, "src/lib.rs", "fn value() { unimplemented!(); }\n")
+        data = self.report("core")
+        self.assertEqual([r["name"] for r in data["repositories"]], ["core"])
+        self.assertEqual([(x["rule"], x["path"]) for x in data["candidates"]],
+                         [("placeholder", "core/src/lib.rs")])
+
+    def test_reports_literal_empty_sync_and_async_tests(self):
+        self.tracked(self.root, "tests/empty.rs", "#[test]\nfn sync() {}\n"
+                     "#[tokio::test]\nasync fn asynchronous() {}\n")
+        data = self.report()
+        self.assertEqual([(x["rule"], x["line"]) for x in data["candidates"]],
+                         [("empty-rust-test", 1), ("empty-rust-test", 3)])
+
+    def test_presence_candidates_cover_call_expressions_and_messages(self):
+        self.tracked(self.root, "tests/values.rs", "assert!(foo().is_ok());\n"
+                     'assert!(result.is_some(), "required");\n')
+        data = self.report()
+        self.assertEqual([(x["rule"], x["line"]) for x in data["candidates"]],
+                         [("presence-assertion", 1), ("presence-assertion", 2)])
+
+    def test_a_specific_assertion_does_not_automatically_suppress_a_candidate(self):
+        self.tracked(self.root, "tests/value.rs", "assert!(result.is_ok());\n"
+                     "assert_eq!(result.unwrap(), 3);\n")
+        self.assertEqual(self.report()["candidate_count"], 1)
+
+    def test_plain_negative_controls_are_not_findings(self):
+        self.tracked(self.root, "tests/value.rs", "assert_eq!(actual, expected);\n"
+                     "assert!(is_valid);\nlet result = operation()?;\n")
+        self.assertEqual(self.report()["candidates"], [])
+
+    def test_generated_examples_do_not_exclude_handwritten_generators(self):
+        self.tracked(self.root, "generator.py", '#!/usr/bin/env python3\n'
+                     'template = "# Auto-generated file"\nraise NotImplementedError\n')
+        self.tracked(self.root, "Tokens.cs", "// Auto-generated by tokens.py\nTODO();\n")
+        data = self.report()
+        self.assertEqual(data["scanned_files"], 1)
+        self.assertEqual(data["repositories"][0]["excluded"],
+                         [{"path": "Tokens.cs", "reason": "generated-first-line"}])
+        self.assertEqual(data["candidates"][0]["path"], "generator.py")
+
+    def test_symlinks_are_reported_without_following_external_source(self):
+        outside = Path(self.temp.name) / "outside.rs"
+        outside.write_text("todo!();\n")
+        (self.root / "link.rs").symlink_to(outside)
+        self.git(self.root, "add", "link.rs")
+        data = self.report()
+        self.assertEqual(data["candidates"], [])
+        self.assertEqual(data["repositories"][0]["excluded"],
+                         [{"path": "link.rs", "reason": "symlink"}])
+
+    def test_deleted_tracked_source_fails_instead_of_reporting_a_clean_scan(self):
+        self.tracked(self.root, "missing.py", "print(1)\n").unlink()
+        result = self.run_scan("--json")
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("missing.py", result.stderr)
+
+    def test_unknown_or_external_repository_is_an_error(self):
+        for name in ["unknown", "../outside"]:
+            with self.subTest(name=name):
+                result = self.run_scan(name)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("Unknown repository", result.stderr)
+
+    def test_invalid_git_repository_does_not_disappear_from_coverage(self):
+        broken = self.root / "broken"
+        (broken / ".git").mkdir(parents=True)
+        result = self.run_scan()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("broken", result.stderr)
+
+    def test_inline_tests_are_candidates_but_production_presence_checks_are_not(self):
+        self.tracked(self.root, "src/lib.rs", "#[cfg(test)]\nmod tests {\n"
+                     "fn helper() { assert!(result.is_ok()); }\n}\n")
+        self.tracked(self.root, "src/production.rs", "assert!(result.is_ok());\n")
+        self.assertEqual([x["path"] for x in self.report()["candidates"]],
+                         ["src/lib.rs"])
+
+    def test_multilanguage_candidates_have_paths_and_lines(self):
+        sources = {
+            "tests/a.py": "try:\n    save()\nexcept Exception:\n    pass\n",
+            "tests/b.kt": "try { save() } catch (e: Exception) {}\n",
+            "tests/c.swift": "XCTAssertNotNil(value)\n",
+            "tests/d.ts": "expect(true).toBe(true)\n",
+            "tests/e.cs": "Thread.Sleep(50);\n",
+        }
+        for path, text in sources.items():
+            self.tracked(self.root, path, text)
+        found = {x["path"]: (x["rule"], x["line"]) for x in self.report()["candidates"]}
+        self.assertEqual(found, {
+            "tests/a.py": ("empty-error-handler", 3),
+            "tests/b.kt": ("empty-error-handler", 1),
+            "tests/c.swift": ("presence-assertion", 1),
+            "tests/d.ts": ("literal-tautology", 1),
+            "tests/e.cs": ("sleep", 1),
+        })
+
+    def test_default_human_output_is_advisory_and_does_not_fail_on_candidates(self):
+        self.tracked(self.root, "src/main.rs", "fn main() { todo!(); }\n")
+        result = self.run_scan()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("1 candidate", result.stdout)
+        self.assertIn("review", result.stdout.lower())
+        self.assertIn("src/main.rs:1", result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()
