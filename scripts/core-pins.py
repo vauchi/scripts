@@ -38,6 +38,7 @@ TAG = re.compile(r'tag\s*=\s*"([^"]+)"')
 BRANCH = re.compile(r'branch\s*=\s*"[^"]*"')
 VERSION_REQ = re.compile(r'version\s*=\s*"[^"]*"')
 RELEASE_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+CORE_PACKAGES = {"vauchi-core", "vauchi-app", "vauchi-protocol", "vauchi-platform", "vauchi-cabi"}
 VERSION_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$")
 HARDCODED_CI_REF = re.compile(r"""^\s*(?:VAUCHI_)?CORE_REF:\s*["']?v\d+\.\d+\.\d+""")
 
@@ -192,6 +193,8 @@ def require_release(kind: str, text: str, lock: Optional[str] = None,
         except ValueError as err:
             raise PinError("Cargo.lock has an invalid source URL") from err
         if parsed.netloc != "gitlab.com" or parsed.path not in {"/vauchi/core", "/vauchi/core.git"}:
+            if package.get("name") in CORE_PACKAGES:
+                raise PinError("locked Core source is missing or replaced by a non-release source")
             continue
         found = True
         if (not source.startswith("git+https://")

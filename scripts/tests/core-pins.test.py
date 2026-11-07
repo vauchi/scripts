@@ -364,6 +364,13 @@ def test_merge_gate_checks_every_locked_core_source():
     assert "locked Core source" in expect_error(PINS.require_release, "cargo", CARGO, lock)
 
 
+def test_merge_gate_rejects_a_patched_core_even_when_app_keeps_a_stable_git_source():
+    app = release_lock().replace('name = "vauchi-core"', 'name = "vauchi-app"')
+    core = '\n[[package]]\nname = "vauchi-core"\nversion = "0.68.0"\n'
+    for source in ["", 'source = "git+https://gitlab.com/example/fork.git?tag=v0.68.0#' + 'a' * 40 + '"\n']:
+        assert "locked Core source" in expect_error(PINS.require_release, "cargo", CARGO, app + core + source)
+
+
 def test_merge_gate_rejects_a_development_commit_relabeled_as_a_stable_tag():
     assert PINS.require_release("cargo", CARGO, release_lock(), "a" * 40) == "v0.68.0"
     assert "locked Core source" in expect_error(PINS.require_release, "cargo", CARGO, release_lock(), "b" * 40)
