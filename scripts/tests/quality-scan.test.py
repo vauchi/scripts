@@ -132,6 +132,19 @@ class QualityScanTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         self.assertIn("missing.py", result.stderr)
 
+    def test_replaced_parent_symlink_cannot_scan_external_source(self):
+        path = self.tracked(self.root, "src/lib.rs", "fn real() {}\n")
+        path.unlink()
+        path.parent.rmdir()
+        outside = Path(self.temp.name) / "external"
+        outside.mkdir()
+        (outside / "lib.rs").write_text("todo!();\n")
+        (self.root / "src").symlink_to(outside, target_is_directory=True)
+        data = self.report()
+        self.assertEqual(data["candidates"], [])
+        self.assertEqual(data["repositories"][0]["excluded"],
+                         [{"path": "src/lib.rs", "reason": "symlink"}])
+
     def test_unknown_or_external_repository_is_an_error(self):
         for name in ["unknown", "../outside"]:
             with self.subTest(name=name):
