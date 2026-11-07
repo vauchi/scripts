@@ -7,17 +7,14 @@
 import json
 import os
 import subprocess
-from pathlib import Path
 
 
 def measure(workspace, sources):
-    target = Path(os.environ.get(
-        "CARGO_TARGET_DIR", workspace / "scripts/tools/architecture-check/target"
-    ))
-    binary = os.environ.get("VAUCHI_COMPLEXITY_BIN", str(
+    target = workspace / "scripts/tools/architecture-check/target"
+    binary = str(
         target / "debug" / ("vauchi-quality-complexity.exe" if os.name == "nt"
                             else "vauchi-quality-complexity")
-    ))
+    )
     if sources:
         result = subprocess.run(
             [binary], input=json.dumps(sources), capture_output=True, text=True,

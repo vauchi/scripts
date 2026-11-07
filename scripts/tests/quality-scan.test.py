@@ -196,7 +196,8 @@ class QualityScanTests(unittest.TestCase):
         self.assertIn("src/main.rs:1", result.stdout)
 
     def complexity_helper(self, response, exit_code=0):
-        helper = Path(self.temp.name) / "complexity-helper"
+        helper = self.root / "scripts/tools/architecture-check/target/debug/vauchi-quality-complexity"
+        helper.parent.mkdir(parents=True)
         self.capture = Path(self.temp.name) / "request.json"
         helper.write_text(
             "#!/usr/bin/env python3\nimport json, pathlib, sys\n"
@@ -204,7 +205,6 @@ class QualityScanTests(unittest.TestCase):
             f"print({json.dumps(response)!r})\nsys.exit({exit_code})\n"
         )
         helper.chmod(0o755)
-        self.extra_env = {"VAUCHI_COMPLEXITY_BIN": str(helper)}
 
     def test_complexity_receives_only_scanned_rust_and_is_a_separate_signal(self):
         self.tracked(self.root, "src/a.rs", "fn nested() { if a { if b {} } }\n")
@@ -241,6 +241,19 @@ class QualityScanTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(result.stdout, "")
         self.assertIn("coverage", result.stderr.lower())
+
+    def test_environment_cannot_select_another_complexity_executable(self):
+        self.tracked(self.root, "a.rs", "fn a() {}\n")
+        self.complexity_helper({"files_analyzed": 1, "macro_invocations": 0,
+                                "functions": [], "failures": []})
+        unexpected = Path(self.temp.name) / "unexpected-helper"
+        marker = Path(self.temp.name) / "unexpected-executed"
+        unexpected.write_text("#!/usr/bin/env python3\nfrom pathlib import Path\n"
+                              f"Path({str(marker)!r}).touch()\nprint('bad helper')\n")
+        unexpected.chmod(0o755)
+        self.extra_env = {"VAUCHI_COMPLEXITY_BIN": str(unexpected)}
+        self.assertEqual(self.report("--complexity")["complexity"]["files_analyzed"], 1)
+        self.assertFalse(marker.exists())
 
 
 if __name__ == "__main__":

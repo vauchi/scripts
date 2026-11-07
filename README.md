@@ -163,9 +163,9 @@ from the `complexity` crate and not quality thresholds. Other languages
 receive lexical candidates but no Rust metrics. Parse failures retain
 partial JSON evidence and make the command exit 2. The text report ranks
 the ten largest branch scores; JSON retains every measured function.
-`VAUCHI_COMPLEXITY_BIN` can select a prebuilt analyzer; direct scanner
-invocation otherwise expects the native debug binary in the tool's target
-directory (respecting `CARGO_TARGET_DIR`).
+The recipe builds and runs the native debug binary in the analyzer's
+fixed target directory. Environment variables cannot select another
+helper executable.
 
 The scanner's behavioral tests run automatically in the scripts
 `test:selftests` job. To run only that suite locally:
