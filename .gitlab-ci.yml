@@ -35,12 +35,15 @@ test:architecture:
   tags: [docker]
   needs: []
   before_script:
+    - apt-get update -qq && apt-get install -y -qq python3
     - rustup component add rustfmt clippy
   script:
     - cargo fmt --manifest-path tools/architecture-check/Cargo.toml --check
     - cargo clippy --locked --manifest-path tools/architecture-check/Cargo.toml -j 8 --all-targets -- -D warnings
     - cargo test --locked --manifest-path tools/architecture-check/Cargo.toml -j 8
     - bash tools/architecture-check/tests/gate.test.sh
+    - cargo build --locked --manifest-path tools/architecture-check/Cargo.toml --target-dir tools/architecture-check/target --bin vauchi-quality-complexity
+    - python3 tools/architecture-check/tests/quality-scan-integration.py
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

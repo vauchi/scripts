@@ -122,13 +122,19 @@ It reads tracked working-tree source, including staged files and local
 edits. Untracked files are outside the scan. Reports include repository
 HEADs, tracked-change status, source counts, exclusions and candidate
 locations. JSON contains every candidate; text shows the first 20.
+Discovery covers the workspace repository and immediate, non-symlinked
+Git checkouts. Deeper repositories and submodule gitlinks are not walked.
+`root` and `all` are reserved selectors; a child checkout with either name
+produces an error. Unmerged index entries are deduplicated by source path.
 
 Patterns identify review candidates: literal tautologies, empty Rust test
 bodies (including async attributes), conditional success checks,
 success/presence assertions, discarded results, empty error handlers,
 skips, placeholders and sleeps. Comments, fixtures, asserting helpers,
 unit-valued results and intentional fallback paths require human review.
-Test scope is inferred from paths and inline test markers; a match in a
+Test scope uses test directories, test filename conventions and inline
+test markers, relative to each repository. Repository names and substrings
+such as `attestation` do not make production files tests. A match in a
 mixed file can belong to production code. Empty-test detection does not
 claim to find every test without a meaningful oracle.
 
@@ -150,8 +156,10 @@ fresh machine. It does not build application crates or add dependencies.
 The analyzer reports each Rust function, method and closure separately:
 
 - Syntactic cyclomatic complexity starts at 1; adds 1 per `if`, loop,
-  short-circuit Boolean operator and `?`; adds match alternatives beyond
-  the first and each match guard.
+  `let ... else`, short-circuit Boolean operator and `?`; adds match arms
+  beyond the first and each match guard. Or-patterns inside one arm do
+  not add branches. This is a documented syntactic variant, not a strict
+  control-flow-graph McCabe computation.
 - Maximum control-flow AST nesting counts nested `if`, loop and match
   nodes. An `else if` is nested in the AST. Nested functions and closures
   receive separate scores and do not inflate their parent's score.
@@ -164,8 +172,18 @@ receive lexical candidates but no Rust metrics. Parse failures retain
 partial JSON evidence and make the command exit 2. The text report ranks
 the ten largest branch scores; JSON retains every measured function.
 The recipe builds and runs the native debug binary in the analyzer's
-fixed target directory. Environment variables cannot select another
-helper executable.
+fixed target directory next to the scanner installation. Neither the
+scanned workspace nor environment variables can select another helper.
+Symlinked helpers are rejected. A formula-version handshake and exact
+analyzed/failed path identities are checked before accepting the report;
+malformed function records are operational errors. The helper parses
+source bytes received on stdin, without reopening source files. Reads
+from a concurrently changing checkout are not an atomic snapshot.
+
+For example, two sequential `if` statements and two nested `if` statements
+both score 3; their maximum AST nesting is 1 and 2 respectively. A
+types-only or empty Rust file can correctly parse with zero functions.
+Parser-file coverage does not establish semantic or function coverage.
 
 The scanner's behavioral tests run automatically in the scripts
 `test:selftests` job. To run only that suite locally:
@@ -173,6 +191,10 @@ The scanner's behavioral tests run automatically in the scripts
 ```bash
 just exec-in-repo scripts 'python3 scripts/tests/quality-scan.test.py'
 ```
+
+`just architecture-check` also exercises the real Python/Rust protocol,
+including invalid syntax and valid zero-function files. The same checks
+run in `test:architecture`, against the helper built in that CI job.
 
 ### Testing
 

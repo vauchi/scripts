@@ -34,11 +34,13 @@ def git(repo, *args):
 def repositories(workspace, requested):
     if not workspace.is_dir() or not (workspace / ".git").exists():
         raise ValueError(f"Workspace is not a Git repository: {workspace}")
-    available = {"root": workspace}
-    available.update({
+    children = {
         p.name: p for p in sorted(workspace.iterdir())
         if not p.is_symlink() and p.is_dir() and (p / ".git").exists()
-    })
+    }
+    if {"root", "all"} & children.keys():
+        raise ValueError("Reserved repository name collides with workspace selection")
+    available = {"root": workspace, **children}
     if requested == ["all"]:
         return available.items()
     for name in requested:
@@ -81,7 +83,7 @@ def scan(workspace, requested, complexity=False):
             "source_files": 0, "scanned_files": 0, "excluded": [],
             "extensions": collections.Counter(),
         }
-        tracked = sorted(filter(None, git(repo, "ls-files", "-z").split(b"\x00")))
+        tracked = sorted(set(filter(None, git(repo, "ls-files", "-z").split(b"\x00"))))
         for entry in tracked:
             relative = os.fsdecode(entry)
             path = repo / relative
@@ -95,21 +97,22 @@ def scan(workspace, requested, complexity=False):
                 continue
             row["scanned_files"] += 1
             row["extensions"][path.suffix] += 1
-            findings.extend(candidates(text, display))
+            findings.extend(candidates(text, display, relative))
             if complexity and path.suffix == ".rs":
                 rust_sources.append({"path": display, "source": text})
         inventory.append(row)
     findings.sort(key=lambda hit: (hit["path"], hit["line"], hit["rule"]))
     report = {
         "schema_version": 1, "advisory": True,
-        "scope": "tracked local working-tree source; candidates require review",
+        "scope": "selected source extensions in root and immediate local Git repos; candidates require review",
+        "source_extensions": sorted(SOURCE_EXTENSIONS),
         "repositories": inventory,
         "scanned_files": sum(row["scanned_files"] for row in inventory),
         "candidate_count": len(findings), "candidates": findings,
         "rule_counts": collections.Counter(hit["rule"] for hit in findings),
     }
     if complexity:
-        report["complexity"] = measure(workspace, rust_sources)
+        report["complexity"] = measure(rust_sources)
     return report
 
 

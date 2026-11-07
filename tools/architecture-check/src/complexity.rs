@@ -33,7 +33,9 @@ pub struct ParseFailure {
 
 #[derive(Debug, Default, Serialize)]
 pub struct ComplexityReport {
+    pub formula_version: u32,
     pub files_analyzed: usize,
+    pub analyzed_paths: Vec<String>,
     pub macro_invocations: usize,
     pub functions: Vec<FunctionComplexity>,
     pub failures: Vec<ParseFailure>,
@@ -59,6 +61,22 @@ impl Measure {
 
 impl<'ast> Visit<'ast> for Measure {
     fn visit_item(&mut self, _: &'ast syn::Item) {}
+
+    fn visit_local(&mut self, node: &'ast syn::Local) {
+        let diverges = node
+            .init
+            .as_ref()
+            .is_some_and(|init| init.diverge.is_some());
+        if diverges {
+            self.cyclomatic += 1;
+            self.nesting += 1;
+            self.max_nesting = self.max_nesting.max(self.nesting);
+        }
+        visit::visit_local(self, node);
+        if diverges {
+            self.nesting -= 1;
+        }
+    }
 
     fn visit_expr(&mut self, node: &'ast Expr) {
         let decision = matches!(
@@ -152,7 +170,10 @@ impl<'ast> Visit<'ast> for Functions<'_> {
 }
 
 pub fn analyze_sources(files: &[SourceFile]) -> ComplexityReport {
-    let mut report = ComplexityReport::default();
+    let mut report = ComplexityReport {
+        formula_version: 1,
+        ..ComplexityReport::default()
+    };
     for file in files {
         match syn::parse_file(&file.source) {
             Ok(parsed) => {
@@ -163,6 +184,7 @@ pub fn analyze_sources(files: &[SourceFile]) -> ComplexityReport {
                 };
                 functions.visit_file(&parsed);
                 report.files_analyzed += 1;
+                report.analyzed_paths.push(file.path.clone());
                 report.macro_invocations += functions.macros;
                 report.functions.extend(functions.functions);
             }
