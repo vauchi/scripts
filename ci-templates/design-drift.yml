@@ -216,10 +216,28 @@
           git -C "$CORE_DIR" init -q
           git -C "$CORE_DIR" remote add origin https://gitlab.com/vauchi/core.git
           git -C "$CORE_DIR" sparse-checkout init --no-cone
-          git -C "$CORE_DIR" sparse-checkout set vauchi-core/src/platform/presentation/surface/nodes.rs
+          git -C "$CORE_DIR" sparse-checkout set vauchi-core/src/platform/presentation/surface/nodes.rs Cargo.toml
           git -C "$CORE_DIR" fetch -q --depth 1 origin "$CORE_REF"
           git -C "$CORE_DIR" checkout -q FETCH_HEAD
           ENUM_FILE="$CORE_DIR/vauchi-core/src/platform/presentation/surface/nodes.rs"
+          if [ ! -f "$ENUM_FILE" ]; then
+            # Core took the presentation types from the contract (ADR-078):
+            # read the enum at the contract tag this Core pins (private#1162).
+            CONTRACT_REF=$(python3 -c 'import pathlib, sys, tomllib; print(tomllib.loads(pathlib.Path(sys.argv[1]).read_text())["workspace"]["dependencies"]["vauchi-contract"].get("tag", ""))' "$CORE_DIR/Cargo.toml")
+            if [ -z "$CONTRACT_REF" ]; then
+              echo "ERROR: Core $CORE_REF has neither nodes.rs nor a vauchi-contract tag" >&2
+              exit 2
+            fi
+            echo "Core $CORE_REF takes the enum from contract $CONTRACT_REF"
+            CONTRACT_DIR=$(mktemp -d)
+            git -C "$CONTRACT_DIR" init -q
+            git -C "$CONTRACT_DIR" remote add origin https://gitlab.com/vauchi/contract.git
+            git -C "$CONTRACT_DIR" sparse-checkout init --no-cone
+            git -C "$CONTRACT_DIR" sparse-checkout set src/presentation/surface/nodes.rs
+            git -C "$CONTRACT_DIR" fetch -q --depth 1 origin "refs/tags/$CONTRACT_REF"
+            git -C "$CONTRACT_DIR" checkout -q FETCH_HEAD
+            ENUM_FILE="$CONTRACT_DIR/src/presentation/surface/nodes.rs"
+          fi
         fi
         if [ ! -f "$ENUM_FILE" ]; then
           echo "ERROR: missing canonical enum file: $ENUM_FILE" >&2
