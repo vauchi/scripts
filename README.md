@@ -205,6 +205,16 @@ run in `test:architecture`, against the helper built in that CI job.
 
 ### Testing
 
+When pre-push checks run for Core, Android or E2E, Python guard selftests
+named `scripts/tests/check-*.test.py` or `ci/tests/check-*.test.py` run
+before language-specific checks. A failing selftest stops the push.
+Older checkouts without registered tests explicitly report that absence.
+Run the same step directly with:
+
+```bash
+just exec-in-repo scripts 'bash scripts/run-guard-selftests.sh <repository>'
+```
+
 | Script | Purpose |
 | --- | --- |
 | `run-tests.sh` | Unified test runner |

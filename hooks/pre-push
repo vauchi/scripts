@@ -498,6 +498,12 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         return "$step_status"
     }
 
+    case "$REPO_DIR" in
+        core|android|e2e)
+            time_step "Guard selftests" bash "$HOOK_DIR/../scripts/run-guard-selftests.sh" "$REPO_ROOT"
+            ;;
+    esac
+
     # ─── Check for gate-push dedup ──────────────────────────────────────
     # If gate-push.sh already ran fmt+clippy for this commit recently, skip those.
 
