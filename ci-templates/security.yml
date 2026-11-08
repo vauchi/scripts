@@ -282,7 +282,7 @@ secret_detection:
       deny_files=$(find . -name deny.toml -not -path './target/*' -not -path './.allow-git/*' | sort)
       [ -n "$deny_files" ] || { echo "ERROR: no deny.toml in this repository"; exit 1; }
       # shellcheck disable=SC2086 # one path per word is the point
-      python3 .allow-git/check-allow-git.py deny --list .allow-git/allowed-git-sources.txt $deny_files
+      python3 .allow-git/check-allow-git.py --list .allow-git/allowed-git-sources.txt $deny_files
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

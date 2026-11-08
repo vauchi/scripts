@@ -4,9 +4,10 @@
 #
 # The git sources cargo-deny may allow, reviewed (vauchi/private#1162).
 # Every repository's deny.toml [sources] allow-git lists exactly these;
-# Core's release fails when its Cargo.lock takes a git source missing
-# here. Add a source here first, in its own reviewed MR, then in each
-# repository's deny.toml as the drift check names it.
+# every repository denies other git sources, so its own cargo-deny
+# refuses an unlisted one on the MR that adds it. Add a source here
+# first, in its own reviewed MR, then in each deny.toml as the drift
+# check names it.
 https://gitlab.com/vauchi/contract.git
 https://gitlab.com/vauchi/core.git
 https://gitlab.com/vauchi/relay.git
