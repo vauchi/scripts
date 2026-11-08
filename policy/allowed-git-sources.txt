@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# The git sources cargo-deny may allow, reviewed (vauchi/private#1162).
+# Every repository's deny.toml [sources] allow-git lists exactly these;
+# Core's release fails when its Cargo.lock takes a git source missing
+# here. Add a source here first, in its own reviewed MR, then in each
+# repository's deny.toml as the drift check names it.
+https://gitlab.com/vauchi/contract.git
+https://gitlab.com/vauchi/core.git
+https://gitlab.com/vauchi/relay.git
+https://gitlab.com/vauchi/utils/rqrr.git
+https://gitlab.com/vauchi/utils/spake2.git

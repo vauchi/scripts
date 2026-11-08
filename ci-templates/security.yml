@@ -18,6 +18,7 @@
 #   - .security-audit-job: Ready-to-use cargo-audit job (extend with runner)
 #   - .security-deny-job: Ready-to-use cargo-deny job (extend with runner)
 #   - .security-vet-job: Ready-to-use cargo-vet supply chain audit job (extend with runner)
+#   - .allow-git-drift-job: deny.toml git sources match policy/allowed-git-sources.txt
 #
 # NOT included (language-specific, add directly if needed):
 #   - Dependency-Scanning: Gemnasium does not support Cargo/Rust.
@@ -254,6 +255,38 @@ secret_detection:
   before_script:
     - !reference [.self-hosted, before_script]
     - command -v cargo-deny >/dev/null 2>&1 || cargo binstall cargo-deny --no-confirm 2>/dev/null || true
+
+# cargo-deny's git sources match the reviewed list (vauchi/private#1162).
+# Every deny.toml in the repository allows exactly the sources in
+# policy/allowed-git-sources.txt, so a git source Core starts to take is
+# already allowed in every consumer when its bump MR opens. Pure Python,
+# no cargo: runs in seconds on every MR, main and schedule.
+.allow-git-drift-job:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/python:3.11-slim
+  tags: [docker]
+  needs: []
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends curl ca-certificates
+    - mkdir -p .allow-git
+    - |
+      for file in scripts/check-allow-git.py policy/allowed-git-sources.txt; do
+        encoded=$(printf '%s' "$file" | sed 's|/|%2F|g')
+        status=$(curl --silent --show-error -o ".allow-git/$(basename "$file")" -w '%{http_code}' \
+          "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/${encoded}/raw?ref=${VAUCHI_SCRIPTS_REF:-main}") || status=000
+        [ "$status" = 200 ] || { echo "ERROR: fetching $file -> HTTP $status"; exit 1; }
+      done
+  script:
+    - |
+      deny_files=$(find . -name deny.toml -not -path './target/*' -not -path './.allow-git/*' | sort)
+      [ -n "$deny_files" ] || { echo "ERROR: no deny.toml in this repository"; exit 1; }
+      # shellcheck disable=SC2086 # one path per word is the point
+      python3 .allow-git/check-allow-git.py deny --list .allow-git/allowed-git-sources.txt $deny_files
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
 
 # cargo-vet supply chain verification (MR dependency changes + main + scheduled)
 # Checks that all dependencies are either audited, trusted, or explicitly exempted.
