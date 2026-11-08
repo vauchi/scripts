@@ -69,6 +69,31 @@ assert_eq "human override: exit 0" "0" "$rc"
 run_diff ''
 assert_eq "empty diff: exit 0" "0" "$rc"
 
+# Exercise the default staged-diff path as well as the diff-file seam.
+task_vet_root="$(mktemp -d)"
+trap 'rm -rf "$task_vet_root"' EXIT
+mkdir -p "$task_vet_root/repo/supply-chain" "$task_vet_root/bin"
+git -C "$task_vet_root/repo" init -q
+out="$(cd "$task_vet_root/repo" && "$SCRIPT" 2>&1)"; rc=$?
+assert_eq "empty staged Git diff: exit 0" "0" "$rc"
+printf '[[audits.probe]]\n' > "$task_vet_root/repo/supply-chain/audits.toml"
+git -C "$task_vet_root/repo" add supply-chain/audits.toml
+out="$(cd "$task_vet_root/repo" && "$SCRIPT" 2>&1)"; rc=$?
+assert_eq "real staged audit addition: exit 1" "1" "$rc"
+
+cat > "$task_vet_root/bin/git" <<'STUB'
+#!/bin/sh
+echo 'injected staged-diff failure' >&2
+exit 2
+STUB
+chmod +x "$task_vet_root/bin/git"
+out="$(cd "$task_vet_root/repo" && PATH="$task_vet_root/bin:$PATH" "$SCRIPT" 2>&1)"; rc=$?
+assert_eq "failed staged diff: exit 2" "2" "$rc"
+assert_eq "failed staged diff: error stays visible" "1" \
+    "$(printf '%s\n' "$out" | grep -q 'injected staged-diff failure' && echo 1 || echo 0)"
+out="$(cd "$task_vet_root/repo" && VAUCHI_HUMAN_AUDIT=1 PATH="$task_vet_root/bin:$PATH" "$SCRIPT" 2>&1)"; rc=$?
+assert_eq "human override still bypasses staged-diff inspection" "0" "$rc"
+
 # ── non-tautology guard (CC-21) ────────────────────────────────────────
 stub="$(mktemp)"; printf '#!/bin/sh\nexit 0\n' > "$stub"; chmod +x "$stub"
 d="$(mktemp)"; printf '+[[audits.serde]]\n' > "$d"

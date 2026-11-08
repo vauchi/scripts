@@ -31,6 +31,8 @@ PATTERNS = {
         r"(?:#\[[^\]]*\]\s*)*(?:async\s+)?fn\s+\w+\([^)]*\)\s*\{\s*\}"
     ),
     "conditional-success": r"\bif\s+let\s+(?:Ok|Some)\s*\(|\bif\s+[^\n]*\.is_(?:ok|some)\(\)",
+    "conditional-result-branch": r"\bif\s+let\s+Ok\s*\(",
+    "shell-error-tolerated": r"\|\|\s*true\b",
     "presence-assertion": (
         r"assert!\([^\n;]*\.is_(?:ok|err|some)\(\)|"
         r"XCTAssertNotNil\(|\bassertNotNull\(|\.toBeDefined\(\)"
@@ -55,6 +57,10 @@ TEST_RULES = {
     "presence-assertion", "test-skip", "sleep",
 }
 RULES = {name: re.compile(pattern, re.MULTILINE) for name, pattern in PATTERNS.items()}
+LANGUAGE_RULE_EXTENSIONS = {
+    "conditional-result-branch": (".rs",),
+    "shell-error-tolerated": (".sh", ".bash"),
+}
 
 
 def candidates(text, path, scope_path=None):
@@ -63,6 +69,9 @@ def candidates(text, path, scope_path=None):
                      or TEST_NAME.search(parts[-1]) or CAMEL_TEST_NAME.search(parts[-1])
                      or INLINE_TEST.search(text))
     for name, pattern in RULES.items():
+        if name in LANGUAGE_RULE_EXTENSIONS and not path.lower().endswith(
+                LANGUAGE_RULE_EXTENSIONS[name]):
+            continue
         if name in TEST_RULES and not test_like:
             continue
         for match in pattern.finditer(text):

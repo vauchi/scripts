@@ -24,7 +24,13 @@ fi
 if [[ "${1:-}" == "--diff-file" ]]; then
     DIFF_CONTENT="$(cat "${2:?--diff-file needs a path}")"
 else
-    DIFF_CONTENT="$(git diff --cached --unified=0 -- '*supply-chain/audits.toml' 2>/dev/null || true)"
+    if DIFF_CONTENT="$(git diff --cached --unified=0 -- '*supply-chain/audits.toml')"; then
+        :
+    else
+        diff_status=$?
+        log_error "VSC01: could not inspect staged audit changes (git diff exited $diff_status)"
+        exit "$diff_status"
+    fi
 fi
 
 if printf '%s\n' "$DIFF_CONTENT" | grep -qE '^\+\[\[audits\.'; then

@@ -73,8 +73,17 @@ scan_dir() {
     fi
     # ripgrep: --line-number, --no-heading, regex, no binary, fixed alternation.
     # rg's default smart-case is fine — `isImported` is mixed-case anyway.
-    local matches
-    matches="$(rg --line-number --no-heading "$pattern" "$dir" || true)"
+    local matches search_status
+    if matches="$(rg --line-number --no-heading "$pattern" "$dir")"; then
+        :
+    else
+        search_status=$?
+        # Exit 1 means no matches; every other failure leaves the scan incomplete.
+        if [ "$search_status" -ne 1 ]; then
+            echo "ERROR: ripgrep could not complete the view scan: $dir" >&2
+            return "$search_status"
+        fi
+    fi
     if [ -n "$matches" ]; then
         REPORT="$REPORT
 $matches"

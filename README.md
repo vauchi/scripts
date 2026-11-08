@@ -132,6 +132,13 @@ bodies (including async attributes), conditional success checks,
 success/presence assertions, discarded results, empty error handlers,
 skips, placeholders and sleeps. Comments, fixtures, asserting helpers,
 unit-valued results and intentional fallback paths require human review.
+Two error-handling signals also cover production paths:
+`conditional-result-branch` identifies Rust `if let Ok(...)` branches;
+`shell-error-tolerated` identifies shell `|| true`. Both can be intentional.
+Review whether required work was skipped, whether an error is handled
+elsewhere, and whether the caller reports completion. These lexical signals
+do not establish dropped errors or inconsistent transactions and do not
+block an MR. Dependent writes need caller tracing and fault tests.
 Test scope uses test directories, test filename conventions and inline
 test markers, relative to each repository. Repository names and substrings
 such as `attestation` do not make production files tests. A match in a

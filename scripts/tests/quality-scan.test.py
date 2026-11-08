@@ -14,6 +14,25 @@ from quality_scan_fixture import ScanFixture
 
 
 class QualityScanTests(ScanFixture):
+    def test_error_tolerance_candidates_include_production_rust_and_shell(self):
+        self.tracked(self.root, "src/storage.rs",
+                     "fn rotate() { if let Ok(value) = load() { save(value); } }\n")
+        self.tracked(self.root, "scripts/guard.sh",
+                     '#!/bin/sh\nmatches="$(rg rule views || true)"\n')
+        self.tracked(self.root, "src/checked.rs",
+                     "fn rotate() { let value = load()?; save(value)?; }\n")
+        self.tracked(self.root, "scripts/checked.sh",
+                     '#!/bin/sh\nmatches="$(rg rule views)"\n')
+        self.tracked(self.root, "example.py",
+                     'text = "if let Ok(value) = load(); check || true"\n')
+        data = self.report()
+        self.assertTrue(data["advisory"])
+        self.assertEqual([(x["rule"], x["path"], x["line"])
+                          for x in data["candidates"]], [
+            ("shell-error-tolerated", "scripts/guard.sh", 2),
+            ("conditional-result-branch", "src/storage.rs", 1),
+        ])
+
     def test_tracks_root_and_child_repositories_without_scanning_untracked_files(self):
         core = self.init_repo(self.root / "core")
         self.tracked(self.root, "root.py", "value = 1\n")
