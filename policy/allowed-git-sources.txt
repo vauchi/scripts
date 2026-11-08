@@ -8,8 +8,13 @@
 # refuses an unlisted one on the MR that adds it. Add a source here
 # first, in its own reviewed MR, then in each deny.toml as the drift
 # check names it.
+https://gitlab.com/vauchi/cli.git
 https://gitlab.com/vauchi/contract.git
 https://gitlab.com/vauchi/core.git
+https://gitlab.com/vauchi/linux-gtk.git
+https://gitlab.com/vauchi/linux-hw.git
+https://gitlab.com/vauchi/linux-qt.git
 https://gitlab.com/vauchi/relay.git
+https://gitlab.com/vauchi/tui.git
 https://gitlab.com/vauchi/utils/rqrr.git
 https://gitlab.com/vauchi/utils/spake2.git
