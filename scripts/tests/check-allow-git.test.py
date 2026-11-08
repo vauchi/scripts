@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """Contract tests for check-allow-git.py: every repository's cargo-deny
-allows exactly the reviewed git sources, and a Core lockfile uses none
-outside them (vauchi/private#1162, decisions 3 and 7)."""
+denies unknown git sources and allows exactly the reviewed ones
+(vauchi/private#1162, decisions 3 and 7)."""
 
 import importlib.util
 import tempfile
@@ -34,41 +34,19 @@ allow-git = [
 
 DENY_MISSING_ONE = """\
 [sources]
+unknown-git = "deny"
 allow-git = ["https://gitlab.com/vauchi/core.git"]
 """
 
 DENY_EXTRA_ONE = """\
 [sources]
+unknown-git = "deny"
 allow-git = [
     "https://gitlab.com/vauchi/core.git",
     "https://gitlab.com/vauchi/utils/spake2.git",
     "https://github.com/someone/fork.git",
 ]
 """
-
-LOCK = """\
-[[package]]
-name = "spake2"
-version = "0.4.0"
-source = "git+https://gitlab.com/vauchi/utils/spake2.git?tag=v0.4.0%2Bvauchi.1#abc"
-
-[[package]]
-name = "serde"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "local"
-version = "0.1.0"
-"""
-
-LOCK_UNREVIEWED = LOCK + """
-[[package]]
-name = "fork"
-version = "0.1.0"
-source = "git+https://github.com/someone/fork?rev=123#123"
-"""
-
 
 def write(directory: Path, name: str, text: str) -> Path:
     path = directory / name
@@ -114,31 +92,21 @@ def test_a_deny_toml_without_sources_allows_nothing_and_drifts():
     with tempfile.TemporaryDirectory() as tmp:
         deny = write(Path(tmp), "deny.toml", '[licenses]\nallow = ["MIT"]\n')
         listed = CHECK.read_list(write(Path(tmp), "list.txt", LIST))
-        assert len(CHECK.deny_drift(deny, listed)) == 2
+        assert CHECK.deny_drift(deny, listed) == [
+            'set unknown-git = "deny" (is "warn")',
+            'add "https://gitlab.com/vauchi/core.git"',
+            'add "https://gitlab.com/vauchi/utils/spake2.git"',
+        ]
 
 
-def test_lock_sources_are_normalised_to_the_list_form():
+def test_a_deny_toml_that_does_not_deny_unknown_git_drifts():
+    # Without unknown-git = "deny" the allow-list restricts nothing: cargo-deny
+    # only warns on an unlisted source.
     with tempfile.TemporaryDirectory() as tmp:
-        lock = write(Path(tmp), "Cargo.lock", LOCK_UNREVIEWED)
-        assert CHECK.lock_git_sources(lock) == {
-            "https://gitlab.com/vauchi/utils/spake2.git",
-            "https://github.com/someone/fork.git",
-        }
-
-
-def test_a_lockfile_within_the_list_passes():
-    with tempfile.TemporaryDirectory() as tmp:
-        lock = write(Path(tmp), "Cargo.lock", LOCK)
+        deny = write(Path(tmp), "deny.toml", DENY_MATCHING.replace('"deny"', '"warn"'))
         listed = CHECK.read_list(write(Path(tmp), "list.txt", LIST))
-        assert CHECK.unreviewed_lock_sources(lock, listed) == []
-
-
-def test_a_lockfile_with_an_unreviewed_git_source_names_it():
-    with tempfile.TemporaryDirectory() as tmp:
-        lock = write(Path(tmp), "Cargo.lock", LOCK_UNREVIEWED)
-        listed = CHECK.read_list(write(Path(tmp), "list.txt", LIST))
-        assert CHECK.unreviewed_lock_sources(lock, listed) == [
-            "https://github.com/someone/fork.git"
+        assert CHECK.deny_drift(deny, listed) == [
+            'set unknown-git = "deny" (is "warn")'
         ]
 
 
@@ -148,10 +116,8 @@ def test_the_command_line_exits_non_zero_on_drift_and_zero_when_clean():
         listed = write(root, "list.txt", LIST)
         clean = write(root, "clean.toml", DENY_MATCHING)
         drifted = write(root, "drifted.toml", DENY_MISSING_ONE)
-        lock = write(root, "Cargo.lock", LOCK_UNREVIEWED)
-        assert CHECK.main(["deny", "--list", str(listed), str(clean)]) == 0
-        assert CHECK.main(["deny", "--list", str(listed), str(clean), str(drifted)]) == 1
-        assert CHECK.main(["lock", "--list", str(listed), str(lock)]) == 1
+        assert CHECK.main(["--list", str(listed), str(clean)]) == 0
+        assert CHECK.main(["--list", str(listed), str(clean), str(drifted)]) == 1
 
 
 if __name__ == "__main__":
