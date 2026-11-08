@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Its own file, not security.yml: a repository that takes SAST and secret
+# detection from elsewhere (web-demo) includes this alone (private#1162).
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       file: ['/ci-templates/allow-git.yml']
+#   check:allow-git:
+#     extends: [.allow-git-drift-job]
+
+# cargo-deny's git sources match the reviewed list (vauchi/private#1162).
+# Every deny.toml in the repository allows exactly the sources in
+# policy/allowed-git-sources.txt, so a git source Core starts to take is
+# already allowed in every consumer when its bump MR opens. Pure Python,
+# no cargo: runs in seconds on every MR, main and schedule.
+.allow-git-drift-job:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/python:3.11-slim
+  tags: [docker]
+  needs: []
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends curl ca-certificates
+    - mkdir -p .allow-git
+    - |
+      for file in scripts/check-allow-git.py policy/allowed-git-sources.txt; do
+        encoded=$(printf '%s' "$file" | sed 's|/|%2F|g')
+        status=$(curl --silent --show-error -o ".allow-git/$(basename "$file")" -w '%{http_code}' \
+          "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/${encoded}/raw?ref=${VAUCHI_SCRIPTS_REF:-main}") || status=000
+        [ "$status" = 200 ] || { echo "ERROR: fetching $file -> HTTP $status"; exit 1; }
+      done
+  script:
+    - |
+      deny_files=$(find . -name deny.toml -not -path './target/*' -not -path './.allow-git/*' | sort)
+      [ -n "$deny_files" ] || { echo "ERROR: no deny.toml in this repository"; exit 1; }
+      # shellcheck disable=SC2086 # one path per word is the point
+      python3 .allow-git/check-allow-git.py --list .allow-git/allowed-git-sources.txt $deny_files
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
