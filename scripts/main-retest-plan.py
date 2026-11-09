@@ -27,6 +27,7 @@ import urllib.request
 import yaml
 
 MARKER = "$MAIN_RETEST"
+OPT_IN = "$MAIN_RETEST_TEMPLATES"
 NOTHING = "main-retest:nothing"
 NOT_JOBS = {"stages", "variables", "workflow", "default", "include", "image", "services",
             "before_script", "after_script", "cache"}
@@ -51,9 +52,17 @@ def flat_rules(rules):
 
 
 def marked_jobs(config):
+    # A shared-template job carries the mark in every repository; it holds
+    # back only where the repository opts in, so only there is it marked.
+    opted_in = (config.get("variables") or {}).get("MAIN_RETEST_TEMPLATES") == "on"
+
+    def marks(rule):
+        condition = str(rule.get("if", ""))
+        return (MARKER in condition and rule.get("when") == "never"
+                and (OPT_IN not in condition or opted_in))
+
     return {name for name, job in visible_jobs(config).items()
-            if any(isinstance(r, dict) and MARKER in str(r.get("if", "")) and r.get("when") == "never"
-                   for r in flat_rules(job.get("rules")))}
+            if any(isinstance(r, dict) and marks(r) for r in flat_rules(job.get("rules")))}
 
 
 def extended(job):

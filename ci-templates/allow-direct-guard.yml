@@ -32,6 +32,10 @@ allow-direct:check:
   needs: []
   allow_failure: false
   rules:
+    # Held back on main where the repository sets MAIN_RETEST_TEMPLATES
+    # (main-retest.yml, vauchi/private#1179); elsewhere this never matches.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $MAIN_RETEST != "off" && $MAIN_RETEST_TEMPLATES == "on"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         compare_to: refs/heads/$CI_DEFAULT_BRANCH

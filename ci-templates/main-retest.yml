@@ -23,6 +23,13 @@
 #       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 #       - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 #
+# Shared-template jobs that run on every main pipeline (quality:*,
+# file-size:*, allow-direct:check) carry the same rule behind an opt-in:
+#   variables:
+#     MAIN_RETEST_TEMPLATES: "on"
+# Without it they run in main as before, and the planner does not count
+# them as marked.
+#
 # Escape hatch: the CI variable MAIN_RETEST=off runs every marked job in
 # main itself, as before, and the child is empty.
 
