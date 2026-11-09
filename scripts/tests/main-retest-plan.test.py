@@ -34,10 +34,20 @@ MERGED = {
                   "needs": ["build:debug"], "rules": [MARK, MAIN]},
     "test:ui": {"stage": "test", "script": ["make ui"], "allow_failure": True,
                 "needs": [{"job": "build:debug", "artifacts": True}], "rules": [MARK, MAIN]},
+    "lint:format": {"stage": "build", "script": ["fmt"], "rules": [MAIN]},
+    "test:docs": {"stage": "test", "script": ["make docs"], "rules": [MARK, MAIN],
+                  "needs": [{"job": "lint:format", "optional": True}]},
+    # GitLab's merged YAML keeps a `!reference` in rules as a nested list.
+    "test:nested": {"stage": "test", "script": ["make nested"], "rules": [[MARK], [MAIN]]},
+    # The plan and trigger jobs name $MAIN_RETEST too, but run in main: unmarked.
+    "main:retest-plan": {"stage": ".pre", "script": ["plan"], "rules": [{"if": MARK["if"]}]},
+    # A hidden job that extends a visible one (security.yml's .sast-analyzer
+    # extends sast): a child without sast must not keep it.
+    "sast": {"stage": "test", "script": ["sast"], "rules": [MAIN]},
+    ".sast-analyzer": {"extends": "sast", "allow_failure": True},
     "github-mirror": {"stage": "deploy", "script": ["mirror"], "rules": [MAIN]},
-    "main:retest-plan": {"stage": "build", "script": ["plan"], "rules": [MAIN]},
 }
-MARKED = {"build:debug", "test:unit", "test:ui"}
+MARKED = {"build:debug", "test:unit", "test:ui", "test:docs", "test:nested"}
 SHA = "a" * 40
 TESTED = "b" * 40
 
@@ -64,6 +74,11 @@ def gitlab(mrs=None, pipelines=None, diffs=(), jobs=None, fail=None):
     return api
 
 
+def ran_except(*skipped, failed=()):
+    return ([{"name": n, "status": "success"} for n in sorted(MARKED - set(skipped) - set(failed))]
+            + [{"name": n, "status": "failed"} for n in failed])
+
+
 def plan(api, env=None):
     child, reason = PLAN.plan(yaml.safe_dump(MERGED), api, project="5", sha=SHA, env=env or {})
     return {k for k, v in child.items() if isinstance(v, dict) and not k.startswith(".")
@@ -77,22 +92,36 @@ def test_every_marked_job_passed_on_the_same_tree_so_main_retests_nothing():
 
 
 def test_a_job_the_mr_pipeline_skipped_by_path_is_retested():
-    ran = [{"name": "build:debug", "status": "success"}, {"name": "test:unit", "status": "success"}]
-    jobs, _, _ = plan(gitlab(jobs=ran))
+    jobs, _, _ = plan(gitlab(jobs=ran_except("test:ui")))
     assert jobs == {"test:ui", "build:debug"}, jobs
 
 
 def test_a_failed_or_allowed_to_fail_job_in_the_mr_is_not_covered():
-    ran = [{"name": "build:debug", "status": "success"}, {"name": "test:unit", "status": "success"},
-           {"name": "test:ui", "status": "failed"}]
-    jobs, _, _ = plan(gitlab(jobs=ran))
+    jobs, _, _ = plan(gitlab(jobs=ran_except(failed=("test:ui",))))
     assert "test:ui" in jobs
 
 
 def test_a_retested_job_brings_the_jobs_it_needs():
-    ran = [{"name": "build:debug", "status": "success"}, {"name": "test:ui", "status": "success"}]
-    jobs, _, _ = plan(gitlab(jobs=ran))
+    jobs, _, _ = plan(gitlab(jobs=ran_except("test:unit")))
     assert jobs == {"test:unit", "build:debug"}, jobs
+
+
+# cli's test:unit has `needs: [{job: lint:format, optional: true}]`; an
+# optional need on an unmarked job must not drag that job into the child.
+def test_an_optional_need_on_an_unmarked_job_is_dropped_not_rerun():
+    jobs, child, _ = plan(gitlab(jobs=ran_except("test:docs")))
+    assert jobs == {"test:docs"}, jobs
+    assert child["test:docs"]["needs"] == []
+
+
+def test_marks_are_found_through_nested_rules_and_only_with_when_never():
+    assert PLAN.marked_jobs(MERGED) == MARKED
+
+
+def test_the_child_keeps_only_the_hidden_jobs_its_jobs_extend():
+    _, child, _ = plan(gitlab(mrs=[]))
+    assert ".runner" in child
+    assert ".sast-analyzer" not in child and "sast" not in child
 
 
 def test_no_merged_mr_retests_every_marked_job():
@@ -123,7 +152,7 @@ def test_the_child_keeps_hidden_jobs_and_settings_and_drops_unmarked_jobs():
     assert child[".runner"] == {"tags": ["docker"]}
     assert child["stages"] == ["build", "test", "deploy"]
     assert child["variables"] == {"FOO": "1"}
-    assert "github-mirror" not in child and "main:retest-plan" not in child
+    assert "github-mirror" not in child and "main:retest-plan" not in child and "lint:format" not in child
     assert child["workflow"] == {"rules": [{"when": "always"}]}
 
 
@@ -138,6 +167,17 @@ def test_main_retest_off_runs_the_marked_jobs_in_main_so_the_child_is_empty():
     jobs, _, reason = plan(gitlab(), env={"MAIN_RETEST": "off"})
     assert jobs == {"main-retest:nothing"}, jobs
     assert "MAIN_RETEST=off" in reason
+
+
+def test_the_templates_marker_rule_is_the_one_the_planner_finds():
+    template = yaml.safe_load((MODULE_PATH.parents[1] / "ci-templates/main-retest.yml").read_text())
+    rule = template[".main-retest"]["rules"][0]
+    assert PLAN.MARKER in rule["if"] and rule["when"] == "never"
+    assert rule["if"] == MARK["if"], "the fixture must mark jobs exactly as the template does"
+    # Plan and trigger run only where marked jobs were held back.
+    for job in (".main-retest-plan", ".main-retest-trigger"):
+        assert template[job]["rules"] == [{"if": rule["if"]}], job
+    assert template[".main-retest-trigger"]["trigger"]["strategy"] == "depend"
 
 
 if __name__ == "__main__":
