@@ -21,6 +21,15 @@ SPEC.loader.exec_module(PLAN)
 MARK = {"if": '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $MAIN_RETEST != "off"',
         "when": "never"}
 MAIN = {"if": "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"}
+# A shared-template job holds back only where the repository opts in.
+OPT_IN = {"if": MARK["if"] + ' && $MAIN_RETEST_TEMPLATES == "on"', "when": "never"}
+# The template jobs that carry OPT_IN (ci-templates, vauchi/private#1179).
+TEMPLATE_JOBS = {
+    "test-quality.yml": ["quality:zero-assertions", "quality:test-ratio",
+                         "quality:scenario-annotations", "quality:semgrep-rules"],
+    "file-size.yml": ["file-size:check", "file-size:advisory"],
+    "allow-direct-guard.yml": ["allow-direct:check"],
+}
 
 # GitLab's merged YAML for a repository: includes inlined, !reference
 # resolved, extends kept with the hidden jobs it names, and stages listed
@@ -172,6 +181,22 @@ def test_the_no_op_child_runs_in_a_real_stage_on_the_plan_jobs_runners():
     job = child["main-retest:nothing"]
     assert job["stage"] == "build", job
     assert job["tags"] == ["docker"], job
+
+
+def test_a_template_job_holds_back_only_where_the_repository_opts_in():
+    config = {"quality:x": {"stage": "test", "script": ["q"], "rules": [OPT_IN, MAIN]},
+              "test:unit": {"stage": "test", "script": ["t"], "rules": [MARK, MAIN]}}
+    assert PLAN.marked_jobs(config) == {"test:unit"}
+    assert PLAN.marked_jobs({**config, "variables": {"MAIN_RETEST_TEMPLATES": "off"}}) == {"test:unit"}
+    assert PLAN.marked_jobs({**config, "variables": {"MAIN_RETEST_TEMPLATES": "on"}}) == {"quality:x", "test:unit"}
+
+
+def test_each_opted_template_job_starts_with_the_opt_in_rule():
+    templates = MODULE_PATH.parents[1] / "ci-templates"
+    for name, jobs in TEMPLATE_JOBS.items():
+        config = yaml.safe_load((templates / name).read_text())
+        for job in jobs:
+            assert config[job]["rules"][0] == OPT_IN, f"{name} {job}: {config[job]['rules'][0]}"
 
 
 def test_main_retest_off_runs_the_marked_jobs_in_main_so_the_child_is_empty():
