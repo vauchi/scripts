@@ -41,14 +41,52 @@ def visible_jobs(config):
             if isinstance(v, dict) and not k.startswith(".") and k not in NOT_JOBS}
 
 
+def flat_rules(rules):
+    """A job's rules; GitLab's merged YAML keeps each `!reference` as a nested list."""
+    for rule in rules or []:
+        if isinstance(rule, list):
+            yield from flat_rules(rule)
+        else:
+            yield rule
+
+
 def marked_jobs(config):
     return {name for name, job in visible_jobs(config).items()
-            if any(isinstance(r, dict) and MARKER in str(r.get("if", "")) for r in job.get("rules", []))}
+            if any(isinstance(r, dict) and MARKER in str(r.get("if", "")) and r.get("when") == "never"
+                   for r in flat_rules(job.get("rules")))}
+
+
+def extended(job):
+    names = job.get("extends") or []
+    return [names] if isinstance(names, str) else list(names)
+
+
+def hidden_jobs_for(config, names):
+    """The hidden jobs the given jobs extend, transitively."""
+    todo, seen = [n for name in names for n in extended(config[name])], set()
+    while todo:
+        name = todo.pop()
+        if name in seen or not isinstance(config.get(name), dict):
+            continue
+        seen.add(name)
+        todo.extend(extended(config[name]))
+    return {n for n in seen if n.startswith(".")}
 
 
 def needed(job):
+    """Jobs this one cannot start without; an optional need is not one."""
     for need in job.get("needs", []) or []:
-        yield need["job"] if isinstance(need, dict) else need
+        if isinstance(need, dict):
+            if not need.get("optional"):
+                yield need["job"]
+        else:
+            yield need
+
+
+def needs_within(job, names):
+    """The job's needs, without optional ones on jobs the child does not run."""
+    return [n for n in job.get("needs", []) or []
+            if not (isinstance(n, dict) and n.get("optional") and n["job"] not in names)]
 
 
 def close_over_needs(config, names):
@@ -83,8 +121,10 @@ def covered_jobs(api, project, sha):
 
 
 def child_config(config, retest):
-    child = {k: v for k, v in config.items() if not isinstance(v, dict) or k.startswith(".")
-             or k in NOT_JOBS}
+    # Only the hidden jobs the chosen jobs extend: some hidden jobs extend a
+    # visible job the child drops (security.yml's .sast-analyzer -> sast).
+    hidden = hidden_jobs_for(config, retest)
+    child = {k: v for k, v in config.items() if not isinstance(v, dict) or k in NOT_JOBS or k in hidden}
     child.pop("include", None)
     child["workflow"] = {"rules": [{"when": "always"}]}
     if not retest:
@@ -96,6 +136,8 @@ def child_config(config, retest):
         # The child runs exactly what the planner chose; the job's own rules
         # were written for MR and push pipelines, not a parent_pipeline.
         job["rules"] = [{"when": "on_success"}]
+        if "needs" in job:
+            job["needs"] = needs_within(job, retest)
         child[name] = job
     return child
 

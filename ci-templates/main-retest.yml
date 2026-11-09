@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Main re-runs only the jobs no MR pipeline proved on its tree
+# (vauchi/private#1179, decision 8). A marked job does not run in main's
+# push pipeline; main:retest-plan picks the marked jobs that did not succeed
+# in the merged MR's green pipeline on the identical tree, with what they
+# need, and main:retest runs them as a child pipeline that main waits for.
+# Anything in doubt retests every marked job (scripts/main-retest-plan.py).
+#
+# Usage:
+#   include:
+#     - project: 'vauchi/scripts'
+#       file: ['/ci-templates/main-retest.yml']
+#   main:retest-plan:
+#     extends: [.main-retest-plan]
+#   main:retest:
+#     extends: [.main-retest-trigger]
+#   build:debug:
+#     rules:
+#       - !reference [.main-retest, rules]
+#       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+#       - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+#
+# Escape hatch: the CI variable MAIN_RETEST=off runs every marked job in
+# main itself, as before, and the child is empty.
+
+.main-retest:
+  rules:
+    # The planner finds marked jobs by "$MAIN_RETEST" in this rule.
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $MAIN_RETEST != "off"
+      when: never
+
+.main-retest-plan:
+  stage: .pre
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  needs: []
+  variables:
+    GIT_DEPTH: "1"
+  before_script:
+    - |
+      for attempt in 1 2 3; do
+          apk add --no-cache curl python3 py3-yaml >/dev/null && installed=yes && break
+          echo "apk add failed (attempt $attempt/3), retrying in 5s" >&2
+          sleep 5
+      done
+      [ "${installed:-}" = yes ] || { echo "ERROR: apk add failed after 3 attempts" >&2; exit 1; }
+    - |
+      status=$(curl --silent --show-error -o main-retest-plan.py -w '%{http_code}' \
+        "${CI_API_V4_URL}/projects/vauchi%2Fscripts/repository/files/scripts%2Fmain-retest-plan.py/raw?ref=${VAUCHI_SCRIPTS_REF:-main}") || status=000
+      [ "$status" = 200 ] || { echo "ERROR: fetching main-retest-plan.py -> HTTP $status" >&2; exit 1; }
+  script:
+    - python3 main-retest-plan.py main-retest.yml
+  artifacts:
+    paths: [main-retest.yml]
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $MAIN_RETEST != "off"
+
+.main-retest-trigger:
+  stage: .pre
+  needs: [main:retest-plan]
+  trigger:
+    include:
+      - artifact: main-retest.yml
+        job: main:retest-plan
+    strategy: depend
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $MAIN_RETEST != "off"
