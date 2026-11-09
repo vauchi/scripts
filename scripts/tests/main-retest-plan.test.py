@@ -23,9 +23,11 @@ MARK = {"if": '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT
 MAIN = {"if": "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"}
 
 # GitLab's merged YAML for a repository: includes inlined, !reference
-# resolved, extends kept with the hidden jobs it names.
+# resolved, extends kept with the hidden jobs it names, and stages listed
+# with .pre first and .post last.
+STAGES = [".pre", "build", "test", "deploy", ".post"]
 MERGED = {
-    "stages": ["build", "test", "deploy"],
+    "stages": STAGES,
     "variables": {"FOO": "1"},
     "workflow": {"rules": [{"if": '$CI_PIPELINE_SOURCE == "merge_request_event"'}, MAIN]},
     ".runner": {"tags": ["docker"]},
@@ -150,7 +152,7 @@ def test_an_api_error_retests_every_marked_job():
 def test_the_child_keeps_hidden_jobs_and_settings_and_drops_unmarked_jobs():
     _, child, _ = plan(gitlab(mrs=[]))
     assert child[".runner"] == {"tags": ["docker"]}
-    assert child["stages"] == ["build", "test", "deploy"]
+    assert child["stages"] == STAGES
     assert child["variables"] == {"FOO": "1"}
     assert "github-mirror" not in child and "main:retest-plan" not in child and "lint:format" not in child
     assert child["workflow"] == {"rules": [{"when": "always"}]}
@@ -161,6 +163,15 @@ def test_a_retested_job_runs_in_the_child_whatever_its_rules_said():
     assert child["test:unit"]["rules"] == [{"when": "on_success"}]
     assert child["test:ui"]["allow_failure"] is True
     assert child["test:ui"]["needs"] == [{"job": "build:debug", "artifacts": True}]
+
+
+# 2026-11-09, cli main 3044335259: the no-op job went to stages[0], .pre,
+# and GitLab creates no pipeline whose only jobs are in .pre or .post.
+def test_the_no_op_child_runs_in_a_real_stage_on_the_plan_jobs_runners():
+    _, child, _ = plan(gitlab())
+    job = child["main-retest:nothing"]
+    assert job["stage"] == "build", job
+    assert job["tags"] == ["docker"], job
 
 
 def test_main_retest_off_runs_the_marked_jobs_in_main_so_the_child_is_empty():
