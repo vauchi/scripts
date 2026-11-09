@@ -128,8 +128,10 @@ def child_config(config, retest):
     child.pop("include", None)
     child["workflow"] = {"rules": [{"when": "always"}]}
     if not retest:
-        stage = (config.get("stages") or ["test"])[0]
-        child[NOTHING] = {"stage": stage, "image": "alpine:3.21", "script": ["echo every marked job passed on this tree"]}
+        # GitLab creates no pipeline whose only jobs are in .pre or .post.
+        stage = next((s for s in config.get("stages") or [] if s not in (".pre", ".post")), "test")
+        child[NOTHING] = {"stage": stage, "image": "${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21",
+                          "tags": ["docker"], "script": ["echo every marked job passed on this tree"]}
         return child
     for name in sorted(retest):
         job = dict(config[name])
