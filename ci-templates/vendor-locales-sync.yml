@@ -99,7 +99,7 @@ sync:vendor-locales:
         "Opened by sync:vendor-locales after a locales merge, so the drift" \
         "does not surface on the next unrelated core MR." \
         "" \
-        "Co-Authored-By: ${BOT_NAME} <${BOT_EMAIL}>" > /tmp/revendor-msg
+        "Tools used: \"GitLab CI (GitLab)\"" > /tmp/revendor-msg
       git commit --file /tmp/revendor-msg
 
       git push -u origin "$BRANCH" --force-with-lease
@@ -115,7 +115,9 @@ sync:vendor-locales:
       a stub catalogue. Without this refresh the drift fails
       lint:cross-cutting-blocking on the next unrelated core MR.
 
-      Vendored at locales ${LOCALES_REV}."
+      Vendored at locales ${LOCALES_REV}.
+
+      Tools used: \"GitLab CI (GitLab)\""
 
       PAYLOAD=$(SB="$BRANCH" TB="$CI_DEFAULT_BRANCH" RV="$LOCALES_REV" DESC="$DESCRIPTION" python3 -c "
       import json, os
