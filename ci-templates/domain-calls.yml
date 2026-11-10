@@ -76,9 +76,18 @@
         "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/vauchi/scripts.git" "$VAUCHI_SCRIPTS_REF"
       git -C /tmp/vauchi-scripts checkout -q --detach FETCH_HEAD
 
+      # The audit finds a repo by its workspace directory, which keeps the
+      # name from before ADR-078's renames until the workspace follows
+      # (private#1029). Under the new name the copy would be an absent
+      # sibling and count zero.
+      case "$CI_PROJECT_NAME" in
+          gtk-display) ws_dir=linux-gtk ;;
+          qt-display) ws_dir=linux-qt ;;
+          *) ws_dir=$CI_PROJECT_NAME ;;
+      esac
       WS=/tmp/ws
       mkdir -p "$WS"
-      cp -R "$CI_PROJECT_DIR" "$WS/${CI_PROJECT_NAME}"
+      cp -R "$CI_PROJECT_DIR" "$WS/$ws_dir"
 
       echo "=== domain-call ratchet: ${CI_PROJECT_NAME} ==="
       echo "budget: $(cat .audit-baseline.json)"
