@@ -60,6 +60,15 @@ assert_eq "a build the baseline lists passes" "0" "$(rc "$repo" "$BASELINE")"
 repo=$(make_repo android 'cargo build --release -p vauchi-cabi')
 assert_eq "the baseline is per repository" "1" "$(rc "$repo" "$BASELINE")"
 
+# ADR-078 renames linux-qt to qt-display and linux-gtk to gtk-display
+# (private#1029); the baseline keeps the names it was written with.
+repo=$(make_repo qt-display 'cargo build --release -p vauchi-cabi')
+assert_eq "qt-display is checked against linux-qt's baseline" "0" "$(rc "$repo" "$BASELINE")"
+assert_eq "it reports under the name the baseline uses" "1" "$(says "$repo" "$BASELINE" "linux-qt builds no Core crate")"
+
+repo=$(make_repo gtk-display 'cargo build --release -p vauchi-cabi')
+assert_eq "gtk-display does not inherit linux-qt's baseline" "1" "$(rc "$repo" "$BASELINE")"
+
 root="$(mktemp -d)"; mkdir -p "$root/linux-qt"
 printf 'a:\n  script:\n    - cargo build --release -p vauchi-cabi\nb:\n  script:\n    - cargo build --release -p vauchi-cabi\n' \
     > "$root/linux-qt/.gitlab-ci.yml"

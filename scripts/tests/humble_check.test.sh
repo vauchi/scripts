@@ -817,6 +817,37 @@ CPP
     rm -rf "$root"
 }
 
+# test_renamed_repo_keeps_its_rules — ADR-078 renames linux-gtk to
+# gtk-display and linux-qt to qt-display (private#1029). CI passes the
+# project name, so the new name must reach the rules and baseline written
+# under the old one, not "no rules configured".
+test_renamed_repo_keeps_its_rules() {
+    root=$(mktemp -d)
+    mkdir -p "$root/gtk-display/src" "$root/qt-display/src"
+    cat >"$root/gtk-display/src/errors.rs" <<'RS'
+if err.to_string().contains("locked") { show_unlock(); }
+RS
+    cat >"$root/qt-display/src/errors.cpp" <<'CPP'
+if (error.contains(QStringLiteral("locked"))) { showUnlock(); }
+if (message.startsWith("network")) { retry(); }
+CPP
+    for spec in gtk-display:linux-gtk:1 qt-display:linux-qt:2; do
+        repo=${spec%%:*}; rest=${spec#*:}; old=${rest%:*}; want=${rest#*:}
+        out=$(python3 "$SCRIPT" --repo "$repo" --repo-path "$root/$repo" --config "$CONFIG")
+        assert_eq "renamed repo: $repo counts $want" "$want" \
+            "$(extract_counter "$out" error_substring_classification)"
+        assert_eq "renamed repo: $repo reports as $old" "1" \
+            "$(printf '%s' "$out" | grep -c "\"repo\": \"$old\"")"
+        set +e
+        python3 "$SCRIPT" --repo "$repo" --repo-path "$root/$repo" --config "$CONFIG" \
+            --check "$BASELINE" >/dev/null 2>&1
+        rc=$?
+        set -e
+        assert_eq "renamed repo: $repo is held to $old's baseline" "1" "$rc"
+    done
+    rm -rf "$root"
+}
+
 # test_vocabulary_covers_rule_types — the Core schema test reads the shared
 # vocabulary instead of restating it, which only holds while the vocabulary
 # covers every type the rules grep for
@@ -895,6 +926,7 @@ test_vocabulary_allows_entries_without_a_rule
 test_frontend_image_encoding
 test_shell_accessibility_copy
 test_error_substring_classification_desktop_shells
+test_renamed_repo_keeps_its_rules
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
