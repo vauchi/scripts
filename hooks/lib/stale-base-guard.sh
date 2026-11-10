@@ -20,6 +20,12 @@
 # Usage: stale-base-guard.sh <repo_root>   (pre-push specs on stdin)
 #   stdin: git pre-push feed, one "<lref> <lsha> <rref> <rsha>" per ref.
 # Exit:  0 = proceed with the push, 1 = push blocked.
+#
+# A repository on a merge train is left alone: the train rebases every
+# car onto main itself and a local rebase here only forces a push the
+# train does not need (private#1204). The list mirrors
+# repos_on_merge_trains in _private/infra/terraform/gitlab/projects.tf;
+# VAUCHI_MERGE_TRAIN_REPOS overrides it.
 
 set -u
 
@@ -32,6 +38,16 @@ branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 if [ -z "$branch" ] || [ "$branch" = "main" ] || [ "$branch" = "HEAD" ]; then
     exit 0
 fi
+
+# The repository's name is the last path component of origin's URL,
+# without .git: gitlab.com/vauchi/core.git and git@…:vauchi/core both → core.
+origin_url="$(git -C "$repo_root" remote get-url origin 2>/dev/null || true)"
+repo_name="${origin_url##*/}"
+repo_name="${repo_name%.git}"
+on_merge_train=false
+for train_repo in ${VAUCHI_MERGE_TRAIN_REPOS:-private core}; do
+    [ "$repo_name" = "$train_repo" ] && on_merge_train=true
+done
 
 # Gate 1: a branch ref must actually be among the pushed refs. A tag-only
 # push (only refs/tags/*), or a deletion (all-zero local sha), must not
@@ -68,6 +84,14 @@ merge_base="$(git -C "$repo_root" merge-base HEAD "$origin_main" 2>/dev/null || 
 [ "$merge_base" != "$origin_main" ] || exit 0   # already rebased on main
 
 behind="$(git -C "$repo_root" rev-list --count "$merge_base".."$origin_main" 2>/dev/null || echo '?')"
+
+if [ "$on_merge_train" = true ]; then
+    echo ""
+    echo "  Branch is ${behind} commit(s) behind origin/main; ${repo_name} runs a"
+    echo "  merge train, which rebases the MR itself — pushing without a rebase."
+    echo "  (To rebase on GitLab's side anyway: just gitlab mr-rebase <id> ${repo_name})"
+    exit 0
+fi
 
 # Gate 2: never rebase a dirty tree — blocking beats autostashing WIP.
 if [ -n "$(git -C "$repo_root" status --porcelain 2>/dev/null)" ]; then
