@@ -269,7 +269,44 @@ def results_side(workspace_root):
     return commits, lines
 
 
-def summary_main(arguments=None):
+def cost_per_commit_verdict(wk, this_week):
+    """Cost per commit of the last two full weeks against the two before.
+
+    Only weeks with real transcript AND commit data are comparable; the
+    current (partial) week is excluded — its commits lag its token spend.
+    """
+    comparable = [k for k in sorted(wk)
+                  if k != this_week and wk[k]["eff"] > 0 and wk[k]["com"] > 0]
+    if len(comparable) < 4:
+        return None
+
+    def cpc_of(ws):
+        e = sum(wk[x]["eff"] for x in ws)
+        c = sum(wk[x]["com"] for x in ws)
+        return (e / c / 1e3) if c else 0
+
+    recent, prior = comparable[-2:], comparable[-4:-2]
+    r, p = cpc_of(recent), cpc_of(prior)
+    return {"recent": recent, "prior": prior, "recent_k": r, "prior_k": p,
+            "delta_pct": (r - p) / p * 100 if p else 0.0}
+
+
+def brief_line(verdict):
+    """The one line `just session-end` prints next to the workflow numbers."""
+    if verdict is None:
+        return "  cost per commit (k-units): n/a (fewer than 4 comparable weeks)"
+
+    def span(weeks):
+        return "-".join(w.split("-", 1)[1] for w in weeks)
+
+    line = (f"  cost per commit (k-units): {verdict['recent_k']:,.0f} last 2 wk "
+            f"({span(verdict['recent'])}) vs {verdict['prior_k']:,.0f} prior "
+            f"({span(verdict['prior'])}), {verdict['delta_pct']:+.0f}%")
+    return line + (" WORSE" if verdict["delta_pct"] > 15 else "")
+
+
+def collect_weeks(arguments):
+    """Join transcript spend with git results per ISO week, all harnesses."""
     arguments = list(arguments or [])
     root = os.path.abspath(arguments[0] if arguments else os.getcwd())
     # Default match strips a trailing worktree suffix ("vauchi-1" -> "vauchi")
@@ -282,14 +319,8 @@ def summary_main(arguments=None):
     per_x, files_x, nested_x = codex_token_side(project_match=match)
     commits, lines = results_side(root)
     if not per_c and not per_k and not per_x:
-        print(f"No transcripts found for match '*{match}*' under "
-              f"~/.claude/projects, ~/.kimi-code/sessions, or ~/.codex/sessions. "
-              f"Pass a match arg.")
-        return 1
+        return None
 
-    eff_c = sum(p["eff"] for p in per_c.values())
-    eff_k = sum(p["eff"] for p in per_k.values())
-    eff_x = sum(p["eff"] for p in per_x.values())
     wk = collections.defaultdict(lambda: dict(
         eff=0.0, out=0, msgs=0, sub=0.0, com=0, lin=0))
     for per in (per_c, per_k, per_x):
@@ -303,8 +334,40 @@ def summary_main(arguments=None):
         wk[iso_week(day)]["com"] += c
     for day, ln in lines.items():
         wk[iso_week(day)]["lin"] += ln
+    return {
+        "match": match, "this_week": this_week, "wk": wk,
+        "files": (files_c, files_k, files_x),
+        "nested": nested_c + nested_k + nested_x,
+        "eff": (sum(p["eff"] for p in per_c.values()),
+                sum(p["eff"] for p in per_k.values()),
+                sum(p["eff"] for p in per_x.values())),
+    }
 
-    nested = nested_c + nested_k + nested_x
+
+def brief_main(arguments=None):
+    collected = collect_weeks(arguments)
+    if collected is None:
+        print(brief_line(None))
+        return 0
+    print(brief_line(cost_per_commit_verdict(collected["wk"], collected["this_week"])))
+    return 0
+
+
+def summary_main(arguments=None):
+    collected = collect_weeks(arguments)
+    if collected is None:
+        arguments = list(arguments or [])
+        root = os.path.abspath(arguments[0] if arguments else os.getcwd())
+        match = arguments[1] if len(arguments) > 1 else re.sub(
+            r"-\d+$", "", os.path.basename(root))
+        print(f"No transcripts found for match '*{match}*' under "
+              f"~/.claude/projects, ~/.kimi-code/sessions, or ~/.codex/sessions. "
+              f"Pass a match arg.")
+        return 1
+    match, this_week, wk = collected["match"], collected["this_week"], collected["wk"]
+    files_c, files_k, files_x = collected["files"]
+    eff_c, eff_k, eff_x = collected["eff"]
+    nested = collected["nested"]
     print(f"Agent cost-vs-output — project '*{match}*'  "
           f"(Claude {files_c} + Kimi {files_k} + Codex {files_x} transcripts, "
           f"{nested} subagent)\n")
@@ -325,22 +388,13 @@ def summary_main(arguments=None):
               .format(k, eff / 1e6, w["com"], w["lin"], cpc, subp, epm))
 
     # last-2-weeks vs prior-2-weeks verdict on cost/commit (the robust metric).
-    # Only weeks with real transcript AND commit data are comparable; the
-    # current (partial) week is excluded — its commits lag its token spend.
-    comparable = [k for k in weeks
-                  if k != this_week and wk[k]["eff"] > 0 and wk[k]["com"] > 0]
-    if len(comparable) >= 4:
-        def cpc_of(ws):
-            e = sum(wk[x]["eff"] for x in ws)
-            c = sum(wk[x]["com"] for x in ws)
-            return (e / c / 1e3) if c else 0
-        recent, prior = comparable[-2:], comparable[-4:-2]
-        r, p = cpc_of(recent), cpc_of(prior)
+    verdict = cost_per_commit_verdict(wk, this_week)
+    if verdict is not None:
+        r, p, delta = verdict["recent_k"], verdict["prior_k"], verdict["delta_pct"]
         print("\nVerdict (cost per commit, k-units):")
-        print(f"  last 2 wk {recent}: {r:,.0f}")
-        print(f"  prior 2wk {prior}: {p:,.0f}")
+        print(f"  last 2 wk {verdict['recent']}: {r:,.0f}")
+        print(f"  prior 2wk {verdict['prior']}: {p:,.0f}")
         if p:
-            delta = (r - p) / p * 100
             worse = delta > 15
             print(f"  → {'WORSE' if worse else 'stable/better'} "
                   f"({delta:+.0f}%). "
@@ -426,6 +480,8 @@ def main(arguments=None):
         return receipt_main(arguments[1:])
     if arguments and arguments[0] == "summary":
         return summary_main(arguments[1:])
+    if arguments and arguments[0] == "brief":
+        return brief_main(arguments[1:])
     return summary_main(arguments)
 
 
