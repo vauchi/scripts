@@ -167,6 +167,15 @@ def rule_message(rules: dict[str, dict], name: str) -> str:
     return rules.get(name, {}).get("message", name)
 
 
+def canonical_repo(config: dict, repo: str) -> str:
+    """The name a repository's rules and baseline are filed under.
+
+    CI passes the GitLab project name, and a renamed project keeps the
+    entries written under its earlier name until the workspace follows.
+    """
+    return config.get("aliases", {}).get(repo, repo)
+
+
 def repo_rules(config: dict, repo: str) -> dict[str, dict]:
     rules = dict(config.get("boundary_rules", {}))
     rules.update(config["repos"][repo]["rules"])
@@ -543,6 +552,8 @@ def main(argv: list[str] | None = None) -> int:
         baseline = load_baseline(args.check)
 
     config = load_config(config_path)
+    if args.repo:
+        args.repo = canonical_repo(config, args.repo)
 
     if args.tighten:
         if not args.tighten.exists():

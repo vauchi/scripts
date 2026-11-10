@@ -23,6 +23,12 @@ if [ -z "$REPO_DIR" ] || [ ! -d "$REPO_DIR" ] || [ -z "$BASELINE" ] || [ ! -f "$
     exit 1
 fi
 REPO="$(basename "$(cd "$REPO_DIR" && pwd)")"
+# ADR-078 renames linux-gtk and linux-qt (private#1029); the baseline keeps
+# the names it was written with until the workspace follows.
+case "$REPO" in
+    gtk-display) REPO=linux-gtk ;;
+    qt-display) REPO=linux-qt ;;
+esac
 
 SUBCOMMAND='(^|[^A-Za-z0-9_-])cargo([[:space:]]+\+[^[:space:]]+)?[[:space:]]+(ndk[^|;&]*[[:space:]]build|xwin[[:space:]]+build|build|test|check|run|rustc|install|nextest)([[:space:]]|$)'
 CORE_CRATE='(-p|--package)[[:space:]]+(vauchi-core|vauchi-app|vauchi-platform|vauchi-cabi)([^A-Za-z0-9_-]|$)'

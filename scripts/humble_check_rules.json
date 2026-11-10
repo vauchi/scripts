@@ -68,6 +68,10 @@
       ]
     }
   },
+  "aliases": {
+    "gtk-display": "linux-gtk",
+    "qt-display": "linux-qt"
+  },
   "repos": {
     "core": {
       "source_roots": [
