@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# .domain-calls-job copies the repository into a one-repo workspace under
+# its project name, and the audit looks for it under its workspace
+# directory. ADR-078 renames linux-gtk and linux-qt in GitLab before the
+# workspace directories follow (private#1029): copied as gtk-display or
+# qt-display the repository is an absent sibling, counts zero, and the
+# ratchet passes whatever the source holds.
+
+set -u
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+TEMPLATE="$ROOT/ci-templates/domain-calls.yml"
+AUDIT="$ROOT/scripts/audit-frontend-domain-calls.sh"
+
+pass=0
+fail=0
+check() {
+    name="$1"; want="$2"; got="$3"
+    if [ "$want" = "$got" ]; then
+        pass=$((pass + 1)); printf '  PASS %s\n' "$name"
+    else
+        fail=$((fail + 1))
+        printf '  FAIL %s\n    want: %s\n    got:  %s\n' "$name" "$want" "$got" >&2
+    fi
+}
+
+work=$(mktemp -d)
+# The job's lines from the directory choice to the copy, as plain sh.
+awk '/case "\$CI_PROJECT_NAME" in/ { on = 1 } on { sub(/^      /, ""); print } on && /cp -R "\$CI_PROJECT_DIR"/ { exit }' \
+    "$TEMPLATE" | sed 's|^WS=/tmp/ws$|WS="$WORK/ws"|' > "$work/copy.sh"
+
+check "the job copies the repository into the workspace" "1" \
+    "$(grep -c 'cp -R "\$CI_PROJECT_DIR"' "$work/copy.sh")"
+
+copied_as() {
+    rm -rf "$work/ws" "$work/project"
+    mkdir -p "$work/project/src"
+    : > "$work/project/src/marker"
+    WORK="$work" CI_PROJECT_NAME="$1" CI_PROJECT_DIR="$work/project" sh "$work/copy.sh" >/dev/null 2>&1
+    find "$work/ws" -name marker 2>/dev/null | sed "s|^$work/ws/||"
+}
+
+check "gtk-display is copied where the audit looks for the GTK shell" \
+    "linux-gtk/src/marker" "$(copied_as gtk-display)"
+check "qt-display is copied where the audit looks for the Qt shell" \
+    "linux-qt/src/marker" "$(copied_as qt-display)"
+check "linux-qt keeps its directory" "linux-qt/src/marker" "$(copied_as linux-qt)"
+check "any other repository keeps its project name" "tui/src/marker" "$(copied_as tui)"
+
+# The mapping goes when the audit reads the new directory names.
+check "the audit still reads the GTK shell from linux-gtk/src" "1" \
+    "$(grep -c '^GTK_SRC="\$WORKSPACE_ROOT/linux-gtk/src"$' "$AUDIT")"
+check "the audit still reads the Qt shell from linux-qt/src" "1" \
+    "$(grep -c '^QT_SRC="\$WORKSPACE_ROOT/linux-qt/src"$' "$AUDIT")"
+
+rm -rf "$work"
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]
