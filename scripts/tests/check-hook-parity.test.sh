@@ -71,8 +71,20 @@ ADAPTER
         > "$WORK/.kimi-code/hooks/adapter.sh"
     printf 'command = "bash .kimi-code/hooks/adapter.sh pre-bash"\n' \
         > "$WORK/.kimi-code/config.toml"
-    printf 'command = "/bin/bash .codex/hooks/adapter.sh pre-bash"\n' \
+    printf 'command = "/bin/bash .codex/hooks/adapter.sh pre-bash"\ncommand = "/bin/bash .codex/hooks/adapter.sh post-bash"\n' \
         > "$WORK/.codex/config.toml"
+}
+
+# The real ~/.kimi-code/config.toml quotes the adapter path inside a TOML
+# basic string, so the quote before the mode is escaped: adapter.sh\" pre-bash.
+kimi_user_config_escaped() {
+    mkdir -p "$KIMI_HOME_FIXTURE"
+    : > "$KIMI_HOME_FIXTURE/config.toml"
+    local mode
+    for mode in "$@"; do
+        printf '[[hooks]]\ncommand = "R=$(git rev-parse --show-toplevel); [ -f \\"$R/.kimi-code/hooks/adapter.sh\\" ] && /bin/bash \\"$R/.kimi-code/hooks/adapter.sh\\" %s || true"\n\n' \
+            "$mode" >> "$KIMI_HOME_FIXTURE/config.toml"
+    done
 }
 
 fixture
@@ -109,6 +121,32 @@ rm -rf "$KIMI_HOME_FIXTURE"
 out=$(parity --strict "$WORK"); code=$?
 ck "absent Kimi user config is a note, not drift" "$([[ $code -eq 0 ]] && echo 0 || echo 1)"
 ck "absent Kimi user config says so" "$(grep -q 'wiring unverified' <<< "$out" && echo 0 || echo 1)"
+
+# 2026-11-10: the real config registered all eight modes and the check still
+# reported every one missing, because its pattern expected an unescaped quote.
+fixture
+kimi_user_config_escaped pre-bash post-bash
+out=$(parity --strict "$WORK"); code=$?
+ck "Kimi user config with TOML-escaped quotes passes" "$([[ $code -eq 0 ]] && echo 0 || echo 1)"
+
+fixture
+printf 'command = "/bin/bash .codex/hooks/adapter.sh pre-bash"\n' > "$WORK/.codex/config.toml"
+out=$(parity --strict "$WORK"); code=$?
+ck "Codex config missing an adapter mode fails strict mode" "$([[ $code -eq 1 ]] && echo 0 || echo 1)"
+ck "the missing Codex mode is named" "$(grep -q 'codex/config.toml does not register: post-bash' <<< "$out" && echo 0 || echo 1)"
+
+# Codex has no Read tool event, so the read modes cannot be registered there.
+fixture
+cat >> "$WORK/.claude/hooks/agent-adapter.sh" <<'ADAPTER'
+case "$MODE" in
+  pre-read)
+    :
+    ;;
+esac
+ADAPTER
+kimi_user_config pre-bash post-bash pre-read
+out=$(parity --strict "$WORK"); code=$?
+ck "Codex is not asked to register the read modes" "$([[ $code -eq 0 ]] && echo 0 || echo 1)"
 
 printf '\n'
 if [[ "$FAIL" -eq 0 ]]; then
