@@ -931,21 +931,31 @@ workflow:
 .timeout-extended:
   timeout: 45 minutes
 
-# Jobs that compile the FULL dependency tree (clippy --all-targets,
-# semver-checks, workspace tests, cabi builds, ...). On a fresh or
-# reinstalled shell runner these jobs have zero warm state and
-# cold-build the whole tree; measured 57-60m+ under 3-way CPU contention
-# on allyson (core pipelines 2699547003/2699666347, post-reinstall) vs
-# ~25m solo. Warm runs finish in minutes and never feel the ceiling.
+# Jobs that compile the FULL dependency tree. On a fresh or reinstalled
+# shell runner these jobs have zero warm state and cold-build the whole
+# tree; measured 57-60m+ under 3-way CPU contention on allyson (core
+# pipelines 2699547003/2699666347, post-reinstall) vs ~25m solo. Warm
+# runs finish in minutes and never feel the ceiling.
 #
 # resource_group serializes these jobs per project: on one shared
 # 16-core box, concurrent CPU-bound cargo builds burn the same aggregate
-# CPU-seconds as serial ones, so the "lost" parallelism is largely
-# illusory — while each serialized job warms the next via the on-disk
-# slot target/ and sccache. A cold runner recovers as a chain of solo
-# builds, green with zero human intervention, instead of a herd of
-# timeouts. Stale locks (rare, after hard kills): `just gitlab
-# resource-group-reset <repo> cold-rebuild-tree`.
+# CPU-seconds as serial ones, while each serialized job warms the next
+# via the on-disk slot target/ and sccache. A cold runner recovers as a
+# chain of solo builds instead of a herd of timeouts.
+#
+# The lock also serializes every WARM job that carries it, across every
+# open pipeline of the project: with a dozen such jobs per pipeline, core
+# ran 39 job-minutes against 2,021 waiting minutes in one MR pipeline
+# (private#1212, 2026-11-10). So a repository gives the lock to ONE build
+# job per pipeline, which does every compile the pipeline needs and
+# archives the test binaries (`cargo nextest archive`) on the runner's
+# disk; the test jobs `need` it, carry no lock and run the archives from
+# any slot (core's `build:tests` and `.run-archive` are the shape). Only
+# a job that builds a different tree keeps the lock (semver's baseline
+# worktree, e2e-smoke's e2e clone). Stale locks (rare, after hard kills):
+# `just gitlab resource-group-reset <repo> cold-rebuild-tree`; the group's
+# process_mode is oldest_first in core, so the merge train's car goes
+# before newer pipelines.
 .timeout-cold-rebuild:
   timeout: 2 hours
   resource_group: cold-rebuild-tree
