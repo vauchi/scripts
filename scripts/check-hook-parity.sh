@@ -76,28 +76,52 @@ if [[ -f "$KIMI_CONFIG" ]] \
     problem ".kimi-code/config.toml bypasses its adapter"
 fi
 
-# Kimi's actual wiring lives outside the repo. Verify every mode the canonical
-# adapter dispatches is registered there — a partial registration is the silent
-# failure this check exists to catch, so compare modes rather than count lines.
+# Every mode the canonical adapter dispatches must be registered by each
+# harness — a partial registration is the silent failure this check exists to
+# catch, so compare modes rather than count lines.
+# `|| true`: grep exits 1 on no match, and under `set -e` that aborts the
+# whole check silently — the same class of invisible pass being fixed here.
+MODES=""
+if [[ -f "$CANONICAL" ]]; then
+    MODES=$(sed -n '/case "\$MODE" in/,/^esac/p' "$CANONICAL" \
+        | grep -oE '^[[:space:]]+[a-z-]+\)' | tr -d ' )' | sort -u || true)
+    [[ -n "$MODES" ]] || problem "could not read dispatch modes from ${CANONICAL#"$ROOT/"}"
+fi
+
+# A registration reads `adapter.sh" <mode>` or `adapter.sh <mode>`; inside a
+# TOML basic string the quote is escaped (adapter.sh\" <mode>), which is how
+# ~/.kimi-code/config.toml writes it. On 2026-11-10 all eight modes were
+# registered that way and all eight were reported missing (private#1202).
+registers_mode() {
+    grep -qE "adapter\.sh(\\\\?\")? $2([^a-z-]|$)" "$1"
+}
+
+# Codex emits no Read tool event (40 recent sessions: exec, wait, spawn_agent,
+# …; nothing for a file read), so the read modes have nowhere to attach there.
+CODEX_UNREACHABLE_MODES="pre-read post-read"
+
+if [[ -f "$CODEX_CONFIG" && -n "$MODES" ]]; then
+    MISSING=""
+    for mode in $MODES; do
+        case " $CODEX_UNREACHABLE_MODES " in *" $mode "*) continue ;; esac
+        registers_mode "$CODEX_CONFIG" "$mode" || MISSING="$MISSING $mode"
+    done
+    [[ -z "$MISSING" ]] \
+        || problem ".codex/config.toml does not register:${MISSING} - Codex runs without those guardrails"
+fi
+
+# Kimi's actual wiring lives outside the repo.
 KIMI_USER_CONFIG="${KIMI_CODE_HOME:-$HOME/.kimi-code}/config.toml"
 if [[ ! -f "$KIMI_USER_CONFIG" ]]; then
     # CI and fresh checkouts have no user config; absence is not drift.
     echo "hook-routing: note - ${KIMI_USER_CONFIG/#$HOME/\~} absent, Kimi wiring unverified"
-elif [[ -f "$CANONICAL" ]]; then
-    # `|| true`: grep exits 1 on no match, and under `set -e` that aborts the
-    # whole check silently — the same class of invisible pass being fixed here.
-    MODES=$(sed -n '/case "\$MODE" in/,/^esac/p' "$CANONICAL" \
-        | grep -oE '^[[:space:]]+[a-z-]+\)' | tr -d ' )' | sort -u || true)
+elif [[ -n "$MODES" ]]; then
     MISSING=""
     for mode in $MODES; do
-        grep -q "adapter\.sh\" $mode\b\|adapter\.sh $mode\b" "$KIMI_USER_CONFIG" \
-            || MISSING="$MISSING $mode"
+        registers_mode "$KIMI_USER_CONFIG" "$mode" || MISSING="$MISSING $mode"
     done
-    if [[ -z "$MODES" ]]; then
-        problem "could not read dispatch modes from ${CANONICAL#"$ROOT/"}"
-    elif [[ -n "$MISSING" ]]; then
-        problem "${KIMI_USER_CONFIG/#$HOME/\~} does not register:${MISSING} - Kimi runs without those guardrails"
-    fi
+    [[ -z "$MISSING" ]] \
+        || problem "${KIMI_USER_CONFIG/#$HOME/\~} does not register:${MISSING} - Kimi runs without those guardrails"
 fi
 
 if [[ "$DRIFT" -eq 0 ]]; then
