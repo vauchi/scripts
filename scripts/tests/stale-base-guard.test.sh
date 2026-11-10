@@ -7,6 +7,8 @@
 # safety gates hold (backlog 2026-07-11-prepush-hook-rebases-on-tag-push):
 #   - a tag-only push never rebases the working branch;
 #   - a dirty working tree is never rebased (no autostash of WIP);
+#   - a repository on a merge train is never rebased (the train does it,
+#     private#1204);
 # while the legitimate behaviour (rebase a behind-main branch push, block
 # so the user re-pushes) is preserved. Each case runs the guard against a
 # throwaway origin+clone so assertions can actually fail (non-tautological
@@ -132,6 +134,31 @@ run_guard "$wc" "$(branch_specs "$(git -C "$wc" rev-parse HEAD)")"
 assert_eq "remote branch rewritten: advises force-with-lease" "1" \
     "$(printf '%s' "$OUT" | grep -c 'Run: git push --force-with-lease')"
 rm -rf "$(dirname "$wc")"
+
+# ── (h) a repository on a merge train is never rebased here: the train
+#        rebases the car itself, so the push proceeds as is (#1204) ─────
+wc="$(make_world)"; root="$(dirname "$wc")"
+mv "$root/origin.git" "$root/core.git"
+git -C "$wc" remote set-url origin "$root/core.git"
+head="$(git -C "$wc" rev-parse HEAD)"
+run_guard "$wc" "$(branch_specs "$head")"
+assert_eq "merge-train repo behind: proceeds (exit 0)" "0" "$RC"
+assert_eq "merge-train repo behind: HEAD untouched" "$head" "$(git -C "$wc" rev-parse HEAD)"
+assert_eq "merge-train repo behind: names the train" "1" \
+    "$(printf '%s' "$OUT" | grep -c 'merge train')"
+rm -rf "$root"
+
+# ── (i) the train list is the one in the environment when set: with
+#        core absent from it, core is rebased like any other repo ────────
+wc="$(make_world)"; root="$(dirname "$wc")"
+mv "$root/origin.git" "$root/core.git"
+git -C "$wc" remote set-url origin "$root/core.git"
+head="$(git -C "$wc" rev-parse HEAD)"
+OUT="$(printf '%s\n' "$(branch_specs "$head")" | VAUCHI_MERGE_TRAIN_REPOS=private "$GUARD" "$wc" 2>&1)"; RC=$?
+assert_eq "core outside the train list: blocked (exit 1)" "1" "$RC"
+assert_eq "core outside the train list: rebased" "changed" \
+    "$([ "$head" != "$(git -C "$wc" rev-parse HEAD)" ] && echo changed || echo same)"
+rm -rf "$root"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
