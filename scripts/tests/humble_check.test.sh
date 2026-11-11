@@ -833,6 +833,7 @@ if (message.startsWith("network")) { retry(); }
 CPP
     for spec in gtk-display:linux-gtk:1 qt-display:linux-qt:2; do
         repo=${spec%%:*}; rest=${spec#*:}; old=${rest%:*}; want=${rest#*:}
+        violations=$want
         out=$(python3 "$SCRIPT" --repo "$repo" --repo-path "$root/$repo" --config "$CONFIG")
         assert_eq "renamed repo: $repo counts $want" "$want" \
             "$(extract_counter "$out" error_substring_classification)"
@@ -844,6 +845,11 @@ CPP
         rc=$?
         set -e
         assert_eq "renamed repo: $repo is held to $old's baseline" "1" "$rc"
+        # Without --repo-path the roots come from the workspace, where the
+        # directory has the new name once the workspace follows.
+        out=$(python3 "$SCRIPT" --repo "$old" --workspace-root "$root" --config "$CONFIG")
+        assert_eq "renamed directory: $old counts $violations in $repo/" "$violations" \
+            "$(extract_counter "$out" error_substring_classification)"
     done
     rm -rf "$root"
 }
