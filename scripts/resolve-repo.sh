@@ -295,6 +295,13 @@ _dir_to_gitlab_name() {
             echo "$name" ;;
         root|.|vauchi|vauchi-*)
             echo "vauchi" ;;
+        # ADR-078 rename (private#1029): the directories keep their names
+        # until the registry moves, and GitLab follows a moved project's
+        # old path for GET only.
+        linux-gtk)
+            echo "gtk-display" ;;
+        linux-qt)
+            echo "qt-display" ;;
         *)
             echo "$name" ;;
     esac
