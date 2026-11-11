@@ -51,11 +51,21 @@ check "qt-display is copied where the audit looks for the Qt shell" \
 check "linux-qt keeps its directory" "linux-qt/src/marker" "$(copied_as linux-qt)"
 check "any other repository keeps its project name" "tui/src/marker" "$(copied_as tui)"
 
-# The mapping goes when the audit reads the new directory names.
-check "the audit still reads the GTK shell from linux-gtk/src" "1" \
-    "$(grep -c '^GTK_SRC="\$WORKSPACE_ROOT/linux-gtk/src"$' "$AUDIT")"
-check "the audit still reads the Qt shell from linux-qt/src" "1" \
-    "$(grep -c '^QT_SRC="\$WORKSPACE_ROOT/linux-qt/src"$' "$AUDIT")"
+# Whatever directory the job picks, the audit must count the copy: the
+# audit reads either name, so the mapping above can go with no change here.
+counted_from() {
+    rm -rf "$work/ws" "$work/project"
+    mkdir -p "$work/project/src"
+    printf 'void f() { validateContact(payload); }\n' > "$work/project/src/app.cpp"
+    printf 'fn f(e: &Engine) { e.save_contact(c); }\n' > "$work/project/src/app.rs"
+    WORK="$work" CI_PROJECT_NAME="$1" CI_PROJECT_DIR="$work/project" sh "$work/copy.sh" >/dev/null 2>&1
+    bash "$AUDIT" "$work/ws" | sed -n "s/.*\"$2\": *\([0-9]*\).*/\1/p"
+}
+
+check "the audit counts the GTK shell where the job copied gtk-display" "1" \
+    "$(counted_from gtk-display domain_calls_linux_gtk)"
+check "the audit counts the Qt shell where the job copied qt-display" "1" \
+    "$(counted_from qt-display domain_calls_linux_qt)"
 
 rm -rf "$work"
 
