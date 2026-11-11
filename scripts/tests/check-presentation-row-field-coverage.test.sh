@@ -19,8 +19,8 @@ SHELL_FILES=(
     "macos/Vauchi/CoreUI/PresentationNodeView.swift"
     "android/app/src/main/kotlin/app/vauchi/ui/presentation/PresentationNodeRenderer.kt"
     "tui/src/ui/presentation_renderer/nodes.rs"
-    "linux-gtk/src/core_ui/generic_surface/collections.rs"
-    "linux-qt/src/coreui/presentationsurface.cpp"
+    "gtk-display/src/core_ui/generic_surface/collections.rs"
+    "qt-display/src/coreui/presentationsurface.cpp"
     "windows/Vauchi/CoreUI/PresentationSurfaceCollections.cs"
     "web-demo/src/presentation/PresentationNodeRenderer.tsx"
 )

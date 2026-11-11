@@ -134,7 +134,7 @@ XAML
 # ── 4. linux-qt sentinel — counts QStringLiteral and setter calls ───────────
 test_linux_qt_sentinel() {
     root=$(mktemp -d)
-    dir="$root/linux-qt/src"
+    dir="$root/qt-display/src"
     mkdir -p "$dir"
     cat >"$dir/window.cpp" <<'CPP'
 void setup() {
@@ -162,7 +162,7 @@ CPP
 # setter is still copy and still counts.
 test_linux_qt_protocol_keys_guard() {
     root=$(mktemp -d)
-    dir="$root/linux-qt/src"
+    dir="$root/qt-display/src"
     mkdir -p "$dir"
     cat >"$dir/decode.cpp" <<'CPP'
 void decode(const QJsonObject& command) {
@@ -185,7 +185,7 @@ CPP
 # ── 5. linux-gtk sentinel — counts .label/.title/.placeholder_text ──────────
 test_linux_gtk_sentinel() {
     root=$(mktemp -d)
-    dir="$root/linux-gtk/src"
+    dir="$root/gtk-display/src"
     mkdir -p "$dir"
     cat >"$dir/widgets.rs" <<'RS'
 fn build() -> adw::ApplicationWindow {

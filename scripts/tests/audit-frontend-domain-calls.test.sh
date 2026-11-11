@@ -100,7 +100,7 @@ RS
 # saveBackupToFile( (native file adapter), and a local `int save_count = 0;`.
 test_cpp_sentinel() {
     root=$(mktemp -d)
-    dir="$root/linux-qt/src/coreui"
+    dir="$root/qt-display/src/coreui"
     mkdir -p "$dir"
     cat >"$dir/screenrenderer.cpp" <<'CPP'
 void Renderer::run() {
@@ -118,24 +118,40 @@ CPP
     rm -rf "$root"
 }
 
+# ── 3a. A checkout still named linux-qt / linux-gtk is counted ────────
+# ADR-078 renamed the directories (private#1029); a workspace that has
+# not followed yet must not read as zero calls.
+test_old_directory_names_still_counted() {
+    root=$(mktemp -d)
+    mkdir -p "$root/linux-qt/src" "$root/linux-gtk/src"
+    printf 'void f() { validateContact(payload); }\n' >"$root/linux-qt/src/app.cpp"
+    printf 'fn f(e: &Engine) { e.save_contact(c); }\n' >"$root/linux-gtk/src/app.rs"
+    out=$("$SCRIPT" "$root")
+    assert_eq "old names: linux-qt counted" \
+        "1" "$(extract_counter "$out" domain_calls_linux_qt)"
+    assert_eq "old names: linux-gtk counted" \
+        "1" "$(extract_counter "$out" domain_calls_linux_gtk)"
+    rm -rf "$root"
+}
+
 # ── 3b. Native image export is renderer I/O, not a domain mutation ───
 # Render-fixture tools exercise the real native renderer and persist its
 # pixels for visual comparison. Rust GDK and Qt image APIs happen to use
 # the broad `save*` spelling, but neither call changes Vauchi domain state.
 test_native_image_export_not_counted() {
     root=$(mktemp -d)
-    mkdir -p "$root/linux-gtk/src/bin" "$root/linux-qt/src"
-    cat >"$root/linux-gtk/src/bin/render_fixture.rs" <<'RS'
+    mkdir -p "$root/gtk-display/src/bin" "$root/qt-display/src"
+    cat >"$root/gtk-display/src/bin/render_fixture.rs" <<'RS'
 fn render(texture: Texture) {
     let png = texture.save_to_png_bytes();
 }
 RS
-    cat >"$root/linux-qt/src/main.cpp" <<'CPP'
+    cat >"$root/qt-display/src/main.cpp" <<'CPP'
 void render(const QPixmap &pixmap, const QString &path) {
     pixmap.save(path);
 }
 CPP
-    cat >"$root/linux-qt/src/display_abi.cpp" <<'CPP'
+    cat >"$root/qt-display/src/display_abi.cpp" <<'CPP'
 void snapshotIfAsked() {
     grab().save(QString::fromUtf8(path));
 }
@@ -653,9 +669,9 @@ RS
 # does not: on node:20 it is dash, which rejects `set -o pipefail` first.
 test_sh_run_with_no_match_reports() {
     root=$(mktemp -d)
-    mkdir -p "$root/windows/Vauchi" "$root/linux-qt/src"
+    mkdir -p "$root/windows/Vauchi" "$root/qt-display/src"
     printf 'public void Run() { LoadState(); }\n' >"$root/windows/Vauchi/App.cs"
-    printf 'void f() { load(); }\n' >"$root/linux-qt/src/app.cpp"
+    printf 'void f() { load(); }\n' >"$root/qt-display/src/app.cpp"
     out=$(bash --posix "$SCRIPT" "$root" 2>&1) || true
     assert_eq "sh: windows form_factor reported" \
         "0" "$(extract_counter "$out" form_factor_windows)"
@@ -668,6 +684,7 @@ test_sh_run_with_no_match_reports() {
 test_empty_workspace
 test_rust_sentinel
 test_cpp_sentinel
+test_old_directory_names_still_counted
 test_native_image_export_not_counted
 test_cs_sentinel
 test_wrong_extension

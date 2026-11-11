@@ -54,7 +54,7 @@ test_android_hardcoded_copy() {
 
 test_gtk_hardcoded_copy() {
     root=$(mktemp -d)
-    file="$root/linux-gtk/src/core_ui/action_dispatcher.rs"
+    file="$root/gtk-display/src/core_ui/action_dispatcher.rs"
     mkdir -p "$(dirname "$file")"
     printf '%s\n' \
         'Some(undo_label)' \
@@ -68,7 +68,7 @@ test_gtk_hardcoded_copy() {
 
 test_qt_wrong_event() {
     root=$(mktemp -d)
-    file="$root/linux-qt/src/coreui/screenrenderer.cpp"
+    file="$root/qt-display/src/coreui/screenrenderer.cpp"
     mkdir -p "$(dirname "$file")"
     printf '%s\n' \
         'toast["undo_label"].toString()' \
