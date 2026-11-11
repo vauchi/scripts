@@ -36,7 +36,8 @@ class ContractPinnedPresentation(unittest.TestCase):
         ("design-drift.yml", ".design-drift-job"),
     )
 
-    def run_job(self, template, job, *, missing=False, tagged=True, legacy=False, nodes=True):
+    def run_job(self, template, job, *, missing=False, tagged=True, legacy=False, nodes=True,
+                ref_file=None, kind=""):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             binary_dir = work / "bin"
@@ -46,6 +47,8 @@ class ContractPinnedPresentation(unittest.TestCase):
                 + CONTRACT_REPO
                 + ('", tag = "v0.97.2" }\n' if tagged else '", branch = "main" }\n')
             )
+            if ref_file is not None:
+                (work / "contract-ref").write_text(ref_file)
             (work / "nodes.rs").write_text(
                 "pub enum PresentationNode {\n    Text { value: String },\n    Divider,\n}\n"
             )
@@ -91,7 +94,10 @@ class ContractPinnedPresentation(unittest.TestCase):
                 "CORE_PIN_FILE": "",
                 "CORE_PIN_KIND": "",
                 "CORE_PINS_SCRIPT_REF": "test-ref",
-                "CONTRACT_PIN_FILE": "" if legacy else "Cargo.toml",
+                "CONTRACT_PIN_FILE": (
+                    "" if legacy else "contract-ref" if ref_file is not None else "Cargo.toml"
+                ),
+                "CONTRACT_PIN_KIND": kind,
                 "CI_PROJECT_NAME": "linux-gtk",
                 "DESIGN_DRIFT_PROTOCOL": "presentation",
                 "DESIGN_DRIFT_MATCH_MODE": "grep",
@@ -141,6 +147,34 @@ class ContractPinnedPresentation(unittest.TestCase):
                 result, _ = self.run_job(template, job, nodes=False)
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
                 self.assertIn("missing", (result.stdout + result.stderr).lower())
+
+    # @internal — a display shell with no Cargo manifest pins contract in a ref file.
+    def test_a_ref_file_names_the_contract_tag(self):
+        pin = "# The contract release this display renders.\n\nv0.98.0\n"
+        for template, job in self.jobs:
+            with self.subTest(job=job):
+                result, calls = self.run_job(template, job, ref_file=pin, kind="ref-file")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertTrue(any("refs/tags/v0.98.0" in call for call in calls), calls)
+                self.assertFalse(any(CORE_REPO in call for call in calls), calls)
+
+    # @internal — an empty ref file cannot silently select main.
+    def test_an_empty_ref_file_is_rejected_before_fetch(self):
+        for template, job in self.jobs:
+            with self.subTest(job=job):
+                result, calls = self.run_job(template, job, ref_file="# none\n\n", kind="ref-file")
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("names no contract tag", result.stdout + result.stderr)
+                self.assertEqual(calls, [])
+
+    # @internal — a misspelt pin kind fails instead of falling back to Cargo.
+    def test_an_unknown_pin_kind_is_rejected_before_fetch(self):
+        for template, job in self.jobs:
+            with self.subTest(job=job):
+                result, calls = self.run_job(template, job, ref_file="v0.98.0\n", kind="ref")
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("CONTRACT_PIN_KIND", result.stdout + result.stderr)
+                self.assertEqual(calls, [])
 
     # @internal — existing Core-pinned consumers keep their behavior.
     def test_legacy_core_reference_remains_supported(self):
