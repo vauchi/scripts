@@ -116,7 +116,12 @@ for copy in light full; do
     assert_eq "$copy: a detached pipeline checks out the branch head" \
         "$BRANCH_SHA" "$got"
 
+    # This suite itself runs inside a merge-request job, whose
+    # CI_MERGE_REQUEST_* variables the inner shell would inherit; the push
+    # case names them empty, which fetch_ref reads as unset.
     got=$(checkout_with "$copy" \
+        CI_MERGE_REQUEST_EVENT_TYPE= CI_MERGE_REQUEST_IID= \
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME= \
         CI_COMMIT_REF_NAME=main CI_COMMIT_SHA="$MAIN_SHA")
     assert_eq "$copy: a push pipeline checks out CI_COMMIT_SHA of its ref" \
         "$MAIN_SHA" "$got"
