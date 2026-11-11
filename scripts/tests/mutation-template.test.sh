@@ -45,6 +45,7 @@ mkdir -p "$WORK/bin"
 # --output, then exits with $FAKE_MUTANTS_EXIT.
 cat > "$WORK/bin/cargo" <<'FAKE'
 #!/usr/bin/env bash
+printf '%s\n' "$@" > "${FAKE_MUTANTS_ARGS:-/dev/null}"
 out=""
 while [ $# -gt 0 ]; do
     if [ "$1" = "--output" ]; then out="$2"; fi
@@ -75,7 +76,8 @@ PUSH
         PATH="$WORK/bin:$PATH" FAKE_MUTANTS_EXIT="$1" \
             MUTATION_WORKDIR=repo MUTATION_TEST_TOOL=nextest MUTATION_PACKAGE='' \
             MUTATION_EXTRA_FLAGS='' MUTATION_TIMEOUT_NIGHTLY=60 CI_PROJECT_NAME=demo \
-            MUTATION_PROGRESS_POLL_SECS=0.1 \
+            MUTATION_PROGRESS_POLL_SECS=0.1 MUTATION_SHARDS="${MUTATION_SHARDS:-1}" \
+            FAKE_MUTANTS_ARGS="$WORK/run/args" \
             bash -eo pipefail "$WORK/job.sh"
     ) > "$WORK/run/output" 2>&1
     status=$?
@@ -93,9 +95,20 @@ assert_eq "the metrics push sees the result files" "yes" \
 assert_eq "the summary counts the caught mutant" "yes" \
     "$(grep -q 'Total: *1 / 2' "$WORK/run/output" && echo yes || echo no)"
 
+assert_eq "one shard (the default) passes no --shard flag" "no" \
+    "$(grep -q -- '--shard' "$WORK/run/args" && echo yes || echo no)"
+
 # ── 2. Missed mutants: the job fails with cargo-mutants' status ──────
 run_job 2
 assert_eq "missed mutants exit with cargo-mutants' status" 2 "$status"
+
+# ── 3. Sharded: one slice per night, rotating with the day of the year
+#       so every mutant is tried within MUTATION_SHARDS nights ────────
+MUTATION_SHARDS=3 run_job 0
+assert_eq "a sharded run exits 0" 0 "$status"
+assert_eq "three shards pass today's slice as --shard k/3" \
+    "$(( 10#$(date -u +%j) % 3 ))/3" \
+    "$(awk '/^--shard$/ { getline; print }' "$WORK/run/args")"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
