@@ -15,6 +15,7 @@ include:
   - local: '/ci-templates/mr-rules.yml'
   - local: '/ci-templates/reuse.yml'
   - local: '/ci-templates/badges.yml'
+  - local: '/ci-templates/shipped-in.yml'
 
 variables:
   SECRET_DETECTION_EXCLUDED_PATHS: "archive/"

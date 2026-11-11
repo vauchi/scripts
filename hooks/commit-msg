@@ -173,45 +173,14 @@ fi
 # described designs as shipped behaviour in 58 places and called shipped
 # features planned in others; nothing asked, at the moment the text
 # changed, whether the code was there (vauchi/private#1229, #1237).
-# Every type but wip: is asked; the CI re-check verifies cited MRs merged.
+# The rule lives in check-shipped-in.sh, shared with the CI re-check.
 # Page: _private/docs/lint-errors/vgt15-shipped-in-trailer.md
-if ! echo "$SUBJECT" | grep -qE "^wip: "; then
-    PUBLIC_PATHS_FILE="$(cd "$(dirname "$0")/../scripts" 2>/dev/null && pwd)/public-text-paths.txt"
-    REPO_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-    PUBLIC_RE=""
-    if [ -f "$PUBLIC_PATHS_FILE" ] && ! grep -qxE "!$REPO_NAME" "$PUBLIC_PATHS_FILE"; then
-        PUBLIC_RE=$(grep -vE '^(#|!|[[:space:]]*$)' "$PUBLIC_PATHS_FILE" \
-            | awk -v repo="$REPO_NAME" '$1 == "*" || $1 == repo { print $2 }' \
-            | paste -sd'|' -)
-    fi
-    PUBLIC_TOUCHED=""
-    if [ -n "$PUBLIC_RE" ]; then
-        PUBLIC_TOUCHED=$(git diff --cached --name-only 2>/dev/null | grep -E "$PUBLIC_RE" || true)
-    fi
-    if [ -n "$PUBLIC_TOUCHED" ]; then
-        SHIPPED_VALUES=$(grep -vE '^#' "$MSG_FILE" | grep -E '^Shipped-in:' | sed 's/^Shipped-in:[[:space:]]*//' || true)
-        SHIPPED_OK=1
-        [ -z "$SHIPPED_VALUES" ] && SHIPPED_OK=0
-        REF='[a-z0-9][a-z0-9_.-]*'
-        while IFS= read -r value; do
-            [ -z "$SHIPPED_VALUES" ] && break
-            if ! printf '%s\n' "$value" | grep -qxE "($REF!(0|[1-9][0-9]*)|$REF@[0-9a-f]{7,40}|roadmap|limit|correction $REF@[0-9a-f]{7,40}|n/a — (typo|link|formatting|translation))"; then
-                SHIPPED_OK=0
-            fi
-        done <<EOF_SHIPPED
-$SHIPPED_VALUES
-EOF_SHIPPED
-        if [ "$SHIPPED_OK" = 0 ]; then
-            echo ""
-            echo "  VGT15: $(echo "$SUBJECT" | cut -d: -f1) commit changes public text without a valid Shipped-in: trailer — fix: name the shipped work it describes, 'Shipped-in: <repo>!<MR>' or '<repo>@<sha>'; or 'roadmap', 'limit', 'correction <repo>@<sha>', or 'n/a — typo|link|formatting|translation'. Planned work goes on the roadmap, not in a page. [_private/docs/lint-errors/vgt15-shipped-in-trailer.md]"
-            echo ""
-            echo "  Public text staged:"
-            echo "$PUBLIC_TOUCHED" | sed 's/^/    /'
-            echo ""
-            exit 1
-        fi
-    fi
+SHIPPED_IN_CHECK="$(cd "$(dirname "$0")/../scripts" 2>/dev/null && pwd)/check-shipped-in.sh"
+if [ ! -x "$SHIPPED_IN_CHECK" ]; then
+    echo "  VGT15: $SHIPPED_IN_CHECK is missing — the check cannot run; restore it from vauchi/scripts." >&2
+    exit 1
 fi
+"$SHIPPED_IN_CHECK" --staged "$MSG_FILE" || exit 1
 
 # Check subject line length (soft warning at 72 chars)
 SUBJECT_LEN=${#SUBJECT}

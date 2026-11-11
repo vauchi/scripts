@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# VGT15 re-check: every commit of a merge request that changes public text
+# carries a valid Shipped-in: trailer, and every cited MR is merged and every
+# cited sha is on that repository's main (vauchi/private#1237).
+#
+# The commit-msg hook asks the same question locally; this job is what a
+# commit made with --no-verify, in the web editor or by another tool still
+# has to pass. Page: _private/docs/lint-errors/vgt15-shipped-in-trailer.md
+#
+# Usage, in every public repository:
+#   include:
+#     - project: 'vauchi/scripts'
+#       ref: ci-templates-vYYYY.MM.N
+#       file: '/ci-templates/shipped-in.yml'
+#
+# Needs a `lint` stage. Reads only public data: a reference to the private
+# tracker is checked for form, never looked up. Exit 2 (the API could not be
+# reached) shows as a warning, so an outage neither blocks nor passes silently.
+
+lint:shipped-in:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  needs: []
+  timeout: 5m
+  allow_failure:
+    exit_codes: [2]
+  variables:
+    GIT_DEPTH: "0"
+    SHIPPED_IN_SCRIPTS_REF: "${VAUCHI_SCRIPTS_REF}"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - apk add --no-cache bash git curl > /dev/null
+    - |
+      if [ "$CI_PROJECT_PATH" = "vauchi/scripts" ]; then
+        ln -s "$CI_PROJECT_DIR" /tmp/vauchi-scripts
+      else
+        ref="${SHIPPED_IN_SCRIPTS_REF:-main}"
+        git clone --quiet --depth=1 --branch "$ref" https://gitlab.com/vauchi/scripts.git /tmp/vauchi-scripts
+      fi
+      cat > /tmp/gitlab-get <<'EOF'
+      #!/bin/sh
+      exec curl --silent --show-error --fail-with-body "https://gitlab.com/api/v4/$1"
+      EOF
+      chmod +x /tmp/gitlab-get
+      git fetch --quiet origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+      base=$(git merge-base "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" HEAD)
+      SHIPPED_IN_API=/tmp/gitlab-get bash /tmp/vauchi-scripts/scripts/check-shipped-in.sh --range "$base" HEAD "$CI_PROJECT_NAME"
