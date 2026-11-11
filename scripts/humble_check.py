@@ -319,7 +319,7 @@ def check_source_roots(repo: str, result: dict) -> int:
     return 2
 
 
-def validate_baseline_transition(current: dict, previous: dict) -> int:
+def validate_baseline_transition(current: dict, previous: dict, config: dict) -> int:
     if (
         previous.get("schema_version", 1) < 2
         and current.get("schema_version") == 2
@@ -332,6 +332,10 @@ def validate_baseline_transition(current: dict, previous: dict) -> int:
     regressions = []
     for repo, previous_rules in previous.get("repos", {}).items():
         current_rules = current.get("repos", {}).get(repo)
+        if current_rules is None:
+            # A key renamed through an alias keeps its counters under the
+            # new name; the counts below are still compared.
+            current_rules = current.get("repos", {}).get(canonical_repo(config, repo))
         if current_rules is None:
             regressions.append((repo, "*", "removed", "repo"))
             continue
@@ -557,6 +561,7 @@ def main(argv: list[str] | None = None) -> int:
         return validate_baseline_transition(
             load_baseline(args.validate_baseline),
             load_baseline(args.against),
+            load_config(config_path),
         )
 
     baseline = None
