@@ -170,23 +170,24 @@ def rule_message(rules: dict[str, dict], name: str) -> str:
 def canonical_repo(config: dict, repo: str) -> str:
     """The name a repository's rules and baseline are filed under.
 
-    CI passes the GitLab project name, and a renamed project keeps the
-    entries written under its earlier name until the workspace follows.
+    A renamed repository is filed under its new name; its earlier name still
+    reaches it from a checkout or a pin that has not followed the rename.
     """
     return config.get("aliases", {}).get(repo, repo)
 
 
 def workspace_source_root(config: dict, workspace_root: Path, rel: str) -> Path:
-    """A source root in the workspace, under the directory's new name if renamed.
+    """A source root in the workspace, or the earlier directory if not moved yet.
 
-    The rules name roots by the earlier directory (`linux-gtk/src`); a
-    workspace that has followed the rename holds `gtk-display/src`, and
-    reading the old path only would report a missing root.
+    The rules name roots by the current directory (`gtk-display/src`); a
+    workspace that has not followed the rename still holds `linux-gtk/src`,
+    and reading the new path only would report a missing root.
     """
     head, _, tail = rel.partition("/")
-    for renamed, earlier in config.get("aliases", {}).items():
-        if earlier == head and (workspace_root / renamed).is_dir():
-            return workspace_root / renamed / tail
+    if not (workspace_root / head).is_dir():
+        for earlier, current in config.get("aliases", {}).items():
+            if current == head and (workspace_root / earlier).is_dir():
+                return workspace_root / earlier / tail
     return workspace_root / rel
 
 

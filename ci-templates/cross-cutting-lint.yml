@@ -42,17 +42,17 @@
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check.py"
       export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check.py"
-      export FETCH_SCRIPT_SHA256="cbfcf74a2c977c249a8838063cf8ebecedf3ced9e1d0ac8902ee86efbd71fc22"
+      export FETCH_SCRIPT_SHA256="4a868ae78a7193e00ed20ecc5498b273163871863b8a99db64a1cf548a7ea2a2"
     - !reference [.verified-fetch-script, before_script]
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check_rules.json"
       export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check_rules.json"
-      export FETCH_SCRIPT_SHA256="f31cba54b84402f319fff54060a5fafe14274a64aff5c03c35c2350e2f8a6aed"
+      export FETCH_SCRIPT_SHA256="f226b163167cebb944742e954f29bdb652ad9cefaf1e88c668276f33976ddab8"
     - !reference [.verified-fetch-script, before_script]
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check.baseline.json"
       export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check.baseline.json"
-      export FETCH_SCRIPT_SHA256="9e81df64341b173c2fbbc0081b4013c0c06cb68c102b2314b9e3b1ca24c032e7"
+      export FETCH_SCRIPT_SHA256="f2d24c6e26cef81254f5d178f899947c8a91b484be1318d054b9832ae3d79597"
     - !reference [.verified-fetch-script, before_script]
     - !reference [.install-python3, before_script]
   script:

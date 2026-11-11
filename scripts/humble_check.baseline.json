@@ -81,7 +81,7 @@
       "retired_visibility_labels": 0,
       "split_dispatch_api": 0
     },
-    "linux-gtk": {
+    "gtk-display": {
       "action_id_minting": 0,
       "domain_screen_id_branch": 0,
       "app_screen_enum_branch": 0,
@@ -93,7 +93,7 @@
       "retired_visibility_labels": 0,
       "split_dispatch_api": 0
     },
-    "linux-qt": {
+    "qt-display": {
       "retired_qt_domain_import": 0,
       "action_id_minting": 0,
       "domain_screen_id_branch": 0,

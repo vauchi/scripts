@@ -69,8 +69,8 @@
     }
   },
   "aliases": {
-    "gtk-display": "linux-gtk",
-    "qt-display": "linux-qt"
+    "linux-gtk": "gtk-display",
+    "linux-qt": "qt-display"
   },
   "repos": {
     "core": {
@@ -443,9 +443,9 @@
         }
       }
     },
-    "linux-gtk": {
+    "gtk-display": {
       "source_roots": [
-        "linux-gtk/src"
+        "gtk-display/src"
       ],
       "extensions": [
         ".rs"
@@ -521,9 +521,9 @@
         }
       }
     },
-    "linux-qt": {
+    "qt-display": {
       "source_roots": [
-        "linux-qt/src"
+        "qt-display/src"
       ],
       "extensions": [
         ".cpp",
