@@ -428,6 +428,46 @@ JSON
     rm -rf "$root"
 }
 
+# test_baseline_transition_follows_a_rename — a repository whose key moved
+# to the name an alias gives it keeps its counters (private#1029); the same
+# counts under the new key are no removal, a higher one is still refused,
+# and a key that vanishes without an alias is still a removal.
+test_baseline_transition_follows_a_rename() {
+    root=$(mktemp -d)
+    previous="$root/previous.json"
+    current="$root/current.json"
+    config="$root/rules.json"
+    python3 - "$CONFIG" "$config" <<'PY'
+import json, sys
+c = json.load(open(sys.argv[1]))
+c["aliases"] = {"old-shell": "new-shell"}
+json.dump(c, open(sys.argv[2], "w"))
+PY
+    cat >"$previous" <<'JSON'
+{"schema_version":2,"repos":{"old-shell":{"retired_screen_model":3},"ios":{"retired_screen_model":1}}}
+JSON
+    for spec in "3:1:0:renamed key with the same count passes" \
+                "4:1:1:renamed key with a higher count exits 1" \
+                "3:0:1:a key gone without an alias is still a removal"; do
+        count=${spec%%:*}; rest=${spec#*:}; keep_ios=${rest%%:*}; rest=${rest#*:}
+        expect=${rest%%:*}; label=${rest#*:}
+        if [ "$keep_ios" = 1 ]; then
+            ios=',"ios":{"retired_screen_model":1}'
+        else
+            ios=''
+        fi
+        printf '{"schema_version":2,"repos":{"new-shell":{"retired_screen_model":%s}%s}}\n' \
+            "$count" "$ios" >"$current"
+        set +e
+        python3 "$SCRIPT" --validate-baseline "$current" --against "$previous" \
+            --config "$config" >/dev/null 2>&1
+        rc=$?
+        set -e
+        assert_eq "baseline transition: $label" "$expect" "$rc"
+    done
+    rm -rf "$root"
+}
+
 # test_schema_two_bootstrap_accepts_corrected_measurement — one-time scanner fix
 test_schema_two_bootstrap_accepts_corrected_measurement() {
     root=$(mktemp -d)
@@ -924,6 +964,7 @@ test_visibility_labels_are_unsuppressible_boundary_debt
 test_app_screen_enum_branch_exception
 test_bad_repo
 test_baseline_transition_cannot_increase_or_remove
+test_baseline_transition_follows_a_rename
 test_schema_two_bootstrap_accepts_corrected_measurement
 test_release_zero_requires_live_and_baseline_zero
 test_enforcement_wiring
