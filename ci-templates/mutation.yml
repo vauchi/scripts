@@ -22,9 +22,13 @@
 #   MUTATION_TIMEOUT_NIGHTLY:      per-mutant timeout in seconds for nightly (default: 30)
 #   MUTATION_WORKDIR:              subdirectory to cd into before running (default: ".", e.g. "src-tauri")
 #   MUTATION_TEST_TOOL:            test runner for cargo-mutants (default: "nextest", alt: "cargo")
+#   MUTATION_SHARDS:               slices to split the mutants into, one per night, rotating
+#                                  with the day of the year (default: 1 = every mutant every night)
 #
-# Consumer jobs must also extend a runner template (.linux-runner, .rust-runner, etc.)
-# and .timeout-extended for the job timeout.
+# Consumer jobs must also extend a runner template (.linux-runner, .rust-runner, etc.).
+# The job's timeout is 3 h here; a crate whose run overruns it sets MUTATION_SHARDS
+# rather than a longer timeout, so a nightly never holds a shell slot for most of a
+# working day (relay's ran 12 h-capped at 2 h+ beside the merge train, private#1214).
 #
 # Example:
 #   mutation:nightly:
@@ -40,6 +44,7 @@
   # Serialize nightly mutation across projects on shared runners to
   # reduce concurrent slot contention (these jobs run 5-20 minutes).
   resource_group: mutation-nightly
+  timeout: 3h
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   variables:
@@ -48,6 +53,7 @@
     MUTATION_TIMEOUT_NIGHTLY: "30"
     MUTATION_WORKDIR: "."
     MUTATION_TEST_TOOL: "nextest"
+    MUTATION_SHARDS: "1"
   script:
     - command -v cargo-mutants >/dev/null 2>&1 || cargo binstall cargo-mutants --no-confirm 2>/dev/null || true
     - command -v cargo-nextest >/dev/null 2>&1 || cargo binstall cargo-nextest --no-confirm 2>/dev/null || true
@@ -71,7 +77,13 @@
       </testsuites>
       PLACEHOLDER_EOF
       PACKAGE_FLAG="${MUTATION_PACKAGE:+-p ${MUTATION_PACKAGE}}"
-      cargo mutants --test-tool "${MUTATION_TEST_TOOL}" ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
+      SHARD_FLAG=""
+      if [ "${MUTATION_SHARDS:-1}" -gt 1 ]; then
+        # cargo-mutants shards are 0-based k/n; the day of the year picks
+        # tonight's slice, so each mutant comes up within MUTATION_SHARDS nights.
+        SHARD_FLAG="--shard $(( 10#$(date -u +%j) % MUTATION_SHARDS ))/${MUTATION_SHARDS}"
+      fi
+      cargo mutants --test-tool "${MUTATION_TEST_TOOL}" ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} ${SHARD_FLAG} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
       MUTANTS_PID=$!
       # cargo-mutants writes its result files one level down, in mutants.out/.
       MUTANTS_DIR="$MUTANTS_OUT/mutants.out"
