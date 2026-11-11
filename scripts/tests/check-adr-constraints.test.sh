@@ -96,6 +96,24 @@ for crate in btleplug cpal nokhwa pcsc; do
     rm -rf "$core"
 done
 
+for section in dependencies dev-dependencies; do
+    core=$(make_core)
+    printf '\n[%s]\nvauchi-app = { workspace = true }\n' "$section" >> "$core/vauchi-core/Cargo.toml"
+    assert_eq "vauchi-core naming vauchi-app in [$section] fails" "1" "$(rc "$core")"
+    assert_eq "it names the strict-chain rule for [$section]" "1" \
+        "$(says "$core" "vauchi-core never depends on vauchi-app")"
+    rm -rf "$core"
+done
+
+core=$(make_core)
+printf '\n[dev-dependencies]\nvauchi-core-testkit = { workspace = true }\nvauchi-app-free = "1"\n' \
+    >> "$core/vauchi-core/Cargo.toml"
+mkdir -p "$core/vauchi-app"
+printf '[package]\nname = "vauchi-app"\n\n[dependencies]\nvauchi-core = { workspace = true }\n' \
+    > "$core/vauchi-app/Cargo.toml"
+assert_eq "the testkit, a look-alike name, and app depending on core pass" "0" "$(rc "$core")"
+rm -rf "$core"
+
 core=$(make_core)
 printf 'cpal-free = "1"\nzbus = "4"\n' >> "$core/vauchi-core/Cargo.toml"
 assert_eq "a crate whose name only starts like a hardware crate passes" "0" "$(rc "$core")"
