@@ -102,10 +102,24 @@ def extract_fields(path: Path) -> list[str]:
     return re.findall(r"^\s*pub (\w+):", match.group(1), re.M)
 
 
+# ADR-078 renamed linux-gtk and linux-qt (private#1029). The tables keep
+# the shell names; a workspace that already has the new directory is read
+# there. Looking under one name only would skip the shell and pass.
+RENAMED_DIRS = {"linux-gtk": "gtk-display", "linux-qt": "qt-display"}
+
+
+def in_workspace(root: Path, rel: str) -> Path:
+    head, _, tail = rel.partition("/")
+    renamed = RENAMED_DIRS.get(head)
+    if renamed and (root / renamed).is_dir():
+        return root / renamed / tail if tail else root / renamed
+    return root / rel
+
+
 def sources(root: Path, paths: list[str]) -> list[Path]:
     found: list[Path] = []
     for entry in paths:
-        target = root / entry
+        target = in_workspace(root, entry)
         if target.is_dir():
             found.extend(
                 p for p in target.rglob("*") if p.is_file() and not p.name.endswith(".json")

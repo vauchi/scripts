@@ -167,7 +167,8 @@ count_windows() {
 
 # ── linux-qt C++ ────────────────────────────────────────────────────────────
 count_linux_qt() {
-    local dir="$ROOT/linux-qt"
+    local dir="$ROOT/qt-display"
+    [ -d "$dir" ] || dir="$ROOT/linux-qt"
     [ -d "$dir" ] || { echo 0; return; }
     local n=0
     tmp_list=$(mktemp)
@@ -198,7 +199,8 @@ count_linux_qt() {
 
 # ── linux-gtk Rust ──────────────────────────────────────────────────────────
 count_linux_gtk() {
-    local dir="$ROOT/linux-gtk"
+    local dir="$ROOT/gtk-display"
+    [ -d "$dir" ] || dir="$ROOT/linux-gtk"
     [ -d "$dir" ] || { echo 0; return; }
     local n=0
     tmp_list=$(mktemp)

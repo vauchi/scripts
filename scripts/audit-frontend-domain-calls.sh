@@ -221,8 +221,15 @@ count_rust_calls() {
 # ── repo-relative frontend source roots ──────────────────────────────
 TUI_SRC="$WORKSPACE_ROOT/tui/src"
 CLI_SRC="$WORKSPACE_ROOT/cli/src"
-GTK_SRC="$WORKSPACE_ROOT/linux-gtk/src"
-QT_SRC="$WORKSPACE_ROOT/linux-qt/src"
+# ADR-078 renamed linux-gtk and linux-qt (private#1029). A checkout that
+# still has the old directory is read there; looking for one name only
+# would count nothing in it and pass.
+GTK_DIR=gtk-display
+[ -d "$WORKSPACE_ROOT/gtk-display" ] || [ ! -d "$WORKSPACE_ROOT/linux-gtk" ] || GTK_DIR=linux-gtk
+QT_DIR=qt-display
+[ -d "$WORKSPACE_ROOT/qt-display" ] || [ ! -d "$WORKSPACE_ROOT/linux-qt" ] || QT_DIR=linux-qt
+GTK_SRC="$WORKSPACE_ROOT/$GTK_DIR/src"
+QT_SRC="$WORKSPACE_ROOT/$QT_DIR/src"
 WIN_SRC="$WORKSPACE_ROOT/windows/Vauchi"
 
 # ── counters ─────────────────────────────────────────────────────────

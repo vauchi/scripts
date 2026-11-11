@@ -126,8 +126,15 @@ callers_android=$(app_pref_callers "$WORKSPACE_ROOT/android/app/src/main")
 callers_ios=$(app_pref_callers "$WORKSPACE_ROOT/ios/Vauchi")
 callers_cli=$(app_pref_callers "$WORKSPACE_ROOT/cli/src")
 callers_tui=$(app_pref_callers "$WORKSPACE_ROOT/tui/src")
-callers_linux_gtk=$(app_pref_callers "$WORKSPACE_ROOT/linux-gtk")
-callers_linux_qt=$(app_pref_callers "$WORKSPACE_ROOT/linux-qt")
+# ADR-078 renamed linux-gtk and linux-qt (private#1029). A checkout that
+# still has the old directory is read there; looking for one name only
+# would count nothing in it and pass.
+GTK_DIR=gtk-display
+[ -d "$WORKSPACE_ROOT/gtk-display" ] || [ ! -d "$WORKSPACE_ROOT/linux-gtk" ] || GTK_DIR=linux-gtk
+QT_DIR=qt-display
+[ -d "$WORKSPACE_ROOT/qt-display" ] || [ ! -d "$WORKSPACE_ROOT/linux-qt" ] || QT_DIR=linux-qt
+callers_linux_gtk=$(app_pref_callers "$WORKSPACE_ROOT/$GTK_DIR")
+callers_linux_qt=$(app_pref_callers "$WORKSPACE_ROOT/$QT_DIR")
 callers_windows=$(app_pref_callers "$WORKSPACE_ROOT/windows")
 callers_web_demo=$(app_pref_callers "$WORKSPACE_ROOT/web-demo/src")
 callers_total=$((callers_android + callers_ios + callers_cli + callers_tui \

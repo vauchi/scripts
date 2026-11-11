@@ -127,8 +127,10 @@ check_apple() {
 }
 
 check_gtk() {
-    [ -d "$ROOT/linux-gtk" ] || return 0
-    file='linux-gtk/src/core_ui/action_dispatcher.rs'
+    gtk='gtk-display'
+    [ -d "$ROOT/$gtk" ] || gtk='linux-gtk'
+    [ -d "$ROOT/$gtk" ] || return 0
+    file="$gtk/src/core_ui/action_dispatcher.rs"
     require_file "$file" || return 0
     require_tokens "$file" 'verbatim GTK toast action' \
         'Some(undo_label)' 'toast.set_button_label(Some(&undo_label))' 'UserAction::UndoPressed'
@@ -137,8 +139,10 @@ check_gtk() {
 }
 
 check_qt() {
-    [ -d "$ROOT/linux-qt" ] || return 0
-    file='linux-qt/src/coreui/screenrenderer.cpp'
+    qt='qt-display'
+    [ -d "$ROOT/$qt" ] || qt='linux-qt'
+    [ -d "$ROOT/$qt" ] || return 0
+    file="$qt/src/coreui/screenrenderer.cpp"
     require_file "$file" || return 0
     require_tokens "$file" 'verbatim Qt toast action' \
         'toast["undo_label"].toString()' 'new QPushButton(undoLabel, bar)' \

@@ -208,6 +208,20 @@ def extract_variants(enum_path: Path, enum_name: str) -> list[str]:
     return sorted(set(variant_re.findall(cleaned)))
 
 
+# ADR-078 renamed linux-gtk and linux-qt (private#1029). The tables keep
+# the shell names; a workspace that already has the new directory is read
+# there. Looking under one name only would skip the shell and pass.
+RENAMED_DIRS = {"linux-gtk": "gtk-display", "linux-qt": "qt-display"}
+
+
+def in_workspace(root: Path, rel: str) -> Path:
+    head, _, tail = rel.partition("/")
+    renamed = RENAMED_DIRS.get(head)
+    if renamed and (root / renamed).is_dir():
+        return root / renamed / tail if tail else root / renamed
+    return root / rel
+
+
 def check_parser(
     parser_path: Path, marker_template: str, transform_key: str, variants: list[str]
 ) -> list[str]:
@@ -336,7 +350,7 @@ def main() -> int:
 
     drift = False
     for frontend, (rel_path, marker, transform_key) in targets.items():
-        parser_path = args.parser_file if args.parser_file else (args.workspace / rel_path)
+        parser_path = args.parser_file if args.parser_file else in_workspace(args.workspace, rel_path)
         missing = check_parser(parser_path, marker, transform_key, variants)
         retired = present_variants(
             frontend, parser_path, marker, transform_key, retired_variants

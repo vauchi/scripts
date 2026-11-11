@@ -204,14 +204,16 @@ check_swift_model() {
 }
 
 check_gtk() {
-    [ -d "$ROOT/linux-gtk" ] || return 0
-    dispatch='linux-gtk/src/core_ui/components/mod.rs'
-    inline='linux-gtk/src/core_ui/components/inline_confirm.rs'
-    editable='linux-gtk/src/core_ui/components/editable_text.rs'
-    image='linux-gtk/src/core_ui/components/image_circle.rs'
-    status='linux-gtk/src/core_ui/components/status_indicator.rs'
-    qr='linux-gtk/src/core_ui/components/qr_code.rs'
-    field_list='linux-gtk/src/core_ui/components/field_list.rs'
+    gtk='gtk-display'
+    [ -d "$ROOT/$gtk" ] || gtk='linux-gtk'
+    [ -d "$ROOT/$gtk" ] || return 0
+    dispatch="$gtk/src/core_ui/components/mod.rs"
+    inline="$gtk/src/core_ui/components/inline_confirm.rs"
+    editable="$gtk/src/core_ui/components/editable_text.rs"
+    image="$gtk/src/core_ui/components/image_circle.rs"
+    status="$gtk/src/core_ui/components/status_indicator.rs"
+    qr="$gtk/src/core_ui/components/qr_code.rs"
+    field_list="$gtk/src/core_ui/components/field_list.rs"
     for file in "$dispatch" "$inline" "$editable" "$image" "$status" "$qr" "$field_list"; do require_file "$file" || return 0; done
     require_tokens "$dispatch" 'verbatim typed component forwarding' \
         confirm_action_id cancel_action_id edit_action_id save_action_id editing status_label title
@@ -241,13 +243,15 @@ check_gtk() {
 }
 
 check_qt() {
-    [ -d "$ROOT/linux-qt" ] || return 0
-    inline='linux-qt/src/coreui/components/inlineconfirmcomponent.cpp'
-    editable='linux-qt/src/coreui/components/editabletextcomponent.cpp'
-    image='linux-qt/src/coreui/components/imagecirclecomponent.cpp'
-    status='linux-qt/src/coreui/components/statusindicatorcomponent.cpp'
-    qr='linux-qt/src/coreui/components/qrcodecomponent.cpp'
-    field_list='linux-qt/src/coreui/components/fieldlistcomponent.cpp'
+    qt='qt-display'
+    [ -d "$ROOT/$qt" ] || qt='linux-qt'
+    [ -d "$ROOT/$qt" ] || return 0
+    inline="$qt/src/coreui/components/inlineconfirmcomponent.cpp"
+    editable="$qt/src/coreui/components/editabletextcomponent.cpp"
+    image="$qt/src/coreui/components/imagecirclecomponent.cpp"
+    status="$qt/src/coreui/components/statusindicatorcomponent.cpp"
+    qr="$qt/src/coreui/components/qrcodecomponent.cpp"
+    field_list="$qt/src/coreui/components/fieldlistcomponent.cpp"
     for file in "$inline" "$editable" "$image" "$status" "$qr" "$field_list"; do require_file "$file" || return 0; done
     require_tokens "$inline" 'verbatim InlineConfirm JSON contract' \
         'data["confirm_action_id"]' 'data["cancel_action_id"]' \

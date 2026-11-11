@@ -81,6 +81,19 @@ SKIP_DIRS = {
 ALLOWLIST = ".shell-command-conformance-allowlist"
 
 
+# ADR-078 renamed linux-gtk and linux-qt (private#1029). SHELLS keeps the
+# shell names; a workspace that already has the new directory is read
+# there. Looking under one name only would skip the shell and pass.
+RENAMED_DIRS = {"linux-gtk": "gtk-display", "linux-qt": "qt-display"}
+
+
+def in_workspace(root: pathlib.Path, shell: str) -> pathlib.Path:
+    renamed = RENAMED_DIRS.get(shell)
+    if renamed and (root / renamed).is_dir():
+        return root / renamed
+    return root / shell
+
+
 def is_test_path(path: pathlib.Path) -> bool:
     parts = {p.lower() for p in path.parts}
     if parts & {"tests", "test", "spec", "__tests__", "uitests"}:
@@ -168,7 +181,7 @@ def main() -> int:
         exempt += e
     else:
         for shell in sorted(SHELLS):
-            shell_dir = root / shell
+            shell_dir = in_workspace(root, shell)
             if shell_dir.is_dir():
                 g, e = check_shell(shell, shell_dir)
                 gaps += g

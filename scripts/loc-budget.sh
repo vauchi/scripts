@@ -130,8 +130,15 @@ handwritten_loc() {
 # ── repo-relative frontend source roots ──────────────────────────────
 IOS_SRC="$WORKSPACE_ROOT/ios/Vauchi"
 ANDROID_SRC="$WORKSPACE_ROOT/android/app/src/main"
-LINUX_GTK_SRC="$WORKSPACE_ROOT/linux-gtk/src"
-LINUX_QT_SRC="$WORKSPACE_ROOT/linux-qt/src"
+# ADR-078 renamed linux-gtk and linux-qt (private#1029). A checkout that
+# still has the old directory is read there; looking for one name only
+# would count nothing in it and pass.
+GTK_DIR=gtk-display
+[ -d "$WORKSPACE_ROOT/gtk-display" ] || [ ! -d "$WORKSPACE_ROOT/linux-gtk" ] || GTK_DIR=linux-gtk
+QT_DIR=qt-display
+[ -d "$WORKSPACE_ROOT/qt-display" ] || [ ! -d "$WORKSPACE_ROOT/linux-qt" ] || QT_DIR=linux-qt
+LINUX_GTK_SRC="$WORKSPACE_ROOT/$GTK_DIR/src"
+LINUX_QT_SRC="$WORKSPACE_ROOT/$QT_DIR/src"
 MACOS_SRC="$WORKSPACE_ROOT/macos/Vauchi"
 WINDOWS_SRC="$WORKSPACE_ROOT/windows/Vauchi"
 TUI_SRC="$WORKSPACE_ROOT/tui/src"
