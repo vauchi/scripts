@@ -14,6 +14,9 @@
 #   - no Transport generic on the user-facing Vauchi and AppEngine (ADR-030)
 #   - Core never calls hardware: no core manifest names an OS hardware crate
 #     (ADR-030/031, ADR-077)
+#   - vauchi-core never depends on vauchi-app, not even for its tests: the
+#     crates form a strict chain, so a change to vauchi-app never reaches
+#     vauchi-core's build or tests (vauchi/private#1230)
 # And in every .rs file, tests included, because tests are where mocks live:
 #   - never mock crypto (ADR-002): no Mock/Fake/Stub/Dummy crypto type and no
 #     hand-written impl of a crypto trait; a storage or relay double is fine
@@ -65,6 +68,13 @@ report "hardware depends on Core, never the reverse (#957): a core crate names a
             grep -n -E "^[[:space:]]*($HARDWARE_CRATES)[[:space:]]*=|package[[:space:]]*=[[:space:]]*\"($HARDWARE_CRATES)\"" \
                 "$manifest" | sed "s|^|$manifest:|"
         done)"
+
+report "vauchi-core never depends on vauchi-app, not even for its tests (#1230)" \
+    "$(manifest="$CORE/vauchi-core/Cargo.toml"
+        if [ -f "$manifest" ]; then
+            grep -n -E '^[[:space:]]*vauchi-app[[:space:]]*[.=]|package[[:space:]]*=[[:space:]]*"vauchi-app"' \
+                "$manifest" | sed "s|^|$manifest:|"
+        fi)"
 
 report "no hardware trait or mock hardware type in core (ADR-031, ADR-077)" \
     "$(grep_sources "pub[[:space:]]+(trait|struct)[[:space:]]+(Mock)?($HARDWARE_WORDS)[A-Za-z0-9_]*($HARDWARE_ROLES)([^A-Za-z0-9_]|$)")"
