@@ -138,7 +138,7 @@ add_to_allowlist "${GROUP}/core" "${GROUP}/cli"
 add_to_allowlist "${GROUP}/core" "${GROUP}/tui"
 add_to_allowlist "${GROUP}/core" "${GROUP}/relay"
 add_to_allowlist "${GROUP}/core" "${GROUP}/e2e"
-add_to_allowlist "${GROUP}/core" "${GROUP}/linux-gtk"
+add_to_allowlist "${GROUP}/core" "${GROUP}/gtk-display"
 add_to_allowlist "${GROUP}/core" "${GROUP}/ohttp-relay"
 echo ""
 
