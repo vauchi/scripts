@@ -817,41 +817,49 @@ CPP
     rm -rf "$root"
 }
 
-# test_renamed_repo_keeps_its_rules — ADR-078 renames linux-gtk to
-# gtk-display and linux-qt to qt-display (private#1029). CI passes the
-# project name, so the new name must reach the rules and baseline written
-# under the old one, not "no rules configured".
+# test_renamed_repo_keeps_its_rules — ADR-078 renamed linux-gtk to
+# gtk-display and linux-qt to qt-display (private#1029). The rules and the
+# baseline are keyed by the new names; the old name still reaches them, from
+# a pin bump or a slot that has not moved its checkout, and a workspace
+# that still holds the old directory is read there.
 test_renamed_repo_keeps_its_rules() {
+    # assert_eq assigns name, want and got globally; the loop keeps its own.
     root=$(mktemp -d)
-    mkdir -p "$root/gtk-display/src" "$root/qt-display/src"
-    cat >"$root/gtk-display/src/errors.rs" <<'RS'
+    old_ws=$(mktemp -d)
+    for ws in "$root:gtk-display:qt-display" "$old_ws:linux-gtk:linux-qt"; do
+        dir=${ws%%:*}; rest=${ws#*:}; gtk=${rest%%:*}; qt=${rest#*:}
+        mkdir -p "$dir/$gtk/src" "$dir/$qt/src"
+        cat >"$dir/$gtk/src/errors.rs" <<'RS'
 if err.to_string().contains("locked") { show_unlock(); }
 RS
-    cat >"$root/qt-display/src/errors.cpp" <<'CPP'
+        cat >"$dir/$qt/src/errors.cpp" <<'CPP'
 if (error.contains(QStringLiteral("locked"))) { showUnlock(); }
 if (message.startsWith("network")) { retry(); }
 CPP
+    done
     for spec in gtk-display:linux-gtk:1 qt-display:linux-qt:2; do
-        repo=${spec%%:*}; rest=${spec#*:}; old=${rest%:*}; want=${rest#*:}
-        violations=$want
-        out=$(python3 "$SCRIPT" --repo "$repo" --repo-path "$root/$repo" --config "$CONFIG")
-        assert_eq "renamed repo: $repo counts $want" "$want" \
+        repo=${spec%%:*}; rest=${spec#*:}; old=${rest%:*}; expect=${rest#*:}
+        for given in "$repo" "$old"; do
+            out=$(python3 "$SCRIPT" --repo "$given" --repo-path "$root/$repo" --config "$CONFIG")
+            assert_eq "renamed repo: --repo $given counts $expect" "$expect" \
+                "$(extract_counter "$out" error_substring_classification)"
+            assert_eq "renamed repo: --repo $given reports as $repo" "1" \
+                "$(printf '%s' "$out" | grep -c "\"repo\": \"$repo\"")"
+            set +e
+            python3 "$SCRIPT" --repo "$given" --repo-path "$root/$repo" --config "$CONFIG" \
+                --check "$BASELINE" >/dev/null 2>&1
+            rc=$?
+            set -e
+            assert_eq "renamed repo: --repo $given is held to $repo's baseline" "1" "$rc"
+        done
+        out=$(python3 "$SCRIPT" --repo "$repo" --workspace-root "$root" --config "$CONFIG")
+        assert_eq "workspace: $repo counts $expect in $repo/" "$expect" \
             "$(extract_counter "$out" error_substring_classification)"
-        assert_eq "renamed repo: $repo reports as $old" "1" \
-            "$(printf '%s' "$out" | grep -c "\"repo\": \"$old\"")"
-        set +e
-        python3 "$SCRIPT" --repo "$repo" --repo-path "$root/$repo" --config "$CONFIG" \
-            --check "$BASELINE" >/dev/null 2>&1
-        rc=$?
-        set -e
-        assert_eq "renamed repo: $repo is held to $old's baseline" "1" "$rc"
-        # Without --repo-path the roots come from the workspace, where the
-        # directory has the new name once the workspace follows.
-        out=$(python3 "$SCRIPT" --repo "$old" --workspace-root "$root" --config "$CONFIG")
-        assert_eq "renamed directory: $old counts $violations in $repo/" "$violations" \
+        out=$(python3 "$SCRIPT" --repo "$old" --workspace-root "$old_ws" --config "$CONFIG")
+        assert_eq "workspace not moved yet: $old counts $expect in $old/" "$expect" \
             "$(extract_counter "$out" error_substring_classification)"
     done
-    rm -rf "$root"
+    rm -rf "$root" "$old_ws"
 }
 
 # test_vocabulary_covers_rule_types — the Core schema test reads the shared
