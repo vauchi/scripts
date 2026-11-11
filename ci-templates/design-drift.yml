@@ -26,6 +26,9 @@
 #   DESIGN_DRIFT_PROTOCOL:       "component" (design specs) or "presentation"
 #   CONTRACT_PIN_FILE:        Cargo manifest of a contract-only display shell;
 #                            its vauchi-contract tag supplies the enum.
+#   CONTRACT_PIN_KIND:        "cargo" (default, the manifest above) or
+#                            "ref-file": the first non-comment line of
+#                            CONTRACT_PIN_FILE is the tag (qt-display).
 #   CORE_REF:                    Core ref used in presentation mode
 #   CORE_PIN_FILE / CORE_PIN_KIND: the consumer's own Core pin (e.g.
 #                   cabi-version.json / cabi-json). When set, CORE_REF is
@@ -137,6 +140,7 @@
     CORE_REF: "main"
     CORE_PIN_FILE: ""
     CONTRACT_PIN_FILE: ""
+    CONTRACT_PIN_KIND: ""
     CORE_PIN_KIND: ""
     CORE_PINS_SCRIPT_REF: "main"
   before_script:
@@ -191,11 +195,26 @@
       EXPECTED_COUNT=0
       if [ "$DESIGN_DRIFT_PROTOCOL" = "presentation" ]; then
         if [ -n "$CONTRACT_PIN_FILE" ]; then
-          CONTRACT_REF=$(python3 -c 'import pathlib, sys, tomllib; print(tomllib.loads(pathlib.Path(sys.argv[1]).read_text())["dependencies"]["vauchi-contract"].get("tag", ""))' "$CONTRACT_PIN_FILE")
-          if [ -z "$CONTRACT_REF" ]; then
-            echo "ERROR: $CONTRACT_PIN_FILE has no vauchi-contract tag" >&2
-            exit 2
-          fi
+          case "${CONTRACT_PIN_KIND:-cargo}" in
+            cargo)
+              CONTRACT_REF=$(python3 -c 'import pathlib, sys, tomllib; print(tomllib.loads(pathlib.Path(sys.argv[1]).read_text())["dependencies"]["vauchi-contract"].get("tag", ""))' "$CONTRACT_PIN_FILE")
+              if [ -z "$CONTRACT_REF" ]; then
+                echo "ERROR: $CONTRACT_PIN_FILE has no vauchi-contract tag" >&2
+                exit 2
+              fi
+              ;;
+            ref-file)
+              CONTRACT_REF=$(sed -n '/^[[:space:]]*#/d; /[^[:space:]]/{p;q;}' "$CONTRACT_PIN_FILE" | tr -d '[:space:]')
+              if [ -z "$CONTRACT_REF" ]; then
+                echo "ERROR: $CONTRACT_PIN_FILE names no contract tag" >&2
+                exit 2
+              fi
+              ;;
+            *)
+              echo "ERROR: CONTRACT_PIN_KIND must be cargo or ref-file, not $CONTRACT_PIN_KIND" >&2
+              exit 2
+              ;;
+          esac
           CONTRACT_DIR=$(mktemp -d)
           git -C "$CONTRACT_DIR" init -q
           git -C "$CONTRACT_DIR" remote add origin https://gitlab.com/vauchi/contract.git
