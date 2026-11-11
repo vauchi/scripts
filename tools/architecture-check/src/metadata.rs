@@ -2,6 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::collect::CRATES;
+
+/// Workspace members that exist only for other crates' tests. They call
+/// test-only APIs (`testing` features), which this production analysis
+/// cannot resolve, so they are not scanned; instead no crate may depend on
+/// them outside dev-dependencies (vauchi/private#1230).
+const TEST_ONLY_CRATES: &[&str] = &["vauchi-core-testkit"];
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -60,6 +66,17 @@ pub(crate) fn validate(
         .iter()
         .filter(|p| metadata.workspace_members.contains(&p.id))
     {
+        if let Some(dependency) = package.dependencies.iter().find(|d| {
+            d.kind.as_deref() != Some("dev") && TEST_ONLY_CRATES.contains(&d.name.as_str())
+        }) {
+            return Err(format!(
+                "{} depends on test-only crate {} outside dev-dependencies",
+                package.name, dependency.name
+            ));
+        }
+        if TEST_ONLY_CRATES.contains(&package.name.as_str()) {
+            continue;
+        }
         if !CRATES.contains(&package.name.as_str()) {
             return Err(format!("unsupported workspace crate: {}", package.name));
         }
