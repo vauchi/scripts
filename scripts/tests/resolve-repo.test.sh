@@ -86,3 +86,32 @@ for shell in bash zsh; do
     fi
     echo "PASS ($shell): gitlab_repo_dir with no argument at the root names the root checkout"
 done
+
+# The ADR-078 rename (private#1029): the checkouts keep the directories
+# linux-gtk and linux-qt until the registry moves, while the projects are
+# vauchi/gtk-display and vauchi/qt-display. GitLab follows the old path
+# for reads only ("Non GET methods are not allowed for moved projects").
+for shell in bash zsh; do
+    command -v "$shell" >/dev/null 2>&1 || continue
+    out="$(
+        "$shell" -c '
+            cd "$1"
+            source "$1/scripts/scripts/resolve-repo.sh"
+            REPO_REGISTRY=("linux-gtk:linux-gtk:rust" "linux-qt:linux-qt:cmake")
+            resolve_gitlab_project linux-gtk
+            resolve_gitlab_project linux-qt
+            resolve_gitlab_project gtk-display
+            gitlab_repo_dir linux-qt
+        ' _ "$workspace"
+    )"
+    expected="vauchi/gtk-display
+vauchi/qt-display
+vauchi/gtk-display
+$workspace/linux-qt"
+    if [[ "$out" != "$expected" ]]; then
+        echo "FAIL ($shell): the display shells resolve to their renamed projects; got:"
+        printf '%s\n' "$out"
+        exit 1
+    fi
+    echo "PASS ($shell): linux-gtk and linux-qt resolve to vauchi/gtk-display and vauchi/qt-display"
+done
