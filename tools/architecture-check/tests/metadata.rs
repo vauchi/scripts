@@ -57,3 +57,43 @@ fn custom_cargo_root_fails_closed() {
         .unwrap_err()
         .contains("library root"));
 }
+
+fn workspace_with(names: &[&str]) -> TempDir {
+    let root = TempDir::new().unwrap();
+    let mut packages = vec![];
+    for name in names {
+        let dir = root.path().join(name);
+        fs::create_dir_all(dir.join("src")).unwrap();
+        fs::write(dir.join("Cargo.toml"), "").unwrap();
+        fs::write(dir.join("src/lib.rs"), "pub struct Item;").unwrap();
+        packages.push(json!({"id":name, "name":name, "manifest_path":dir.join("Cargo.toml"),
+            "targets":[{"name":name.replace('-', "_"), "kind":["lib"], "src_path":dir.join("src/lib.rs")}],
+            "dependencies":[]}));
+    }
+    fs::write(
+        root.path().join("cargo-metadata.json"),
+        serde_json::to_vec(&json!({"packages":packages,"workspace_members":names})).unwrap(),
+    )
+    .unwrap();
+    root
+}
+
+// @internal — core's dev-only test-helper crate is a known workspace member
+// (vauchi/private#1230), so its library is scanned like the others.
+#[test]
+fn core_testkit_is_a_supported_workspace_crate() {
+    let root = workspace_with(&["vauchi-core", "vauchi-core-testkit"]);
+    let report = analyze_with_generated(root.path(), Some(root.path())).unwrap();
+    assert!(report.modules.contains("vauchi-core-testkit/lib"));
+    assert!(report.modules.contains("vauchi-core/lib"));
+}
+
+// @internal — the allowlist stays closed: a crate nobody added still fails.
+#[test]
+fn an_unlisted_workspace_crate_still_fails() {
+    let root = workspace_with(&["vauchi-core", "vauchi-unlisted"]);
+    assert_eq!(
+        analyze_with_generated(root.path(), Some(root.path())).unwrap_err(),
+        "unsupported workspace crate: vauchi-unlisted"
+    );
+}
