@@ -176,6 +176,20 @@ def canonical_repo(config: dict, repo: str) -> str:
     return config.get("aliases", {}).get(repo, repo)
 
 
+def workspace_source_root(config: dict, workspace_root: Path, rel: str) -> Path:
+    """A source root in the workspace, under the directory's new name if renamed.
+
+    The rules name roots by the earlier directory (`linux-gtk/src`); a
+    workspace that has followed the rename holds `gtk-display/src`, and
+    reading the old path only would report a missing root.
+    """
+    head, _, tail = rel.partition("/")
+    for renamed, earlier in config.get("aliases", {}).items():
+        if earlier == head and (workspace_root / renamed).is_dir():
+            return workspace_root / renamed / tail
+    return workspace_root / rel
+
+
 def repo_rules(config: dict, repo: str) -> dict[str, dict]:
     rules = dict(config.get("boundary_rules", {}))
     rules.update(config["repos"][repo]["rules"])
@@ -212,7 +226,7 @@ def scan_repo(
         if repo_path is not None:
             root = resolve_source_root(repo_path, repo, rel)
         else:
-            root = workspace_root / rel
+            root = workspace_source_root(config, workspace_root, rel)
         if not root.exists():
             missing_roots.append(str(root))
             continue

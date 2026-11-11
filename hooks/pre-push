@@ -561,7 +561,7 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
             # reports success.
             TEST_CMD+=(--all-targets --features test-utils)
             ;;
-        linux-app | linux-gtk | linux-qt)
+        linux-app | linux-gtk | linux-qt | gtk-display | qt-display)
             TEST_CMD+=(--all-targets)
             # These repos have Linux-only deps (bluer, AT-SPI). On non-Linux,
             # only check formatting — clippy/test will fail at compile time.

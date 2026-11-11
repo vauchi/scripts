@@ -28,7 +28,7 @@ stamp_file() {
             echo "$_STAMP_WS_ROOT/android/.gradle/.checks-passed" ;;
         ios)
             echo "$_STAMP_WS_ROOT/ios/.build/.checks-passed" ;;
-        linux-gtk|linux-qt|macos|windows)
+        linux-gtk|linux-qt|gtk-display|qt-display|macos|windows)
             echo "$_STAMP_WS_ROOT/$repo/target/.checks-passed" ;;
         *)
             # Non-checkable repos (docs, locales, etc.) — no stamp
@@ -76,7 +76,7 @@ stamp_valid() {
 stamp_repo_from_dir() {
     local dir_name="${1:?stamp_repo_from_dir requires a directory name}"
     case "$dir_name" in
-        core|cli|tui|relay|e2e|android|ios|linux-gtk|linux-qt|macos|windows)
+        core|cli|tui|relay|e2e|android|ios|linux-gtk|linux-qt|gtk-display|qt-display|macos|windows)
             echo "$dir_name" ;;
         *)
             echo ""
