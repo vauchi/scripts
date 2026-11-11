@@ -13,6 +13,9 @@ pub(crate) const CRATES: &[&str] = &[
     "vauchi-platform",
     "vauchi-cabi",
     "vauchi-hardware",
+    // Dev-only shared test helpers, a dependency of other crates' tests
+    // and never of their libraries (vauchi/private#1230).
+    "vauchi-core-testkit",
 ];
 
 #[derive(Clone, Debug)]
