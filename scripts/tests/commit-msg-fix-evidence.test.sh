@@ -151,7 +151,9 @@ Evidence: works' relay/src/backoff.rs
 assert_eq "fix with vacuous trailer: exit 1" "1" "$rc"
 
 # ── docs-only fix needs no evidence ───────────────────────────────────
-run_case 'fix: repair broken link' docs/src/guide.md README.md
+run_case 'fix: repair broken link
+
+Shipped-in: n/a — link' docs/src/guide.md README.md
 assert_eq "docs-only fix: exit 0" "0" "$rc"
 
 # ── other types are untouched by VGT11 ────────────────────────────────

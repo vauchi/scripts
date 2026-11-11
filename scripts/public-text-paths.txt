@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Public text: what Vauchi tells the world it does (vauchi/private#1237).
+# A commit staging one of these paths needs a Shipped-in: trailer (VGT15);
+# the commit-msg hook and the CI re-check both read this file.
+#
+# Format: <repo> <extended regex on the path inside the repo>
+#   *      applies in every repository
+#   !repo  that repository holds no public text
+!_private
+!private
+docs     ^src/.*\.md$
+spec     ^src/.*\.md$
+website  ^i18n/[^/]+\.json$
+website  ^blog/
+features \.feature$
+*        (^|/)README\.md$

@@ -100,7 +100,9 @@ run_case core 'test: pin the escrow gate derivation' vauchi-core/tests/it/escrow
 assert_eq "test: commit on tests/: exit 0" "0" "$rc"
 run_case core 'tidy: wrap a long line' vauchi-core/src/exchange/escrow.rs
 assert_eq "tidy: on exchange/: exit 0" "0" "$rc"
-run_case core 'docs: explain the gate' vauchi-core/src/exchange/README.md
+run_case core 'docs: explain the gate
+
+Shipped-in: n/a — formatting' vauchi-core/src/exchange/README.md
 assert_eq "docs under exchange/: exit 0" "0" "$rc"
 
 # ── a repo that is not Core or a relay uses the Core paths only ───────
