@@ -197,7 +197,14 @@ workflow:
       fi
 
       fetch_ref() {
-        if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
+        if [ "${CI_MERGE_REQUEST_EVENT_TYPE:-}" = "merge_train" ]; then
+          # The train car is main, the cars ahead and this branch: the tree
+          # GitLab merges. The branch head is what the train rebases past,
+          # and testing it let a car go green on a tree that never merged
+          # (private#1214).
+          git fetch origin "refs/merge-requests/${CI_MERGE_REQUEST_IID}/train" --depth 20
+          git checkout -f "${CI_COMMIT_SHA}"
+        elif [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
           git fetch origin "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}" --depth 20
           git checkout -f "origin/${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
         else
@@ -339,7 +346,14 @@ workflow:
       }
 
       fetch_ref() {
-        if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
+        if [ "${CI_MERGE_REQUEST_EVENT_TYPE:-}" = "merge_train" ]; then
+          # The train car is main, the cars ahead and this branch: the tree
+          # GitLab merges. The branch head is what the train rebases past,
+          # and testing it let a car go green on a tree that never merged
+          # (private#1214).
+          fetch_with_retry "refs/merge-requests/${CI_MERGE_REQUEST_IID}/train"
+          git checkout -f "${CI_COMMIT_SHA}"
+        elif [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
           fetch_with_retry "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
           git checkout -f "origin/${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
         else
