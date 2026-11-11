@@ -15,6 +15,8 @@
 #     - project: 'vauchi/scripts'
 #       ref: ci-templates-vYYYY.MM.N
 #       file: '/ci-templates/shipped-in.yml'
+#   variables:
+#     SHIPPED_IN_SCRIPTS_REF: ci-templates-vYYYY.MM.N   # the same tag
 #
 # Needs a `lint` stage. Reads only public data: a reference to the private
 # tracker is checked for form, never looked up. Exit 2 (the API could not be
@@ -30,7 +32,6 @@ lint:shipped-in:
     exit_codes: [2]
   variables:
     GIT_DEPTH: "0"
-    SHIPPED_IN_SCRIPTS_REF: "${VAUCHI_SCRIPTS_REF}"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   script:
@@ -39,7 +40,10 @@ lint:shipped-in:
       if [ "$CI_PROJECT_PATH" = "vauchi/scripts" ]; then
         ln -s "$CI_PROJECT_DIR" /tmp/vauchi-scripts
       else
-        ref="${SHIPPED_IN_SCRIPTS_REF:-main}"
+        # The consumer pins this job's scripts with SHIPPED_IN_SCRIPTS_REF (the
+        # tag it includes this template from); its VAUCHI_SCRIPTS_REF may be an
+        # older tag that has no checker yet.
+        ref="${SHIPPED_IN_SCRIPTS_REF:-${VAUCHI_SCRIPTS_REF:-main}}"
         git clone --quiet --depth=1 --branch "$ref" https://gitlab.com/vauchi/scripts.git /tmp/vauchi-scripts
       fi
       cat > /tmp/gitlab-get <<'EOF'
