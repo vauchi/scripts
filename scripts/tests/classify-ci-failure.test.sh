@@ -241,6 +241,18 @@ expect_category "valid added annotations do not invent a failure" \
     "7 added @scenario annotation(s) name a scenario" "unknown"
 expect_category "zero dangling annotations do not invent a failure" \
     "0 added @scenario annotation(s) name no scenario:" "unknown"
+expect_category "missing public shipment trailer" \
+    "2026-11-12T04:11:21Z 01O VGT15: feat commit changes public text without a valid Shipped-in: trailer" "lint"
+expect_category "Rust deprecated API error" \
+    'error: use of deprecated method `ProfileEngine::setup_duress_password`: use setup_duress_pin_with_biometric_unlock' "lint"
+expect_category "Rust deprecation warning alone is not a failure" \
+    'warning: use of deprecated method `ProfileEngine::setup_duress_password`' "unknown"
+expect_category "verified helper checksum mismatch" \
+    "sha256sum: WARNING: 1 computed checksum did NOT match" "artifact-gap"
+expect_category "checksum success is not a failure" \
+    "push-coverage.sh: OK" "unknown"
+expect_category "zero checksum mismatches is not a failure" \
+    "sha256sum: WARNING: 0 computed checksums did NOT match" "unknown"
 expect_category "public scenario removal leaves dangling annotations" \
     "2026-11-12T15:15:21Z 01O 8 @scenario annotation(s) naming no scenario:" "lint"
 expect_escalate "public scenario removal is a known lint failure" \
