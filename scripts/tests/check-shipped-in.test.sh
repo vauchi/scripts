@@ -160,5 +160,11 @@ assert_eq "website HTML with a valid trailer passes CI: exit 0" "0" "$rc"
 out="$("$SCRIPT" --range 2>&1)"; rc=$?
 assert_eq "missing arguments: exit 2" "2" "$rc"
 
+out="$(cd "$r" && "$SCRIPT" --range missing-base HEAD website 2>&1)"; rc=$?
+assert_eq "an unreadable Git range is not clean: exit 2" "2" "$rc"
+printf 'docs: a fixture\n\nShipped-in: limit\n' > "$work/message"
+out="$(cd "$work" && "$SCRIPT" --staged "$work/message" website 2>&1)"; rc=$?
+assert_eq "an unreadable Git index is not clean: exit 2" "2" "$rc"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
