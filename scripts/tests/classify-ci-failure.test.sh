@@ -116,7 +116,7 @@ expect_category "missing tool (busybox)" \
 expect_category "Python before 3.11 lacks tomllib" \
     "ModuleNotFoundError: No module named 'tomllib'" "toolchain-compatibility"
 expect_category "just script feature flag missing in CI" \
-    'error: The `[script]` attribute is currently unstable. Invoke `just` with `--unstable`.' \
+    "error: The \`[script]\` attribute is currently unstable. Invoke \`just\` with \`--unstable\`." \
     "just-syntax"
 expect_category "stale shared CI template tag" \
     '.gitlab-ci.yml: VSP01: pinned ci-templates-v2026.10.08 is not among the latest ci-template tags' \
