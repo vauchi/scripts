@@ -229,6 +229,8 @@ expect_category "valid added annotations do not invent a failure" \
     "7 added @scenario annotation(s) name a scenario" "unknown"
 expect_category "zero dangling annotations do not invent a failure" \
     "0 added @scenario annotation(s) name no scenario:" "unknown"
+expect_category "ADR constraint violation" \
+    "2026-11-12T07:29:04Z 01E adr-constraints: vauchi-core never depends on vauchi-app, not even for its tests (#1230)" "lint"
 expect_category "cargo-deny reports vulnerable dependency" \
     "error[vulnerability]: TLS session values expose secrets" "dep-resolution"
 expect_category "artifact gap" \
