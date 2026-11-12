@@ -123,6 +123,18 @@ expect_category "stale shared CI template tag" \
     "lint"
 expect_category "successful freshness check is not a stale pin" \
     '.gitlab-ci.yml: VSP01 check passed, no stale ci-template pins' "unknown"
+expect_category "verified helper checksum mismatch" \
+    '2026-11-12T07:22:38Z 01E sha256sum: WARNING: 1 computed checksum did NOT match' \
+    "artifact-integrity"
+expect_escalate "verified helper checksum mismatch does not escalate" \
+    'sha256sum: WARNING: 1 computed checksum did NOT match' "false"
+expect_fix "checksum mismatch preserves integrity verification" \
+    'sha256sum: WARNING: 1 computed checksum did NOT match' \
+    "Verify the downloaded bytes against the pinned source ref, then correct the ref or expected digest; never bypass checksum verification."
+expect_category "verified helper checksum success is not a mismatch" \
+    'push-coverage.sh: OK' "unknown"
+expect_category "missing checksum verifier remains a missing tool" \
+    'sha256sum: command not found' "missing-tool"
 expect_escalate "missing tomllib does NOT escalate" \
     "2026-11-03T12:00:00Z 01E ModuleNotFoundError: No module named 'tomllib'" "false"
 expect_fix "missing tomllib names the runtime or backport fix" \
