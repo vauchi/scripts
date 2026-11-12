@@ -221,6 +221,14 @@ expect_category "cargo-machete unused dependency" \
     "cargo-machete found the following unused dependencies in this directory:" "lint"
 expect_category "implemented scenario without mapped coverage" \
     "1 @implemented scenario(s) with no test naming them:" "lint"
+expect_category "added annotations name no scenario" \
+    "2026-11-12T10:03:54Z 01O 6 added @scenario annotation(s) name no scenario:" "lint"
+expect_escalate "dangling added annotations do not escalate" \
+    "1 added @scenario annotation(s) name no scenario:" "false"
+expect_category "valid added annotations do not invent a failure" \
+    "7 added @scenario annotation(s) name a scenario" "unknown"
+expect_category "zero dangling annotations do not invent a failure" \
+    "0 added @scenario annotation(s) name no scenario:" "unknown"
 expect_category "cargo-deny reports vulnerable dependency" \
     "error[vulnerability]: TLS session values expose secrets" "dep-resolution"
 expect_category "artifact gap" \
