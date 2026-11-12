@@ -39,8 +39,20 @@ repo_name() {
 public_re() { # $1=repo → the joined regex, empty when the repo has no public text
     if grep -qxE "!$1" "$PATHS_FILE"; then return 0; fi
     grep -vE '^(#|!|[[:space:]]*$)' "$PATHS_FILE" \
-        | awk -v repo="$1" '$1 == "*" || $1 == repo { print $2 }' \
+        | awk -v repo="$1" '($1 == "*" || $1 == repo) && $2 !~ /^!/ { print $2 }' \
         | paste -sd'|' -
+}
+
+public_exclusions() {
+    awk -v repo="$1" '($1 == "*" || $1 == repo) && $2 ~ /^!/ { print substr($2, 2) }' "$PATHS_FILE" \
+        | paste -sd'|' -
+}
+
+filter_public_paths() {
+    VGT15_ALLOWED="$1" VGT15_EXCLUDED="$2" awk '
+        BEGIN { allowed = ENVIRON["VGT15_ALLOWED"]; excluded = ENVIRON["VGT15_EXCLUDED"] }
+        $0 ~ allowed && (excluded == "" || $0 !~ excluded)
+    '
 }
 
 trailer_values() { # stdin: message → Shipped-in values, one per line
@@ -127,7 +139,12 @@ case "$mode" in
         repo=$(repo_name "${3:-}")
         re=$(public_re "$repo")
         [ -n "$re" ] || exit 0
-        paths=$(git diff --cached --name-only 2>/dev/null | grep -E "$re" || true)
+        excluded=$(public_exclusions "$repo")
+        if ! staged=$(git diff --cached --name-only); then
+            echo "VGT15: cannot read the Git index; the check cannot decide." >&2
+            exit 2
+        fi
+        paths=$(printf '%s\n' "$staged" | filter_public_paths "$re" "$excluded")
         check_message "$(cat "$2")" "$paths" 0
         ;;
     --range)
@@ -135,9 +152,18 @@ case "$mode" in
         repo=$(repo_name "${4:-}")
         re=$(public_re "$repo")
         [ -n "$re" ] || exit 0
+        excluded=$(public_exclusions "$repo")
+        if ! commits=$(git rev-list --no-merges "$2..$3"); then
+            echo "VGT15: cannot read the Git range; the check cannot decide." >&2
+            exit 2
+        fi
         status=0
-        for sha in $(git rev-list --no-merges "$2..$3"); do
-            paths=$(git diff-tree --no-commit-id --name-only -r "$sha" | grep -E "$re" || true)
+        for sha in $commits; do
+            if ! changed=$(git diff-tree --no-commit-id --name-only -r "$sha"); then
+                echo "VGT15: cannot read changed paths; the check cannot decide." >&2
+                exit 2
+            fi
+            paths=$(printf '%s\n' "$changed" | filter_public_paths "$re" "$excluded")
             set +e; check_message "$(git log -1 --format=%B "$sha")" "$paths" 1; rc=$?; set -e
             if [ "$rc" = 1 ]; then status=1; elif [ "$rc" = 2 ] && [ "$status" = 0 ]; then status=2; fi
         done

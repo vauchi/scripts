@@ -30,6 +30,17 @@ stages:
   - metrics
   - deploy
 
+test:shipped-in-alpine:
+  extends: .mr-or-main
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  needs: []
+  script:
+    - apk add --no-cache bash git > /dev/null
+    - bash scripts/tests/commit-msg-shipped-in-trailer.test.sh
+    - bash scripts/tests/check-shipped-in.test.sh
+
 test:architecture:
   stage: lint
   image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/rust:1.93.1

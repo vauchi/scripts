@@ -8,12 +8,15 @@
 # Format: <repo> <extended regex on the path inside the repo>
 #   *      applies in every repository
 #   !repo  that repository holds no public text
+#   <repo> !<regex> excludes paths after matching public-text rules
 !_private
 !private
 docs     ^src/.*\.md$
 spec     ^src/.*\.md$
 website  ^i18n/[^/]+\.json$
-# website's blog/ is exempt: dated opinion reviewed in the CMS MR, not
-# product documentation (owner, 2026-11-12).
+website  \.(html|md)$
+# Blog post content is exempt: dated opinion reviewed in the CMS MR
+# (owner, 2026-11-12). Shared templates remain public text.
+website  !^blog/content/
 features \.feature$
 *        (^|/)README\.md$
