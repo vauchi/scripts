@@ -229,6 +229,14 @@ expect_category "valid added annotations do not invent a failure" \
     "7 added @scenario annotation(s) name a scenario" "unknown"
 expect_category "zero dangling annotations do not invent a failure" \
     "0 added @scenario annotation(s) name no scenario:" "unknown"
+expect_category "public scenario removal leaves dangling annotations" \
+    "2026-11-12T15:15:21Z 01O 8 @scenario annotation(s) naming no scenario:" "lint"
+expect_escalate "public scenario removal is a known lint failure" \
+    "8 @scenario annotation(s) naming no scenario:" "false"
+expect_category "zero removed-scenario annotations is not a failure" \
+    "0 @scenario annotation(s) naming no scenario:" "unknown"
+expect_category "grandfathered annotation summary is not a new failure" \
+    "1246 @scenario annotation(s) name no scenario; 1267 in the dangling baseline" "unknown"
 expect_category "ADR constraint violation" \
     "2026-11-12T07:29:04Z 01E adr-constraints: vauchi-core never depends on vauchi-app, not even for its tests (#1230)" "lint"
 expect_category "cargo-deny reports vulnerable dependency" \
