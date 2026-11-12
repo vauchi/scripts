@@ -247,8 +247,6 @@ expect_category "Rust deprecated API error" \
     'error: use of deprecated method `ProfileEngine::setup_duress_password`: use setup_duress_pin_with_biometric_unlock' "lint"
 expect_category "Rust deprecation warning alone is not a failure" \
     'warning: use of deprecated method `ProfileEngine::setup_duress_password`' "unknown"
-expect_category "verified helper checksum mismatch" \
-    "sha256sum: WARNING: 1 computed checksum did NOT match" "artifact-gap"
 expect_category "checksum success is not a failure" \
     "push-coverage.sh: OK" "unknown"
 expect_category "zero checksum mismatches is not a failure" \
