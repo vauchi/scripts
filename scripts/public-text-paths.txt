@@ -13,6 +13,7 @@
 docs     ^src/.*\.md$
 spec     ^src/.*\.md$
 website  ^i18n/[^/]+\.json$
-website  ^blog/
+# website's blog/ is exempt: dated opinion reviewed in the CMS MR, not
+# product documentation (owner, 2026-11-12).
 features \.feature$
 *        (^|/)README\.md$
