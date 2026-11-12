@@ -48,6 +48,7 @@ fi
 # Order matters — a compile error line can also contain the word "failed",
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
+  "artifact-integrity"
   "runner-infrastructure" "dep-resolution"
   "just-syntax" "lint"
   "template-contract"
@@ -56,6 +57,7 @@ CATS=(
   "missing-tool" "compile-error" "lint" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
+  "sha256sum: WARNING: [1-9][0-9]* computed checksums? did NOT match"
   "sccache: error: Timed out waiting for server startup"
   "FAIL: .* pins Core crates at another tag than (the )?set's v"
   "The .?\\[script\\].? attribute is currently unstable"
@@ -87,6 +89,7 @@ PATS=(
   "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL|ERROR: mirror .* missing .* build:debug should have built it|Release v[^ ]+ is tagged but not consumable:)"
 )
 FIXES=(
+  "Verify the downloaded bytes against the pinned source ref, then correct the ref or expected digest; never bypass checksum verification."
   "Inspect the sccache version and daemon startup logs; use a version with the startup notification race fixed, and preserve the cache-hit probe."
   "Select successful relay and CLI commits that pin the set's Core tag, then update the cohort pins and lockfile together; preserve the pin guard."
   "Enable JUST_UNSTABLE=1 for the CI command or pass --unstable; preserve the minimum supported just version."
