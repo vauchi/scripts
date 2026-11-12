@@ -59,10 +59,22 @@ run_case features 'chore: retag a scenario' sealed_mailbox.feature
 assert_eq "chore on a feature file without Shipped-in: exit 1" "1" "$rc"
 run_case website 'refactor: split the landing copy' i18n/en.json
 assert_eq "refactor on website copy without Shipped-in: exit 1" "1" "$rc"
+run_case website 'docs: update a published page' public/404.html
+assert_eq "published HTML without Shipped-in: exit 1" "1" "$rc"
+run_case website 'docs: update a page template' templates/index.html
+assert_eq "website template without Shipped-in: exit 1" "1" "$rc"
+run_case website 'docs: correct the content transport' cdn/SETUP.md
+assert_eq "website setup documentation without Shipped-in: exit 1" "1" "$rc"
+run_case website 'docs: update the machine-readable page' public/index.md
+assert_eq "published Markdown without Shipped-in: exit 1" "1" "$rc"
 # Blog posts are dated opinion the owner reviews in the CMS MR, not product
 # documentation (owner, 2026-11-12, vauchi/private#1237).
 run_case website 'docs: a new post' blog/content/a-post.md
 assert_eq "blog post without Shipped-in: exit 0" "0" "$rc"
+run_case website 'docs: update the blog template' blog/templates/base.html
+assert_eq "blog templates are product HTML, not post content: exit 1" "1" "$rc"
+run_case website 'docs: mixed blog and product change' blog/content/a-post.md public/404.html
+assert_eq "a blog change cannot exempt product HTML: exit 1" "1" "$rc"
 run_case relay 'docs: describe the purge route' README.md
 assert_eq "a repo README without Shipped-in: exit 1" "1" "$rc"
 run_case core 'docs: the crate README' vauchi-core/README.md

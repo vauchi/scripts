@@ -130,6 +130,33 @@ commit_file "$r" README.md 'docs: private notes'
 run_range "$r" _private
 assert_eq "_private: exit 0" "0" "$rc"
 
+for path in public/404.html templates/index.html cdn/SETUP.md public/index.md; do
+    r=$(new_repo website)
+    commit_file "$r" "$path" 'docs: website text without a trailer'
+    run_range "$r" website
+    assert_eq "$path needs a trailer in CI: exit 1" "1" "$rc"
+done
+
+r=$(new_repo website)
+commit_file "$r" blog/content/a-post.md 'docs: a dated blog post'
+run_range "$r" website
+assert_eq "blog post content remains exempt in CI: exit 0" "0" "$rc"
+commit_file "$r" public/404.html 'docs: product text beside blog changes'
+run_range "$r" website
+assert_eq "blog exemption cannot hide product text in CI: exit 1" "1" "$rc"
+
+r=$(new_repo website)
+commit_file "$r" blog/templates/base.html 'docs: a shared blog template'
+run_range "$r" website
+assert_eq "shared blog templates need a trailer in CI: exit 1" "1" "$rc"
+
+r=$(new_repo website)
+commit_file "$r" public/404.html 'docs: correct a published limitation
+
+Shipped-in: limit'
+run_range "$r" website
+assert_eq "website HTML with a valid trailer passes CI: exit 0" "0" "$rc"
+
 out="$("$SCRIPT" --range 2>&1)"; rc=$?
 assert_eq "missing arguments: exit 2" "2" "$rc"
 
