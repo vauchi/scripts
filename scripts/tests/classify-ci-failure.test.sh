@@ -221,6 +221,14 @@ expect_category "lychee success does not invent a failure" \
     "3935 Total (in 0s) 1381 OK 0 Errors 2554 Excluded" "unknown"
 expect_category "clippy/lint" \
     "error: this \`if\` has identical blocks (clippy::if_same_then_else)" "lint"
+expect_category "pinned git-source policy requires a source" \
+    '2026-11-14T02:43:44Z 01E FAIL: deny.toml: add "https://gitlab.com/vauchi/linux-gtk.git"' "lint"
+expect_category "git-source policy rejects a source" \
+    'FAIL: crates/app/deny.toml: remove "https://gitlab.com/vauchi/linux-qt.git"' "lint"
+expect_escalate "git-source policy failure is actionable" \
+    'FAIL: deny.toml: add "https://gitlab.com/vauchi/linux-gtk.git"' "false"
+expect_category "matching git-source policy is not a failure" \
+    "OK: deny.toml" "unknown"
 expect_category "REUSE compliance failure with GitLab timestamp" \
     "2026-10-25T04:27:25.318203Z 01O Unfortunately, your project is not compliant with version 3.3 of the REUSE Specification :-(" "lint"
 expect_escalate "REUSE compliance failure does NOT escalate" \
