@@ -88,6 +88,13 @@ expect_category "C FFI cross-compile" \
     "  = note: fatal error: 'openssl/ssl.h' file not found" "c-ffi-cross"
 expect_category "dependency resolution" \
     "error: failed to select a version for \`libc\`" "dep-resolution"
+expect_category "cargo-deny rejects duplicate contract versions" \
+    "2026-11-13T08:30:54Z 01E error[duplicate]: found 2 duplicate entries for crate 'vauchi-contract'" \
+    "dep-resolution"
+expect_escalate "cargo-deny duplicate failure is actionable" \
+    "error[duplicate]: found 2 duplicate entries for crate 'vauchi-contract'" "false"
+expect_category "cargo-deny duplicate warning is not a dependency failure" \
+    "warning[duplicate]: found 2 duplicate entries for crate 'console'" "unknown"
 expect_category "pinned release cohort mismatch" \
     "FAIL: relay/Cargo.toml pins Core crates at another tag than the set's v0.99.1:" "dep-resolution"
 expect_category "Git checkout DNS failure" \
@@ -244,9 +251,9 @@ expect_category "zero dangling annotations do not invent a failure" \
 expect_category "missing public shipment trailer" \
     "2026-11-12T04:11:21Z 01O VGT15: feat commit changes public text without a valid Shipped-in: trailer" "lint"
 expect_category "Rust deprecated API error" \
-    'error: use of deprecated method `ProfileEngine::setup_duress_password`: use setup_duress_pin_with_biometric_unlock' "lint"
+    "error: use of deprecated method \`ProfileEngine::setup_duress_password\`: use setup_duress_pin_with_biometric_unlock" "lint"
 expect_category "Rust deprecation warning alone is not a failure" \
-    'warning: use of deprecated method `ProfileEngine::setup_duress_password`' "unknown"
+    "warning: use of deprecated method \`ProfileEngine::setup_duress_password\`" "unknown"
 expect_category "checksum success is not a failure" \
     "push-coverage.sh: OK" "unknown"
 expect_category "zero checksum mismatches is not a failure" \

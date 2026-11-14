@@ -82,7 +82,7 @@ PATS=(
   "(Vaultwarden item( name)? .* (does not contain|not found|is ambiguous|is missing|has neither|has no)|Vaultwarden item search (failed|returned invalid data)|could not extract .* from Vaultwarden item|^ERROR: '[^']+' has neither a .* custom field)"
   "(Could not resolve host:|DNS: transient error \(try again later\)|Connection reset by peer|curl: \\(22\\) The requested URL returned error: (502|503|504)([[:space:]]|$))"
   "(exceeded maximum timeout|Job exceeded|execution took longer than [0-9]+[hms]|context deadline exceeded)"
-  "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities)|error: [0-9]+ (vulnerability|vulnerabilities) found!|error: [0-9]+ denied warnings? found!|error\\[vulnerability\\]:)"
+  "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities)|error: [0-9]+ (vulnerability|vulnerabilities) found!|error: [0-9]+ denied warnings? found!|error\\[(vulnerability|duplicate)\\]:)"
   "(command not found|: not found)"
   "(error\\[E[0-9]+\\]|error CS[0-9]{4}:|error: missing argument for parameter|No value passed for parameter|cannot find '[^']+' in scope|undefined reference to)"
   "vendor-locales: the vendored catalogue has drifted from locales\\."
