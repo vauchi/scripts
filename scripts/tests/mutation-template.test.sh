@@ -75,7 +75,7 @@ PUSH
         cd "$WORK/run" || exit 99
         PATH="$WORK/bin:$PATH" FAKE_MUTANTS_EXIT="$1" \
             MUTATION_WORKDIR=repo MUTATION_TEST_TOOL=nextest MUTATION_PACKAGE='' \
-            MUTATION_EXTRA_FLAGS='' MUTATION_TIMEOUT_NIGHTLY=60 CI_PROJECT_NAME=demo \
+            MUTATION_EXTRA_FLAGS="${MUTATION_EXTRA_FLAGS:-}" MUTATION_TIMEOUT_NIGHTLY=60 CI_PROJECT_NAME=demo \
             MUTATION_PROGRESS_POLL_SECS=0.1 MUTATION_SHARDS="${MUTATION_SHARDS:-1}" \
             FAKE_MUTANTS_ARGS="$WORK/run/args" \
             bash -eo pipefail "$WORK/job.sh"
@@ -109,6 +109,27 @@ assert_eq "a sharded run exits 0" 0 "$status"
 assert_eq "three shards pass today's slice as --shard k/3" \
     "$(( 10#$(date -u +%j) % 3 ))/3" \
     "$(awk '/^--shard$/ { getline; print }' "$WORK/run/args")"
+
+MUTATION_SHARDS=80 MUTATION_EXTRA_FLAGS='--jobs 8 --shard 64/80 --sharding round-robin' run_job 0
+assert_eq "an explicit shard run exits 0" 0 "$status"
+assert_eq "an explicit shard is the only shard option" 1 \
+    "$(grep -c '^--shard$' "$WORK/run/args")"
+assert_eq "the consumer's explicit shard is retained" '64/80' \
+    "$(awk '/^--shard$/ { getline; print }' "$WORK/run/args")"
+assert_eq "round-robin remains the consumer's selected algorithm" 'round-robin' \
+    "$(awk '/^--sharding$/ { getline; print }' "$WORK/run/args")"
+
+MUTATION_SHARDS=80 MUTATION_EXTRA_FLAGS='--shard=64/80' run_job 0
+assert_eq "an equal-form explicit shard run exits 0" 0 "$status"
+assert_eq "the equal-form shard is retained" 1 \
+    "$(grep -c '^--shard=64/80$' "$WORK/run/args")"
+assert_eq "the template adds no shard beside the equal form" 0 \
+    "$(grep -c '^--shard$' "$WORK/run/args" || true)"
+
+run_job 4
+assert_eq "a baseline failure retains cargo-mutants status" 4 "$status"
+run_job 1
+assert_eq "a usage failure retains cargo-mutants status" 1 "$status"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
