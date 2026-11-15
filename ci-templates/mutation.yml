@@ -78,11 +78,16 @@
       PLACEHOLDER_EOF
       PACKAGE_FLAG="${MUTATION_PACKAGE:+-p ${MUTATION_PACKAGE}}"
       SHARD_FLAG=""
-      if [ "${MUTATION_SHARDS:-1}" -gt 1 ]; then
-        # cargo-mutants shards are 0-based k/n; the day of the year picks
-        # tonight's slice, so each mutant comes up within MUTATION_SHARDS nights.
-        SHARD_FLAG="--shard $(( 10#$(date -u +%j) % MUTATION_SHARDS ))/${MUTATION_SHARDS}"
-      fi
+      # Consumers such as Core select continuous epoch-day rotation explicitly;
+      # adding a generated shard beside their selection makes cargo-mutants abort.
+      case " ${MUTATION_EXTRA_FLAGS} " in
+        *[[:space:]]--shard[[:space:]]*|*[[:space:]]--shard=*) ;;
+        *)
+          if [ "${MUTATION_SHARDS:-1}" -gt 1 ]; then
+            SHARD_FLAG="--shard $(( 10#$(date -u +%j) % MUTATION_SHARDS ))/${MUTATION_SHARDS}"
+          fi
+          ;;
+      esac
       cargo mutants --test-tool "${MUTATION_TEST_TOOL}" ${PACKAGE_FLAG} ${MUTATION_EXTRA_FLAGS} ${SHARD_FLAG} --timeout "${MUTATION_TIMEOUT_NIGHTLY}" --output "$MUTANTS_OUT" &
       MUTANTS_PID=$!
       # cargo-mutants writes its result files one level down, in mutants.out/.

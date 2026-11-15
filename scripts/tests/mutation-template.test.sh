@@ -102,8 +102,7 @@ assert_eq "one shard (the default) passes no --shard flag" "no" \
 run_job 2
 assert_eq "missed mutants exit with cargo-mutants' status" 2 "$status"
 
-# ── 3. Sharded: one slice per night, rotating with the day of the year
-#       so every mutant is tried within MUTATION_SHARDS nights ────────
+# ── 3. Generated shards retain the existing day-of-year selection ────
 MUTATION_SHARDS=3 run_job 0
 assert_eq "a sharded run exits 0" 0 "$status"
 assert_eq "three shards pass today's slice as --shard k/3" \
