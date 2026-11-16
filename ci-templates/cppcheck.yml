@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Mattia Egloff <mattia.egloff@pm.me>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Advisory cppcheck scan for the C++ repos (vauchi/private#1262).
+#
+# warning/performance/portability only — no style findings, no gate. The
+# distro package is the version pin (bookworm ships cppcheck 2.10); the
+# version is printed so a finding always names its analyzer. If deeper
+# checks earn their keep, clang-tidy with a compile database is the next
+# step, not more cppcheck categories.
+#
+# Usage:
+#   quality:cppcheck:
+#     extends: .cppcheck-job
+#     variables:
+#       CPPCHECK_PATHS: "src include tools tests"
+
+.cppcheck-job:
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/debian:bookworm-slim
+  tags: [docker]
+  needs: []
+  allow_failure: true
+  variables:
+    CPPCHECK_PATHS: "src include"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends cppcheck > /dev/null
+    - cppcheck --version
+  script:
+    - >
+      cppcheck --enable=warning,performance,portability --std=c++17
+      --suppress=missingIncludeSystem --inline-suppr --error-exitcode=1
+      ${CPPCHECK_PATHS}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
