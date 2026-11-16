@@ -549,6 +549,10 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
                 export VAUCHI_LOCALES_DIR="$LOCALES_DIR"
             fi
             ;;
+        e2e)
+            export E2E_BIN_DIR="${E2E_BIN_DIR:-$REPO_ROOT/.smoke-bin}"
+            TEST_CMD+=(--all-targets)
+            ;;
         desktop)
             CLIPPY_EXTRA=(--no-default-features --features custom-protocol)
             TEST_CMD+=(--all-targets --no-default-features --features custom-protocol)

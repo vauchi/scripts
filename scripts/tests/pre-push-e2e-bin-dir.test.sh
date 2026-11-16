@@ -17,6 +17,8 @@ check_default() {
     local expected=$1
     shift
     local got
+    # Variables must expand in the child shells whose environments are varied.
+    # shellcheck disable=SC2016
     got=$("$@" bash -eu -c '
         REPO_ROOT="/fixture/work space/e2e"
         TEST_CMD=()
