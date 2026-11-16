@@ -2,17 +2,17 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Advisory jscpd duplication scan (vauchi/private#1262).
+# jscpd duplication ratchet (vauchi/private#1262).
 #
 # Finds copy-paste and near-identical blocks in source, CI YAML, shell and
 # Dockerfiles — the drift class behind the relay/ohttp-relay Dockerfile
 # duplication. Per-repo only: cross-repo clones need a workspace scan and
 # are out of scope for this job.
 #
-# Advisory while the signal is evaluated: findings never block a merge.
-# Promotion path to a gate: add --baseline-from-ref origin/main
-# --fail-on-new-clones and drop allow_failure — the same "only new clones
-# fail" ratchet shape as check:ignored-results / check:empty-then-steps.
+# Ratchet: only clones ABSENT from origin/main fail the job
+# (--baseline-from-ref + --fail-on-new-clones), so existing duplication
+# never blocks — the same shape as check:ignored-results /
+# check:empty-then-steps. Started advisory; promoted after clean output.
 #
 # Usage:
 #   quality:jscpd:
@@ -23,7 +23,10 @@
   image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/node:22-alpine
   tags: [docker]
   needs: []
-  allow_failure: true
+  # Advisory while the signal is evaluated: findings never block a merge.
+  # PROMOTED to a ratchet: only clones absent from origin/main fail the
+  # job (same shape as check:ignored-results / check:empty-then-steps).
+  allow_failure: false
   variables:
     # Pinned: an unpinned analyzer changes what it reports without review.
     JSCPD_VERSION: "5.4.3"
@@ -33,10 +36,13 @@
     JSCPD_IGNORE: "**/target/**,**/node_modules/**,**/build/**,**/dist/**,**/.git/**,**/generated/**,**/locales/**,**/*.lock,**/Cargo.lock,**/package-lock.json,**/*.xcframework/**,**/.device-spm-packages/**,**/ios.logarchive/**,**/mutants.out*/**,**/LICENSES/**,**/pictograms/**,**/fixtures/**"
   before_script:
     - npm install --no-save --no-audit --no-fund "jscpd@${JSCPD_VERSION}"
+    # The baseline ref's tree is what new clones are measured against.
+    - git fetch -q --depth=1 origin "$CI_DEFAULT_BRANCH"
   script:
     - >
       ./node_modules/.bin/jscpd --min-lines 10 --min-tokens 100
       --threshold 100 --format "${JSCPD_FORMATS}" --ignore "${JSCPD_IGNORE}"
+      --baseline-from-ref "origin/${CI_DEFAULT_BRANCH}" --fail-on-new-clones=0
       --reporters console,json --output jscpd-report .
   artifacts:
     when: always
