@@ -34,7 +34,7 @@ fi
 printf 'tests ran\n' > "$RESULT"
 RUNNER
 
-env -u REFRESHED CASE=e2e REFRESH_FAIL=0 RUNNER="$work/runner.sh" RESULT="$work/result" bash "$work/harness.sh" > "$work/output" 2>&1
+env -u REFRESHED CASE=e2e REFRESH_FAIL=0 RUNNER="$work/runner.sh" RESULT="$work/result" bash "$work/harness.sh" > "$work/output" 2>&1 || { cat "$work/output" >&2; exit 1; }
 [ "$(cat "$work/result")" = 'tests ran' ]
 rm "$work/result"
 rc=0

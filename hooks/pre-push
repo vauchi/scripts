@@ -731,6 +731,9 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
                 fi
                 echo ""
                 echo "[3/3] Running tests... (set SKIP_TESTS=1 to skip)"
+                if [[ "$REPO_DIR" == "e2e" ]]; then
+                    sh "$REPO_ROOT/ci/build-pinned-binaries.sh" "$E2E_BIN_DIR"
+                fi
                 if ! ${TEST_CMD[@]+"${TEST_CMD[@]}"}; then
                     echo ""
                     echo "FAILED: Tests failed. Fix before pushing."
