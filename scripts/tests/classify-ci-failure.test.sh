@@ -102,6 +102,18 @@ expect_category "Git checkout DNS failure" \
     "transient-network"
 expect_escalate "Git checkout DNS failure does not escalate" \
     "fatal: Could not resolve host: gitlab.com" "false"
+expect_category "Git checkout connection failure" \
+    "2026-11-16T06:32:29Z 01E fatal: unable to access 'https://gitlab.com/vauchi/core.git/': Failed to connect to gitlab.com:443 after 134163 ms: Could not connect to server" \
+    "transient-network"
+expect_category "Git checkout connection failure with explicit port" \
+    "fatal: unable to access 'https://gitlab.com/vauchi/core.git/': Failed to connect to gitlab.com port 443 after 134163 ms: Could not connect to server" \
+    "transient-network"
+expect_escalate "Git checkout connection failure does not escalate" \
+    "fatal: unable to access 'https://gitlab.com/vauchi/core.git/': Failed to connect to gitlab.com:443 after 134163 ms: Could not connect to server" \
+    "false"
+expect_category "application connection message is not Git transport" \
+    "test fixture: Failed to connect to gitlab.com:443 after 134163 ms: Could not connect to server" \
+    "unknown"
 expect_category "sccache daemon startup timeout" \
     "sccache: error: Timed out waiting for server startup" "runner-infrastructure"
 expect_category "npm dependency audit" \
