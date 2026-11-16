@@ -82,10 +82,10 @@ lint:reuse:
       }
       fetch_ref() {
         if [ -n "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-}" ]; then
-          fetch_with_retry "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
+          fetch_with_retry "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}" || return 1
           git checkout -f "origin/${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
         else
-          fetch_with_retry "${CI_COMMIT_REF_NAME}"
+          fetch_with_retry "${CI_COMMIT_REF_NAME}" || return 1
           git checkout -f "${CI_COMMIT_SHA}"
         fi
       }
@@ -98,8 +98,12 @@ lint:reuse:
         git init
         git remote set-url origin "$REPO_URL" 2>/dev/null \
           || git remote add origin "$REPO_URL"
-        fetch_ref
+        if ! fetch_ref; then
+          echo "ERROR: source checkout failed after clean-clone recovery" >&2
+          exit 1
+        fi
       fi
+      git show -s --format='Checked out %H' HEAD
       git clean -ffd -e node_modules/ -e .cache/
     # Self-hosted runners cache the reuse binary. Stale cached versions have
     # mis-parsed .gitignore (scanning node_modules) and missed HTML-comment

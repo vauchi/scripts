@@ -42,10 +42,21 @@ extract_fetch_ref() {
         /^      fetch_ref\(\) \{$/ { n += 1; if (n == want) on = 1 }
         on { line = $0; sub(/^      /, "", line); print line }
         on && /^      \}$/ { exit }
-    ' "$TEMPLATE"
+    ' "${2:-$TEMPLATE}"
 }
 extract_fetch_ref 1 > "$WORK/light.sh"
 extract_fetch_ref 2 > "$WORK/full.sh"
+extract_fetch_ref 1 "$SCRIPT_DIR/../../ci-templates/reuse.yml" > "$WORK/reuse.sh"
+extract_checkout_block() {
+    awk -v want="$1" '
+        /^      REPO_URL=/ { n += 1; if (n == want) on = 1 }
+        on && (/^    - / || /^[^ #]/) { exit }
+        on { line = $0; sub(/^      /, "", line); print line }
+    ' "${2:-$TEMPLATE}"
+}
+extract_checkout_block 1 > "$WORK/light-block.sh"
+extract_checkout_block 2 > "$WORK/full-block.sh"
+extract_checkout_block 1 "$SCRIPT_DIR/../../ci-templates/reuse.yml" > "$WORK/reuse-block.sh"
 assert_eq "both fetch_ref copies were found in the template" "yes" \
     "$(grep -q 'fetch_ref' "$WORK/light.sh" && grep -q 'fetch_ref' "$WORK/full.sh" && echo yes || echo no)"
 
@@ -86,11 +97,61 @@ checkout_with() {
         git remote add origin "file://$WORK/origin.git"
         # The full copy fetches through this wrapper; the light copy calls
         # git directly.
+        # CI variables must expand inside the child shell.
+        # shellcheck disable=SC2016
         env "$@" bash -c '
             fetch_with_retry() { git fetch origin "$1" --depth 20; }
             . "$0"
             fetch_ref >/dev/null 2>&1 && git rev-parse HEAD || echo FAILED
         ' "$WORK/$copy.sh"
+    )
+}
+
+# A real origin loses a ref after the job has cached its objects and
+# remote-tracking branches. Conditional invocation matches CI's `if !`
+# caller, where Bash does not enforce implicit errexit (#1268).
+checkout_after_ref_removed() {
+    copy="$1"; removed_ref="$2"; shift 2
+    rm -rf "$WORK/cached-job" "$WORK/broken-origin.git"
+    git clone -q --mirror "$WORK/origin.git" "$WORK/broken-origin.git" || return 99
+    mkdir -p "$WORK/cached-job" || return 99
+    (
+        cd "$WORK/cached-job" || exit 99
+        git init -q || exit 99
+        git remote add origin "file://$WORK/broken-origin.git" || exit 99
+        git fetch -q origin main feature refs/merge-requests/7/train --depth 20 || exit 99
+        git checkout -q origin/feature || exit 99
+        git rev-parse origin/main >/dev/null || exit 99
+        git cat-file -e "${TRAIN_SHA}^{commit}" || exit 99
+        if [ -n "$removed_ref" ]; then
+            git -C "$WORK/broken-origin.git" show-ref --verify --quiet "$removed_ref" || exit 99
+            git -C "$WORK/broken-origin.git" update-ref -d "$removed_ref" || exit 99
+        fi
+        fixture_job_token="fixture-${WORK##*/}"
+        # CI variables must expand inside the child shell.
+        # shellcheck disable=SC2016
+        if result=$(env \
+            GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0="url.file://$WORK/broken-origin.git.insteadOf" \
+            GIT_CONFIG_VALUE_0="https://gitlab-ci-token:${fixture_job_token}@gitlab.com/fixture/project.git" \
+            CI_JOB_TOKEN="$fixture_job_token" \
+            "$@" bash -c '
+            set -e
+            if [ "${CHECKOUT_BLOCK:-0}" = 1 ]; then
+                timeout() { shift; "$@"; }
+                sleep() { :; }
+                . "${0%.sh}-block.sh"
+                echo "VALIDATION_STARTED $(git rev-parse HEAD)"
+                exit 0
+            fi
+            fetch_with_retry() { git fetch origin "$1" --depth 20; }
+            . "$0"
+            fetch_ref >/dev/null 2>&1 && git rev-parse HEAD || echo FAILED
+        ' "$WORK/$copy.sh" 2>&1); then
+            printf '%s\n' "$result"
+        else
+            echo FAILED
+        fi
     )
 }
 
@@ -125,6 +186,56 @@ for copy in light full; do
         CI_COMMIT_REF_NAME=main CI_COMMIT_SHA="$MAIN_SHA")
     assert_eq "$copy: a push pipeline checks out CI_COMMIT_SHA of its ref" \
         "$MAIN_SHA" "$got"
+done
+
+for copy in light full reuse; do
+    got=$(checkout_after_ref_removed "$copy" refs/heads/feature \
+        CHECKOUT_BLOCK=1 CI_PROJECT_PATH=fixture/project \
+        CI_MERGE_REQUEST_EVENT_TYPE=detached CI_MERGE_REQUEST_IID=7 \
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME=feature \
+        CI_COMMIT_REF_NAME=feature CI_COMMIT_SHA="$BRANCH_SHA")
+    assert_eq "$copy: exhausted clean-clone recovery cannot start validation" "FAILED" "$got"
+
+    got=$(checkout_after_ref_removed "$copy" '' \
+        CHECKOUT_BLOCK=1 CI_PROJECT_PATH=fixture/project \
+        CI_MERGE_REQUEST_EVENT_TYPE=detached CI_MERGE_REQUEST_IID=7 \
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME=feature \
+        CI_COMMIT_REF_NAME=feature CI_COMMIT_SHA="$BRANCH_SHA")
+    assert_eq "$copy: successful bootstrap validates the fetched source" \
+        "VALIDATION_STARTED $BRANCH_SHA" "$(printf '%s\n' "$got" | tail -n 1)"
+done
+
+got=$(checkout_with reuse \
+    CI_MERGE_REQUEST_EVENT_TYPE=detached CI_MERGE_REQUEST_IID=7 \
+    CI_MERGE_REQUEST_SOURCE_BRANCH_NAME=feature \
+    CI_COMMIT_REF_NAME=feature CI_COMMIT_SHA="$BRANCH_SHA")
+assert_eq "reuse: a healthy MR checks out its branch head" "$BRANCH_SHA" "$got"
+got=$(checkout_with reuse \
+    CI_MERGE_REQUEST_EVENT_TYPE= CI_MERGE_REQUEST_IID= \
+    CI_MERGE_REQUEST_SOURCE_BRANCH_NAME= \
+    CI_COMMIT_REF_NAME=main CI_COMMIT_SHA="$MAIN_SHA")
+assert_eq "reuse: a healthy push checks out its commit" "$MAIN_SHA" "$got"
+
+for copy in light full reuse; do
+    got=$(checkout_after_ref_removed "$copy" refs/heads/feature \
+        CI_MERGE_REQUEST_EVENT_TYPE=detached CI_MERGE_REQUEST_IID=7 \
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME=feature \
+        CI_COMMIT_REF_NAME=feature CI_COMMIT_SHA="$BRANCH_SHA")
+    assert_eq "$copy: failed MR fetch cannot use a cached branch" "FAILED" "$got"
+
+    got=$(checkout_after_ref_removed "$copy" refs/heads/main \
+        CI_MERGE_REQUEST_EVENT_TYPE= CI_MERGE_REQUEST_IID= \
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME= \
+        CI_COMMIT_REF_NAME=main CI_COMMIT_SHA="$MAIN_SHA")
+    assert_eq "$copy: failed push fetch cannot use cached commit objects" "FAILED" "$got"
+done
+
+for copy in light full; do
+    got=$(checkout_after_ref_removed "$copy" refs/merge-requests/7/train \
+        CI_MERGE_REQUEST_EVENT_TYPE=merge_train CI_MERGE_REQUEST_IID=7 \
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME=feature \
+        CI_COMMIT_REF_NAME=feature CI_COMMIT_SHA="$TRAIN_SHA")
+    assert_eq "$copy: failed train fetch cannot use cached commit objects" "FAILED" "$got"
 done
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
