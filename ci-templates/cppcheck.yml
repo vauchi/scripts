@@ -28,10 +28,12 @@
     - apt-get update -qq && apt-get install -y -qq --no-install-recommends cppcheck > /dev/null
     - cppcheck --version
   script:
+    # unknownMacro fires on Qt's Q_PROPERTY/Q_COREAPP_STARTUP_FUNCTION
+    # without a full Qt configure — a configuration limit, not a finding.
     - >
       cppcheck --enable=warning,performance,portability --std=c++17
-      --suppress=missingIncludeSystem --inline-suppr --error-exitcode=1
-      ${CPPCHECK_PATHS}
+      --suppress=missingIncludeSystem --suppress=unknownMacro --inline-suppr
+      --error-exitcode=1 ${CPPCHECK_PATHS}
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_PIPELINE_SOURCE == "schedule"
