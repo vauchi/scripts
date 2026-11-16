@@ -722,8 +722,8 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
                 # Default to the pinned binary set (private#1261 follow-up):
                 # without it, integration tests mix binary versions and fail
                 # with fault-controller 404s rather than the MR's own defects.
-                if [[ -z "${E2E_BIN_DIR:-}" ]] && [[ -d "$WORKSPACE_ROOT/e2e/.bin" ]]; then
-                    export E2E_BIN_DIR="$WORKSPACE_ROOT/e2e/.bin"
+                if [[ -z "${E2E_BIN_DIR:-}" ]] && [[ -d "$_WORKSPACE_ROOT/e2e/.bin" ]]; then
+                    export E2E_BIN_DIR="$_WORKSPACE_ROOT/e2e/.bin"
                 fi
                 echo ""
                 echo "[3/3] Running tests... (set SKIP_TESTS=1 to skip)"
