@@ -100,13 +100,14 @@ failed = False
 for path in sys.argv[1:]:
     try:
         with open(path, encoding="utf-8") as handle:
-            document = yaml.load(handle, Loader=CiLoader)
+            documents = list(yaml.load_all(handle, Loader=CiLoader))
     except (OSError, yaml.YAMLError) as error:
         print(f"  {path}: {error}".replace("\n", "\n    "))
         failed = True
         continue
-    for problem in [*include_problems(document), *script_problems(document)]:
-        print(f"  {path}: {problem}")
-        failed = True
+    for document in documents:
+        for problem in [*include_problems(document), *script_problems(document)]:
+            print(f"  {path}: {problem}")
+            failed = True
 sys.exit(1 if failed else 0)
 EOF

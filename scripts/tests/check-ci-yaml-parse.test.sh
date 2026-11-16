@@ -73,5 +73,28 @@ expect_exit "unquoted ': ' in a script line (#767) → 1" 1 "$work/colon-in-scri
 expect_exit "one bad file among good ones → 1" 1 "$work/valid.yml" "$work/flow-sequence.yml"
 expect_exit "no file given → usage error" 2
 
+cat > "$work/inputs.yml" <<'EOF'
+spec:
+  inputs:
+    audit:
+      default: off
+---
+job:
+  script:
+    - echo checked
+EOF
+cat > "$work/inputs-bad-job.yml" <<'EOF'
+spec:
+  inputs:
+    audit:
+      default: off
+---
+job:
+  script:
+    - echo error: invalid script mapping
+EOF
+expect_exit "pipeline inputs header and job document → 0" 0 "$work/inputs.yml"
+expect_exit "invalid job after inputs header → 1" 1 "$work/inputs-bad-job.yml"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
