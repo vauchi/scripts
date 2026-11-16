@@ -210,6 +210,15 @@ expect_category "custom runner nonzero exit" \
     "test-failure"
 expect_category "hook self-test suite failure" \
     "FAILED: 1 hook self-test suite(s) red." "test-failure"
+expect_category "runner infrastructure self-test assertion failure" \
+    "FAILED: 1 runner-infrastructure self-test suite(s) red." "test-failure"
+expect_category "timestamped runner infrastructure self-test failure" \
+    "2026-11-16T08:00:00Z 01O FAILED: 12 runner-infrastructure self-test suite(s) red." \
+    "test-failure"
+expect_escalate "runner self-test failure needs no signature escalation" \
+    "FAILED: 1 runner-infrastructure self-test suite(s) red." "false"
+expect_category "runner self-test success is not a failure" \
+    "FAILED: 0 runner-infrastructure self-test suite(s) red." "unknown"
 expect_category "private workspace discovery failure" \
     "ValueError: expected _private git common directory, got /builds/vauchi/private" \
     "test-failure"
