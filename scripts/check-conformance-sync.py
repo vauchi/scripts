@@ -11,7 +11,8 @@ expression) may differ; anything else is drift and fails here.
 
 Local use:  python3 check-conformance-sync.py [--root /path/to/workspace]
 CI use:     python3 check-conformance-sync.py --api
-            (own file read at $CONFORMANCE_OWN_REF, counterparts at main)
+            (both files read at $CONFORMANCE_OWN_REF, so the vendored
+            copy is compared with the canonical file in the same tree)
 
 Exit 0 all pairs in sync, 1 a pair drifted, 2 a fetch/read error.
 """
@@ -93,10 +94,11 @@ def main() -> int:
     for name, (proj_a, path_a), (proj_b, path_b) in PAIRS:
         try:
             if api:
-                ref_a = own_ref if proj_a == "core" else "main"
-                ref_b = own_ref if proj_b == "core" else "main"
-                text_a = fetch_api(proj_a, path_a, ref_a)
-                text_b = fetch_api(proj_b, path_b, ref_b)
+                # Both files are read at the SAME ref: the vendored copy
+                # must match the canonical file in the tree under test,
+                # not main (which may not have it yet).
+                text_a = fetch_api(proj_a, path_a, own_ref)
+                text_b = fetch_api(proj_b, path_b, own_ref)
             else:
                 text_a = (root / PROJECT_PATHS[proj_a] / path_a).read_text()
                 text_b = (root / PROJECT_PATHS[proj_b] / path_b).read_text()
