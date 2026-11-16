@@ -39,24 +39,28 @@ assert_eq() {
 # The Nth `fetch_ref() {` ... `}` block of the template, de-indented.
 extract_fetch_ref() {
     awk -v want="$1" '
-        /^      fetch_ref\(\) \{$/ { n += 1; if (n == want) on = 1 }
-        on { line = $0; sub(/^      /, "", line); print line }
+        /^      (fetch_ref|fetch_and_checkout)\(\) \{$/ { n += 1; if (n == want) on = 1 }
+        on { line = $0; sub(/^      /, "", line); sub(/fetch_and_checkout/, "fetch_ref", line); print line }
         on && /^      \}$/ { exit }
     ' "${2:-$TEMPLATE}"
 }
 extract_fetch_ref 1 > "$WORK/light.sh"
 extract_fetch_ref 2 > "$WORK/full.sh"
 extract_fetch_ref 1 "$SCRIPT_DIR/../../ci-templates/reuse.yml" > "$WORK/reuse.sh"
+extract_fetch_ref 1 "$SCRIPT_DIR/../../.gitlab-ci.yml" > "$WORK/shellcheck.sh"
+extract_fetch_ref 2 "$SCRIPT_DIR/../../.gitlab-ci.yml" > "$WORK/ci-lint.sh"
 extract_checkout_block() {
     awk -v want="$1" '
         /^      REPO_URL=/ { n += 1; if (n == want) on = 1 }
-        on && (/^    - / || /^[^ #]/) { exit }
+        on && (/^    - / || /^  [a-zA-Z_]+:/ || /^[^ #]/) { exit }
         on { line = $0; sub(/^      /, "", line); print line }
     ' "${2:-$TEMPLATE}"
 }
 extract_checkout_block 1 > "$WORK/light-block.sh"
 extract_checkout_block 2 > "$WORK/full-block.sh"
 extract_checkout_block 1 "$SCRIPT_DIR/../../ci-templates/reuse.yml" > "$WORK/reuse-block.sh"
+extract_checkout_block 1 "$SCRIPT_DIR/../../.gitlab-ci.yml" > "$WORK/shellcheck-block.sh"
+extract_checkout_block 2 "$SCRIPT_DIR/../../.gitlab-ci.yml" > "$WORK/ci-lint-block.sh"
 assert_eq "both fetch_ref copies were found in the template" "yes" \
     "$(grep -q 'fetch_ref' "$WORK/light.sh" && grep -q 'fetch_ref' "$WORK/full.sh" && echo yes || echo no)"
 
@@ -123,7 +127,9 @@ checkout_after_ref_removed() {
         git checkout -q origin/feature || exit 99
         git rev-parse origin/main >/dev/null || exit 99
         git cat-file -e "${TRAIN_SHA}^{commit}" || exit 99
-        if [ -n "$removed_ref" ]; then
+        if [ "$removed_ref" = recover ]; then
+            git config --add remote.origin.fetch 'invalid refspec' || exit 99
+        elif [ -n "$removed_ref" ]; then
             git -C "$WORK/broken-origin.git" show-ref --verify --quiet "$removed_ref" || exit 99
             git -C "$WORK/broken-origin.git" update-ref -d "$removed_ref" || exit 99
         fi
@@ -141,6 +147,9 @@ checkout_after_ref_removed() {
                 timeout() { shift; "$@"; }
                 sleep() { :; }
                 . "${0%.sh}-block.sh"
+                if [ "${CHECKOUT_RECOVERY:-0}" = 1 ]; then
+                    test "$(git config --get-all remote.origin.fetch)" = "+refs/heads/*:refs/remotes/origin/*"
+                fi
                 echo "VALIDATION_STARTED $(git rev-parse HEAD)"
                 exit 0
             fi
@@ -150,7 +159,11 @@ checkout_after_ref_removed() {
         ' "$WORK/$copy.sh" 2>&1); then
             printf '%s\n' "$result"
         else
-            echo FAILED
+            case "$result" in
+                *VALIDATION_STARTED*) printf "UNEXPECTED VALIDATION: %s\n" "$result" ;;
+                *"ERROR: source checkout failed after clean-clone recovery"*) echo FAILED ;;
+                *) printf "UNEXPECTED FAILURE: %s\n" "$result" ;;
+            esac
         fi
     )
 }
@@ -188,7 +201,7 @@ for copy in light full; do
         "$MAIN_SHA" "$got"
 done
 
-for copy in light full reuse; do
+for copy in light full reuse shellcheck ci-lint; do
     got=$(checkout_after_ref_removed "$copy" refs/heads/feature \
         CHECKOUT_BLOCK=1 CI_PROJECT_PATH=fixture/project \
         CI_MERGE_REQUEST_EVENT_TYPE=detached CI_MERGE_REQUEST_IID=7 \
@@ -203,20 +216,30 @@ for copy in light full reuse; do
         CI_COMMIT_REF_NAME=feature CI_COMMIT_SHA="$BRANCH_SHA")
     assert_eq "$copy: successful bootstrap validates the fetched source" \
         "VALIDATION_STARTED $BRANCH_SHA" "$(printf '%s\n' "$got" | tail -n 1)"
+
+    got=$(checkout_after_ref_removed "$copy" recover \
+        CHECKOUT_BLOCK=1 CHECKOUT_RECOVERY=1 CI_PROJECT_PATH=fixture/project \
+        CI_MERGE_REQUEST_EVENT_TYPE= CI_MERGE_REQUEST_IID= \
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME= \
+        CI_COMMIT_REF_NAME=main CI_COMMIT_SHA="$MAIN_SHA")
+    assert_eq "$copy: clean-clone recovery repairs invalid cached fetch configuration" \
+        "VALIDATION_STARTED $MAIN_SHA" "$(printf '%s\n' "$got" | tail -n 1)"
 done
 
-got=$(checkout_with reuse \
+for copy in reuse shellcheck ci-lint; do
+got=$(checkout_with "$copy" \
     CI_MERGE_REQUEST_EVENT_TYPE=detached CI_MERGE_REQUEST_IID=7 \
     CI_MERGE_REQUEST_SOURCE_BRANCH_NAME=feature \
     CI_COMMIT_REF_NAME=feature CI_COMMIT_SHA="$BRANCH_SHA")
-assert_eq "reuse: a healthy MR checks out its branch head" "$BRANCH_SHA" "$got"
-got=$(checkout_with reuse \
+assert_eq "$copy: a healthy MR checks out its branch head" "$BRANCH_SHA" "$got"
+got=$(checkout_with "$copy" \
     CI_MERGE_REQUEST_EVENT_TYPE= CI_MERGE_REQUEST_IID= \
     CI_MERGE_REQUEST_SOURCE_BRANCH_NAME= \
     CI_COMMIT_REF_NAME=main CI_COMMIT_SHA="$MAIN_SHA")
-assert_eq "reuse: a healthy push checks out its commit" "$MAIN_SHA" "$got"
+assert_eq "$copy: a healthy push checks out its commit" "$MAIN_SHA" "$got"
+done
 
-for copy in light full reuse; do
+for copy in light full reuse shellcheck ci-lint; do
     got=$(checkout_after_ref_removed "$copy" refs/heads/feature \
         CI_MERGE_REQUEST_EVENT_TYPE=detached CI_MERGE_REQUEST_IID=7 \
         CI_MERGE_REQUEST_SOURCE_BRANCH_NAME=feature \
