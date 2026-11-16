@@ -11,8 +11,8 @@ expression) may differ; anything else is drift and fails here.
 
 Local use:  python3 check-conformance-sync.py [--root /path/to/workspace]
 CI use:     python3 check-conformance-sync.py --api
-            (both files read at $CONFORMANCE_OWN_REF, so the vendored
-            copy is compared with the canonical file in the same tree)
+            (both files read at $CONFORMANCE_OWN_REF, the source branch,
+            which is the same name in all three repos)
 
 Exit 0 all pairs in sync, 1 a pair drifted, 2 a fetch/read error.
 """
