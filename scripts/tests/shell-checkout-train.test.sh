@@ -224,6 +224,13 @@ for copy in light full reuse shellcheck ci-lint; do
         CI_COMMIT_REF_NAME=main CI_COMMIT_SHA="$MAIN_SHA")
     assert_eq "$copy: clean-clone recovery repairs invalid cached fetch configuration" \
         "VALIDATION_STARTED $MAIN_SHA" "$(printf '%s\n' "$got" | tail -n 1)"
+
+    got=$(checkout_after_ref_removed "$copy" '' \
+        CHECKOUT_BLOCK=1 CI_PROJECT_PATH=fixture/project \
+        CI_MERGE_REQUEST_EVENT_TYPE= CI_MERGE_REQUEST_IID= \
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME= \
+        CI_COMMIT_REF_NAME=main CI_COMMIT_SHA=0000000000000000000000000000000000000000)
+    assert_eq "$copy: successful fetch with failed checkout cannot start validation" "FAILED" "$got"
 done
 
 for copy in reuse shellcheck ci-lint; do
