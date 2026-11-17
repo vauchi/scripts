@@ -5,8 +5,8 @@
 
 # Sentinel suite for `fetch_ref` in ci-templates/rust-base.yml, the
 # checkout every shell-executor job runs under GIT_STRATEGY: none. Both
-# copies (.shell-checkout and .self-hosted) are extracted from the template
-# and run against a local origin that carries a main branch, a feature
+# copies (.shell-checkout and .self-hosted), and lint:reuse's own copy in
+# ci-templates/reuse.yml, are extracted from the templates and run against a local origin that carries a main branch, a feature
 # branch behind it, and the merge train's ref for that branch.
 #
 # On a merge-train pipeline the job must test the car GitLab merges,
@@ -168,7 +168,7 @@ checkout_after_ref_removed() {
     )
 }
 
-for copy in light full; do
+for copy in light full reuse; do
     got=$(checkout_with "$copy" \
         CI_MERGE_REQUEST_EVENT_TYPE=merge_train CI_MERGE_REQUEST_IID=7 \
         CI_MERGE_REQUEST_SOURCE_BRANCH_NAME=feature \
