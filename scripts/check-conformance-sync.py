@@ -11,8 +11,8 @@ expression) may differ; anything else is drift and fails here.
 
 Local use:  python3 check-conformance-sync.py [--root /path/to/workspace]
 CI use:     python3 check-conformance-sync.py --api
-            (both files read at $CONFORMANCE_OWN_REF, the source branch,
-            which is the same name in all three repos)
+            (files read at $CONFORMANCE_OWN_REF where that branch exists;
+            peers without that branch are read at main)
 
 Exit 0 all pairs in sync, 1 a pair drifted, 2 a fetch/read error.
 """
@@ -86,6 +86,32 @@ def fetch_api(project: str, path: str, ref: str) -> str:
     return body.decode("utf-8")
 
 
+def branch_exists(project: str, ref: str) -> bool:
+    quoted = urllib.parse.quote(ref, safe="")
+    url = (
+        f"{os.environ['CI_API_V4_URL']}/projects/{PROJECT_IDS[project]}"
+        f"/repository/branches/{quoted}"
+    )
+    request = urllib.request.Request(
+        url, headers={"JOB-TOKEN": os.environ.get("CI_JOB_TOKEN", "")}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            response.read()
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return False
+        raise
+    return True
+
+
+def fetch_own_or_main(project: str, path: str, own_ref: str) -> str:
+    ref = own_ref
+    if own_ref != "main" and not branch_exists(project, own_ref):
+        ref = "main"
+    return fetch_api(project, path, ref)
+
+
 def main() -> int:
     api = "--api" in sys.argv
     root = Path(sys.argv[sys.argv.index("--root") + 1] if "--root" in sys.argv else ".")
@@ -94,11 +120,8 @@ def main() -> int:
     for name, (proj_a, path_a), (proj_b, path_b) in PAIRS:
         try:
             if api:
-                # Both files are read at the SAME ref: the vendored copy
-                # must match the canonical file in the tree under test,
-                # not main (which may not have it yet).
-                text_a = fetch_api(proj_a, path_a, own_ref)
-                text_b = fetch_api(proj_b, path_b, own_ref)
+                text_a = fetch_own_or_main(proj_a, path_a, own_ref)
+                text_b = fetch_own_or_main(proj_b, path_b, own_ref)
             else:
                 text_a = (root / PROJECT_PATHS[proj_a] / path_a).read_text()
                 text_b = (root / PROJECT_PATHS[proj_b] / path_b).read_text()
