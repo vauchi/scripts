@@ -16,6 +16,7 @@ include:
   - local: '/ci-templates/reuse.yml'
   - local: '/ci-templates/badges.yml'
   - local: '/ci-templates/shipped-in.yml'
+  - local: '/ci-templates/spec-trailer.yml'
 
 variables:
   SECRET_DETECTION_EXCLUDED_PATHS: "archive/"
@@ -40,6 +41,20 @@ test:shipped-in-alpine:
     - apk add --no-cache bash git > /dev/null
     - bash scripts/tests/commit-msg-shipped-in-trailer.test.sh
     - bash scripts/tests/check-shipped-in.test.sh
+
+# lint:spec-trailer runs check-spec-trailer.sh in alpine:3.21 in the
+# repositories that include it; its tests run there too (BusyBox grep and
+# sed), not only under GNU in test:selftests.
+test:spec-trailer-alpine:
+  extends: .mr-or-main
+  stage: lint
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  needs: []
+  script:
+    - apk add --no-cache bash git > /dev/null
+    - bash scripts/tests/commit-msg-spec-trailer.test.sh
+    - bash scripts/tests/check-spec-trailer.test.sh
 
 test:architecture:
   stage: lint
