@@ -109,30 +109,15 @@ fi
 # keeps its name and no longer does what the chapter says. Only the
 # person changing the behaviour knows that, so the commit says it:
 # `Spec: unchanged`, or the claims and sections it moves.
+# The rule lives in check-spec-trailer.sh, shared with the CI re-check
+# (vauchi/private#950).
 # Page: _private/docs/lint-errors/vgt12-spec-trailer.md
-if echo "$SUBJECT" | grep -qE "^(feat|fix|refactor): "; then
-    STAGED_FOR_SPEC=$(git diff --cached --name-only 2>/dev/null || true)
-    REPO_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-    case "$REPO_NAME" in
-        relay|ohttp-relay) SPEC_PATHS='^src/' ;;
-        *) SPEC_PATHS='^(vauchi-core/src/(crypto|exchange|network|backup|recovery|sync)/|vauchi-core/verification/|vauchi-protocol/src/)' ;;
-    esac
-    SPEC_TOUCHED=$(echo "$STAGED_FOR_SPEC" | grep -E "$SPEC_PATHS" | grep -vE '\.md$' || true)
-    SPEC_TRAILER=$(grep -vE '^#' "$MSG_FILE" | grep -E '^Spec: [^[:space:]]' | head -1 || true)
-    if [ -n "$SPEC_TOUCHED" ] && [ -z "$SPEC_TRAILER" ]; then
-        echo ""
-        echo "  VGT12: $(echo "$SUBJECT" | cut -d: -f1) commit touches a protocol path without a Spec: trailer — fix: end the message with 'Spec: unchanged' if the spec's claims and chapters still describe the code, or 'Spec: <claim ids, chapter sections, spec!N>' naming what this moves. [_private/docs/lint-errors/vgt12-spec-trailer.md]"
-        echo ""
-        echo "  Protocol paths staged:"
-        echo "$SPEC_TOUCHED" | sed 's/^/    /'
-        echo ""
-        echo "  Example trailers:"
-        echo "    Spec: unchanged"
-        echo "    Spec: S4, relay B5, update-and-sync C1 (spec!9)"
-        echo ""
-        exit 1
-    fi
+SPEC_TRAILER_CHECK="$(cd "$(dirname "$0")/../scripts" 2>/dev/null && pwd)/check-spec-trailer.sh"
+if [ ! -x "$SPEC_TRAILER_CHECK" ]; then
+    echo "  VGT12: $SPEC_TRAILER_CHECK is missing — the check cannot run; restore it from vauchi/scripts." >&2
+    exit 1
 fi
+"$SPEC_TRAILER_CHECK" --staged "$MSG_FILE" || exit 1
 
 # VGT13: a behaviour change to how exchange codes are read or drawn says
 # how it ran on the rig at both ends of the 7–14 cm target. Generated
