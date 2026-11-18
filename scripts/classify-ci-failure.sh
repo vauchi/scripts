@@ -60,7 +60,7 @@ CATS=(
 PATS=(
   "sha256sum: WARNING: [1-9][0-9]* computed checksums? did NOT match"
   "sccache: error: Timed out waiting for server startup"
-  "FAIL: .* pins Core crates at another tag than (the )?set's v"
+  "FAIL: .* (pins|resolves) Core crates at another tag than (the )?set's v"
   "The .?\\[script\\].? attribute is currently unstable"
   "VSP01: pinned ci-templates-v[0-9]+\\.[0-9]+\\.[0-9]+ is not among the latest ci-template tags"
   "ERROR: PARSER_FILE not found:"

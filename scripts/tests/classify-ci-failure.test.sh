@@ -97,6 +97,8 @@ expect_category "cargo-deny duplicate warning is not a dependency failure" \
     "warning[duplicate]: found 2 duplicate entries for crate 'console'" "unknown"
 expect_category "pinned release cohort mismatch" \
     "FAIL: relay/Cargo.toml pins Core crates at another tag than the set's v0.99.1:" "dep-resolution"
+expect_category "lockfile release cohort mismatch" \
+    "FAIL: Cargo.lock resolves Core crates at another tag than the set's v0.106.2:" "dep-resolution"
 expect_category "Git checkout DNS failure" \
     "fatal: unable to access 'https://gitlab.com/vauchi/linux-qt.git/': Could not resolve host: gitlab.com" \
     "transient-network"
