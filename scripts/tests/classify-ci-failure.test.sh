@@ -91,6 +91,8 @@ expect_category "dependency resolution" \
 expect_category "cargo-deny rejects duplicate contract versions" \
     "2026-11-13T08:30:54Z 01E error[duplicate]: found 2 duplicate entries for crate 'vauchi-contract'" \
     "dep-resolution"
+expect_category "cargo-deny rejects an unmaintained dependency" \
+    "error[unmaintained]: chrono is unmaintained" "dep-resolution"
 expect_escalate "cargo-deny duplicate failure is actionable" \
     "error[duplicate]: found 2 duplicate entries for crate 'vauchi-contract'" "false"
 expect_category "cargo-deny duplicate warning is not a dependency failure" \
