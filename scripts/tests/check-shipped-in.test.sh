@@ -26,14 +26,21 @@ assert_eq() {
 }
 
 # Stub: core!2329 merged, core!9 open, relay@0f5cffb on main, relay@1111111
-# only on a branch; the path "down" fails like an outage.
+# only on a branch, relay@2222222 on main but in so many branches that the
+# first page of its branch list lacks main (private#1317); the path "down"
+# fails like an outage. The merge base of a sha and main is the sha itself
+# exactly when the sha is on main.
 cat > "$work/api" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
     *core/merge_requests/2329) echo '{"state": "merged"}' ;;
     *core/merge_requests/9) echo '{"state": "opened"}' ;;
+    *relay/repository/merge_base*0f5cffb*) echo '{"id": "0f5cffb000000000000000000000000000000000"}' ;;
+    *relay/repository/merge_base*1111111*) echo '{"id": "9999999000000000000000000000000000000000"}' ;;
+    *relay/repository/merge_base*2222222*) echo '{"id": "2222222000000000000000000000000000000000"}' ;;
     *relay/repository/commits/0f5cffb/refs*) echo '[{"type": "branch", "name": "main"}]' ;;
     *relay/repository/commits/1111111/refs*) echo '[{"type": "branch", "name": "issue/1"}]' ;;
+    *relay/repository/commits/2222222/refs*) echo '[{"type": "branch", "name": "issue/1"}, {"type": "branch", "name": "issue/2"}]' ;;
     *down*) exit 1 ;;
     *) echo '{}' ;;
 esac
@@ -84,6 +91,13 @@ commit_file "$r" src/index.md 'docs: a page
 Shipped-in: relay@0f5cffb'
 run_range "$r" docs
 assert_eq "cited sha on main: exit 0" "0" "$rc"
+
+r=$(new_repo docs)
+commit_file "$r" src/index.md 'docs: a page
+
+Shipped-in: relay@2222222'
+run_range "$r" docs
+assert_eq "cited sha on main beyond the first page of its branches: exit 0" "0" "$rc"
 
 r=$(new_repo docs)
 commit_file "$r" src/index.md 'docs: a page
