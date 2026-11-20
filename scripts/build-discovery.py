@@ -181,9 +181,16 @@ def public_markdown(path, source, depth=0):
     )
 
 
-def authored_description(markdown_text):
-    """The page's own `<!-- description: ... -->`, written for search snippets."""
-    match = AUTHORED_DESCRIPTION.search(markdown_text)
+FENCED_CODE = re.compile(r"^(```|~~~).*?^\1[^\n]*$", re.M | re.S)
+
+
+def authored_description(page_markdown):
+    """The page's own `<!-- description: ... -->`, written for search snippets.
+
+    Read from the page's source before includes are expanded and with code
+    fences removed, so neither a fragment nor an example can supply it.
+    """
+    match = AUTHORED_DESCRIPTION.search(FENCED_CODE.sub("", page_markdown))
     return " ".join(match[1].split()) if match else None
 
 
@@ -234,7 +241,7 @@ def generate(root):
         escaped_title = html.escape(title, quote=True)
         summary = ChapterDescription()
         summary.feed(document)
-        chapter_description = authored_description(body) or (
+        chapter_description = authored_description(markdown.read_text()) or (
             description if path == "index.html" else next(iter(summary.paragraphs), description)
         )
         if snippet_length and not snippet_length[0] <= len(chapter_description) <= snippet_length[1]:
