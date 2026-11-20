@@ -378,6 +378,32 @@ metrics:queue:
     - scripts/ci/queue-metrics.sh --ci
   allow_failure: true
 
+# Every public project has a current GitHub mirror (private#1319). The
+# mirror job itself is allow_failure, so this nightly run is what goes red.
+check:github-mirrors:
+  stage: metrics
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine:3.21
+  tags: [docker]
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PIPELINE_SCHEDULE_DESCRIPTION == "Nightly"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+      allow_failure: true
+  before_script:
+    - |
+      for attempt in 1 2 3; do
+          apk add --no-cache git python3 && installed=yes && break
+          echo "apk add failed (attempt $attempt/3), retrying in 5s" >&2
+          sleep 5
+      done
+      if [ "${installed:-}" != yes ]; then
+          echo "apk add failed after 3 attempts" >&2
+          exit 1
+      fi
+  script:
+    - python3 scripts/check-github-mirrors.py
+
 # ============================================================
 # Deploy Stage — Badge Pages
 # ============================================================
