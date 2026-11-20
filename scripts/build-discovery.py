@@ -46,6 +46,7 @@ def guard_sidebar_storage(book):
 ORIGIN = "https://vauchi.app"
 NAMESPACE = "http://www.sitemaps.org/schemas/sitemap/0.9"
 DATE_PATTERN = r"(?:\d{4}-\d{2}-\d{2}|[A-Za-z]+\s+(?:\d{1,2},?\s+)?\d{4})"
+AUTHORED_DESCRIPTION = re.compile(r"<!--\s*description:\s*(.*?)\s*-->", re.S)
 CHAPTER_METADATA = re.compile(
     rf"(?:Last\s+Updated:\s*{DATE_PATTERN}|"
     rf"Version\s+\d+(?:\.\d+)*(?:\s*[—–-]\s*{DATE_PATTERN})?)\.?",
@@ -180,6 +181,12 @@ def public_markdown(path, source, depth=0):
     )
 
 
+def authored_description(markdown_text):
+    """The page's own `<!-- description: ... -->`, written for search snippets."""
+    match = AUTHORED_DESCRIPTION.search(markdown_text)
+    return " ".join(match[1].split()) if match else None
+
+
 def generate(root):
     config = tomllib.loads((root / "book.toml").read_text())
     book = root / config.get("build", {}).get("build-dir", "book")
@@ -198,6 +205,9 @@ def generate(root):
         raise ValueError("site-url must be a mounted path with trailing slash")
     name = config["book"]["title"]
     description = config["book"].get("description", name)
+    # Under [output.html]: mdBook preprocessors warn about unknown top-level tables.
+    snippet_length = config["output"]["html"].get("vauchi-discovery", {}).get("description-length")
+    out_of_range = []
     ET.register_namespace("", NAMESPACE)
     sitemap = ET.Element(f"{{{NAMESPACE}}}urlset")
     guard_sidebar_storage(book)
@@ -224,7 +234,11 @@ def generate(root):
         escaped_title = html.escape(title, quote=True)
         summary = ChapterDescription()
         summary.feed(document)
-        chapter_description = description if path == "index.html" else next(iter(summary.paragraphs), description)
+        chapter_description = authored_description(body) or (
+            description if path == "index.html" else next(iter(summary.paragraphs), description)
+        )
+        if snippet_length and not snippet_length[0] <= len(chapter_description) <= snippet_length[1]:
+            out_of_range.append(f"{path}: description is {len(chapter_description)} characters")
         escaped_description = html.escape(chapter_description, quote=True)
         tags = [
             '<!-- vauchi-discovery:start -->',
@@ -251,6 +265,12 @@ def generate(root):
         files.append((title, markdown_url))
     if not files:
         raise ValueError("no public book pages generated")
+    if out_of_range:
+        low, high = snippet_length
+        raise ValueError(
+            f"descriptions must be {low}-{high} characters; add or fix a "
+            "<!-- description: ... --> comment in each page's Markdown:\n  " + "\n  ".join(out_of_range)
+        )
     ET.ElementTree(sitemap).write(book / "sitemap.xml", encoding="utf-8", xml_declaration=True)
     curated = source / "llms.txt"
     if curated.is_file():
