@@ -82,7 +82,7 @@ api_get() { # $1=path → body on stdout; non-zero when the call fails
 }
 
 resolve() { # $1=value → 0 resolved, 1 refuted, 2 cannot tell
-    local v="$1" ref repo target project body
+    local v="$1" ref repo target project body base
     case "$v" in
         roadmap|limit|n/a\ —\ *) return 0 ;;
         correction\ *) ref="${v#correction }" ;;
@@ -101,8 +101,14 @@ resolve() { # $1=value → 0 resolved, 1 refuted, 2 cannot tell
         printf '%s' "$body" | grep -qE '"state": *"merged"' && return 0
         return 1
     fi
-    body=$(api_get "projects/$project/repository/commits/$target/refs?type=branch") || return 2
-    printf '%s' "$body" | grep -qE '"name": *"main"' && return 0
+    # The merge base of a commit and main is the commit itself exactly when
+    # it is on main. Listing the commit's branches is paginated, so main can
+    # sit beyond the first page (private#1317).
+    body=$(api_get "projects/$project/repository/merge_base?refs[]=$target&refs[]=main") || return 2
+    base=$(printf '%s' "$body" | grep -oE '"id": *"[0-9a-f]{40}"' | head -n 1 | grep -oE '[0-9a-f]{40}')
+    case "$base" in
+        "$target"*) return 0 ;;
+    esac
     return 1
 }
 
