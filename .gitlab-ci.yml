@@ -17,6 +17,7 @@ include:
   - local: '/ci-templates/badges.yml'
   - local: '/ci-templates/shipped-in.yml'
   - local: '/ci-templates/spec-trailer.yml'
+  - local: '/ci-templates/github-mirror.yml'
 
 variables:
   SECRET_DETECTION_EXCLUDED_PATHS: "archive/"
@@ -383,3 +384,6 @@ metrics:queue:
 
 pages:
   extends: .badges-pages
+
+github-mirror:
+  extends: .github-mirror
