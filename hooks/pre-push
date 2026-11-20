@@ -378,7 +378,9 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
 fi
 
 # REUSE is a repository-wide invariant, including data/config files.
-if [[ "$REPO_DIR" != "_private" && "$REPO_DIR" != "docs" && "$REPO_DIR" != "spec" && -n "$(command -v reuse 2>/dev/null || true)" ]]; then
+# A fork keeps upstream's licensing layout (repos.toml `fork = true`).
+if [[ "$REPO_DIR" != "_private" && "$REPO_DIR" != "docs" && "$REPO_DIR" != "spec" && -n "$(command -v reuse 2>/dev/null || true)" ]] \
+    && ! bash "$HOOK_DIR/lib/repo-is-fork.sh" "$REPO_ROOT"; then
     echo ""
     echo "  Checking REUSE compliance before non-code fast path..."
     if ! reuse lint >/dev/null 2>&1; then
