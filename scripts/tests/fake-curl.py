@@ -60,14 +60,14 @@ while i < len(args):
 status = os.environ.get("FAKE_CURL_STATUS", "200")
 body = os.environ.get("FAKE_CURL_BODY", "[]")
 if os.environ.get("FAKE_CURL_ROUTES"):
-    with open(os.environ["FAKE_CURL_ROUTES"]) as routes:
+    with open(os.environ["FAKE_CURL_ROUTES"], encoding="utf-8") as routes:
         for route in routes:
             fragment, route_status, route_body = route.rstrip("\n").split("\t", 2)
             if fragment in url:
                 status, body = route_status, route_body
                 break
 if os.environ.get("FAKE_CURL_LOG"):
-    with open(os.environ["FAKE_CURL_LOG"], "a") as log:
+    with open(os.environ["FAKE_CURL_LOG"], "a", encoding="utf-8") as log:
         log.write(f"{method} {url}\n")
 
 if status == "000":
@@ -80,7 +80,7 @@ if status == "000":
 failing = int(status) >= 400 and (fail or fail_with_body)
 if not (failing and not fail_with_body):
     if output:
-        with open(output, "w") as handle:
+        with open(output, "w", encoding="utf-8") as handle:
             handle.write(body)
     else:
         sys.stdout.write(body)

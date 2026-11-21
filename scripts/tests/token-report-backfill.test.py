@@ -128,7 +128,7 @@ class BackfillCommandTests(unittest.TestCase):
             self.assertEqual(summary["sessions"], {"claude": 1, "codex": 1, "kimi": 1})
             self.assertEqual(summary["streams"], {"claude": 1, "codex": 1, "kimi": 2})
             records = [
-                json.loads(line) for line in output.read_text().splitlines()
+                json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()
             ]
             serialized = json.dumps(records)
             self.assertEqual({record["agent"] for record in records}, {
@@ -194,7 +194,7 @@ class BackfillCommandTests(unittest.TestCase):
             receipt = json.loads(result.stdout)
             self.assertEqual(receipt["session_type"], "review")
             self.assertEqual(receipt["outcome"], "confirmed")
-            self.assertNotIn("session-secret", output.read_text())
+            self.assertNotIn("session-secret", output.read_text(encoding="utf-8"))
 
     def _write_claude(self, home: Path, workspace: Path) -> None:
         project = home / "projects/-workspace-vauchi"

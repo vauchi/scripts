@@ -17,7 +17,7 @@ CORE_REPO = "https://gitlab.com/vauchi/core.git"
 
 
 def job_script(template, job):
-    lines = (ROOT / "ci-templates" / template).read_text().splitlines()
+    lines = (ROOT / "ci-templates" / template).read_text(encoding="utf-8").splitlines()
     start = lines.index(job + ":")
     for index in range(start + 1, len(lines)):
         if lines[index] == "  script:":
@@ -46,16 +46,16 @@ class ContractPinnedPresentation(unittest.TestCase):
                 '[dependencies]\nvauchi-contract = { git = "'
                 + CONTRACT_REPO
                 + ('", tag = "v0.97.2" }\n' if tagged else '", branch = "main" }\n')
-            )
+            , encoding="utf-8")
             if ref_file is not None:
-                (work / "contract-ref").write_text(ref_file)
+                (work / "contract-ref").write_text(ref_file, encoding="utf-8")
             (work / "nodes.rs").write_text(
                 "pub enum PresentationNode {\n    Text { value: String },\n    Divider,\n}\n"
-            )
+            , encoding="utf-8")
             (work / "renderer.rs").write_text(
                 "PresentationNode::Text\n"
                 + ("" if missing else "PresentationNode::Divider\n")
-            )
+            , encoding="utf-8")
             fake_git = binary_dir / "git"
             fake_git.write_text(
                 "#!/usr/bin/env python3\n"
@@ -69,7 +69,7 @@ class ContractPinnedPresentation(unittest.TestCase):
                 "        dest = target / relative\n"
                 "        dest.parent.mkdir(parents=True, exist_ok=True)\n"
                 "        shutil.copyfile(os.environ['FIXTURE_NODES'], dest)\n"
-            )
+            , encoding="utf-8")
             fake_git.chmod(0o755)
             fake_wget = binary_dir / "wget"
             fake_wget.write_text(
@@ -77,7 +77,7 @@ class ContractPinnedPresentation(unittest.TestCase):
                 "import os, shutil, sys\n"
                 "shutil.copyfile(os.environ['PARSER_CHECKER'], "
                 "sys.argv[sys.argv.index('-O') + 1])\n"
-            )
+            , encoding="utf-8")
             fake_wget.chmod(0o755)
             env = {
                 **os.environ,
@@ -110,7 +110,7 @@ class ContractPinnedPresentation(unittest.TestCase):
                 capture_output=True, text=True, check=False,
             )
             calls = work / "git.jsonl"
-            git_calls = [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
+            git_calls = [json.loads(line) for line in calls.read_text(encoding="utf-8").splitlines()] if calls.exists() else []
             return result, git_calls
 
     # @internal — ADR-078 display checks read their own contract pin.

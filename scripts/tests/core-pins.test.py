@@ -217,13 +217,13 @@ def test_the_command_line_reads_bumps_and_reports_errors():
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:
         manifest = Path(tmp) / "Cargo.toml"
-        manifest.write_text(CARGO)
+        manifest.write_text(CARGO, encoding="utf-8")
         read = _cli("read", "--kind", "cargo", str(manifest))
         assert (read.returncode, read.stdout) == (0, "v0.68.0\n")
 
         bump = _cli("bump", "--kind", "cargo", "--version", "0.69.0", str(manifest))
         assert (bump.returncode, bump.stdout) == (0, "vauchi-core\nvauchi-app\nrqrr\n")
-        assert PINS.read_pin("cargo", manifest.read_text()) == "v0.69.0"
+        assert PINS.read_pin("cargo", manifest.read_text(encoding="utf-8")) == "v0.69.0"
 
         missing = _cli("read", "--kind", "cargo", str(Path(tmp) / "absent.toml"))
         assert missing.returncode == 2 and "No such file" in missing.stderr
@@ -238,14 +238,14 @@ def test_check_reads_pins_from_git_and_strict_fails_only_on_lag():
         core = root / "core"
         (core / "ci").mkdir(parents=True)
         (core / "ci" / "consumer-pins.json").write_text(json.dumps({"consumers": [
-            {"repo": "cli", "kind": "cargo", "file": "Cargo.toml", "bumped_by": "bump:consumer-pins"}]}))
+            {"repo": "cli", "kind": "cargo", "file": "Cargo.toml", "bumped_by": "bump:consumer-pins"}]}), encoding="utf-8")
         _git("init", "-q", cwd=core)
         _git("add", "-A", cwd=core)
         _git("commit", "-q", "-m", "init", cwd=core)
         _git("tag", "v0.69.0", cwd=core)
         cli = root / "cli"
         cli.mkdir()
-        (cli / "Cargo.toml").write_text(CARGO)
+        (cli / "Cargo.toml").write_text(CARGO, encoding="utf-8")
         _git("init", "-q", cwd=cli)
         _git("add", "-A", cwd=cli)
         _git("commit", "-q", "-m", "init", cwd=cli)
@@ -255,7 +255,7 @@ def test_check_reads_pins_from_git_and_strict_fails_only_on_lag():
         assert "behind" in lagging.stdout and "v0.68.0" in lagging.stdout
         assert _cli("check", "--root", str(root), "--ref", "main").returncode == 0, "without --strict it only reports"
 
-        (cli / "Cargo.toml").write_text(PINS.bump_pin("cargo", CARGO, "0.69.0")[0])
+        (cli / "Cargo.toml").write_text(PINS.bump_pin("cargo", CARGO, "0.69.0")[0], encoding="utf-8")
         _git("commit", "-q", "-am", "bump", cwd=cli)
         current = _cli("check", "--root", str(root), "--ref", "main", "--strict")
         assert current.returncode == 0, current.stdout + current.stderr
@@ -269,7 +269,7 @@ def test_fetch_reads_the_table_after_fetching_core():
         remote = root / "core-remote.git"
         seed = root / "seed"
         seed.mkdir()
-        (seed / "README").write_text("core\n")
+        (seed / "README").write_text("core\n", encoding="utf-8")
         _git("init", "-q", cwd=seed)
         _git("add", "-A", cwd=seed)
         _git("commit", "-q", "-m", "init", cwd=seed)
@@ -280,7 +280,7 @@ def test_fetch_reads_the_table_after_fetching_core():
         # The table lands on core's remote after the local clone was made.
         (seed / "ci").mkdir()
         (seed / "ci" / "consumer-pins.json").write_text(json.dumps({"consumers": [
-            {"repo": "cli", "kind": "cargo", "file": "Cargo.toml", "bumped_by": "bump:consumer-pins"}]}))
+            {"repo": "cli", "kind": "cargo", "file": "Cargo.toml", "bumped_by": "bump:consumer-pins"}]}), encoding="utf-8")
         _git("add", "-A", cwd=seed)
         _git("commit", "-q", "-m", "table", cwd=seed)
         _git("push", "-q", str(remote), "HEAD:main", cwd=seed)
@@ -288,7 +288,7 @@ def test_fetch_reads_the_table_after_fetching_core():
         cli_remote = root / "cli-remote.git"
         cli_seed = root / "cli-seed"
         cli_seed.mkdir()
-        (cli_seed / "Cargo.toml").write_text(CARGO)
+        (cli_seed / "Cargo.toml").write_text(CARGO, encoding="utf-8")
         _git("init", "-q", cwd=cli_seed)
         _git("add", "-A", cwd=cli_seed)
         _git("commit", "-q", "-m", "init", cwd=cli_seed)
@@ -296,7 +296,7 @@ def test_fetch_reads_the_table_after_fetching_core():
         _git("clone", "-q", str(cli_remote), str(root / "cli"), cwd=root)
         # cli is bumped on its remote after the local clone: only a fetch of
         # cli, listed by the table core just gained, can see it.
-        (cli_seed / "Cargo.toml").write_text(PINS.bump_pin("cargo", CARGO, "0.69.0")[0])
+        (cli_seed / "Cargo.toml").write_text(PINS.bump_pin("cargo", CARGO, "0.69.0")[0], encoding="utf-8")
         _git("commit", "-q", "-am", "bump", cwd=cli_seed)
         _git("push", "-q", str(cli_remote), "HEAD:main", cwd=cli_seed)
 
@@ -402,8 +402,8 @@ def test_merge_gate_command_fails_on_development_pins_and_passes_after_restoring
             ("v0.68.0", "v0.68.0-dev.6", 2, "locked Core source"),
             ("v0.68.0", "v0.68.0", 0, "Stable Core pin: v0.68.0"),
         ]:
-            manifest.write_text(CARGO.replace('tag = "v0.68.0"', f'tag = "{tag}"'))
-            lock.write_text(release_lock(locked_tag))
+            manifest.write_text(CARGO.replace('tag = "v0.68.0"', f'tag = "{tag}"'), encoding="utf-8")
+            lock.write_text(release_lock(locked_tag), encoding="utf-8")
             result = subprocess.run(
                 [sys.executable, str(MODULE_PATH), "require-release", "--kind", "cargo", str(manifest), "--lockfile", str(lock)],
                 capture_output=True, text=True, check=False,

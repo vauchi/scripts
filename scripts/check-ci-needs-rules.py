@@ -66,7 +66,7 @@ Loader.add_constructor("!reference", _reference)
 
 
 def load(path: Path) -> dict:
-    return yaml.load(path.read_text(), Loader=Loader) or {}
+    return yaml.load(path.read_text(encoding="utf-8"), Loader=Loader) or {}
 
 
 def resolve_reference(config: dict, ref: Reference):

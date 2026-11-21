@@ -33,14 +33,14 @@ Feature: Duress PIN
 
 def _tree(root: Path, tests: dict[str, str], baseline: str | None = None) -> None:
     (root / "features").mkdir()
-    (root / "features" / "duress_pin.feature").write_text(FEATURE)
+    (root / "features" / "duress_pin.feature").write_text(FEATURE, encoding="utf-8")
     for rel, body in tests.items():
         path = root / "repo" / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(body)
+        path.write_text(body, encoding="utf-8")
     (root / "repo").mkdir(exist_ok=True)
     if baseline is not None:
-        (root / "baseline").write_text(baseline)
+        (root / "baseline").write_text(baseline, encoding="utf-8")
 
 
 def _run(root: Path, *extra: str) -> subprocess.CompletedProcess:
@@ -155,7 +155,7 @@ def test_write_baseline_lists_exactly_the_untested_scenarios() -> None:
         assert run.returncode == 0, run.stdout + run.stderr
         entries = [
             line
-            for line in (root / "baseline").read_text().splitlines()
+            for line in (root / "baseline").read_text(encoding="utf-8").splitlines()
             if line and not line.startswith("#")
         ]
         assert entries == ["duress_pin :: Unlock with <pin>"], entries
@@ -177,7 +177,7 @@ def test_an_annotation_naming_no_scenario_fails_and_is_named() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _tree(root, DANGLING_TESTS, baseline="")
-        (root / "dangling").write_text("")
+        (root / "dangling").write_text("", encoding="utf-8")
         run = _run(root, "--dangling-baseline", str(root / "dangling"))
         assert run.returncode == 1, run.stdout + run.stderr
         assert "1 @scenario annotation(s) naming no scenario" in run.stdout, run.stdout
@@ -188,7 +188,7 @@ def test_a_baselined_dangling_annotation_passes() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _tree(root, DANGLING_TESTS, baseline="")
-        (root / "dangling").write_text("# grandfathered\nduress_pin :: Enable duress mod\n")
+        (root / "dangling").write_text("# grandfathered\nduress_pin :: Enable duress mod\n", encoding="utf-8")
         run = _run(root, "--dangling-baseline", str(root / "dangling"))
         assert run.returncode == 0, run.stdout + run.stderr
 
@@ -198,7 +198,7 @@ def test_an_annotation_naming_a_planned_scenario_is_not_dangling() -> None:
         root = Path(tmp)
         _tree(root, {**DANGLING_TESTS, "b.rs": "// @scenario: duress_pin :: Plan only\n"},
               baseline="")
-        (root / "dangling").write_text("duress_pin :: Enable duress mod\n")
+        (root / "dangling").write_text("duress_pin :: Enable duress mod\n", encoding="utf-8")
         run = _run(root, "--dangling-baseline", str(root / "dangling"))
         assert run.returncode == 0, run.stdout + run.stderr
 
@@ -219,7 +219,7 @@ def test_write_baseline_also_writes_the_dangling_baseline() -> None:
         assert run.returncode == 0, run.stdout + run.stderr
         entries = [
             line
-            for line in (root / "dangling").read_text().splitlines()
+            for line in (root / "dangling").read_text(encoding="utf-8").splitlines()
             if line and not line.startswith("#")
         ]
         assert entries == ["duress_pin :: enable duress mod"], entries
@@ -245,7 +245,7 @@ def _git_repo(root: Path, base: dict[str, str], added: dict[str, str]) -> str:
     sha = _git(repo, "rev-parse", "HEAD")
     for rel, body in added.items():
         (repo / rel).parent.mkdir(parents=True, exist_ok=True)
-        (repo / rel).write_text(body)
+        (repo / rel).write_text(body, encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "--allow-empty", "-m", "mr")
     return sha

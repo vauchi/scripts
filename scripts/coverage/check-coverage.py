@@ -19,7 +19,7 @@ def load_coverage_data(pattern):
 
     for file in coverage_files:
         try:
-            with open(file, "r") as f:
+            with open(file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 # Handle different coverage report formats
                 if "percent" in data:
@@ -94,7 +94,7 @@ def check_minimum_coverage(minimum_percent):
     }
 
     # Write report file
-    with open("coverage-report.json", "w") as f:
+    with open("coverage-report.json", "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2)
 
     # Exit with appropriate code

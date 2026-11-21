@@ -22,14 +22,14 @@ def run_gate(root, repo, failing=""):
     binary = root / "bin"
     binary.mkdir(exist_ok=True)
     cargo = binary / "cargo"
-    cargo.write_text(FAKE_CARGO)
+    cargo.write_text(FAKE_CARGO, encoding="utf-8")
     cargo.chmod(0o755)
     log = root / "calls"
     environment = dict(os.environ, PATH=f"{binary}:{os.environ['PATH']}",
                        CALL_LOG=str(log), FAIL_PHASE=failing)
     result = subprocess.run(["bash", str(GATE), str(repo)], env=environment,
                             text=True, capture_output=True, timeout=10)
-    calls = log.read_text().splitlines() if log.exists() else []
+    calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
     return result, calls
 
 

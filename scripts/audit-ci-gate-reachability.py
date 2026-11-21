@@ -61,7 +61,7 @@ job_total = 0
 
 for f in files:
     try:
-        lines = f.read_text().splitlines()
+        lines = f.read_text(encoding="utf-8").splitlines()
     except Exception:
         continue
     # Collect each top-level block.

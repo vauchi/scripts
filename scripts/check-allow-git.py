@@ -27,7 +27,7 @@ from pathlib import Path
 
 def read_list(path: Path) -> set[str]:
     entries = set()
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             entries.add(line)

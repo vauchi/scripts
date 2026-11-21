@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class CmakeGateTests(unittest.TestCase):
     # @internal — a timing wrapper must preserve failure and skip statuses
     def test_pre_push_timing_wrapper_preserves_conditional_exit_status(self):
-        hook = (ROOT / "hooks/pre-push").read_text()
+        hook = (ROOT / "hooks/pre-push").read_text(encoding="utf-8")
         wrapper = re.search(r"    time_step\(\) \{.*?\n    \}", hook, re.S)
         self.assertIsNotNone(wrapper)
         for status in (0, 17, 77):
@@ -46,7 +46,7 @@ case "$(basename "$0"):$1" in
 esac
 printf '%s %s\\n' "$phase" "$*" >> "$CALL_LOG"
 [ "$phase" != "$FAIL_PHASE" ]
-''')
+''', encoding="utf-8")
                     tool.chmod(0o755)
                 log = root / "calls"
                 environment = dict(os.environ, PATH=f"{binary}:{os.environ['PATH']}",
@@ -54,7 +54,7 @@ printf '%s %s\\n' "$phase" "$*" >> "$CALL_LOG"
                 result = subprocess.run(["bash", str(ROOT / "scripts/cmake-check.sh"), str(source)],
                                         env=environment, text=True, capture_output=True, timeout=10)
                 self.assertEqual(result.returncode == 0, not failing, result.stderr)
-                calls = log.read_text().splitlines()
+                calls = log.read_text(encoding="utf-8").splitlines()
                 phases = [line.split()[0] for line in calls]
                 expected = ["configure", "build", "test"]
                 if failing:
@@ -66,7 +66,7 @@ printf '%s %s\\n' "$phase" "$*" >> "$CALL_LOG"
 
     # @internal — unknown build systems must not receive a passing stamp
     def test_pre_push_unknown_project_fails(self):
-        hook = (ROOT / "hooks/pre-push").read_text()
+        hook = (ROOT / "hooks/pre-push").read_text(encoding="utf-8")
         unknown = re.search(r"# ─── Unknown repo type[^\n]*\n\s*\n\s*else\n(.*?)\n    fi", hook, re.S)
         self.assertIsNotNone(unknown)
         result = subprocess.run(["bash", "-c", unknown.group(1)], capture_output=True, text=True)

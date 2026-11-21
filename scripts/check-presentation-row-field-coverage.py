@@ -167,7 +167,7 @@ def main() -> int:
     exemptions_path = (
         Path(args.exemptions) if args.exemptions else Path(__file__).with_name(EXEMPTIONS_FILE)
     )
-    exemptions = json.loads(exemptions_path.read_text()) if exemptions_path.is_file() else {}
+    exemptions = json.loads(exemptions_path.read_text(encoding="utf-8")) if exemptions_path.is_file() else {}
 
     fields = extract_fields(struct_path)
     print(f"── {STRUCT_NAME} field coverage ──")

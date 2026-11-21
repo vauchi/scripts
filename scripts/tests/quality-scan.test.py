@@ -37,7 +37,7 @@ class QualityScanTests(ScanFixture):
         core = self.init_repo(self.root / "core")
         self.tracked(self.root, "root.py", "value = 1\n")
         self.tracked(core, "tests/value.rs", "#[test]\nfn value() { assert!(true); }\n")
-        (core / "untracked.rs").write_text("todo!();\n")
+        (core / "untracked.rs").write_text("todo!();\n", encoding="utf-8")
         data = self.report()
         self.assertTrue(data["advisory"])
         self.assertEqual([r["name"] for r in data["repositories"]], ["root", "core"])
@@ -97,7 +97,7 @@ class QualityScanTests(ScanFixture):
 
     def test_symlinks_are_reported_without_following_external_source(self):
         outside = Path(self.temp.name) / "outside.rs"
-        outside.write_text("todo!();\n")
+        outside.write_text("todo!();\n", encoding="utf-8")
         (self.root / "link.rs").symlink_to(outside)
         self.git(self.root, "add", "link.rs")
         data = self.report()
@@ -118,7 +118,7 @@ class QualityScanTests(ScanFixture):
         path.parent.rmdir()
         outside = Path(self.temp.name) / "external"
         outside.mkdir()
-        (outside / "lib.rs").write_text("todo!();\n")
+        (outside / "lib.rs").write_text("todo!();\n", encoding="utf-8")
         (self.root / "src").symlink_to(outside, target_is_directory=True)
         data = self.report()
         self.assertEqual(data["candidates"], [])
@@ -182,7 +182,7 @@ class QualityScanTests(ScanFixture):
                                  "macro_invocations": 0}]}
         self.complexity_helper(metric)
         data = self.report("--complexity")
-        self.assertEqual(json.loads(self.capture.read_text()), [
+        self.assertEqual(json.loads(self.capture.read_text(encoding="utf-8")), [
             {"path": "src/a.rs", "source": "fn nested() { if a { if b {} } }\n"}
         ])
         self.assertEqual(data["candidate_count"], 0)
@@ -216,7 +216,7 @@ class QualityScanTests(ScanFixture):
         unexpected = Path(self.temp.name) / "unexpected-helper"
         marker = Path(self.temp.name) / "unexpected-executed"
         unexpected.write_text("#!/usr/bin/env python3\nfrom pathlib import Path\n"
-                              f"Path({str(marker)!r}).touch()\nprint('bad helper')\n")
+                              f"Path({str(marker)!r}).touch()\nprint('bad helper')\n", encoding="utf-8")
         unexpected.chmod(0o755)
         self.extra_env = {"VAUCHI_COMPLEXITY_BIN": str(unexpected)}
         self.assertEqual(self.report("--complexity")["complexity"]["files_analyzed"], 1)
@@ -230,7 +230,7 @@ class QualityScanTests(ScanFixture):
         unexpected.parent.mkdir(parents=True)
         marker = Path(self.temp.name) / "workspace-executed"
         unexpected.write_text("#!/usr/bin/env python3\nfrom pathlib import Path\n"
-                              f"Path({str(marker)!r}).touch()\nprint('wrong helper')\n")
+                              f"Path({str(marker)!r}).touch()\nprint('wrong helper')\n", encoding="utf-8")
         unexpected.chmod(0o755)
         self.assertEqual(self.report("--complexity")["complexity"]["files_analyzed"], 1)
         self.assertFalse(marker.exists())

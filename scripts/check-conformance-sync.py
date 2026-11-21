@@ -123,8 +123,8 @@ def main() -> int:
                 text_a = fetch_own_or_main(proj_a, path_a, own_ref)
                 text_b = fetch_own_or_main(proj_b, path_b, own_ref)
             else:
-                text_a = (root / PROJECT_PATHS[proj_a] / path_a).read_text()
-                text_b = (root / PROJECT_PATHS[proj_b] / path_b).read_text()
+                text_a = (root / PROJECT_PATHS[proj_a] / path_a).read_text(encoding="utf-8")
+                text_b = (root / PROJECT_PATHS[proj_b] / path_b).read_text(encoding="utf-8")
         except Exception as error:
             print(f"ERROR {name}: {error}", file=sys.stderr)
             return 2

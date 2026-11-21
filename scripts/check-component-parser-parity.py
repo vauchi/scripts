@@ -192,7 +192,7 @@ def extract_variants(enum_path: Path, enum_name: str) -> list[str]:
 
     Recognises both `Variant {`, `Variant(`, and `Variant,` forms.
     """
-    text = enum_path.read_text()
+    text = enum_path.read_text(encoding="utf-8")
     pattern = re.compile(
         rf"pub enum {enum_name}\b[^{{]*\{{(.*?)^\}}",
         re.DOTALL | re.MULTILINE,
@@ -264,11 +264,11 @@ def parser_text(parser_path: Path) -> str:
     """Read one parser file or concatenate a split parser directory."""
     if parser_path.is_dir():
         return "\n".join(
-            path.read_text()
+            path.read_text(encoding="utf-8")
             for path in sorted(parser_path.rglob("*"))
             if path.is_file() and path.suffix in {".rs", ".cpp", ".cs", ".kt", ".swift", ".tsx"}
         )
-    return parser_path.read_text()
+    return parser_path.read_text(encoding="utf-8")
 
 
 def main() -> int:

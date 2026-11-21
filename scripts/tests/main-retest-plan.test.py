@@ -194,7 +194,7 @@ def test_a_template_job_holds_back_only_where_the_repository_opts_in():
 def test_each_opted_template_job_starts_with_the_opt_in_rule():
     templates = MODULE_PATH.parents[1] / "ci-templates"
     for name, jobs in TEMPLATE_JOBS.items():
-        config = yaml.safe_load((templates / name).read_text())
+        config = yaml.safe_load((templates / name).read_text(encoding="utf-8"))
         for job in jobs:
             assert config[job]["rules"][0] == OPT_IN, f"{name} {job}: {config[job]['rules'][0]}"
 
@@ -206,7 +206,7 @@ def test_main_retest_off_runs_the_marked_jobs_in_main_so_the_child_is_empty():
 
 
 def test_the_templates_marker_rule_is_the_one_the_planner_finds():
-    template = yaml.safe_load((MODULE_PATH.parents[1] / "ci-templates/main-retest.yml").read_text())
+    template = yaml.safe_load((MODULE_PATH.parents[1] / "ci-templates/main-retest.yml").read_text(encoding="utf-8"))
     rule = template[".main-retest"]["rules"][0]
     assert PLAN.MARKER in rule["if"] and rule["when"] == "never"
     assert rule["if"] == MARK["if"], "the fixture must mark jobs exactly as the template does"

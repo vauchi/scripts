@@ -71,5 +71,5 @@ class ScanFixture(unittest.TestCase):
             "#!/usr/bin/env python3\nimport json, pathlib, sys\n"
             f"pathlib.Path({str(self.capture)!r}).write_text(sys.stdin.read())\n"
             f"print({json.dumps(response)!r})\nsys.exit({exit_code})\n"
-        )
+        , encoding="utf-8")
         self.helper.chmod(0o755)

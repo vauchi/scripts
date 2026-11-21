@@ -178,7 +178,7 @@ def gitlab_api(base, token):
 
 
 def merged_yaml(base, token, project, config_path):
-    body = urllib.parse.urlencode({"content": open(config_path).read(), "include_merged_yaml": "true"}).encode()
+    body = urllib.parse.urlencode({"content": open(config_path, encoding="utf-8").read(), "include_merged_yaml": "true"}).encode()
     request = urllib.request.Request(f"{base}/projects/{project}/ci/lint", data=body,
                                      headers={"PRIVATE-TOKEN": token})
     with urllib.request.urlopen(request, timeout=60) as response:
@@ -196,7 +196,7 @@ def main(argv):
     # main is red rather than silently untested.
     text = merged_yaml(base, token, project, env.get("CI_CONFIG_PATH") or ".gitlab-ci.yml")
     child, reason = plan(text, gitlab_api(base, token), project, env["CI_COMMIT_SHA"], env)
-    with open(out, "w") as stream:
+    with open(out, "w", encoding="utf-8") as stream:
         yaml.safe_dump(child, stream, sort_keys=False)
     jobs = sorted(k for k in visible_jobs(child))
     print(f"main-retest: {reason}")

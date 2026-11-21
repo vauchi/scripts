@@ -32,7 +32,7 @@ def guard_sidebar_storage(book):
     path = book / "toc.js"
     if not path.is_file():
         return
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     if source.startswith(SIDEBAR_STORAGE):
         return
     guarded = re.sub(
@@ -40,7 +40,7 @@ def guard_sidebar_storage(book):
         r"\1vauchiSidebarStorage.", source,
     )
     if guarded != source:
-        path.write_text(SIDEBAR_STORAGE + guarded)
+        path.write_text(SIDEBAR_STORAGE + guarded, encoding="utf-8")
 
 
 ORIGIN = "https://vauchi.app"
@@ -173,7 +173,7 @@ def public_markdown(path, source, depth=0):
         raise ValueError("include outside public source")
     if depth > 8:
         raise ValueError("too many nested public includes")
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     return re.sub(
         r"\{\{#include\s+([^}]+)\}\}",
         lambda match: public_markdown(path.parent / match[1].strip(), source, depth + 1),
@@ -195,12 +195,12 @@ def authored_description(page_markdown):
 
 
 def generate(root):
-    config = tomllib.loads((root / "book.toml").read_text())
+    config = tomllib.loads((root / "book.toml").read_text(encoding="utf-8"))
     book = root / config.get("build", {}).get("build-dir", "book")
     source = root / config["book"].get("src", "src")
     summary = source / "SUMMARY.md"
     if summary.is_file():
-        chapters = re.findall(r"\[[^\]]*\]\(([^)\s]+\.md)(?:#[^)]*)?\)", summary.read_text())
+        chapters = re.findall(r"\[[^\]]*\]\(([^)\s]+\.md)(?:#[^)]*)?\)", summary.read_text(encoding="utf-8"))
         if not chapters:
             raise ValueError("no public chapters in summary")
         for chapter in chapters:
@@ -232,7 +232,7 @@ def generate(root):
         if not markdown.is_file():
             raise ValueError(f"unexpected HTML without public source: {relative}")
         body = public_markdown(markdown, source)
-        (book / relative.with_suffix(".md")).write_text(body)
+        (book / relative.with_suffix(".md")).write_text(body, encoding="utf-8")
         path = relative.as_posix()
         canonical_path = path[:-10] if path == "index.html" or path.endswith("/index.html") else path
         canonical = ORIGIN + prefix + quote(canonical_path)
@@ -241,7 +241,7 @@ def generate(root):
         escaped_title = html.escape(title, quote=True)
         summary = ChapterDescription()
         summary.feed(document)
-        chapter_description = authored_description(markdown.read_text()) or (
+        chapter_description = authored_description(markdown.read_text(encoding="utf-8")) or (
             description if path == "index.html" else next(iter(summary.paragraphs), description)
         )
         if snippet_length and not snippet_length[0] <= len(chapter_description) <= snippet_length[1]:
@@ -283,12 +283,12 @@ def generate(root):
     if curated.is_file():
         overview = re.sub(
             r"(" + re.escape(ORIGIN + prefix) + r"[^\s)]+)\.html",
-            r"\1.md", curated.read_text(),
+            r"\1.md", curated.read_text(encoding="utf-8"),
         )
     else:
         overview = f"# {name}\n\n> {description}\n\n## Pages\n\n"
         overview += "".join(f"- [{title}]({url})\n" for title, url in files)
-    (book / "llms.txt").write_text(overview)
+    (book / "llms.txt").write_text(overview, encoding="utf-8")
     source_sha = os.environ.get("CI_COMMIT_SHA", "development")
     if source_sha != "development" and not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ValueError("invalid source SHA")
@@ -296,7 +296,7 @@ def generate(root):
         "version": 1, "source_sha": source_sha,
         "page_count": len(fingerprints), "pages": fingerprints,
     }
-    (book / "indexnow-manifest.json").write_text(json.dumps(manifest, sort_keys=True) + "\n")
+    (book / "indexnow-manifest.json").write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
     print(f"Discovery: {len(files)} canonical pages and Markdown versions")
 
 

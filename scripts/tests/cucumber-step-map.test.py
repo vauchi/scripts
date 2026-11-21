@@ -98,12 +98,12 @@ class CucumberStepMapTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         root = Path(self._tmp.name)
         (root / "steps").mkdir()
-        (root / "steps" / "theming.rs").write_text(STEPS)
+        (root / "steps" / "theming.rs").write_text(STEPS, encoding="utf-8")
         (root / "features").mkdir()
-        (root / "features" / "theming.feature").write_text(FEATURES)
-        (root / "run.txt").write_text(RUN)
+        (root / "features" / "theming.feature").write_text(FEATURES, encoding="utf-8")
+        (root / "run.txt").write_text(RUN, encoding="utf-8")
         (root / "core").mkdir()
-        (root / "core" / "theme_tests.rs").write_text(TEST_FILE)
+        (root / "core" / "theme_tests.rs").write_text(TEST_FILE, encoding="utf-8")
         self.root = root
 
     def tearDown(self) -> None:
@@ -144,7 +144,7 @@ class CucumberStepMapTests(unittest.TestCase):
         result = self.run_tool("empty-steps", "--steps", str(self.root / "steps"))
         self.assertEqual(result.returncode, 1)
         self.assertIn("empty step functions: 2 of 5", result.stdout)
-        (self.root / "steps" / "theming.rs").write_text(STEPS.replace("(_world: &mut World) {}", "(w: &mut World) { assert!(w.ok); }"))
+        (self.root / "steps" / "theming.rs").write_text(STEPS.replace("(_world: &mut World) {}", "(w: &mut World) { assert!(w.ok); }"), encoding="utf-8")
         result = self.run_tool("empty-steps", "--steps", str(self.root / "steps"))
         self.assertEqual(result.returncode, 0, result.stdout)
 

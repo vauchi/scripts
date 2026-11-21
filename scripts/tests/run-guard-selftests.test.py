@@ -29,10 +29,10 @@ class GuardSelftestRunnerTests(unittest.TestCase):
             test = self.root / relative
             test.parent.mkdir(parents=True, exist_ok=True)
             test.write_text("from pathlib import Path\n"
-                            f"Path({str(test.with_suffix('.ran'))!r}).write_text('ran')\n")
+                            f"Path({str(test.with_suffix('.ran'))!r}).write_text('ran')\n", encoding="utf-8")
         result = self.run_runner()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(sorted(p.read_text() for p in self.root.rglob("*.ran")),
+        self.assertEqual(sorted(p.read_text(encoding="utf-8") for p in self.root.rglob("*.ran")),
                          ["ran", "ran"])
         self.assertIn("2 guard selftests completed", result.stdout)
 
@@ -40,7 +40,7 @@ class GuardSelftestRunnerTests(unittest.TestCase):
         test = self.root / "scripts/tests/check-failing.test.py"
         test.parent.mkdir(parents=True)
         test.write_text("import sys\nsys.stderr.write('injected guard failure\\n')\n"
-                        "raise SystemExit(7)\n")
+                        "raise SystemExit(7)\n", encoding="utf-8")
         result = self.run_runner()
         self.assertEqual(result.returncode, 7)
         self.assertIn("injected guard failure", result.stderr)

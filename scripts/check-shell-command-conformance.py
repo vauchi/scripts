@@ -115,7 +115,7 @@ def mentions(root: pathlib.Path, exts: tuple, needle: str) -> bool:
         if SKIP_DIRS & set(path.parts) or is_test_path(path):
             continue
         try:
-            if pattern.search(path.read_text(errors="ignore")):
+            if pattern.search(path.read_text(errors="ignore", encoding="utf-8")):
                 return True
         except OSError:
             continue
@@ -128,7 +128,7 @@ def load_allowlist(shell_dir: pathlib.Path) -> dict:
     path = shell_dir / ALLOWLIST
     if not path.exists():
         return allow
-    for lineno, raw in enumerate(path.read_text().splitlines(), 1):
+    for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue

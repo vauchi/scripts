@@ -50,7 +50,7 @@ allow-git = [
 
 def write(directory: Path, name: str, text: str) -> Path:
     path = directory / name
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return path
 
 

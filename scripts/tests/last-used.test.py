@@ -50,8 +50,8 @@ class TallyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             a = Path(tmp) / "a.log"
             b = Path(tmp) / "b.log"
-            a.write_text(event("2026-11-01T10:00:00Z", "skill-use", skill="s") + "\n")
-            b.write_text(event("2026-11-05T10:00:00Z", "skill-use", skill="s") + "\n")
+            a.write_text(event("2026-11-01T10:00:00Z", "skill-use", skill="s") + "\n", encoding="utf-8")
+            b.write_text(event("2026-11-05T10:00:00Z", "skill-use", skill="s") + "\n", encoding="utf-8")
             tally = MODULE.tally(MODULE.read_logs([a, b]))
         self.assertEqual(tally["skill"]["s"], ("2026-11-05", 2))
 
@@ -61,7 +61,7 @@ class TallyTests(unittest.TestCase):
             log.write_text("\n".join([
                 event("2026-11-05T10:00:00Z", "just-use", recipe="new"),
                 event("2026-10-01T10:00:00Z", "just-use", recipe="old"),
-            ]) + "\n")
+            ]) + "\n", encoding="utf-8")
             out = io.StringIO()
             with redirect_stdout(out):
                 code = MODULE.main(["--log", str(log), "--skills", "", "--recipes", "old,new,never"])

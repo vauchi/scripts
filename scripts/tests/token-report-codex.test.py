@@ -51,12 +51,12 @@ def test_codex_token_side_uses_final_cumulative_usage() -> None:
                 },
             },
         ]
-        rollout.write_text("".join(json.dumps(record) + "\n" for record in records))
+        rollout.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
         other = root / "sessions/2026/07/18/rollout-other.jsonl"
         other.write_text(json.dumps({
             "type": "session_meta",
             "payload": {"cwd": "/home/example/other-project"},
-        }) + "\n" + json.dumps(records[-1]) + "\n")
+        }) + "\n" + json.dumps(records[-1]) + "\n", encoding="utf-8")
 
         per, files, nested = MODULE.codex_token_side(root, "vauchi")
 

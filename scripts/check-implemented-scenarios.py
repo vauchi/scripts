@@ -241,12 +241,12 @@ def main() -> int:
 
     if args.write_baseline:
         lines = sorted(untested.values(), key=str.lower)
-        args.baseline.write_text(BASELINE_HEADER + "".join(f"{line}\n" for line in lines))
+        args.baseline.write_text(BASELINE_HEADER + "".join(f"{line}\n" for line in lines), encoding="utf-8")
         print(f"Wrote {len(lines)} untested @implemented scenarios to {args.baseline}")
         if args.dangling_baseline:
             names = sorted(dangling.values())
             args.dangling_baseline.write_text(
-                DANGLING_HEADER + "".join(f"{line}\n" for line in names))
+                DANGLING_HEADER + "".join(f"{line}\n" for line in names), encoding="utf-8")
             print(f"Wrote {len(names)} annotations naming no scenario to {args.dangling_baseline}")
         return 0
 
