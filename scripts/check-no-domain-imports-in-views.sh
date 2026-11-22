@@ -140,19 +140,23 @@ scan() {
     local pattern="$1"
     local description="$2"
     local matches
-    matches="$(rg --line-number --no-heading "$pattern" "$ANDROID_UI" 2>/dev/null || true)"
+    # Searched from inside the tree: an absolute Windows path starts with
+    # a drive letter and a colon, which the <path>:<line>:<text> split
+    # below would cut at.
+    matches="$(cd "$ANDROID_UI" && rg --line-number --no-heading "$pattern" . 2>/dev/null || true)"
     if [ -z "$matches" ]; then
         return 0
     fi
     local filtered=""
     while IFS= read -r line; do
-        # rg output: <abs_path>:<lineno>:<text>
-        local abs="${line%%:*}"
-        local rel="${abs#"$ANDROID_UI"/}"
+        # rg output: ./<rel_path>:<lineno>:<text>, backslashes on Windows
+        local rel="${line%%:*}"
+        rel="${rel//\\//}"
+        rel="${rel#./}"
         if is_allowlisted "$rel"; then
             continue
         fi
-        filtered+="$line"$'\n'
+        filtered+="$ANDROID_UI/$rel:${line#*:}"$'\n'
     done <<<"$matches"
     if [ -n "$filtered" ]; then
         REPORT+=$'\n'"${description}:"$'\n'"$filtered"
