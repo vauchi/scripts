@@ -302,6 +302,9 @@ _dir_to_gitlab_name() {
             echo "gtk-display" ;;
         linux-qt)
             echo "qt-display" ;;
+        # windows was renamed to windows-app on 2026-11-22 (private#1234).
+        windows)
+            echo "windows-app" ;;
         *)
             echo "$name" ;;
     esac

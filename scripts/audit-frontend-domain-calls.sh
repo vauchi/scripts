@@ -230,7 +230,11 @@ QT_DIR=qt-display
 [ -d "$WORKSPACE_ROOT/qt-display" ] || [ ! -d "$WORKSPACE_ROOT/linux-qt" ] || QT_DIR=linux-qt
 GTK_SRC="$WORKSPACE_ROOT/$GTK_DIR/src"
 QT_SRC="$WORKSPACE_ROOT/$QT_DIR/src"
-WIN_SRC="$WORKSPACE_ROOT/windows/Vauchi"
+# windows was renamed to windows-app (private#1234); a checkout that has
+# not followed is read under its old name.
+WIN_DIR=windows-app
+[ -d "$WORKSPACE_ROOT/windows-app" ] || [ ! -d "$WORKSPACE_ROOT/windows" ] || WIN_DIR=windows
+WIN_SRC="$WORKSPACE_ROOT/$WIN_DIR/Vauchi"
 
 # ── counters ─────────────────────────────────────────────────────────
 domain_calls_tui=$(count_rust_calls "$TUI_SRC" "$RUST_RE")

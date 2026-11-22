@@ -135,7 +135,11 @@ QT_DIR=qt-display
 [ -d "$WORKSPACE_ROOT/qt-display" ] || [ ! -d "$WORKSPACE_ROOT/linux-qt" ] || QT_DIR=linux-qt
 callers_linux_gtk=$(app_pref_callers "$WORKSPACE_ROOT/$GTK_DIR")
 callers_linux_qt=$(app_pref_callers "$WORKSPACE_ROOT/$QT_DIR")
-callers_windows=$(app_pref_callers "$WORKSPACE_ROOT/windows")
+# windows was renamed to windows-app (private#1234); a checkout that has
+# not followed is read under its old name.
+WIN_DIR=windows-app
+[ -d "$WORKSPACE_ROOT/windows-app" ] || [ ! -d "$WORKSPACE_ROOT/windows" ] || WIN_DIR=windows
+callers_windows=$(app_pref_callers "$WORKSPACE_ROOT/$WIN_DIR")
 callers_web_demo=$(app_pref_callers "$WORKSPACE_ROOT/web-demo/src")
 callers_total=$((callers_android + callers_ios + callers_cli + callers_tui \
     + callers_linux_gtk + callers_linux_qt + callers_windows + callers_web_demo))

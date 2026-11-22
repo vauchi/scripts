@@ -152,8 +152,11 @@ check_qt() {
 }
 
 check_windows() {
-    [ -d "$ROOT/windows" ] || return 0
-    file='windows/Vauchi/MainWindow.xaml.cs'
+    # windows was renamed to windows-app (private#1234).
+    win='windows-app'
+    [ -d "$ROOT/$win" ] || win='windows'
+    [ -d "$ROOT/$win" ] || return 0
+    file="$win/Vauchi/MainWindow.xaml.cs"
     require_file "$file" || return 0
     require_tokens "$file" 'verbatim WinUI toast action' \
         'TryGetProperty("undo_label"' 'FloatingToastAction.Content = undoLabel' \

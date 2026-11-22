@@ -283,13 +283,16 @@ check_qt() {
 }
 
 check_windows() {
-    [ -d "$ROOT/windows" ] || return 0
-    inline='windows/Vauchi/CoreUI/Components/InlineConfirmComponent.xaml.cs'
-    editable='windows/Vauchi/CoreUI/Components/EditableTextComponent.xaml.cs'
-    image='windows/Vauchi/CoreUI/Components/ImageCircleComponent.xaml.cs'
-    status='windows/Vauchi/CoreUI/Components/StatusIndicatorComponent.xaml.cs'
-    qr='windows/Vauchi/CoreUI/Components/QrCodeComponent.xaml.cs'
-    field_list='windows/Vauchi/CoreUI/Components/FieldListComponent.xaml.cs'
+    # windows was renamed to windows-app (private#1234).
+    win='windows-app'
+    [ -d "$ROOT/$win" ] || win='windows'
+    [ -d "$ROOT/$win" ] || return 0
+    inline="$win/Vauchi/CoreUI/Components/InlineConfirmComponent.xaml.cs"
+    editable="$win/Vauchi/CoreUI/Components/EditableTextComponent.xaml.cs"
+    image="$win/Vauchi/CoreUI/Components/ImageCircleComponent.xaml.cs"
+    status="$win/Vauchi/CoreUI/Components/StatusIndicatorComponent.xaml.cs"
+    qr="$win/Vauchi/CoreUI/Components/QrCodeComponent.xaml.cs"
+    field_list="$win/Vauchi/CoreUI/Components/FieldListComponent.xaml.cs"
     for file in "$inline" "$editable" "$image" "$status" "$qr" "$field_list"; do require_file "$file" || return 0; done
     require_tokens "$inline" 'verbatim InlineConfirm JSON contract' \
         '"confirm_action_id"' '"cancel_action_id"' '"confirm_text"' '"cancel_text"'

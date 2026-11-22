@@ -151,7 +151,9 @@ count_android() {
 
 # ── Windows XAML ────────────────────────────────────────────────────────────
 count_windows() {
-    local dir="$ROOT/windows"
+    # windows was renamed to windows-app (private#1234).
+    local dir="$ROOT/windows-app"
+    [ -d "$dir" ] || dir="$ROOT/windows"
     [ -d "$dir" ] || { echo 0; return; }
     local n=0
     tmp_list=$(mktemp)

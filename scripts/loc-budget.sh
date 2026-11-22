@@ -140,7 +140,11 @@ QT_DIR=qt-display
 LINUX_GTK_SRC="$WORKSPACE_ROOT/$GTK_DIR/src"
 LINUX_QT_SRC="$WORKSPACE_ROOT/$QT_DIR/src"
 MACOS_SRC="$WORKSPACE_ROOT/macos/Vauchi"
-WINDOWS_SRC="$WORKSPACE_ROOT/windows/Vauchi"
+# windows was renamed to windows-app (private#1234); a checkout that has
+# not followed is read under its old name.
+WIN_DIR=windows-app
+[ -d "$WORKSPACE_ROOT/windows-app" ] || [ ! -d "$WORKSPACE_ROOT/windows" ] || WIN_DIR=windows
+WINDOWS_SRC="$WORKSPACE_ROOT/$WIN_DIR/Vauchi"
 TUI_SRC="$WORKSPACE_ROOT/tui/src"
 WEB_DEMO_SRC="$WORKSPACE_ROOT/web-demo/src"
 
