@@ -10,6 +10,10 @@
 
 set -u
 
+# Git for Windows copies on `ln -s` unless told to make a real symlink;
+# a copy is not what this suite asserts on (vauchi/private#1337).
+export MSYS="${MSYS:-winsymlinks:nativestrict}"
+
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$SCRIPT_DIR/check-harness-parity.sh"
 

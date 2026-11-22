@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+# Git for Windows copies on `ln -s` unless told to make a real symlink;
+# a copy is not what this suite asserts on (vauchi/private#1337).
+export MSYS="${MSYS:-winsymlinks:nativestrict}"
+
 test_root="$(mktemp -d)"
 test_root="$(cd "$test_root" && pwd -P)"
 trap 'rm -rf "$test_root"' EXIT
