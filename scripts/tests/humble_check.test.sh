@@ -754,7 +754,7 @@ test_tighten_refuses_incomplete_checkout() {
 test_frontend_image_encoding() {
     root=$(mktemp -d)
     mkdir -p "$root/android/app/src/main/kotlin" "$root/ios/Vauchi" \
-        "$root/linux-qt/src" "$root/windows/Vauchi" "$root/linux-gtk/src"
+        "$root/linux-qt/src" "$root/windows-app/Vauchi" "$root/linux-gtk/src"
     cat >"$root/android/app/src/main/kotlin/Avatar.kt" <<'KT'
 fun shrink(b: Bitmap) = Bitmap.createScaledBitmap(b, 64, 64, true)
 fun pack(b: Bitmap, out: OutputStream) = b.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, out)
@@ -768,7 +768,7 @@ image.save(&buffer, "WEBP");
 grab().save(path);
 label->setPixmap(pixmap.scaled(32, 32, Qt::KeepAspectRatio));
 CPP
-    cat >"$root/windows/Vauchi/Avatar.cs" <<'CS'
+    cat >"$root/windows-app/Vauchi/Avatar.cs" <<'CS'
 var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, stream);
 var png = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
 CS
@@ -781,7 +781,7 @@ TS
 let webp = webp::Encoder::from_image(&img).unwrap().encode(80.0);
 let png = texture.save_to_png_bytes();
 RS
-    for spec in android:2 ios:1 linux-qt:1 windows:1 linux-gtk:1 web-demo:1; do
+    for spec in android:2 ios:1 linux-qt:1 windows-app:1 linux-gtk:1 web-demo:1; do
         repo=${spec%:*}; want=${spec#*:}
         out=$(python3 "$SCRIPT" --repo "$repo" --workspace-root "$root" --config "$CONFIG")
         assert_eq "image encoding: $repo counts $want" "$want" \
@@ -795,7 +795,7 @@ RS
 test_shell_accessibility_copy() {
     root=$(mktemp -d)
     mkdir -p "$root/android/app/src/main/kotlin" "$root/ios/Vauchi" \
-        "$root/linux-qt/src" "$root/windows/Vauchi" "$root/linux-gtk/src"
+        "$root/linux-qt/src" "$root/windows-app/Vauchi" "$root/linux-gtk/src"
     cat >"$root/android/app/src/main/kotlin/Row.kt" <<'KT'
 Icon(Icons.Default.Delete, contentDescription = "Delete contact")
 Icon(icon, contentDescription = stringResource(R.string.delete))
@@ -811,7 +811,7 @@ button->setAccessibleName(QStringLiteral("Delete"));
 button->setAccessibleDescription(tr("Removes the contact"));
 button->setAccessibleName(node.accessibilityLabel);
 CPP
-    cat >"$root/windows/Vauchi/Row.xaml" <<'XAML'
+    cat >"$root/windows-app/Vauchi/Row.xaml" <<'XAML'
 <Button AutomationProperties.Name="Delete" />
 <Button AutomationProperties.Name="{x:Bind Node.AccessibilityLabel}" />
 XAML
@@ -819,7 +819,7 @@ XAML
 button.update_property(&[gtk::accessible::Property::Label("Delete")]);
 button.update_property(&[gtk::accessible::Property::Label(&node.accessibility_label)]);
 RS
-    for spec in android:2 ios:2 linux-qt:2 windows:1 linux-gtk:1; do
+    for spec in android:2 ios:2 linux-qt:2 windows-app:1 linux-gtk:1; do
         repo=${spec%:*}; want=${spec#*:}
         out=$(python3 "$SCRIPT" --repo "$repo" --workspace-root "$root" --config "$CONFIG")
         assert_eq "a11y copy: $repo counts $want" "$want" \
@@ -902,12 +902,12 @@ CPP
     rm -rf "$root" "$old_ws"
 }
 
-# test_windows_app_reaches_the_windows_rules — ADR-078 step 4 renames the
-# windows project to windows-app (private#1234). Its pipeline then passes
-# --repo windows-app, which must reach the rules and the baseline filed
-# under windows, in the renamed checkout and in a workspace whose directory
-# has or has not followed. An unknown name is still refused.
-test_windows_app_reaches_the_windows_rules() {
+# test_windows_app_keeps_its_rules — ADR-078 step 4 renamed the windows
+# project to windows-app (private#1234). The rules and the baseline are
+# keyed by the new name; the old name still reaches them, from a pin bump or
+# a slot that has not moved its checkout, and a workspace that still holds
+# windows/ is read there. An unknown name is still refused.
+test_windows_app_keeps_its_rules() {
     root=$(mktemp -d)
     old_ws=$(mktemp -d)
     for dir in "$root/windows-app" "$old_ws/windows"; do
@@ -921,20 +921,20 @@ CS
         out=$(python3 "$SCRIPT" --repo "$given" --repo-path "$root/windows-app" --config "$CONFIG")
         assert_eq "windows-app: --repo $given counts the encoder" "1" \
             "$(extract_counter "$out" frontend_image_encoding)"
-        assert_eq "windows-app: --repo $given reports as windows" "1" \
-            "$(printf '%s' "$out" | grep -c '"repo": "windows"')"
+        assert_eq "windows-app: --repo $given reports as windows-app" "1" \
+            "$(printf '%s' "$out" | grep -c '"repo": "windows-app"')"
         set +e
         python3 "$SCRIPT" --repo "$given" --repo-path "$root/windows-app" --config "$CONFIG" \
             --check "$BASELINE" >/dev/null 2>&1
         rc=$?
         set -e
-        assert_eq "windows-app: --repo $given is held to the windows baseline" "1" "$rc"
+        assert_eq "windows-app: --repo $given is held to the windows-app baseline" "1" "$rc"
     done
     out=$(python3 "$SCRIPT" --repo windows-app --workspace-root "$root" --config "$CONFIG")
-    assert_eq "workspace moved: windows-app counts in windows-app/" "1" \
+    assert_eq "workspace: windows-app counts in windows-app/" "1" \
         "$(extract_counter "$out" frontend_image_encoding)"
-    out=$(python3 "$SCRIPT" --repo windows-app --workspace-root "$old_ws" --config "$CONFIG")
-    assert_eq "workspace not moved yet: windows-app counts in windows/" "1" \
+    out=$(python3 "$SCRIPT" --repo windows --workspace-root "$old_ws" --config "$CONFIG")
+    assert_eq "workspace not moved yet: windows counts in windows/" "1" \
         "$(extract_counter "$out" frontend_image_encoding)"
     set +e
     python3 "$SCRIPT" --repo windows-apps --repo-path "$root/windows-app" --config "$CONFIG" \
@@ -1025,7 +1025,7 @@ test_frontend_image_encoding
 test_shell_accessibility_copy
 test_error_substring_classification_desktop_shells
 test_renamed_repo_keeps_its_rules
-test_windows_app_reaches_the_windows_rules
+test_windows_app_keeps_its_rules
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
