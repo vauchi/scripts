@@ -70,7 +70,8 @@
   },
   "aliases": {
     "linux-gtk": "gtk-display",
-    "linux-qt": "qt-display"
+    "linux-qt": "qt-display",
+    "windows-app": "windows"
   },
   "repos": {
     "core": {
