@@ -49,6 +49,11 @@ check "gtk-display is copied where the audit looks for the GTK shell" \
 check "qt-display is copied where the audit looks for the Qt shell" \
     "linux-qt/src/marker" "$(copied_as qt-display)"
 check "linux-qt keeps its directory" "linux-qt/src/marker" "$(copied_as linux-qt)"
+# ADR-078 step 4 renames windows to windows-app (private#1234); the audit
+# reads the Windows shell in windows/ only.
+check "windows-app is copied where the audit looks for the Windows shell" \
+    "windows/src/marker" "$(copied_as windows-app)"
+check "windows keeps its directory" "windows/src/marker" "$(copied_as windows)"
 check "any other repository keeps its project name" "tui/src/marker" "$(copied_as tui)"
 
 # Whatever directory the job picks, the audit must count the copy: the
@@ -66,6 +71,19 @@ check "the audit counts the GTK shell where the job copied gtk-display" "1" \
     "$(counted_from gtk-display domain_calls_linux_gtk)"
 check "the audit counts the Qt shell where the job copied qt-display" "1" \
     "$(counted_from qt-display domain_calls_linux_qt)"
+
+windows_counted_from() {
+    rm -rf "$work/ws" "$work/project"
+    mkdir -p "$work/project/Vauchi"
+    printf 'class A { void F(Engine e) { e.SaveContact(c); } }\n' > "$work/project/Vauchi/App.cs"
+    WORK="$work" CI_PROJECT_NAME="$1" CI_PROJECT_DIR="$work/project" sh "$work/copy.sh" >/dev/null 2>&1
+    bash "$AUDIT" "$work/ws" | sed -n 's/.*"domain_calls_windows": *\([0-9]*\).*/\1/p'
+}
+
+check "the audit counts the Windows shell where the job copied windows-app" "1" \
+    "$(windows_counted_from windows-app)"
+check "the audit counts the Windows shell where the job copied windows" "1" \
+    "$(windows_counted_from windows)"
 
 rm -rf "$work"
 

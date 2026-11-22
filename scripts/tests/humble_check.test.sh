@@ -902,6 +902,49 @@ CPP
     rm -rf "$root" "$old_ws"
 }
 
+# test_windows_app_reaches_the_windows_rules — ADR-078 step 4 renames the
+# windows project to windows-app (private#1234). Its pipeline then passes
+# --repo windows-app, which must reach the rules and the baseline filed
+# under windows, in the renamed checkout and in a workspace whose directory
+# has or has not followed. An unknown name is still refused.
+test_windows_app_reaches_the_windows_rules() {
+    root=$(mktemp -d)
+    old_ws=$(mktemp -d)
+    for dir in "$root/windows-app" "$old_ws/windows"; do
+        mkdir -p "$dir/Vauchi"
+        cat >"$dir/Vauchi/Avatar.cs" <<'CS'
+var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, stream);
+var png = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
+CS
+    done
+    for given in windows-app windows; do
+        out=$(python3 "$SCRIPT" --repo "$given" --repo-path "$root/windows-app" --config "$CONFIG")
+        assert_eq "windows-app: --repo $given counts the encoder" "1" \
+            "$(extract_counter "$out" frontend_image_encoding)"
+        assert_eq "windows-app: --repo $given reports as windows" "1" \
+            "$(printf '%s' "$out" | grep -c '"repo": "windows"')"
+        set +e
+        python3 "$SCRIPT" --repo "$given" --repo-path "$root/windows-app" --config "$CONFIG" \
+            --check "$BASELINE" >/dev/null 2>&1
+        rc=$?
+        set -e
+        assert_eq "windows-app: --repo $given is held to the windows baseline" "1" "$rc"
+    done
+    out=$(python3 "$SCRIPT" --repo windows-app --workspace-root "$root" --config "$CONFIG")
+    assert_eq "workspace moved: windows-app counts in windows-app/" "1" \
+        "$(extract_counter "$out" frontend_image_encoding)"
+    out=$(python3 "$SCRIPT" --repo windows-app --workspace-root "$old_ws" --config "$CONFIG")
+    assert_eq "workspace not moved yet: windows-app counts in windows/" "1" \
+        "$(extract_counter "$out" frontend_image_encoding)"
+    set +e
+    python3 "$SCRIPT" --repo windows-apps --repo-path "$root/windows-app" --config "$CONFIG" \
+        >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "windows-app: a name that is not the alias is refused" "2" "$rc"
+    rm -rf "$root" "$old_ws"
+}
+
 # test_vocabulary_covers_rule_types — the Core schema test reads the shared
 # vocabulary instead of restating it, which only holds while the vocabulary
 # covers every type the rules grep for
@@ -982,6 +1025,7 @@ test_frontend_image_encoding
 test_shell_accessibility_copy
 test_error_substring_classification_desktop_shells
 test_renamed_repo_keeps_its_rules
+test_windows_app_reaches_the_windows_rules
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
