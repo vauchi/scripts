@@ -128,6 +128,26 @@ RS
 assert_eq "raw in kdf.rs (wrapper): bypass == 0" "0" "$(counter "$ws" hkdf_raw_bypass)"
 rm -rf "$ws"
 
+# ── 8b. the wrapper under its newer name, hkdf.rs → NOT counted ───────
+ws=$(make_ws)
+cat > "$(src "$ws")/hkdf.rs" <<'RS'
+use hkdf::Hkdf;
+pub struct HKDF;
+impl HKDF { fn x() { let hk = Hkdf::<Sha256>::new(salt, ikm); } }
+RS
+assert_eq "raw in hkdf.rs (wrapper): bypass == 0" "0" "$(counter "$ws" hkdf_raw_bypass)"
+rm -rf "$ws"
+
+# ── 8c. another file ending in kdf.rs is not the wrapper → counted ────
+ws=$(make_ws)
+cat > "$(src "$ws")/password_kdf.rs" <<'RS'
+use hkdf::Hkdf;
+fn s() { let hk = Hkdf::<Sha256>::new(salt, ikm); }
+RS
+got=$(counter "$ws" hkdf_raw_bypass)
+assert_eq "raw in password_kdf.rs: counted (>=1)" "1" "$([ "$got" -ge 1 ] && echo 1 || echo 0)"
+rm -rf "$ws"
+
 # ── 9. multi-line derive call → unparsed tripwire, exits 1 ────────────
 ws=$(make_ws)
 cat > "$(src "$ws")/multiline.rs" <<'RS'
