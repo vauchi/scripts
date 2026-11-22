@@ -121,6 +121,19 @@ CPP
 # ── 3a. A checkout still named linux-qt / linux-gtk is counted ────────
 # ADR-078 renamed the directories (private#1029); a workspace that has
 # not followed yet must not read as zero calls.
+# ── 3b. The Windows app's checkout under its new name is counted ─────
+# windows was renamed to windows-app (private#1234); a workspace that has
+# followed must not read as zero calls.
+test_windows_app_directory_counted() {
+    root=$(mktemp -d)
+    mkdir -p "$root/windows-app/Vauchi"
+    printf 'public void Run() { ValidateContact(c); }\n' >"$root/windows-app/Vauchi/App.cs"
+    out=$("$SCRIPT" "$root")
+    assert_eq "windows-app: counted" \
+        "1" "$(extract_counter "$out" domain_calls_windows)"
+    rm -rf "$root"
+}
+
 test_old_directory_names_still_counted() {
     root=$(mktemp -d)
     mkdir -p "$root/linux-qt/src" "$root/linux-gtk/src"
@@ -684,6 +697,7 @@ test_sh_run_with_no_match_reports() {
 test_empty_workspace
 test_rust_sentinel
 test_cpp_sentinel
+test_windows_app_directory_counted
 test_old_directory_names_still_counted
 test_native_image_export_not_counted
 test_cs_sentinel

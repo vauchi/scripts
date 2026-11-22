@@ -119,3 +119,27 @@ $workspace/linux-qt"
     fi
     echo "PASS ($shell): linux-gtk and linux-qt resolve to vauchi/gtk-display and vauchi/qt-display"
 done
+
+# windows was renamed to windows-app on 2026-11-22 (private#1234): a slot
+# whose checkout is still windows must reach the new project, or a write
+# such as marking an MR ready is refused with 405.
+for shell in bash zsh; do
+    command -v "$shell" >/dev/null 2>&1 || continue
+    out="$(
+        "$shell" -c '
+            cd "$1"
+            source "$1/scripts/scripts/resolve-repo.sh"
+            REPO_REGISTRY=("windows:windows:dotnet")
+            resolve_gitlab_project windows
+            resolve_gitlab_project windows-app
+        ' _ "$workspace"
+    )"
+    expected="vauchi/windows-app
+vauchi/windows-app"
+    if [[ "$out" != "$expected" ]]; then
+        echo "FAIL ($shell): windows resolves to its renamed project; got:"
+        printf '%s\n' "$out"
+        exit 1
+    fi
+    echo "PASS ($shell): windows resolves to vauchi/windows-app"
+done
