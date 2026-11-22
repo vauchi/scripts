@@ -359,8 +359,11 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         # The trailing alternation matches git hooks, which carry no
         # extension; without it the scripts repo skipped the gates on its
         # own product.
-        CODE_PATTERN='\.(rs|swift|kt|java|ts|tsx|js|jsx|css|scss|html|c|cc|cpp|cxx|h|hh|hpp|hxx|m|mm|sh|bash|py)$|(^|/)hooks/[a-z-]+$'
-        BUILD_PATTERN='(Cargo\.(toml|lock)|package.*\.json|.*\.gradle|CMakeLists\.txt|.*\.cmake)'
+        # C# and XAML are the windows and windows-hw repositories' product;
+        # without them every push there took the fast path too
+        # (private#772, private#1234).
+        CODE_PATTERN='\.(rs|swift|kt|java|ts|tsx|js|jsx|css|scss|html|c|cc|cpp|cxx|h|hh|hpp|hxx|m|mm|sh|bash|py|cs|xaml)$|(^|/)hooks/[a-z-]+$'
+        BUILD_PATTERN='(Cargo\.(toml|lock)|package.*\.json|.*\.gradle|CMakeLists\.txt|.*\.cmake|.*\.csproj|.*\.props|nuget\.config)'
         HAS_CODE=$(echo "$CHANGED_FILES" | grep -E "$CODE_PATTERN" || true)
         HAS_BUILD=$(echo "$CHANGED_FILES" | grep -E "$BUILD_PATTERN" || true)
         if [[ -z "$HAS_CODE" && -z "$HAS_BUILD" ]]; then
@@ -1371,6 +1374,19 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
             exit 1
         }
         time_step "npm run check" npm --prefix "$REPO_ROOT" run check
+
+    # ─── .NET repo (windows-hw, windows) ─────────────────────────────────
+    # Test projects under tests/ or a *.UnitTests project at the root. A
+    # project that targets Windows is run on a Windows host only
+    # (private#772, private#1234).
+
+    elif compgen -G "$REPO_ROOT/tests/*/*.csproj" >/dev/null || compgen -G "$REPO_ROOT/*.UnitTests/*.UnitTests.csproj" >/dev/null; then
+        DOTNET_CHECK="$(dirname "$REPO_ROOT")/scripts/scripts/dotnet-check.sh"
+        [[ -f "$DOTNET_CHECK" ]] || {
+            echo "FAILED: $DOTNET_CHECK is missing; update the scripts repository." >&2
+            exit 1
+        }
+        time_step ".NET tests" bash "$DOTNET_CHECK" "$REPO_ROOT"
 
     # ─── Unknown repo type ───────────────────────────────────────────────
 
