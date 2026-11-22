@@ -33,7 +33,7 @@
 #                         count, so a NEW use of an allow-listed string
 #                         (reuse for a new purpose) still trips the gate.
 #   hkdf_raw_bypass     — raw `Hkdf::<…>` / `hkdf::Hkdf` usage OUTSIDE the
-#                         wrapper file (crypto/kdf.rs). The empty/dup checks
+#                         wrapper file (crypto/hkdf.rs, once kdf.rs). The empty/dup checks
 #                         only see callers of the `HKDF::` wrapper; this
 #                         forces all HKDF through that seam so nothing
 #                         derives keys invisibly. (Closes the wrapper-
@@ -224,11 +224,11 @@ hkdf_empty_info="$(get_extract empty)";       hkdf_empty_info="${hkdf_empty_info
 hkdf_dup_info="$(get_extract dup)";           hkdf_dup_info="${hkdf_dup_info:-0}"
 hkdf_unparsed_calls="$(get_extract unparsed)"; hkdf_unparsed_calls="${hkdf_unparsed_calls:-0}"
 
-# ── raw HKDF outside the wrapper file (crypto/kdf.rs) ─────────────────
+# ── raw HKDF outside the wrapper file (crypto/hkdf.rs, once kdf.rs) ───
 hkdf_raw_bypass() {
     [ -d "$CORE_SRC" ] || { printf '0'; return; }
     n=$(grep -rsnE 'Hkdf::<|hkdf::Hkdf|use[[:space:]]+hkdf' "$CORE_SRC" 2>/dev/null \
-        | grep -vE '/kdf\.rs:' \
+        | grep -vE '/h?kdf\.rs:' \
         | strip_comments \
         | grep -c '' || true)
     printf '%s' "${n:-0}"
