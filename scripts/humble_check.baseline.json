@@ -68,7 +68,7 @@
       "split_dispatch_api": 0,
       "shell_accessibility_copy": 2
     },
-    "windows": {
+    "windows-app": {
       "action_id_minting": 0,
       "error_substring_classification": 0,
       "domain_screen_id_branch": 0,

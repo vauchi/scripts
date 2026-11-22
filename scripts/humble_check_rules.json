@@ -71,7 +71,7 @@
   "aliases": {
     "linux-gtk": "gtk-display",
     "linux-qt": "qt-display",
-    "windows-app": "windows"
+    "windows": "windows-app"
   },
   "repos": {
     "core": {
@@ -385,9 +385,9 @@
         }
       }
     },
-    "windows": {
+    "windows-app": {
       "source_roots": [
-        "windows/Vauchi"
+        "windows-app/Vauchi"
       ],
       "extensions": [
         ".cs",
