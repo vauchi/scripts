@@ -35,6 +35,10 @@ def protection(name="main", push=0):
     }
 
 
+def tag_rule(name="v*", create=40):
+    return {"name": name, "create_access_levels": [{"id": 3, "access_level": create}]}
+
+
 class GitLab:
     def __init__(self, existing=False):
         self.project = {
@@ -47,6 +51,7 @@ class GitLab:
         self.failed_method = None
         self.default_protection = None
         self.ignore_approval_update = False
+        self.tags = [tag_rule()] if existing else []
         self.approvals = ([{"id": 9, "name": "All Members", "rule_type": "any_approver",
                             "approvals_required": 1, "protected_branches": [],
                             "applies_to_all_protected_branches": False}] if existing else [])
@@ -75,6 +80,11 @@ class GitLab:
                 self.approvals[0].update(fields)
                 return copy.deepcopy(self.approvals[0])
             return copy.deepcopy(self.approvals)
+        if "/protected_tags" in endpoint:
+            if method == "POST":
+                self.tags.append(tag_rule(fields["name"], fields["create_access_level"]))
+                return copy.deepcopy(self.tags[-1])
+            return copy.deepcopy(self.tags)
         if "/protected_branches" in endpoint:
             if method == "POST":
                 self.rules.append(protection())
@@ -96,6 +106,28 @@ class GitLab:
 
 
 class ProvisionTests(unittest.TestCase):
+    # A release job needs the group's protected variables (COSIGN_KEY, the
+    # GitHub app key), which GitLab gives only to protected refs: windows-hw's
+    # v0.5.0 pipeline could not sign (vauchi/private#1234).
+    def test_new_project_protects_version_tags_for_maintainers(self):
+        api = GitLab()
+        repo.provision("apple-display", api=api)
+        self.assertEqual([(r["name"], r["create_access_levels"][0]["access_level"]) for r in api.tags], [("v*", 40)])
+
+    def test_existing_project_without_version_tag_protection_is_read_only_failure(self):
+        api = GitLab(existing=True)
+        api.tags = []
+        with self.assertRaisesRegex(repo.ApiError, r"v\* tags"):
+            repo.provision("apple-display", api=api)
+        self.assertEqual(api.writes, [])
+
+    def test_version_tags_developers_may_create_are_refused(self):
+        api = GitLab(existing=True)
+        api.tags = [tag_rule(create=30)]
+        with self.assertRaisesRegex(repo.ApiError, r"v\* tags"):
+            repo.provision("apple-display", api=api)
+        self.assertEqual(api.writes, [])
+
     def test_new_project_requires_member_approval_like_reference_repo(self):
         api = GitLab()
         repo.provision("apple-display", api=api)
@@ -288,6 +320,19 @@ class TransportTests(unittest.TestCase):
         self.assertIn("--input", run.call_args.args[0])
         self.assertEqual(json.loads(run.call_args.kwargs["input"]), {"description": description})
         self.assertFalse(run.call_args.kwargs.get("shell", False))
+
+    # GitLab answers a body without its media type with 415 (seen creating
+    # windows-display with glab 1.89); a request without a body needs none.
+    def test_a_body_is_sent_as_json_and_a_read_carries_no_media_type(self):
+        response = self.run_response('HTTP/2.0 200 OK\n\n{"id": 12}')
+        with mock.patch.object(repo.subprocess, "run", return_value=response) as run:
+            repo.request("POST", "projects", {"name": "x"})
+            posted = run.call_args.args[0]
+            repo.request("GET", "groups/vauchi")
+            read = run.call_args.args[0]
+        self.assertIn("Content-Type: application/json", posted)
+        self.assertEqual(posted[posted.index("Content-Type: application/json") - 1], "--header")
+        self.assertNotIn("Content-Type: application/json", read)
 
 
 if __name__ == "__main__":
