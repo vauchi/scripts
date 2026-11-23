@@ -69,6 +69,36 @@ SW
     rm -rf "$root"
 }
 
+# test_windows_display_scans_its_library — the display library left
+# windows-app for its own repository (private#1234); the boundary check
+# follows it there, accessibility copy included
+test_windows_display_scans_its_library() {
+    root=$(mktemp -d)
+    repo="$root/windows-display"
+    dir="$repo/src/Vauchi.Display"
+    mkdir -p "$dir"
+    cat >"$dir/BadView.cs" <<'CS'
+class BadView {
+    void Route(string screenId) {
+        if (screenId == "multi_stage_exchange") { StartTimer(); }
+        AutomationProperties.SetName(button, "Scan");
+    }
+}
+CS
+    out=$(python3 "$SCRIPT" --repo windows-display --repo-path "$repo" --config "$CONFIG")
+    assert_eq "windows-display: screen-id branch counted" "1" \
+        "$(extract_counter "$out" domain_screen_id_branch)"
+    assert_eq "windows-display: accessibility copy counted" "1" \
+        "$(extract_counter "$out" shell_accessibility_copy)"
+    set +e
+    python3 "$SCRIPT" --repo windows-display --repo-path "$repo" --config "$CONFIG" \
+        --check "$BASELINE" >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "windows-display: above its zero baseline fails" "1" "$rc"
+    rm -rf "$root"
+}
+
 # test_repo_path_missing_source_fails — CI must not pass after scanning no files
 test_repo_path_missing_source_fails() {
     root=$(mktemp -d)
@@ -993,6 +1023,7 @@ PY
 test_empty_workspace
 test_repo_path_resolves_repo_relative_roots
 test_repo_path_missing_source_fails
+test_windows_display_scans_its_library
 test_counts_violations
 test_todo_suppresses
 test_exception_suppresses
