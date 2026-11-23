@@ -85,6 +85,30 @@ printf '%s\n' 'pub enum PresentationNode {' '    Text { value: String },' \
 write_parser
 expect_rc 'presentation protocol parser passes' 0 presentation
 
+# tui became tui-display (private#1233): the table keeps the old name and a
+# workspace that has followed is read under the new one. A parser looked up
+# under one name only would read as missing and fail the check.
+write_enum
+WS="$ROOT/workspace"
+tui_parser="src/ui/widgets/screen_renderer/mod.rs"
+for dir in tui-display tui; do
+    rm -rf "$WS"
+    mkdir -p "$WS/$dir/$(dirname "$tui_parser")"
+    printf 'Component::Text { value } => draw(),\nComponent::Divider => draw(),\n' \
+        >"$WS/$dir/$tui_parser"
+    set +e
+    python3 "$SCRIPT" --workspace "$WS" --frontend tui --enum-file "$enum" >/dev/null 2>&1
+    got=$?
+    set -e
+    if [ "$got" -eq 0 ]; then
+        printf '  PASS %s parser is found in the workspace\n' "$dir"
+        pass=$((pass + 1))
+    else
+        printf '  FAIL %s parser is found in the workspace: rc %s\n' "$dir" "$got" >&2
+        fail=$((fail + 1))
+    fi
+done
+
 if grep -Fq -- '- "${PARSER_FILE}"' "$TEMPLATE"; then
     printf '  FAIL parser-parity MR job is skipped for parser directories\n' >&2
     fail=$((fail + 1))

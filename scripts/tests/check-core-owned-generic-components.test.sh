@@ -112,12 +112,15 @@ test_ios_derived_action_sentinel() {
     rm -rf "$root"
 }
 
-test_tui_derived_action_sentinel() {
+# tui became tui-display (private#1233); a checkout that has not followed is
+# read under its old name, so both directories carry the same contract.
+check_tui_contract() {
+    dir="$1"
     root=$(mktemp -d)
-    keys="$root/tui/src/ui/widgets/key_mapping/component_keys.rs"
-    renderer="$root/tui/src/ui/widgets/screen_renderer/mod.rs"
-    qr="$root/tui/src/ui/widgets/screen_renderer/render_misc.rs"
-    field_list="$root/tui/src/ui/widgets/field_list.rs"
+    keys="$root/$dir/src/ui/widgets/key_mapping/component_keys.rs"
+    renderer="$root/$dir/src/ui/widgets/screen_renderer/mod.rs"
+    qr="$root/$dir/src/ui/widgets/screen_renderer/render_misc.rs"
+    field_list="$root/$dir/src/ui/widgets/field_list.rs"
     mkdir -p "$(dirname "$keys")" "$(dirname "$renderer")"
     printf '%s\n' \
         'confirm_action_id cancel_action_id edit_action_id save_action_id cancel_action_id' \
@@ -133,17 +136,22 @@ test_tui_derived_action_sentinel() {
         'format!(" {} ", self.title)' \
         '.title(panel_title)' \
         >"$field_list"
-    assert_rc 'tui forwarding contract passes' 0 "$(run_rc "$root")"
+    assert_rc "$dir forwarding contract passes" 0 "$(run_rc "$root")"
     printf '%s\n' '" Fields (Show/Hide) "' >>"$field_list"
-    assert_rc 'tui mode-derived FieldList title fails' 1 "$(run_rc "$root")"
+    assert_rc "$dir mode-derived FieldList title fails" 1 "$(run_rc "$root")"
     printf '%s\n' \
         'pub title:' \
         'format!(" {} ", self.title)' \
         '.title(panel_title)' \
         >"$field_list"
     printf '%s\n' 'let action_id = format!("confirm_{id}");' >>"$keys"
-    assert_rc 'tui derived confirm action fails' 1 "$(run_rc "$root")"
+    assert_rc "$dir derived confirm action fails" 1 "$(run_rc "$root")"
     rm -rf "$root"
+}
+
+test_tui_derived_action_sentinel() {
+    check_tui_contract tui-display
+    check_tui_contract tui
 }
 
 test_web_local_state_sentinel() {

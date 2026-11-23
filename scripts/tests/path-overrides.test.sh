@@ -119,6 +119,42 @@ test_apply_writes_fence() {
         'vauchi-core = { path' "$(cat "$root/relay/Cargo.toml")"
 }
 
+# ── 1b. Renamed cli-display / tui-display get the fence too (private#1233) ──
+# A checkout that has followed the rename holds only the new directories;
+# one that has not keeps the old ones (test_apply_writes_fence above).
+test_apply_patches_renamed_consumers() {
+    local root
+    root="$(mktemp -d)"
+    trap 'rm -rf "$root"' RETURN
+    mkdir -p "$root/cli-display" "$root/tui-display" "$root/core/vauchi-core" \
+             "$root/core/vauchi-app" "$root/core/vauchi-protocol"
+    for d in cli-display tui-display; do
+        printf '[package]\nname = "test-%s"\nversion = "0.1.0"\nedition = "2021"\n' "$d" \
+            > "$root/$d/Cargo.toml"
+    done
+    cp "$SCRIPT" "$root/path-overrides.sh"
+    chmod +x "$root/path-overrides.sh"
+
+    set +e
+    out="$(cd "$root" && bash ./path-overrides.sh apply 2>&1)"
+    rc=$?
+    set -e
+
+    assert_exit "renamed apply exit 0" 0 "$rc"
+    for d in cli-display tui-display; do
+        assert_contains "$d has BEGIN fence" "# >>> setup-path-overrides BEGIN" \
+            "$(cat "$root/$d/Cargo.toml")"
+        assert_contains "$d patches vauchi-app to ../core" \
+            'vauchi-app = { path = "../core/vauchi-app" }' "$(cat "$root/$d/Cargo.toml")"
+    done
+
+    (cd "$root" && bash ./path-overrides.sh clean >/dev/null 2>&1)
+    for d in cli-display tui-display; do
+        assert_not_contains "$d fence removed by clean" "# >>> setup-path-overrides BEGIN" \
+            "$(cat "$root/$d/Cargo.toml")"
+    done
+}
+
 # ── 2. Apply is idempotent — re-running doesn't duplicate the block ──
 test_apply_idempotent() {
     local root
@@ -365,6 +401,7 @@ test_clean_round_trip_is_byte_exact() {
 
 echo "── path-overrides.sh tests ──"
 test_apply_writes_fence
+test_apply_patches_renamed_consumers
 test_apply_idempotent
 test_clean_removes_fence
 test_clean_preserves_user_content

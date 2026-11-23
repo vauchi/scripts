@@ -261,6 +261,26 @@ RS
     rm -rf "$root"
 }
 
+# ── 7b. TUI Screen variants under tui-display (private#1233) ─────────
+# tui became tui-display; the test above covers a checkout that has not
+# followed.
+test_tui_display_screen_variants() {
+    local root; root=$(mktemp -d)
+    local s="$root/tui-display/src/app"
+    mkdir -p "$s"
+    cat >"$s/state.rs" <<'RS'
+pub enum Screen {
+    Home,
+    Contacts,
+    About,
+}
+RS
+    out=$("$SCRIPT" "$root")
+    assert_eq "tui-display: screen_variants == 3" \
+        "3" "$(extract_counter "$out" tui_screen_variants)"
+    rm -rf "$root"
+}
+
 # ── 8. core nondeterminism callsites ──────────────────────────────────
 test_core_nondeterminism() {
     local root; root=$(mktemp -d)
@@ -488,6 +508,7 @@ test_macos_counter
 test_android_counter
 test_capability_reporting_wired
 test_tui_screen_variants
+test_tui_display_screen_variants
 test_core_nondeterminism
 test_check_core_purity_mode
 test_qr_performance_timer_owner

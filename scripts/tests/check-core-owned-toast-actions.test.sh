@@ -83,6 +83,29 @@ test_qt_wrong_event() {
     rm -rf "$root"
 }
 
+# tui became tui-display (private#1233); a checkout that has not followed is
+# read under its old name, so both directories carry the same contract.
+check_tui_contract() {
+    dir="$1"
+    root=$(mktemp -d)
+    base="$root/$dir/src"
+    mkdir -p "$base/app" "$base/handlers/input" "$base/ui"
+    printf '%s\n' \
+        'pub undo_label: Option<String>' 'self.undo_label = undo_label' >"$base/app/mod.rs"
+    printf '%s\n' 'undo_label' >"$base/handlers/action_result.rs"
+    printf '%s\n' 'format!(" {}  [z] {}", msg, undo_label)' >"$base/ui/mod.rs"
+    printf '%s\n' 'UserAction::UndoPressed { action_id }' >"$base/handlers/input/mod.rs"
+    assert_rc "$dir wire-label forwarding passes" 0 "$(run_rc "$root")"
+    printf '%s\n' 'let hint = " [z] Undo";' >>"$base/ui/mod.rs"
+    assert_rc "$dir hardcoded Undo fails" 1 "$(run_rc "$root")"
+    rm -rf "$root"
+}
+
+test_tui_hardcoded_copy() {
+    check_tui_contract tui-display
+    check_tui_contract tui
+}
+
 test_ios_parallel_undo_path() {
     root=$(mktemp -d)
     base="$root/ios/Vauchi"
@@ -107,6 +130,7 @@ test_android_hardcoded_copy
 test_gtk_hardcoded_copy
 test_qt_wrong_event
 test_ios_parallel_undo_path
+test_tui_hardcoded_copy
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -84,4 +84,13 @@ cat >"$ROOT/exempt.json" <<'EOF'
 EOF
 run_check "$ROOT/exempt.json" || fail "expected pass once the drop is exempted"
 
-printf 'check-presentation-row-field-coverage: OK (3 cases)\n'
+# 4. tui became tui-display (private#1233): a workspace that has followed is
+# read under the new name, and a drop there is still caught.
+mv "$ROOT/tui" "$ROOT/tui-display"
+run_check "$ROOT/empty.json" || fail "expected pass when tui reads every field under tui-display"
+printf 'render(row.title)\n' >"$ROOT/tui-display/src/ui/presentation_renderer/nodes.rs"
+if run_check "$ROOT/empty.json"; then
+    fail "expected failure when tui-display stops reading .subtitle"
+fi
+
+printf 'check-presentation-row-field-coverage: OK (5 cases)\n'

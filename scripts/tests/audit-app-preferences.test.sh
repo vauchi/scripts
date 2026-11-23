@@ -77,6 +77,35 @@ RS
     rm -rf "$root"
 }
 
+# ── 2b. cli and tui under their new names are counted (private#1233) ──
+# A checkout that has followed the rename must not read as zero; one that
+# has not is still read under the old name (test_cli_sentinel above).
+test_display_directories_counted() {
+    root=$(mktemp -d)
+    mkdir -p "$root/cli-display/src" "$root/tui-display/src"
+    printf 'fn w(v: &Vauchi) {\n    v.app_preferences();\n    v.set_app_preferences(p);\n}\n' \
+        >"$root/cli-display/src/s.rs"
+    printf 'fn w(v: &Vauchi) {\n    v.app_preferences();\n}\n' \
+        >"$root/tui-display/src/s.rs"
+    out=$("$SCRIPT" "$root")
+    assert_eq "cli-display: counted" \
+        "2" "$(extract_counter "$out" app_pref_callers_cli)"
+    assert_eq "tui-display: counted" \
+        "1" "$(extract_counter "$out" app_pref_callers_tui)"
+    rm -rf "$root"
+}
+
+# ── 2c. Old tui directory alone is still counted ──────────────────────
+test_old_tui_directory_counted() {
+    root=$(mktemp -d)
+    mkdir -p "$root/tui/src"
+    printf 'fn w(v: &Vauchi) {\n    v.app_preferences();\n}\n' >"$root/tui/src/s.rs"
+    out=$("$SCRIPT" "$root")
+    assert_eq "tui: old name still counted" \
+        "1" "$(extract_counter "$out" app_pref_callers_tui)"
+    rm -rf "$root"
+}
+
 # ── 3. iOS sentinel — UniFFI camelCase calls count ────────────────────
 test_ios_sentinel() {
     root=$(mktemp -d)
@@ -239,6 +268,8 @@ test_bad_workspace() {
 # ── run ───────────────────────────────────────────────────────────────
 test_empty_workspace
 test_cli_sentinel
+test_display_directories_counted
+test_old_tui_directory_counted
 test_ios_sentinel
 test_excluded_paths
 test_total_sums

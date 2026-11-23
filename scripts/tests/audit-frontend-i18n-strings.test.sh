@@ -255,6 +255,32 @@ RS
     rm -rf "$root"
 }
 
+# ── 7b. tui-display and cli-display are counted (private#1233) ──────────────
+# A workspace that has followed the rename must not read as zero; the old
+# names stay covered by the two sentinels above.
+test_display_directories_counted() {
+    root=$(mktemp -d)
+    mkdir -p "$root/tui-display/src" "$root/cli-display/src"
+    cat >"$root/tui-display/src/render.rs" <<'RS'
+fn render() {
+    let p = Paragraph::new("Hello world");
+    let line = Line::from("Welcome back");
+}
+RS
+    cat >"$root/cli-display/src/main.rs" <<'RS'
+fn warn() {
+    println!("Transaction pending");
+    eprintln!("Connection failed");
+}
+RS
+    out=$("$SCRIPT" "$root")
+    assert_eq "tui-display: counts 2 English literals" \
+        "2" "$(extract_counter "$out" tui)"
+    assert_eq "cli-display: counts 2 English literals" \
+        "2" "$(extract_counter "$out" cli)"
+    rm -rf "$root"
+}
+
 # ── 8. English filter edge cases ────────────────────────────────────────────
 test_english_filter() {
     root=$(mktemp -d)
@@ -421,6 +447,7 @@ test_linux_qt_protocol_keys_guard
 test_linux_gtk_sentinel
 test_tui_sentinel
 test_cli_sentinel
+test_display_directories_counted
 test_english_filter
 test_total_sums
 test_check_above_baseline_fails
