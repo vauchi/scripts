@@ -81,6 +81,19 @@
       "retired_visibility_labels": 0,
       "split_dispatch_api": 0
     },
+    "windows-display": {
+      "action_id_minting": 0,
+      "error_substring_classification": 0,
+      "domain_screen_id_branch": 0,
+      "app_screen_enum_branch": 0,
+      "retired_screen_model": 0,
+      "retired_workflow_engine": 0,
+      "retired_user_action": 0,
+      "retired_action_result": 0,
+      "retired_domain_components": 0,
+      "retired_visibility_labels": 0,
+      "split_dispatch_api": 0
+    },
     "gtk-display": {
       "action_id_minting": 0,
       "domain_screen_id_branch": 0,

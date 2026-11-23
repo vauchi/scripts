@@ -47,12 +47,12 @@
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check_rules.json"
       export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check_rules.json"
-      export FETCH_SCRIPT_SHA256="b05587c0a330b4d4afcdd1c184c3e1e1bc8d24d83c1b76f16719a02f4d93cffd"
+      export FETCH_SCRIPT_SHA256="720723587568a184072c777347db0abf7ad4e7a47a848f03495c8882f9fa8f56"
     - !reference [.verified-fetch-script, before_script]
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check.baseline.json"
       export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check.baseline.json"
-      export FETCH_SCRIPT_SHA256="50c77f11777fd7a2d4a3e7b16e73f55980e937d0dc5d4fa5fefec7458308df94"
+      export FETCH_SCRIPT_SHA256="c256d7a68a01ecfe6ae3f520c4f40855ba43b772c0869e68acc814f600b42339"
     - !reference [.verified-fetch-script, before_script]
     - !reference [.install-python3, before_script]
   script:
