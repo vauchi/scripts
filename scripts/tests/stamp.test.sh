@@ -41,6 +41,11 @@ check "the windows-app directory is a checkable repository" "windows-app" "$(rep
 check "the windows directory is a checkable repository" "windows" "$(repo_of windows)"
 check "gtk-display has a stamp" "$workspace/gtk-display/target/.checks-passed" "$(stamp_of gtk-display)"
 check "docs has no stamp" "" "$(stamp_of docs)"
+# cli and tui become cli-display and tui-display (private#1233).
+for repo in cli-display tui-display cli tui; do
+    check "$repo has a stamp" "$workspace/$repo/target/.checks-passed" "$(stamp_of "$repo")"
+    check "the $repo directory is a checkable repository" "$repo" "$(repo_of "$repo")"
+done
 
 echo "stamp.test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
