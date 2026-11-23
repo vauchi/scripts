@@ -30,7 +30,8 @@ def request(method, endpoint, fields=None):
     args = ["glab", "api", "--hostname", "gitlab.com", "--include",
             "--method", method, endpoint]
     if fields is not None:
-        args.extend(["--input", "-"])
+        # GitLab answers a body without its media type with 415.
+        args.extend(["--header", "Content-Type: application/json", "--input", "-"])
     try:
         response = subprocess.run(
             args, input=json.dumps(fields) if fields is not None else None,
@@ -146,6 +147,39 @@ def ensure_protection(api, endpoint, created):
             raise ApiError(f"Matching protection rule {other['name']!r} allows unsafe access")
 
 
+def tag_rule_safe(rule):
+    levels = rule.get("create_access_levels")
+    return isinstance(levels, list) and bool(levels) and all(
+        isinstance(entry, dict) and type(entry.get("access_level")) is int and entry["access_level"] >= 40
+        for entry in levels
+    )
+
+
+def ensure_tag_protection(api, endpoint, created):
+    """v* tags only Maintainers create. A release job needs the group's
+    protected variables (the signing key, the GitHub app key), which GitLab
+    gives only to protected refs."""
+    tags_endpoint = f"{endpoint}/protected_tags"
+
+    def rules():
+        found = api("GET", f"{tags_endpoint}?per_page=100")
+        if not isinstance(found, list) or len(found) >= 100 or any(
+            not isinstance(rule, dict) or not isinstance(rule.get("name"), str) for rule in found
+        ):
+            raise ApiError("Cannot verify all tag protection rules; manual review required")
+        return found
+
+    found = rules()
+    if not any(rule["name"] == "v*" for rule in found):
+        if not created:
+            raise ApiError("Existing project does not protect v* tags; left unchanged")
+        api("POST", tags_endpoint, {"name": "v*", "create_access_level": 40})
+        found = rules()
+    covering = [rule for rule in found if fnmatch.fnmatchcase("v1.0.0", rule["name"])]
+    if not any(rule["name"] == "v*" for rule in covering) or not all(tag_rule_safe(rule) for rule in covering):
+        raise ApiError("v* tags are not protected for Maintainers only")
+
+
 def approval_covers_main(rule):
     if not isinstance(rule, dict) or rule.get("rule_type") != "any_approver":
         return False
@@ -213,6 +247,7 @@ def provision(name, description="", visibility="public", api=request):
     verify_identity(project, name)
     verify_settings(project, visibility)
     ensure_protection(api, endpoint, created)
+    ensure_tag_protection(api, endpoint, created)
     ensure_approval(api, endpoint, created)
     return project
 
@@ -228,7 +263,7 @@ def main():
     except ApiError as error:
         print(f"ERROR: {error}. No project is automatically deleted; inspect before retrying.", file=sys.stderr)
         return 1
-    print(f"Verified https://gitlab.com/{project['path_with_namespace']}: merge policy, approval and main protection")
+    print(f"Verified https://gitlab.com/{project['path_with_namespace']}: merge policy, approval, main protection and v* tag protection")
     return 0
 
 
