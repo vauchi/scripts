@@ -91,6 +91,57 @@ def test_renames_are_read_from_git_name_status():
     }
 
 
+REMOVED_25_ABOVE = """diff --git a/card_tests.rs b/card_tests.rs
+index 1111111..2222222 100644
+--- a/card_tests.rs
++++ b/card_tests.rs
+@@ -14,25 +13,0 @@ use vauchi_core::{
+-fn create_test_vauchi() -> Vauchi {
+"""
+
+
+def test_a_changed_clone_that_lines_removed_above_moved_far_is_not_new():
+    # core!2420: a rename changed the clone's text, so jscpd flagged it,
+    # and 25 lines removed above both copies moved them past LINE_SLACK.
+    branch = report(clone("card_tests.rs", 131, "card_tests.rs", 284))
+    main = report(clone("card_tests.rs", 156, "card_tests.rs", 309))
+    shifts = CHECK.line_shifts_from_diff(REMOVED_25_ABOVE)
+    assert CHECK.new_clones(branch, main, renames={}, shifts=shifts) == []
+
+
+def test_lines_added_above_a_clone_move_it_too():
+    diff = (
+        "diff --git a/a.rs b/a.rs\n--- a/a.rs\n+++ b/a.rs\n"
+        "@@ -10,0 +11,30 @@\n" + "+added\n" * 30
+    )
+    branch = report(clone("a.rs", 70, "b.rs", 40))
+    main = report(clone("a.rs", 40, "b.rs", 40))
+    shifts = CHECK.line_shifts_from_diff(diff)
+    assert CHECK.new_clones(branch, main, renames={}, shifts=shifts) == []
+
+
+def test_a_clone_still_far_from_main_after_the_shift_is_new():
+    far = clone("card_tests.rs", 200, "card_tests.rs", 284)
+    branch = report(far)
+    main = report(clone("card_tests.rs", 156, "card_tests.rs", 309))
+    shifts = CHECK.line_shifts_from_diff(REMOVED_25_ABOVE)
+    assert CHECK.new_clones(branch, main, renames={}, shifts=shifts) == [far]
+
+
+def test_line_shifts_are_read_from_a_zero_context_diff_with_renames():
+    diff = (
+        "diff --git a/old.rs b/new.rs\nsimilarity index 90%\n"
+        "rename from old.rs\nrename to new.rs\n--- a/old.rs\n+++ b/new.rs\n"
+        "@@ -3 +3,2 @@\n-one\n+++two\n+three\n"
+        "@@ -20,4 +21,0 @@\n-a\n-b\n-c\n-d\n"
+        "diff --git a/gone.rs b/gone.rs\ndeleted file mode 100644\n"
+        "--- a/gone.rs\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-x\n-y\n"
+    )
+    assert CHECK.line_shifts_from_diff(diff) == {
+        "new.rs": [(3, 1, 3, 2), (20, 4, 21, 0)],
+    }
+
+
 def test_duplication_may_shrink_or_stay_but_not_grow():
     main = report(clone("a.rs", 10, "b.rs", 40), clone("c.rs", 1, "d.rs", 1))
     assert CHECK.growth(report(clone("a.rs", 10, "b.rs", 40)), main) == []
@@ -126,11 +177,18 @@ def test_the_command_line_fails_on_a_new_clone_and_passes_without():
         added.write_text(json.dumps(report(clone("a.rs", 11, "b.rs", 41), clone("c.rs", 1, "d.rs", 1))))
         names = root / "names.txt"
         names.write_text("")
-        assert CHECK.main(["--branch", str(same), "--main", str(main), "--name-status", str(names)]) == 0
-        assert CHECK.main(["--branch", str(added), "--main", str(main), "--name-status", str(names)]) == 1
+        diff = root / "shifts.diff"
+        diff.write_text("")
+        inputs = ["--main", str(main), "--name-status", str(names), "--diff", str(diff)]
+        assert CHECK.main(["--branch", str(same), *inputs]) == 0
+        assert CHECK.main(["--branch", str(added), *inputs]) == 1
         grown = root / "grown.json"
         grown.write_text(json.dumps(report(clone("a.rs", 11, "b.rs", 41, lines=40))))
-        assert CHECK.main(["--branch", str(grown), "--main", str(main), "--name-status", str(names)]) == 1
+        assert CHECK.main(["--branch", str(grown), *inputs]) == 1
+        moved = root / "moved.json"
+        moved.write_text(json.dumps(report(clone("a.rs", 70, "b.rs", 40))))
+        diff.write_text("diff --git a/a.rs b/a.rs\n--- a/a.rs\n+++ b/a.rs\n@@ -1,0 +1,60 @@\n")
+        assert CHECK.main(["--branch", str(moved), *inputs]) == 0
 
 
 def test_a_missing_or_unreadable_report_fails_rather_than_passes():
@@ -142,11 +200,16 @@ def test_a_missing_or_unreadable_report_fails_rather_than_passes():
         broken.write_text("{ not json")
         names = root / "names.txt"
         names.write_text("")
-        assert CHECK.main(["--branch", str(root / "absent.json"), "--main", str(good), "--name-status", str(names)]) == 2
-        assert CHECK.main(["--branch", str(broken), "--main", str(good), "--name-status", str(names)]) == 2
+        diff = root / "shifts.diff"
+        diff.write_text("")
+        inputs = ["--name-status", str(names), "--diff", str(diff)]
+        assert CHECK.main(["--branch", str(root / "absent.json"), "--main", str(good), *inputs]) == 2
+        assert CHECK.main(["--branch", str(broken), "--main", str(good), *inputs]) == 2
         no_totals = root / "no_totals.json"
         no_totals.write_text(json.dumps({"duplicates": [], "statistics": {}}))
-        assert CHECK.main(["--branch", str(no_totals), "--main", str(good), "--name-status", str(names)]) == 2
+        assert CHECK.main(["--branch", str(no_totals), "--main", str(good), *inputs]) == 2
+        absent_diff = ["--name-status", str(names), "--diff", str(root / "absent.diff")]
+        assert CHECK.main(["--branch", str(good), "--main", str(good), *absent_diff]) == 2
 
 
 if __name__ == "__main__":
