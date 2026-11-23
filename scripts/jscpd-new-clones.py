@@ -16,12 +16,15 @@ runs through code main already duplicated reports every such duplicate as
 new (vauchi/private#1359: 44 on core!2411, all on main at the same lines).
 So a clone jscpd flags as new is new here only if main's own report has no
 clone of the same two files within LINE_SLACK lines of it, after mapping
-files git saw renamed.
+files git saw renamed and lines back to main's through the diff: lines
+added or removed above a clone move it further than any slack would allow
+(vauchi/private#1363: core!2420, 25 lines removed above a renamed clone).
 
     jscpd-new-clones.py --branch BRANCH.json --main MAIN.json \\
-        --name-status NAMES.txt [--allowed N]
+        --name-status NAMES.txt --diff SHIFTS.diff [--allowed N]
 
-NAMES.txt is `git diff --name-status -M <main> HEAD`. Exit 0 when
+NAMES.txt is `git diff --name-status -M <main> HEAD`, SHIFTS.diff is
+`git diff -U0 -M <main> HEAD`. Exit 0 when
 duplication did not grow and at most --allowed clones are new, 1
 otherwise, 2 when a report cannot be read: a check that could not run
 must not pass.
@@ -29,6 +32,7 @@ must not pass.
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -45,13 +49,53 @@ def renames_from_name_status(text):
     return renames
 
 
-def _place(clone, renames):
-    first, second = clone["firstFile"], clone["secondFile"]
-    ends = sorted([
-        (renames.get(first["name"], first["name"]), first["start"]),
-        (renames.get(second["name"], second["name"]), second["start"]),
-    ])
-    return ends
+HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+
+def line_shifts_from_diff(text):
+    """New path -> its hunks as (main start, main lines, branch start,
+    branch lines), from `git diff -U0 -M`. Deleted files have none."""
+    shifts = {}
+    path = None
+    in_header = False
+    for line in text.splitlines():
+        if line.startswith("diff --git "):
+            path, in_header = None, True
+        elif in_header and line.startswith("+++ "):
+            target = line[4:]
+            path = target[2:] if target.startswith("b/") else None
+        elif line.startswith("@@"):
+            in_header = False
+            match = HUNK.match(line)
+            if match and path is not None:
+                old_start, old_len, new_start, new_len = match.groups()
+                shifts.setdefault(path, []).append((
+                    int(old_start), 1 if old_len is None else int(old_len),
+                    int(new_start), 1 if new_len is None else int(new_len),
+                ))
+    return shifts
+
+
+def _main_line(path, line, shifts):
+    """The line of main that `line` of the branch's `path` was."""
+    offset = 0
+    for old_start, old_len, new_start, new_len in shifts.get(path, []):
+        last_new = new_start + new_len - 1 if new_len else new_start
+        if line > last_new:
+            offset += old_len - new_len
+        elif new_len and line >= new_start:
+            return old_start
+        else:
+            break
+    return line + offset
+
+
+def _place(clone, renames, shifts):
+    ends = []
+    for end in (clone["firstFile"], clone["secondFile"]):
+        name = end["name"]
+        ends.append((renames.get(name, name), _main_line(name, end["start"], shifts)))
+    return sorted(ends)
 
 
 def _same_place(branch_ends, main_ends):
@@ -61,14 +105,15 @@ def _same_place(branch_ends, main_ends):
     )
 
 
-def new_clones(branch, main, renames):
+def new_clones(branch, main, renames, shifts=None):
     """The clones of `branch` that jscpd flags new and main had nowhere near."""
-    main_places = [_place(clone, {}) for clone in main["duplicates"]]
+    shifts = shifts or {}
+    main_places = [_place(clone, {}, {}) for clone in main["duplicates"]]
     found = []
     for clone in branch["duplicates"]:
         if not clone.get("isNew"):
             continue
-        place = _place(clone, renames)
+        place = _place(clone, renames, shifts)
         if not any(_same_place(place, main_place) for main_place in main_places):
             found.append(clone)
     return found
@@ -100,18 +145,20 @@ def main(argv=None):
     parser.add_argument("--branch", required=True)
     parser.add_argument("--main", required=True)
     parser.add_argument("--name-status", required=True)
+    parser.add_argument("--diff", required=True)
     parser.add_argument("--allowed", type=int, default=0)
     args = parser.parse_args(argv)
     try:
         branch = _load(args.branch)
         main_report = _load(args.main)
         renames = renames_from_name_status(Path(args.name_status).read_text(encoding="utf-8"))
+        shifts = line_shifts_from_diff(Path(args.diff).read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         print(f"jscpd-new-clones: cannot read the reports: {error}", file=sys.stderr)
         return 2
 
     flagged = sum(1 for clone in branch["duplicates"] if clone.get("isNew"))
-    found = new_clones(branch, main_report, renames)
+    found = new_clones(branch, main_report, renames, shifts)
     for clone in found:
         first, second = clone["firstFile"], clone["secondFile"]
         print(f"new clone: {first['name']}:{first['start']}-{first['end']}"

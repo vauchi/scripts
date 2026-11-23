@@ -18,7 +18,8 @@
 # duplicate as new (vauchi/private#1359: 44 on core!2411, all on main at
 # the same lines). jscpd now only flags; scripts/jscpd-new-clones.py
 # counts a flagged clone as new only if main's own report has no clone
-# of the same two files within a few lines, across files git saw renamed.
+# of the same two files within a few lines, across files git saw renamed
+# and with lines mapped back to main's through the diff (private#1363).
 #
 # Usage:
 #   quality:jscpd:
@@ -71,11 +72,13 @@
       --min-lines 10 --min-tokens 100 --threshold 100 --format "${JSCPD_FORMATS}"
       --ignore "${JSCPD_IGNORE}" --reporters json --output /tmp/jscpd-main/report .)
     - git diff --name-status -M "origin/${CI_DEFAULT_BRANCH}" HEAD > jscpd-report/name-status.txt
+    - git diff -U0 -M "origin/${CI_DEFAULT_BRANCH}" HEAD > jscpd-report/line-shifts.diff
     - >
       python3 /tmp/vauchi-scripts/scripts/jscpd-new-clones.py
       --branch jscpd-report/jscpd-report.json
       --main /tmp/jscpd-main/report/jscpd-report.json
-      --name-status jscpd-report/name-status.txt --allowed 0
+      --name-status jscpd-report/name-status.txt
+      --diff jscpd-report/line-shifts.diff --allowed 0
   artifacts:
     when: always
     paths:
