@@ -547,10 +547,10 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         core)
             TEST_CMD+=(--workspace)
             ;;
-        cli)
+        cli | cli-display)
             TEST_CMD+=(--all-targets --no-default-features)
             ;;
-        tui)
+        tui | tui-display)
             TEST_CMD+=(--all-targets)
             LOCALES_DIR="$REPO_ROOT/../locales"
             if [[ -d "$LOCALES_DIR" ]]; then

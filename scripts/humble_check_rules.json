@@ -71,7 +71,9 @@
   "aliases": {
     "linux-gtk": "gtk-display",
     "linux-qt": "qt-display",
-    "windows": "windows-app"
+    "windows": "windows-app",
+    "cli-display": "cli",
+    "tui-display": "tui"
   },
   "repos": {
     "core": {

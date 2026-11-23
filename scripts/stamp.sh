@@ -22,7 +22,7 @@ _STAMP_WS_ROOT="${_STAMP_WS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." &&
 stamp_file() {
     local repo="${1:?stamp_file requires a repo name}"
     case "$repo" in
-        core|cli|tui|relay|e2e)
+        core|cli|tui|cli-display|tui-display|relay|e2e)
             echo "$_STAMP_WS_ROOT/$repo/target/.checks-passed" ;;
         android)
             echo "$_STAMP_WS_ROOT/android/.gradle/.checks-passed" ;;
@@ -76,7 +76,7 @@ stamp_valid() {
 stamp_repo_from_dir() {
     local dir_name="${1:?stamp_repo_from_dir requires a directory name}"
     case "$dir_name" in
-        core|cli|tui|relay|e2e|android|ios|linux-gtk|linux-qt|gtk-display|qt-display|macos|windows|windows-app)
+        core|cli|tui|cli-display|tui-display|relay|e2e|android|ios|linux-gtk|linux-qt|gtk-display|qt-display|macos|windows|windows-app)
             echo "$dir_name" ;;
         *)
             echo ""
