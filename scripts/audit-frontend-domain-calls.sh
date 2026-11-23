@@ -219,8 +219,14 @@ count_rust_calls() {
 }
 
 # ── repo-relative frontend source roots ──────────────────────────────
-TUI_SRC="$WORKSPACE_ROOT/tui/src"
-CLI_SRC="$WORKSPACE_ROOT/cli/src"
+# cli and tui become cli-display and tui-display (private#1233); a
+# checkout that has not followed is read under its old name.
+CLI_DIR=cli-display
+[ -d "$WORKSPACE_ROOT/cli-display" ] || [ ! -d "$WORKSPACE_ROOT/cli" ] || CLI_DIR=cli
+TUI_DIR=tui-display
+[ -d "$WORKSPACE_ROOT/tui-display" ] || [ ! -d "$WORKSPACE_ROOT/tui" ] || TUI_DIR=tui
+TUI_SRC="$WORKSPACE_ROOT/$TUI_DIR/src"
+CLI_SRC="$WORKSPACE_ROOT/$CLI_DIR/src"
 # ADR-078 renamed linux-gtk and linux-qt (private#1029). A checkout that
 # still has the old directory is read there; looking for one name only
 # would count nothing in it and pass.

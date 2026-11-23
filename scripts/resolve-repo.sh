@@ -305,6 +305,11 @@ _dir_to_gitlab_name() {
         # windows was renamed to windows-app on 2026-11-22 (private#1234).
         windows)
             echo "windows-app" ;;
+        # cli and tui become cli-display and tui-display (private#1233).
+        cli)
+            echo "cli-display" ;;
+        tui)
+            echo "tui-display" ;;
         *)
             echo "$name" ;;
     esac

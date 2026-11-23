@@ -80,11 +80,14 @@
       # name from before ADR-078's renames until the workspace follows
       # (private#1029). Under the new name the copy would be an absent
       # sibling and count zero. The same holds for windows, renamed to
-      # windows-app by ADR-078 step 4 (private#1234).
+      # windows-app by ADR-078 step 4 (private#1234), and for cli and tui,
+      # renamed to cli-display and tui-display by step 3 (private#1233).
       case "$CI_PROJECT_NAME" in
           gtk-display) ws_dir=linux-gtk ;;
           qt-display) ws_dir=linux-qt ;;
           windows-app) ws_dir=windows ;;
+          cli-display) ws_dir=cli ;;
+          tui-display) ws_dir=tui ;;
           *) ws_dir=$CI_PROJECT_NAME ;;
       esac
       WS=/tmp/ws
