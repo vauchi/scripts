@@ -145,7 +145,11 @@ MACOS_SRC="$WORKSPACE_ROOT/macos/Vauchi"
 WIN_DIR=windows-app
 [ -d "$WORKSPACE_ROOT/windows-app" ] || [ ! -d "$WORKSPACE_ROOT/windows" ] || WIN_DIR=windows
 WINDOWS_SRC="$WORKSPACE_ROOT/$WIN_DIR/Vauchi"
-TUI_SRC="$WORKSPACE_ROOT/tui/src"
+# tui became tui-display (private#1233); a checkout that has not followed
+# is read under its old name.
+TUI_DIR=tui-display
+[ -d "$WORKSPACE_ROOT/tui-display" ] || [ ! -d "$WORKSPACE_ROOT/tui" ] || TUI_DIR=tui
+TUI_SRC="$WORKSPACE_ROOT/$TUI_DIR/src"
 WEB_DEMO_SRC="$WORKSPACE_ROOT/web-demo/src"
 
 # ── counters ─────────────────────────────────────────────────────────

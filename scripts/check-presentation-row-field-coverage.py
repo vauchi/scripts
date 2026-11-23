@@ -105,7 +105,12 @@ def extract_fields(path: Path) -> list[str]:
 # ADR-078 renamed linux-gtk and linux-qt (private#1029). The tables keep
 # the shell names; a workspace that already has the new directory is read
 # there. Looking under one name only would skip the shell and pass.
-RENAMED_DIRS = {"linux-gtk": "gtk-display", "linux-qt": "qt-display", "windows": "windows-app"}
+RENAMED_DIRS = {
+    "linux-gtk": "gtk-display",
+    "linux-qt": "qt-display",
+    "windows": "windows-app",
+    "tui": "tui-display",
+}
 
 
 def in_workspace(root: Path, rel: str) -> Path:

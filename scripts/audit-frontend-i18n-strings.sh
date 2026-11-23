@@ -218,7 +218,9 @@ count_linux_gtk() {
 
 # ── TUI Rust ────────────────────────────────────────────────────────────────
 count_tui() {
-    local dir="$ROOT/tui"
+    # tui was renamed to tui-display (private#1233).
+    local dir="$ROOT/tui-display"
+    [ -d "$dir" ] || dir="$ROOT/tui"
     [ -d "$dir" ] || { echo 0; return; }
     local n=0
     tmp_list=$(mktemp)
@@ -234,7 +236,9 @@ count_tui() {
 
 # ── CLI Rust ────────────────────────────────────────────────────────────────
 count_cli() {
-    local dir="$ROOT/cli"
+    # cli was renamed to cli-display (private#1233).
+    local dir="$ROOT/cli-display"
+    [ -d "$dir" ] || dir="$ROOT/cli"
     [ -d "$dir" ] || { echo 0; return; }
     local n=0
     tmp_list=$(mktemp)

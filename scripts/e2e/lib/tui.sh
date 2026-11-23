@@ -23,6 +23,10 @@ fi
 # Configuration
 # ═══════════════════════════════════════════════════════════════
 
+# tui becomes tui-display (private#1233); a checkout that has not followed
+# is read under its old name.
+TUI_DIR=tui-display
+[ -d "$PROJECT_ROOT/tui-display" ] || [ ! -d "$PROJECT_ROOT/tui" ] || TUI_DIR=tui
 TUI_TEST_DATA_DIR="${TUI_TEST_DATA_DIR:-$TMP_DIR/tui-instances}"
 # Use configured relay URL, falling back to production relay
 TUI_RELAY_URL="${TUI_RELAY_URL:-${RELAY_URL:-wss://relay.vauchi.app}}"
@@ -34,7 +38,7 @@ TUI_RELAY_URL="${TUI_RELAY_URL:-${RELAY_URL:-wss://relay.vauchi.app}}"
 # Build TUI binary
 tui_build() {
     log_step "Building TUI"
-    cd "$PROJECT_ROOT/tui" || exit 1
+    cd "$PROJECT_ROOT/$TUI_DIR" || exit 1
     cargo build --target-dir "$PROJECT_ROOT/target"
     log_success "TUI built"
 }
@@ -44,7 +48,7 @@ tui_is_built() {
     # Check shared target first, then local tui target
     if [ -f "$PROJECT_ROOT/target/debug/vauchi-tui" ]; then
         return 0
-    elif [ -f "$PROJECT_ROOT/tui/target/debug/vauchi-tui" ]; then
+    elif [ -f "$PROJECT_ROOT/$TUI_DIR/target/debug/vauchi-tui" ]; then
         return 0
     else
         return 1
@@ -57,7 +61,7 @@ tui_binary() {
     if [ -f "$PROJECT_ROOT/target/debug/vauchi-tui" ]; then
         echo "$PROJECT_ROOT/target/debug/vauchi-tui"
     else
-        echo "$PROJECT_ROOT/tui/target/debug/vauchi-tui"
+        echo "$PROJECT_ROOT/$TUI_DIR/target/debug/vauchi-tui"
     fi
 }
 

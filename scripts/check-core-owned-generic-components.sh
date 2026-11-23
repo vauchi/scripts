@@ -322,11 +322,14 @@ check_windows() {
 }
 
 check_tui() {
-    [ -d "$ROOT/tui" ] || return 0
-    keys='tui/src/ui/widgets/key_mapping/component_keys.rs'
-    renderer='tui/src/ui/widgets/screen_renderer/mod.rs'
-    qr='tui/src/ui/widgets/screen_renderer/render_misc.rs'
-    field_list='tui/src/ui/widgets/field_list.rs'
+    # tui was renamed to tui-display (private#1233).
+    tui='tui-display'
+    [ -d "$ROOT/$tui" ] || tui='tui'
+    [ -d "$ROOT/$tui" ] || return 0
+    keys="$tui/src/ui/widgets/key_mapping/component_keys.rs"
+    renderer="$tui/src/ui/widgets/screen_renderer/mod.rs"
+    qr="$tui/src/ui/widgets/screen_renderer/render_misc.rs"
+    field_list="$tui/src/ui/widgets/field_list.rs"
     for file in "$keys" "$renderer" "$qr" "$field_list"; do require_file "$file" || return 0; done
     require_tokens "$keys" 'verbatim terminal action forwarding' \
         confirm_action_id cancel_action_id edit_action_id save_action_id cancel_action_id

@@ -23,6 +23,10 @@ fi
 # Configuration
 # ═══════════════════════════════════════════════════════════════
 
+# cli becomes cli-display (private#1233); a checkout that has not followed
+# is read under its old name.
+CLI_DIR=cli-display
+[ -d "$PROJECT_ROOT/cli-display" ] || [ ! -d "$PROJECT_ROOT/cli" ] || CLI_DIR=cli
 CLI_TEST_DATA_DIR="${CLI_TEST_DATA_DIR:-$TMP_DIR/cli-instances}"
 # Use configured relay URL, falling back to production relay
 CLI_RELAY_URL="${CLI_RELAY_URL:-${RELAY_URL:-wss://relay.vauchi.app}}"
@@ -34,7 +38,7 @@ CLI_RELAY_URL="${CLI_RELAY_URL:-${RELAY_URL:-wss://relay.vauchi.app}}"
 # Build CLI binary
 cli_build() {
     log_step "Building CLI"
-    cd "$PROJECT_ROOT/cli" || exit 1
+    cd "$PROJECT_ROOT/$CLI_DIR" || exit 1
     cargo build --target-dir "$PROJECT_ROOT/target"
     log_success "CLI built"
 }

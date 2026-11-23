@@ -134,7 +134,11 @@ echo ""
 # Build the dedicated E2E CLI: no secure storage (subprocesses need durable
 # file keys) and the compile-time-only test clock seam. Release builds omit
 # this feature, so their destructive-operation grace period stays unforgeable.
-build_if_changed "$WORKSPACE_ROOT/cli" "vauchi" --no-default-features --features e2e-test-clock
+# cli becomes cli-display (private#1233); a checkout that has not followed
+# is built under its old name.
+CLI_DIR=cli-display
+[ -d "$WORKSPACE_ROOT/cli-display" ] || [ ! -d "$WORKSPACE_ROOT/cli" ] || CLI_DIR=cli
+build_if_changed "$WORKSPACE_ROOT/$CLI_DIR" "vauchi" --no-default-features --features e2e-test-clock
 
 build_relay_if_changed "$WORKSPACE_ROOT/relay"
 

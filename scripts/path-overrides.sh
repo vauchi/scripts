@@ -51,6 +51,8 @@ END_MARKER="# <<< setup-path-overrides END"
 CONSUMERS=(
     "cli|../core||vauchi-core,vauchi-app"
     "tui|../core||vauchi-core,vauchi-app"
+    "cli-display|../core||vauchi-core,vauchi-app"
+    "tui-display|../core||vauchi-core,vauchi-app"
     "linux-app|../core||vauchi-core,vauchi-app"
     "relay|../core||vauchi-protocol"
     "e2e|../core|../relay|vauchi-core,vauchi-app,vauchi-protocol"

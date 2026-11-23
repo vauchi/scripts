@@ -166,11 +166,14 @@ check_windows() {
 }
 
 check_tui() {
-    [ -d "$ROOT/tui" ] || return 0
-    app='tui/src/app/mod.rs'
-    handler='tui/src/handlers/action_result.rs'
-    ui='tui/src/ui/mod.rs'
-    input='tui/src/handlers/input/mod.rs'
+    # tui was renamed to tui-display (private#1233).
+    tui='tui-display'
+    [ -d "$ROOT/$tui" ] || tui='tui'
+    [ -d "$ROOT/$tui" ] || return 0
+    app="$tui/src/app/mod.rs"
+    handler="$tui/src/handlers/action_result.rs"
+    ui="$tui/src/ui/mod.rs"
+    input="$tui/src/handlers/input/mod.rs"
     for file in "$app" "$handler" "$ui" "$input"; do require_file "$file" || return 0; done
     require_tokens "$app" 'terminal toast label state' \
         'pub undo_label: Option<String>' 'self.undo_label = undo_label'

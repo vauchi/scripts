@@ -174,7 +174,11 @@ IOS_SRC="$WORKSPACE_ROOT/ios/Vauchi"
 MACOS_SRC="$WORKSPACE_ROOT/macos/Vauchi"
 ANDROID_UI="$WORKSPACE_ROOT/android/app/src/main/kotlin/app/vauchi/ui"
 ANDROID_APP_SRC="$WORKSPACE_ROOT/android/app/src/main/kotlin/app/vauchi"
-TUI_STATE="$WORKSPACE_ROOT/tui/src/app/state.rs"
+# tui became tui-display (private#1233); a checkout that has not followed
+# is read under its old name.
+TUI_DIR=tui-display
+[ -d "$WORKSPACE_ROOT/tui-display" ] || [ ! -d "$WORKSPACE_ROOT/tui" ] || TUI_DIR=tui
+TUI_STATE="$WORKSPACE_ROOT/$TUI_DIR/src/app/state.rs"
 
 # ── counters ─────────────────────────────────────────────────────────
 
