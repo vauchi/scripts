@@ -54,7 +54,14 @@ check "linux-qt keeps its directory" "linux-qt/src/marker" "$(copied_as linux-qt
 check "windows-app is copied where the audit looks for the Windows shell" \
     "windows/src/marker" "$(copied_as windows-app)"
 check "windows keeps its directory" "windows/src/marker" "$(copied_as windows)"
-check "any other repository keeps its project name" "tui/src/marker" "$(copied_as tui)"
+# cli and tui become cli-display and tui-display (private#1233); until
+# the workspace follows, the audit reads them under the old names.
+check "cli-display is copied where the audit looks for the CLI" \
+    "cli/src/marker" "$(copied_as cli-display)"
+check "tui-display is copied where the audit looks for the TUI" \
+    "tui/src/marker" "$(copied_as tui-display)"
+check "tui keeps its directory" "tui/src/marker" "$(copied_as tui)"
+check "any other repository keeps its project name" "relay/src/marker" "$(copied_as relay)"
 
 # Whatever directory the job picks, the audit must count the copy: the
 # audit reads either name, so the mapping above can go with no change here.

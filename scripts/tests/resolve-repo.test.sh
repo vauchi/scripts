@@ -143,3 +143,30 @@ vauchi/windows-app"
     fi
     echo "PASS ($shell): windows resolves to vauchi/windows-app"
 done
+# cli and tui become cli-display and tui-display (private#1233); a slot
+# whose checkout keeps the old directory must reach the renamed project,
+# since GitLab answers the old path for GET only.
+for shell in bash zsh; do
+    command -v "$shell" >/dev/null 2>&1 || continue
+    out="$(
+        "$shell" -c '
+            cd "$1"
+            source "$1/scripts/scripts/resolve-repo.sh"
+            REPO_REGISTRY=("cli:cli:rust" "tui:tui:rust")
+            resolve_gitlab_project cli
+            resolve_gitlab_project cli-display
+            resolve_gitlab_project tui
+            resolve_gitlab_project tui-display
+        ' _ "$workspace"
+    )"
+    expected="vauchi/cli-display
+vauchi/cli-display
+vauchi/tui-display
+vauchi/tui-display"
+    if [[ "$out" != "$expected" ]]; then
+        echo "FAIL ($shell): cli and tui resolve to their renamed projects; got:"
+        printf '%s\n' "$out"
+        exit 1
+    fi
+    echo "PASS ($shell): cli and tui resolve to vauchi/cli-display and vauchi/tui-display"
+done

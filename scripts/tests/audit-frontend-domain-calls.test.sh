@@ -698,6 +698,23 @@ test_empty_workspace
 test_rust_sentinel
 test_cpp_sentinel
 test_windows_app_directory_counted
+
+# ── 3c. The terminals' checkouts under their new names are counted ───
+# cli and tui become cli-display and tui-display (private#1233); a
+# workspace that has followed must not read as zero calls.
+test_terminal_display_directories_counted() {
+    root=$(mktemp -d)
+    for repo in cli-display tui-display; do
+        mkdir -p "$root/$repo/src"
+        printf 'fn f() { wb.save_duress_settings(&s).unwrap(); }\n' >"$root/$repo/src/a.rs"
+    done
+    out=$("$SCRIPT" "$root")
+    assert_eq "cli-display: counted" "1" "$(extract_counter "$out" domain_calls_cli)"
+    assert_eq "tui-display: counted" "1" "$(extract_counter "$out" domain_calls_tui)"
+    rm -rf "$root"
+}
+
+test_terminal_display_directories_counted
 test_old_directory_names_still_counted
 test_native_image_export_not_counted
 test_cs_sentinel
