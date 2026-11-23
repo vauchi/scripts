@@ -9,10 +9,16 @@
 # duplication. Per-repo only: cross-repo clones need a workspace scan and
 # are out of scope for this job.
 #
-# Ratchet: only clones ABSENT from origin/main fail the job
-# (--baseline-from-ref + --fail-on-new-clones), so existing duplication
-# never blocks — the same shape as check:ignored-results /
+# Ratchet: only clones ABSENT from origin/main fail the job, so existing
+# duplication never blocks — the same shape as check:ignored-results /
 # check:empty-then-steps. Started advisory; promoted after clean output.
+#
+# jscpd's --baseline-from-ref matches a clone by its text, so a rename
+# running through code main already duplicated reported every such
+# duplicate as new (vauchi/private#1359: 44 on core!2411, all on main at
+# the same lines). jscpd now only flags; scripts/jscpd-new-clones.py
+# counts a flagged clone as new only if main's own report has no clone
+# of the same two files within a few lines, across files git saw renamed.
 #
 # Usage:
 #   quality:jscpd:
@@ -36,18 +42,40 @@
   before_script:
     # node:22-alpine has no git, which the baseline fetch and jscpd's
     # --baseline-from-ref need (core!2371's first run: "git: not found").
-    - apk add --no-cache git > /dev/null
+    - apk add --no-cache git python3 > /dev/null
     - npm install --no-save --no-audit --no-fund "jscpd@${JSCPD_VERSION}"
     # The baseline ref's tree is what new clones are measured against. The
     # refspec names the ref: a fetch by branch name alone only fills
     # origin/<branch> when the clone's remote has a default refspec.
     - git fetch -q --depth=1 origin "+refs/heads/${CI_DEFAULT_BRANCH}:refs/remotes/origin/${CI_DEFAULT_BRANCH}"
   script:
+    - |
+      if [ "$CI_PROJECT_PATH" = "vauchi/scripts" ]; then
+        ln -s "$CI_PROJECT_DIR" /tmp/vauchi-scripts
+      else
+        # Consumers pin scripts by commit (VAUCHI_SCRIPTS_REF), which
+        # `git clone --branch` cannot take; a fetch by name or SHA can.
+        git init -q /tmp/vauchi-scripts
+        git -C /tmp/vauchi-scripts fetch -q --depth=1 https://gitlab.com/vauchi/scripts.git "${VAUCHI_SCRIPTS_REF:-main}"
+        git -C /tmp/vauchi-scripts checkout -q FETCH_HEAD
+      fi
     - >
       ./node_modules/.bin/jscpd --min-lines 10 --min-tokens 100
       --threshold 100 --format "${JSCPD_FORMATS}" --ignore "${JSCPD_IGNORE}"
-      --baseline-from-ref "origin/${CI_DEFAULT_BRANCH}" --fail-on-new-clones=0
+      --baseline-from-ref "origin/${CI_DEFAULT_BRANCH}"
       --reporters console,json --output jscpd-report .
+    - mkdir -p /tmp/jscpd-main/tree
+    - git archive "origin/${CI_DEFAULT_BRANCH}" | tar -x -C /tmp/jscpd-main/tree
+    - >
+      (cd /tmp/jscpd-main/tree && "$CI_PROJECT_DIR/node_modules/.bin/jscpd"
+      --min-lines 10 --min-tokens 100 --threshold 100 --format "${JSCPD_FORMATS}"
+      --ignore "${JSCPD_IGNORE}" --reporters json --output /tmp/jscpd-main/report .)
+    - git diff --name-status -M "origin/${CI_DEFAULT_BRANCH}" HEAD > jscpd-report/name-status.txt
+    - >
+      python3 /tmp/vauchi-scripts/scripts/jscpd-new-clones.py
+      --branch jscpd-report/jscpd-report.json
+      --main /tmp/jscpd-main/report/jscpd-report.json
+      --name-status jscpd-report/name-status.txt --allowed 0
   artifacts:
     when: always
     paths:

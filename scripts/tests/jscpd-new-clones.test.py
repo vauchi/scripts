@@ -31,8 +31,12 @@ def clone(first, first_start, second, second_start, lines=12, is_new=True):
     }
 
 
-def report(*clones):
-    return {"duplicates": list(clones), "statistics": {}}
+def report(*clones, duplicated_lines=None):
+    lines = sum(c["lines"] for c in clones) if duplicated_lines is None else duplicated_lines
+    return {
+        "duplicates": list(clones),
+        "statistics": {"total": {"clones": len(clones), "duplicatedLines": lines}},
+    }
 
 
 def test_a_clone_whose_text_changed_in_place_is_not_new():
@@ -87,6 +91,30 @@ def test_renames_are_read_from_git_name_status():
     }
 
 
+def test_duplication_may_shrink_or_stay_but_not_grow():
+    main = report(clone("a.rs", 10, "b.rs", 40), clone("c.rs", 1, "d.rs", 1))
+    assert CHECK.growth(report(clone("a.rs", 10, "b.rs", 40)), main) == []
+    assert CHECK.growth(main, main) == []
+    more = report(clone("a.rs", 10, "b.rs", 40), clone("c.rs", 1, "d.rs", 1), clone("e.rs", 1, "f.rs", 1))
+    assert CHECK.growth(more, main) == [
+        "clones grew from 2 to 3",
+        "duplicated lines grew from 24 to 36",
+    ]
+
+
+def test_a_clone_that_grows_in_place_is_growth_though_not_new():
+    main = report(clone("a.rs", 10, "b.rs", 40, lines=12))
+    longer = report(clone("a.rs", 10, "b.rs", 40, lines=30))
+    assert CHECK.new_clones(longer, main, renames={}) == []
+    assert CHECK.growth(longer, main) == ["duplicated lines grew from 12 to 30"]
+
+
+def test_a_rename_changes_neither_total():
+    main = report(clone("crypto/x3dh.rs", 20, "exchange/x3dh.rs", 60))
+    renamed = report(clone("crypto/x25519.rs", 20, "exchange/x3dh.rs", 60))
+    assert CHECK.growth(renamed, main) == []
+
+
 def test_the_command_line_fails_on_a_new_clone_and_passes_without():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -100,6 +128,9 @@ def test_the_command_line_fails_on_a_new_clone_and_passes_without():
         names.write_text("")
         assert CHECK.main(["--branch", str(same), "--main", str(main), "--name-status", str(names)]) == 0
         assert CHECK.main(["--branch", str(added), "--main", str(main), "--name-status", str(names)]) == 1
+        grown = root / "grown.json"
+        grown.write_text(json.dumps(report(clone("a.rs", 11, "b.rs", 41, lines=40))))
+        assert CHECK.main(["--branch", str(grown), "--main", str(main), "--name-status", str(names)]) == 1
 
 
 def test_a_missing_or_unreadable_report_fails_rather_than_passes():
@@ -113,6 +144,9 @@ def test_a_missing_or_unreadable_report_fails_rather_than_passes():
         names.write_text("")
         assert CHECK.main(["--branch", str(root / "absent.json"), "--main", str(good), "--name-status", str(names)]) == 2
         assert CHECK.main(["--branch", str(broken), "--main", str(good), "--name-status", str(names)]) == 2
+        no_totals = root / "no_totals.json"
+        no_totals.write_text(json.dumps({"duplicates": [], "statistics": {}}))
+        assert CHECK.main(["--branch", str(no_totals), "--main", str(good), "--name-status", str(names)]) == 2
 
 
 if __name__ == "__main__":
