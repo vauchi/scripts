@@ -417,13 +417,13 @@ def test_merge_gate_supports_other_native_core_pin_files():
     assert "not a stable Core release" in expect_error(PINS.require_release, "pins-env", "CORE_TAG=v0.68.0-dev.6\n")
 
 
-def test_a_renamed_terminal_is_read_from_a_checkout_that_has_not_moved():
-    # cli and tui became cli-display and tui-display (private#1233); Core's
-    # table names the new projects while a slot may still hold cli/ and tui/.
+def test_the_renamed_cli_is_read_from_a_checkout_that_has_not_moved():
+    # cli became cli-display (private#1233); Core's table names the new
+    # project while a slot may still hold cli/.
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        for directory, text in (("cli", "old checkout\n"), ("tui-display", "moved checkout\n")):
+        for directory, text in (("cli", "old checkout\n"), ("tui", "old tui checkout\n"), ("relay", "relay checkout\n")):
             (root / directory).mkdir()
             _git("init", "-q", cwd=root / directory)
             (root / directory / "Cargo.toml").write_text(text, encoding="utf-8")
@@ -431,8 +431,8 @@ def test_a_renamed_terminal_is_read_from_a_checkout_that_has_not_moved():
             _git("commit", "-q", "-m", "base", cwd=root / directory)
         read = PINS._git_show(root, "HEAD")
         assert read("cli-display", "Cargo.toml") == "old checkout\n"
-        assert read("tui-display", "Cargo.toml") == "moved checkout\n"
-        assert read("relay", "Cargo.toml") is None
+        assert read("relay", "Cargo.toml") == "relay checkout\n"
+        assert read("tui-display", "Cargo.toml") is None
 
 
 if __name__ == "__main__":

@@ -342,10 +342,11 @@ def failed(rows: list[Row]) -> bool:
     return any(row.status in FAILING for row in rows)
 
 
-# cli and tui became cli-display and tui-display (private#1233); Core's
-# table names the new projects while a slot that has not run session-init
-# still holds the old checkout, which is read in its place.
-RENAMED_CHECKOUTS = {"cli-display": "cli", "tui-display": "tui"}
+# cli became cli-display (private#1233). Core's table names the new
+# project while a slot that has not run session-init still holds cli/,
+# which is read in its place. tui-display is not in the table: its display
+# library takes the contract alone (owner, 2026-11-24).
+RENAMED_CHECKOUTS = {"cli-display": "cli"}
 
 
 def _checkout(root: Path, repo: str) -> Path:
