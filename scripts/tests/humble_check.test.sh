@@ -932,11 +932,11 @@ CPP
     rm -rf "$root" "$old_ws"
 }
 
-# test_terminal_renames_keep_their_rules — ADR-078 step 3 renames cli and
-# tui to cli-display and tui-display (private#1233). Until the workspace
-# follows, the rules stay keyed by the old names: a job in the renamed
-# project reaches them under the new name, and a workspace holding either
-# directory is read there.
+# test_terminal_renames_keep_their_rules — ADR-078 step 3 renamed cli and
+# tui to cli-display and tui-display (private#1233). The rules and the
+# baseline are keyed by the new names; the old name still reaches them, from
+# a pin bump or a slot that has not moved its checkout, and a workspace that
+# still holds cli/ is read there.
 test_terminal_renames_keep_their_rules() {
     root=$(mktemp -d)
     old_ws=$(mktemp -d)
@@ -948,29 +948,31 @@ test_terminal_renames_keep_their_rules() {
         out=$(python3 "$SCRIPT" --repo "$given" --repo-path "$root/cli-display" --config "$CONFIG")
         assert_eq "cli-display: --repo $given counts the match" "1" \
             "$(extract_counter "$out" error_substring_classification)"
-        assert_eq "cli-display: --repo $given reports as cli" "1" \
-            "$(printf '%s' "$out" | grep -c '"repo": "cli"')"
+        assert_eq "cli-display: --repo $given reports as cli-display" "1" \
+            "$(printf '%s' "$out" | grep -c '"repo": "cli-display"')"
         set +e
         python3 "$SCRIPT" --repo "$given" --repo-path "$root/cli-display" --config "$CONFIG" \
             --check "$BASELINE" >/dev/null 2>&1
         rc=$?
         set -e
-        assert_eq "cli-display: --repo $given is held to cli's baseline" "1" "$rc"
+        assert_eq "cli-display: --repo $given is held to the cli-display baseline" "1" "$rc"
     done
-    out=$(python3 "$SCRIPT" --repo cli --workspace-root "$root" --config "$CONFIG")
-    assert_eq "workspace: cli counts in cli-display/" "1" \
+    out=$(python3 "$SCRIPT" --repo cli-display --workspace-root "$root" --config "$CONFIG")
+    assert_eq "workspace: cli-display counts in cli-display/" "1" \
         "$(extract_counter "$out" error_substring_classification)"
     out=$(python3 "$SCRIPT" --repo cli --workspace-root "$old_ws" --config "$CONFIG")
     assert_eq "workspace not moved yet: cli counts in cli/" "1" \
         "$(extract_counter "$out" error_substring_classification)"
     mkdir -p "$root/tui-display/src"
-    set +e
-    out=$(python3 "$SCRIPT" --repo tui-display --repo-path "$root/tui-display" --config "$CONFIG")
-    rc=$?
-    set -e
-    assert_eq "tui-display: accepted as a repo name" "0" "$rc"
-    assert_eq "tui-display: reports as tui" "1" \
-        "$(printf '%s' "$out" | grep -c '"repo": "tui"')"
+    for given in tui-display tui; do
+        set +e
+        out=$(python3 "$SCRIPT" --repo "$given" --repo-path "$root/tui-display" --config "$CONFIG")
+        rc=$?
+        set -e
+        assert_eq "tui-display: --repo $given is accepted" "0" "$rc"
+        assert_eq "tui-display: --repo $given reports as tui-display" "1" \
+            "$(printf '%s' "$out" | grep -c '"repo": "tui-display"')"
+    done
     rm -rf "$root" "$old_ws"
 }
 
