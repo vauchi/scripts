@@ -241,6 +241,9 @@ QT_SRC="$WORKSPACE_ROOT/$QT_DIR/src"
 WIN_DIR=windows-app
 [ -d "$WORKSPACE_ROOT/windows-app" ] || [ ! -d "$WORKSPACE_ROOT/windows" ] || WIN_DIR=windows
 WIN_SRC="$WORKSPACE_ROOT/$WIN_DIR/Vauchi"
+# The Windows display shell left the app for its own repository (ADR-078,
+# private#1234); the app's counter no longer sees it.
+WIN_DISPLAY_SRC="$WORKSPACE_ROOT/windows-display/src"
 
 # ── counters ─────────────────────────────────────────────────────────
 domain_calls_tui=$(count_rust_calls "$TUI_SRC" "$RUST_RE")
@@ -248,16 +251,20 @@ domain_calls_cli=$(count_rust_calls "$CLI_SRC" "$RUST_RE")
 domain_calls_linux_gtk=$(count_rust_calls "$GTK_SRC" "$RUST_RE")
 domain_calls_linux_qt=$(count_calls "$QT_SRC" '\.(cpp|cc|h|hpp):' "$CPP_RE")
 domain_calls_windows=$(count_calls "$WIN_SRC" '\.cs:' "$CS_RE")
+domain_calls_windows_display=$(count_calls "$WIN_DISPLAY_SRC" '\.cs:' "$CS_RE")
 domain_calls_total=$((domain_calls_tui + domain_calls_cli \
-    + domain_calls_linux_gtk + domain_calls_linux_qt + domain_calls_windows))
+    + domain_calls_linux_gtk + domain_calls_linux_qt + domain_calls_windows \
+    + domain_calls_windows_display))
 
 form_factor_tui=$(count_rust_calls "$TUI_SRC" "$RUST_FF_RE")
 form_factor_cli=$(count_rust_calls "$CLI_SRC" "$RUST_FF_RE")
 form_factor_linux_gtk=$(count_rust_calls "$GTK_SRC" "$RUST_FF_RE")
 form_factor_linux_qt=$(count_calls "$QT_SRC" '\.(cpp|cc|h|hpp):' "$CPP_FF_RE")
 form_factor_windows=$(count_calls "$WIN_SRC" '\.cs:' "$CS_FF_RE")
+form_factor_windows_display=$(count_calls "$WIN_DISPLAY_SRC" '\.cs:' "$CS_FF_RE")
 form_factor_total=$((form_factor_tui + form_factor_cli \
-    + form_factor_linux_gtk + form_factor_linux_qt + form_factor_windows))
+    + form_factor_linux_gtk + form_factor_linux_qt + form_factor_windows \
+    + form_factor_windows_display))
 
 # ── timestamp (BSD + GNU + BusyBox safe) ─────────────────────────────
 captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -274,12 +281,14 @@ emit_json() {
     printf '    %-30s %d,\n' '"domain_calls_linux_gtk":'  "$domain_calls_linux_gtk"
     printf '    %-30s %d,\n' '"domain_calls_linux_qt":'   "$domain_calls_linux_qt"
     printf '    %-30s %d,\n' '"domain_calls_windows":'    "$domain_calls_windows"
+    printf '    %-30s %d,\n' '"domain_calls_windows_display":' "$domain_calls_windows_display"
     printf '    %-30s %d,\n' '"domain_calls_total":'      "$domain_calls_total"
     printf '    %-30s %d,\n' '"form_factor_tui":'         "$form_factor_tui"
     printf '    %-30s %d,\n' '"form_factor_cli":'         "$form_factor_cli"
     printf '    %-30s %d,\n' '"form_factor_linux_gtk":'   "$form_factor_linux_gtk"
     printf '    %-30s %d,\n' '"form_factor_linux_qt":'    "$form_factor_linux_qt"
     printf '    %-30s %d,\n' '"form_factor_windows":'     "$form_factor_windows"
+    printf '    %-30s %d,\n' '"form_factor_windows_display":' "$form_factor_windows_display"
     printf '    %-30s %d\n'  '"form_factor_total":'       "$form_factor_total"
     printf '  }\n'
     printf '}\n'
@@ -313,6 +322,7 @@ repo_dir_for() {
     case "$1" in
         linux_gtk) echo 'linux-gtk' ;;
         linux_qt)  echo 'linux-qt' ;;
+        windows_display) echo 'windows-display' ;;
         *)         echo "$1" ;;
     esac
 }
@@ -373,6 +383,7 @@ check_one 'domain_calls' cli       "$domain_calls_cli"
 check_one 'domain_calls' linux_gtk "$domain_calls_linux_gtk"
 check_one 'domain_calls' linux_qt  "$domain_calls_linux_qt"
 check_one 'domain_calls' windows   "$domain_calls_windows"
+check_one 'domain_calls' windows_display "$domain_calls_windows_display"
 check_total 'domain_calls'         "$domain_calls_total"
 
 summed_baseline=0
@@ -381,6 +392,7 @@ check_one 'form_factor' cli        "$form_factor_cli"
 check_one 'form_factor' linux_gtk  "$form_factor_linux_gtk"
 check_one 'form_factor' linux_qt   "$form_factor_linux_qt"
 check_one 'form_factor' windows    "$form_factor_windows"
+check_one 'form_factor' windows_display "$form_factor_windows_display"
 check_total 'form_factor'          "$form_factor_total"
 
 if [ "$regressions" -gt 0 ]; then
