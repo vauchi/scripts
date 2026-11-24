@@ -342,9 +342,23 @@ def failed(rows: list[Row]) -> bool:
     return any(row.status in FAILING for row in rows)
 
 
+# cli and tui became cli-display and tui-display (private#1233); Core's
+# table names the new projects while a slot that has not run session-init
+# still holds the old checkout, which is read in its place.
+RENAMED_CHECKOUTS = {"cli-display": "cli", "tui-display": "tui"}
+
+
+def _checkout(root: Path, repo: str) -> Path:
+    repo_dir = root / repo
+    old = RENAMED_CHECKOUTS.get(repo)
+    if old and not (repo_dir / ".git").exists() and (root / old / ".git").exists():
+        return root / old
+    return repo_dir
+
+
 def _git_show(root: Path, ref: str) -> Callable[[str, str], Optional[str]]:
     def read(repo: str, path: str) -> Optional[str]:
-        repo_dir = root / repo
+        repo_dir = _checkout(root, repo)
         if not (repo_dir / ".git").exists():
             return None
         result = subprocess.run(
@@ -363,7 +377,7 @@ def _fetch(root: Path) -> None:
     stale, and saying so beats a confident wrong number.
     """
     def fetch(repo: str) -> None:
-        repo_dir = root / repo
+        repo_dir = _checkout(root, repo)
         if not (repo_dir / ".git").exists():
             return
         result = subprocess.run(
