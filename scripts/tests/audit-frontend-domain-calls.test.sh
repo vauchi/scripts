@@ -693,6 +693,53 @@ test_sh_run_with_no_match_reports() {
     rm -rf "$root"
 }
 
+# ── 3d. The Windows display shell is counted in windows-display ──────
+# The display code left the app for windows-display (ADR-078, private#1234);
+# reading only windows-app/Vauchi would leave it unaudited.
+test_windows_display_counted() {
+    root=$(mktemp -d)
+    mkdir -p "$root/windows-display/src/Vauchi.Display" "$root/windows-display/tests/Vauchi.Display.Tests"
+    cat >"$root/windows-display/src/Vauchi.Display/Host.cs" <<'CS'
+public void Run() {
+    ValidateContact(c);
+    if (hint == DisplayHint.Watch) { Compact(); }
+}
+CS
+    printf 'public void T() { SaveContact(c); }\n' >"$root/windows-display/tests/Vauchi.Display.Tests/HostTests.cs"
+    out=$("$SCRIPT" "$root")
+    assert_eq "windows-display: domain call counted" \
+        "1" "$(extract_counter "$out" domain_calls_windows_display)"
+    assert_eq "windows-display: form-factor branch counted" \
+        "1" "$(extract_counter "$out" form_factor_windows_display)"
+    assert_eq "windows-display: in the domain-call total" \
+        "1" "$(extract_counter "$out" domain_calls_total)"
+    assert_eq "windows-display: not the app's counter" \
+        "0" "$(extract_counter "$out" domain_calls_windows)"
+    rm -rf "$root"
+}
+
+# ── 3e. windows-display's own budget gates its counter ───────────────
+test_windows_display_per_repo_baseline_gates() {
+    root=$(mktemp -d)
+    mkdir -p "$root/windows-display/src/Vauchi.Display"
+    printf 'public void Run() { ConfigureRelay(r); }\n' >"$root/windows-display/src/Vauchi.Display/Host.cs"
+    printf '{\n  "domain_calls": 0,\n  "form_factor": 0\n}\n' >"$root/windows-display/.audit-baseline.json"
+    base="$root/baseline.json"
+    printf '{\n  "totals": {\n    "domain_calls_windows_display": 5\n  }\n}\n' >"$base"
+    set +e
+    "$SCRIPT" --check "$base" "$root" >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "windows-display: its zero budget fails a planted call" "1" "$rc"
+    printf '{\n  "domain_calls": 1,\n  "form_factor": 0\n}\n' >"$root/windows-display/.audit-baseline.json"
+    set +e
+    "$SCRIPT" --check "$base" "$root" >/dev/null 2>&1
+    rc=$?
+    set -e
+    assert_eq "windows-display: a budget of one passes it" "0" "$rc"
+    rm -rf "$root"
+}
+
 # ── run ───────────────────────────────────────────────────────────────
 test_empty_workspace
 test_rust_sentinel
@@ -715,6 +762,8 @@ test_terminal_display_directories_counted() {
 }
 
 test_terminal_display_directories_counted
+test_windows_display_counted
+test_windows_display_per_repo_baseline_gates
 test_old_directory_names_still_counted
 test_native_image_export_not_counted
 test_cs_sentinel
