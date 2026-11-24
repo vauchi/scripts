@@ -43,15 +43,15 @@ DATE=$(date +%Y-%m-%d)
 
 # Rust repos with test code
 CORE_REPOS=("core/vauchi-core" "core/vauchi-protocol" "core/vauchi-platform")
-CLIENT_REPOS=("relay" "cli" "tui")
+CLIENT_REPOS=("relay" "cli-display" "tui-display")
 ALL_RUST_REPOS=("${CORE_REPOS[@]}" "${CLIENT_REPOS[@]}")
 
 # GitLab project IDs (slug → path for API)
 declare -A GITLAB_PROJECTS=(
     [core]="vauchi/core"
     [relay]="vauchi/relay"
-    [cli]="vauchi/cli"
-    [tui]="vauchi/tui"
+    [cli-display]="vauchi/cli-display"
+    [tui-display]="vauchi/tui-display"
     [ios]="vauchi/ios"
     [e2e]="vauchi/e2e"
 )
