@@ -72,8 +72,8 @@
     "linux-gtk": "gtk-display",
     "linux-qt": "qt-display",
     "windows": "windows-app",
-    "cli-display": "cli",
-    "tui-display": "tui"
+    "cli": "cli-display",
+    "tui": "tui-display"
   },
   "repos": {
     "core": {
@@ -90,9 +90,9 @@
       ],
       "rules": {}
     },
-    "cli": {
+    "cli-display": {
       "source_roots": [
-        "cli/src"
+        "cli-display/src"
       ],
       "extensions": [
         ".rs"
@@ -647,9 +647,9 @@
         }
       }
     },
-    "tui": {
+    "tui-display": {
       "source_roots": [
-        "tui/src"
+        "tui-display/src"
       ],
       "extensions": [
         ".rs"

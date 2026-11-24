@@ -10,7 +10,7 @@
       "retired_visibility_labels": 0,
       "split_dispatch_api": 0
     },
-    "cli": {
+    "cli-display": {
       "retired_screen_model": 0,
       "retired_workflow_engine": 0,
       "retired_user_action": 0,
@@ -119,7 +119,7 @@
       "retired_visibility_labels": 0,
       "split_dispatch_api": 0
     },
-    "tui": {
+    "tui-display": {
       "action_id_minting": 0,
       "error_substring_classification": 0,
       "domain_screen_id_branch": 0,
