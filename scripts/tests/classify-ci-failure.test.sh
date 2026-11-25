@@ -101,6 +101,14 @@ expect_category "pinned release cohort mismatch" \
     "FAIL: relay/Cargo.toml pins Core crates at another tag than the set's v0.99.1:" "dep-resolution"
 expect_category "lockfile release cohort mismatch" \
     "FAIL: Cargo.lock resolves Core crates at another tag than the set's v0.106.2:" "dep-resolution"
+expect_category "cohort updater rejects a foreign lock source" \
+    "2026-11-25T02:25:39Z 01E cohort: ERROR: untrusted lockfile source" "dep-resolution"
+expect_category "benchmark regression gate" \
+    "ERROR: Performance regression > 100% detected!" "test-failure"
+expect_category "fractional benchmark regression threshold" \
+    "ERROR: Performance regression > 12.5% detected!" "test-failure"
+expect_category "benchmark comparison without a failed gate stays unknown" \
+    "Performance has regressed." "unknown"
 expect_category "Git checkout DNS failure" \
     "fatal: unable to access 'https://gitlab.com/vauchi/linux-qt.git/': Could not resolve host: gitlab.com" \
     "transient-network"
