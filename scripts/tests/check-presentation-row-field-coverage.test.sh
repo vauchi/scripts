@@ -21,7 +21,7 @@ SHELL_FILES=(
     "tui/src/ui/presentation_renderer/nodes.rs"
     "gtk-display/src/core_ui/generic_surface/collections.rs"
     "qt-display/src/coreui/presentationsurface.cpp"
-    "windows/Vauchi/CoreUI/PresentationSurfaceCollections.cs"
+    "windows-display/src/Vauchi.Display/PresentationSurfaceCollections.cs"
     "web-demo/src/presentation/PresentationNodeRenderer.tsx"
 )
 
@@ -94,4 +94,13 @@ if run_check "$ROOT/empty.json"; then
     fail "expected failure when tui-display stops reading .subtitle"
 fi
 
-printf 'check-presentation-row-field-coverage: OK (5 cases)\n'
+# 5. The WinUI row renderer left windows-app for windows-display
+# (private#1234): a drop there is caught, and windows-app is not read.
+mv "$ROOT/tui-display" "$ROOT/tui"
+write_shells "windows-display/src/Vauchi.Display/PresentationSurfaceCollections.cs"
+mkdir -p "$ROOT/windows-app"
+if run_check "$ROOT/empty.json"; then
+    fail "expected failure when windows-display stops reading .subtitle"
+fi
+
+printf 'check-presentation-row-field-coverage: OK (6 cases)\n'

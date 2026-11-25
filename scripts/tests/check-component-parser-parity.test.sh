@@ -109,6 +109,27 @@ for dir in tui-display tui; do
     fi
 done
 
+# The WinUI presentation parser left windows-app for windows-display
+# (private#1234); a workspace run reads it there.
+printf '%s\n' 'pub enum PresentationNode {' '    Text { value: String },' \
+    '    Divider,' '}' >"$enum"
+rm -rf "$WS"
+mkdir -p "$WS/windows-display/src/Vauchi.Display" "$WS/windows-app"
+printf '"Text" => render(),\n"Divider" => render(),\n' \
+    >"$WS/windows-display/src/Vauchi.Display/PresentationSurface.cs"
+set +e
+python3 "$SCRIPT" --protocol presentation --workspace "$WS" --frontend windows \
+    --enum-file "$enum" >/dev/null 2>&1
+got=$?
+set -e
+if [ "$got" -eq 0 ]; then
+    printf '  PASS windows presentation parser is found in windows-display\n'
+    pass=$((pass + 1))
+else
+    printf '  FAIL windows presentation parser is found in windows-display: rc %s\n' "$got" >&2
+    fail=$((fail + 1))
+fi
+
 if grep -Fq -- '- "${PARSER_FILE}"' "$TEMPLATE"; then
     printf '  FAIL parser-parity MR job is skipped for parser directories\n' >&2
     fail=$((fail + 1))
