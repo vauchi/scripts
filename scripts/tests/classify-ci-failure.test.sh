@@ -412,6 +412,14 @@ expect_category "Gradle test failure summary" \
     "146 tests completed, 73 failed" "test-failure"
 expect_category "mutation survivors" \
     "139 mutants tested in 4m: 51 missed, 56 caught, 32 unviable" "test-failure"
+expect_category "Python unittest assertion failure" \
+    "2026-11-25T08:36:15Z 01E FAILED (failures=1, skipped=4, expected failures=7)" "test-failure"
+expect_category "Python unittest error" \
+    "FAILED (errors=2)" "test-failure"
+expect_category "zero Python unittest failures are not a failure signature" \
+    "FAILED (failures=0)" "unknown"
+expect_category "empty e2e test listing fails its coverage gate" \
+    "ERROR: no vauchi-e2e-tests::it test was listed; does the crate build?" "test-failure"
 expect_category "generic self-test suite failure" \
     "FAILED: 1 self-test suite(s) red." "test-failure"
 expect_category "connection reset by peer" \
