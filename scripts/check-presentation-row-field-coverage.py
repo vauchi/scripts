@@ -86,7 +86,7 @@ SHELLS = {
     ),
     "linux-gtk": (["linux-gtk/src/core_ui/generic_surface"], lambda n: n),
     "linux-qt": (["linux-qt/src/coreui"], snake_to_camel),
-    "windows": (["windows/Vauchi/CoreUI"], snake_to_pascal),
+    "windows": (["windows-display/src/Vauchi.Display"], snake_to_pascal),
     "web-demo": (["web-demo/src/presentation"], snake_to_camel),
 }
 

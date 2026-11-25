@@ -120,7 +120,7 @@ PRESENTATION_PARSERS = {
         "identity",
     ),
     "windows": (
-        "windows/Vauchi/CoreUI/PresentationSurface.cs",
+        "windows-display/src/Vauchi.Display/PresentationSurface.cs",
         r'"{V}"',
         "identity",
     ),
