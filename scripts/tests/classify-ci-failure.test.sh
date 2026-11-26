@@ -477,6 +477,12 @@ expect_category "successful pkg-config discovery is not a missing SDK" \
     "-- Found libpipewire-0.3, version 1.4.2" "unknown"
 expect_category "broken pkg-config backend still needs investigation" \
     "pkg-config crashed with signal 11" "unknown"
+expect_category "runner cannot prompt for sudo credentials" \
+    "sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper" "authorization"
+expect_category "runner needs a sudo password" \
+    "sudo: a password is required" "authorization"
+expect_category "unrelated sudo backend error is not a credential verdict" \
+    "sudo: unable to resolve host runner" "unknown"
 
 # Unknown → escalate to the model
 expect_category "unknown signature" \
