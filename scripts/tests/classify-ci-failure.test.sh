@@ -521,6 +521,13 @@ expect_escalate "unknown escalates"   "novel unseen failure text" "true"
 expect_escalate "known does NOT escalate" \
     "error: failed to select a version for \`libc\`" "false"
 
+expect_category "CI include ref lookup failure" \
+    'Project `vauchi/scripts` reference `ci-templates-v2026.11.25` does not exist!' "artifact-gap"
+expect_escalate "CI include ref lookup needs verification, not manual classification" \
+    'Project `vauchi/scripts` reference `ci-templates-v2026.11.25` does not exist!' "false"
+expect_category "valid project ref is not a lookup failure" \
+    'Project `vauchi/scripts` reference `ci-templates-v2026.11.26` exists' "unknown"
+
 # Specificity: a compile error line that also contains the word "failed"
 # must classify as compile-error, not test-failure (order matters).
 expect_category "compile-error beats generic failed" \
