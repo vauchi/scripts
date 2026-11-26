@@ -1000,29 +1000,15 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         run_doc_naming_check() {
             echo ""
             echo "[3/9] Checking doc naming convention..."
-            ERRORS=0
-            EXEMPT_NAMES="README.md|CLAUDE.md|CONTRIBUTING.md|roadmap.md|PRINCIPLES.md|INDEX.md"
-            EXEMPT_COMPANION="investigation.md|implementation-plan.md|retrospective.md|post-mortem.md|rejected-solutions.md|design.md|plan.md|principles-audit.md"
-            EXEMPT_DIRS="diagrams|guides|reference|knowledge|testing|audit-review-frameworks|legal|decisions|lint-errors|archive|runbooks|audits"
-            for file in $(git diff --name-only --diff-filter=A origin/main...HEAD -- 'docs/**/*.md' 2>/dev/null); do
-                filename=$(basename "$file")
-                dirname=$(dirname "$file")
-                # Skip exempt filenames
-                if echo "$filename" | grep -qE "^($EXEMPT_NAMES)$"; then continue; fi
-                if echo "$filename" | grep -qE "^($EXEMPT_COMPANION)$"; then continue; fi
-                if echo "$filename" | grep -qE '\.plan\.md$'; then continue; fi
-                if echo "$dirname" | grep -qE "($EXEMPT_DIRS)"; then continue; fi
-                if [[ "$dirname" == "docs" ]]; then continue; fi
-                if ! echo "$filename" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}-'; then
-                    echo "  ERROR: $file does not follow YYYY-MM-DD-name.md convention"
-                    ERRORS=$((ERRORS + 1))
-                fi
-            done
-            if [[ $ERRORS -gt 0 ]]; then
-                echo ""
-                echo "FAILED: $ERRORS file(s) not following naming convention."
-                exit 1
+            local added_docs path
+            if ! added_docs=$(git diff --name-only --diff-filter=A origin/main...HEAD -- 'docs/**/*.md'); then
+                echo "FAILED: cannot determine added documentation paths." >&2
+                return 1
             fi
+            while IFS= read -r path; do
+                [[ -n "$path" ]] || continue
+                bash "$HOOK_DIR/../ci-templates/check-doc-naming.sh" --files "$path" || return 1
+            done <<< "$added_docs"
             echo "  Doc naming OK"
         }
         time_step "Doc naming" run_doc_naming_check
