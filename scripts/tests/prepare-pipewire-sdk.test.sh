@@ -40,6 +40,7 @@ export PKG_CONFIG_PATH="/previous/config"
 export LD_LIBRARY_PATH="/previous/libraries"
 sdk="$scratch/camera's SDK & files"
 bash "$helper" "$sdk"
+sdk=$(cd "$sdk" && pwd -P)
 # shellcheck source=/dev/null
 source "$sdk/env.sh"
 lib="$sdk/usr/lib/$(gcc -dumpmachine)"
