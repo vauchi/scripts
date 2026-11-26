@@ -187,6 +187,12 @@ expect_category "unrelated Python module is not a tomllib runtime mismatch" \
     "ModuleNotFoundError: No module named 'other_module'" "unknown"
 expect_category "timeout" \
     "ERROR: Job exceeded maximum timeout of 3600 seconds" "timeout"
+expect_category "nextest property timeout" \
+    "2026-11-26T12:22:17Z 01E TIMEOUT [ 180.040s] (4014/6793) vauchi-core::it duress_at_rest_tests::the_seal_has_a_bucket_s_length_and_reopens_to_the_same_tags" "timeout"
+expect_escalate "nextest timeout does not escalate" \
+    "TIMEOUT [ 180.040s] vauchi-core::it property" "false"
+expect_category "passing nextest test is not a timeout" \
+    "PASS [ 11.126s] vauchi-core::it property" "unknown"
 expect_category "runner package-index DNS failure" \
     "WARNING: fetching https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/APKINDEX.tar.gz: DNS: transient error (try again later)" \
     "transient-network"
