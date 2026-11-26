@@ -47,7 +47,8 @@ import re
 import sys
 from pathlib import Path
 
-ROW_STRUCT_FILE = "core/vauchi-core/src/platform/presentation/surface/nodes.rs"
+ROW_STRUCT_FILE = "contract/src/presentation/surface/nodes.rs"
+LEGACY_ROW_STRUCT_FILE = "core/vauchi-core/src/platform/presentation/surface/nodes.rs"
 STRUCT_NAME = "PresentationRow"
 EXEMPTIONS_FILE = "check-presentation-row-field-coverage.exemptions.json"
 
@@ -170,7 +171,12 @@ def main() -> int:
     args = parser.parse_args()
     root = Path(args.workspace).resolve()
 
-    struct_path = root / ROW_STRUCT_FILE
+    contract_lib = root / "contract/src/lib.rs"
+    lib_text = contract_lib.read_text(encoding="utf-8") if contract_lib.is_file() else ""
+    contract_declared = (root / "contract/src/presentation").is_dir() or re.search(
+        r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+presentation\s*;", lib_text
+    )
+    struct_path = root / (ROW_STRUCT_FILE if contract_declared else LEGACY_ROW_STRUCT_FILE)
     if not struct_path.is_file():
         print(f"error: source of truth not found: {struct_path}", file=sys.stderr)
         return 2

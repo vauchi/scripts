@@ -138,9 +138,11 @@ printf 'include(":app", ":display")\n' >"$WS/android/settings.gradle.kts"
 printf '"Text" => render(),\n"Divider" => render(),\n' >"$WS/$android_display"
 expect_android_rc() {
     name="$1"; want="$2"
+    enum_args=()
+    if [ -n "$enum" ]; then enum_args=(--enum-file "$enum"); fi
     set +e
     python3 "$SCRIPT" --protocol presentation --workspace "$WS" --frontend android \
-        --enum-file "$enum" >/dev/null 2>&1
+        "${enum_args[@]}" >/dev/null 2>&1
     got=$?
     set -e
     if [ "$got" -eq "$want" ]; then
@@ -161,6 +163,24 @@ rm -rf "$WS/android/display"
 expect_android_rc 'declared display module cannot disappear' 1
 printf 'include(":app")\n' >"$WS/android/settings.gradle.kts"
 expect_android_rc 'legacy Android parser still works' 0
+
+legacy_enum="$WS/core/vauchi-core/src/platform/presentation/surface/nodes.rs"
+contract_enum="$WS/contract/src/presentation/surface/nodes.rs"
+mkdir -p "$(dirname "$legacy_enum")" "$(dirname "$contract_enum")"
+cp "$enum" "$legacy_enum"
+cp "$enum" "$contract_enum"
+printf 'mod presentation;\n' >"$WS/contract/src/lib.rs"
+enum=""
+expect_android_rc 'canonical contract schema works in workspace mode' 0
+printf '%s\n' 'pub enum PresentationNode {' '    Text { value: String },' \
+    '    Divider,' '    Image,' '}' >"$contract_enum"
+expect_android_rc 'stale Core schema cannot hide missing contract variants' 1
+printf '"Text" => render(),\n"Divider" => render(),\n"Image" => render(),\n' >"$WS/$android_legacy"
+expect_android_rc 'all canonical contract variants pass' 0
+rm "$contract_enum"
+expect_android_rc 'missing canonical contract schema fails closed' 2
+rm -rf "$WS/contract/src/presentation"
+expect_android_rc 'declared contract presentation module cannot disappear' 2
 
 if grep -Fq -- '- "${PARSER_FILE}"' "$TEMPLATE"; then
     printf '  FAIL parser-parity MR job is skipped for parser directories\n' >&2

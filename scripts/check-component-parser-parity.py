@@ -183,6 +183,7 @@ ENUM_FILE_CANDIDATES = (
 )
 ENUM_NAME = "Component"
 PRESENTATION_ENUM_FILE_CANDIDATES = (
+    "contract/src/presentation/surface/nodes.rs",
     "core/vauchi-core/src/platform/presentation/surface/nodes.rs",
 )
 
@@ -332,6 +333,14 @@ def main() -> int:
             (args.workspace / c for c in enum_candidates if (args.workspace / c).exists()),
             args.workspace / enum_candidates[0],
         )
+        if args.protocol == "presentation":
+            contract_lib = args.workspace / "contract/src/lib.rs"
+            lib_text = contract_lib.read_text(encoding="utf-8") if contract_lib.is_file() else ""
+            contract_declared = (args.workspace / "contract/src/presentation").is_dir() or re.search(
+                r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+presentation\s*;", lib_text
+            )
+            if contract_declared:
+                enum_path = args.workspace / enum_candidates[0]
     if not enum_path.exists():
         candidates = ", ".join(enum_candidates)
         print(

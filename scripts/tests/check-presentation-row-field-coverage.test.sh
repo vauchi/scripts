@@ -128,4 +128,29 @@ fi
 printf 'include(":app")\n' >"$ROOT/android/settings.gradle.kts"
 run_check "$ROOT/empty.json" || fail "legacy Android layout must remain supported"
 
-printf 'check-presentation-row-field-coverage: OK (11 cases)\n'
+mkdir -p "$ROOT/contract/src/presentation/surface"
+printf 'mod presentation;\n' >"$ROOT/contract/src/lib.rs"
+cat >"$ROOT/contract/src/presentation/surface/nodes.rs" <<'EOF'
+pub struct PresentationRow {
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub badge: Option<String>,
+}
+EOF
+if run_check "$ROOT/empty.json"; then
+    fail "stale Core schema must not mask a canonical contract field"
+fi
+for f in "${SHELL_FILES[@]}"; do
+    printf 'render(row.badge)\n' >>"$ROOT/$f"
+done
+run_check "$ROOT/empty.json" || fail "canonical contract fields should be rendered"
+rm "$ROOT/contract/src/presentation/surface/nodes.rs"
+if run_check "$ROOT/empty.json"; then
+    fail "missing contract schema must not fall back to stale Core types"
+fi
+rm -rf "$ROOT/contract/src/presentation"
+if run_check "$ROOT/empty.json"; then
+    fail "declared contract presentation module cannot disappear"
+fi
+
+printf 'check-presentation-row-field-coverage: OK (15 cases)\n'
