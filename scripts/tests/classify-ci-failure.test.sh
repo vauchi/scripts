@@ -484,6 +484,17 @@ expect_category "runner needs a sudo password" \
 expect_category "unrelated sudo backend error is not a credential verdict" \
     "sudo: unable to resolve host runner" "unknown"
 
+expect_category "runner disk full during checkout" \
+    "bash: line 72: printf: write error: No space left on device" "runner-infrastructure"
+expect_category "disk exhaustion beats incidental compiler lint flags" \
+    "rustc --deny=clippy::todo
+error: failed to write target/debug/.fingerprint/test.json
+Caused by: No space left on device (os error 28)" "runner-infrastructure"
+expect_escalate "known disk exhaustion does not escalate" \
+    "rustc-LLVM ERROR: IO failure on output stream: No space left on device" "false"
+expect_category "ordinary disk usage is not disk exhaustion" \
+    "Filesystem /dev/root 792G 240G 552G 31% /" "unknown"
+
 # Unknown → escalate to the model
 expect_category "unknown signature" \
     "some totally novel error nobody has a rule for yet" "unknown"
