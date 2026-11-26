@@ -223,6 +223,9 @@
       "source_roots": [
         "android/app/src/main"
       ],
+      "gradle_module_roots": {
+        "display": "android/display/src/main"
+      },
       "extensions": [
         ".kt",
         ".java"

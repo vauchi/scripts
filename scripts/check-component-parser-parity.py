@@ -220,6 +220,12 @@ RENAMED_DIRS = {
 
 
 def in_workspace(root: Path, rel: str) -> Path:
+    if rel.startswith("android/app/src/main/kotlin/app/vauchi/ui/presentation/"):
+        library = root / "android/display"
+        settings = root / "android/settings.gradle.kts"
+        text = re.sub(r"//.*$", "", settings.read_text(encoding="utf-8"), flags=re.M) if settings.is_file() else ""
+        if library.is_dir() or '":display"' in text or "':display'" in text:
+            return library / rel.removeprefix("android/app/")
     head, _, tail = rel.partition("/")
     renamed = RENAMED_DIRS.get(head)
     if renamed and (root / renamed).is_dir():

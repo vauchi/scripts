@@ -42,12 +42,12 @@
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check.py"
       export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check.py"
-      export FETCH_SCRIPT_SHA256="040790ea7214183291f7721dfae5e080a6ec90910ac55e0424c6491100602459"
+      export FETCH_SCRIPT_SHA256="9a89ee5d2fcb9df318a798a8ad3b092564d7fe037a5468e729c6c0ff8ea1e0d0"
     - !reference [.verified-fetch-script, before_script]
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check_rules.json"
       export FETCH_SCRIPT_OUTPUT=".ratchet-scripts/humble_check_rules.json"
-      export FETCH_SCRIPT_SHA256="53de554229d6546e113104d3fc2ef0a6d118f940ccb0181211899cb365bb5e4e"
+      export FETCH_SCRIPT_SHA256="09c250acf323edfb807c0ff44ffb8aafd94c71d4b4ff523221fffd1337f6137a"
     - !reference [.verified-fetch-script, before_script]
     - |
       export FETCH_SCRIPT_PATH="scripts/humble_check.baseline.json"

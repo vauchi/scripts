@@ -130,6 +130,38 @@ else
     fail=$((fail + 1))
 fi
 
+android_legacy="android/app/src/main/kotlin/app/vauchi/ui/presentation/PresentationParser.kt"
+android_display="android/display/src/main/kotlin/app/vauchi/ui/presentation/PresentationParser.kt"
+rm -rf "$WS"
+mkdir -p "$WS/$(dirname "$android_display")" "$WS/$(dirname "$android_legacy")"
+printf 'include(":app", ":display")\n' >"$WS/android/settings.gradle.kts"
+printf '"Text" => render(),\n"Divider" => render(),\n' >"$WS/$android_display"
+expect_android_rc() {
+    name="$1"; want="$2"
+    set +e
+    python3 "$SCRIPT" --protocol presentation --workspace "$WS" --frontend android \
+        --enum-file "$enum" >/dev/null 2>&1
+    got=$?
+    set -e
+    if [ "$got" -eq "$want" ]; then
+        printf '  PASS %s\n' "$name"
+        pass=$((pass + 1))
+    else
+        printf '  FAIL %s: wanted rc %s, got %s\n' "$name" "$want" "$got" >&2
+        fail=$((fail + 1))
+    fi
+}
+expect_android_rc 'Android display parser is located' 0
+printf '"Text" => render(),\n"Divider" => render(),\n' >"$WS/$android_legacy"
+printf '"Text" => render(),\n' >"$WS/$android_display"
+expect_android_rc 'stale app parser cannot hide display omission' 1
+rm "$WS/$android_display"
+expect_android_rc 'missing display parser fails despite stale app copy' 1
+rm -rf "$WS/android/display"
+expect_android_rc 'declared display module cannot disappear' 1
+printf 'include(":app")\n' >"$WS/android/settings.gradle.kts"
+expect_android_rc 'legacy Android parser still works' 0
+
 if grep -Fq -- '- "${PARSER_FILE}"' "$TEMPLATE"; then
     printf '  FAIL parser-parity MR job is skipped for parser directories\n' >&2
     fail=$((fail + 1))

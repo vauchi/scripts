@@ -50,6 +50,34 @@ test_empty_workspace() {
     rm -rf "$root"
 }
 
+test_android_display_module_keeps_rules() {
+    root=$(mktemp -d)
+    repo="$root/android"
+    mkdir -p "$repo/app/src/main/kotlin" "$repo/display/src/main/kotlin"
+    printf 'include(":app", ":display")\n' >"$repo/settings.gradle.kts"
+    printf 'val prepared = true\n' >"$repo/app/src/main/kotlin/Host.kt"
+    printf 'val action = "edit_avatar"\n' >"$repo/display/src/main/kotlin/BadView.kt"
+    out=$(python3 "$SCRIPT" --repo android --repo-path "$repo" --config "$CONFIG")
+    assert_eq "Android display action id minting is scanned" 1 "$(extract_counter "$out" action_id_minting)"
+
+    rm "$repo/display/src/main/kotlin/BadView.kt"
+    set +e
+    python3 "$SCRIPT" --repo android --repo-path "$repo" --config "$CONFIG" >/dev/null 2>&1
+    got=$?
+    set -e
+    assert_eq "empty declared Android display sources fail" 2 "$got"
+    rm -rf "$repo/display"
+    set +e
+    python3 "$SCRIPT" --repo android --repo-path "$repo" --config "$CONFIG" >/dev/null 2>&1
+    got=$?
+    set -e
+    assert_eq "deleted declared Android display module fails" 2 "$got"
+    printf 'include(":app")\n' >"$repo/settings.gradle.kts"
+    python3 "$SCRIPT" --repo android --repo-path "$repo" --config "$CONFIG" >/dev/null
+    assert_eq "legacy Android app remains supported" 0 "$?"
+    rm -rf "$root"
+}
+
 # test_repo_path_resolves_repo_relative_roots — per-repo CI scans real files
 test_repo_path_resolves_repo_relative_roots() {
     root=$(mktemp -d)
@@ -1102,6 +1130,7 @@ test_error_substring_classification_desktop_shells
 test_renamed_repo_keeps_its_rules
 test_windows_app_keeps_its_rules
 test_terminal_renames_keep_their_rules
+test_android_display_module_keeps_rules
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

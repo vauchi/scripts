@@ -103,4 +103,29 @@ if run_check "$ROOT/empty.json"; then
     fail "expected failure when windows-display stops reading .subtitle"
 fi
 
-printf 'check-presentation-row-field-coverage: OK (6 cases)\n'
+write_shells ""
+android_legacy="android/app/src/main/kotlin/app/vauchi/ui/presentation/PresentationNodeRenderer.kt"
+android_display="android/display/src/main/kotlin/app/vauchi/ui/presentation/PresentationNodeRenderer.kt"
+mkdir -p "$ROOT/$(dirname "$android_display")"
+printf 'include(":app", ":display")\n' >"$ROOT/android/settings.gradle.kts"
+mv "$ROOT/$android_legacy" "$ROOT/$android_display"
+run_check "$ROOT/empty.json" || fail "expected Android display row reads to be checked"
+
+mkdir -p "$ROOT/$(dirname "$android_legacy")"
+printf 'render(row.title)\nrender(row.subtitle)\n' >"$ROOT/$android_legacy"
+printf 'render(row.title)\n' >"$ROOT/$android_display"
+if run_check "$ROOT/empty.json"; then
+    fail "stale app renderer must not hide a display field omission"
+fi
+rm "$ROOT/$android_display"
+if run_check "$ROOT/empty.json"; then
+    fail "missing display renderer must not fall back to a stale app copy"
+fi
+rm -rf "$ROOT/android/display"
+if run_check "$ROOT/empty.json"; then
+    fail "declared display module must not silently disappear"
+fi
+printf 'include(":app")\n' >"$ROOT/android/settings.gradle.kts"
+run_check "$ROOT/empty.json" || fail "legacy Android layout must remain supported"
+
+printf 'check-presentation-row-field-coverage: OK (11 cases)\n'

@@ -214,7 +214,15 @@ def scan_repo(
     ignore_exceptions: bool = False,
 ) -> dict:
     repo_config = config["repos"][repo]
-    source_roots = repo_config["source_roots"]
+    source_roots = list(repo_config["source_roots"])
+    module_roots = []
+    repo_dir = repo_path or workspace_source_root(config, workspace_root, repo)
+    settings = repo_dir / "settings.gradle.kts"
+    text = re.sub(r"//.*$", "", settings.read_text(encoding="utf-8"), flags=re.M) if settings.is_file() else ""
+    for module, rel in repo_config.get("gradle_module_roots", {}).items():
+        if (repo_dir / module).is_dir() or f'":{module}"' in text or f"':{module}'" in text:
+            source_roots.append(rel)
+            module_roots.append(rel)
     extensions = set(repo_config.get("extensions", []))
     exclude_dirs = set(repo_config.get("exclude_dirs", []))
     rules = repo_rules(config, repo)
@@ -231,7 +239,11 @@ def scan_repo(
         if not root.exists():
             missing_roots.append(str(root))
             continue
-        for file in find_files(root, extensions, exclude_dirs):
+        files = list(find_files(root, extensions, exclude_dirs))
+        if rel in module_roots and not files:
+            missing_roots.append(f"{root} (no production sources)")
+            continue
+        for file in files:
             display = file.relative_to(repo_path or workspace_root)
             findings = scan_file(file, rules, lookback, lookahead, ignore_exceptions)
             for name, matches in findings.items():
