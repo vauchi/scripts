@@ -363,7 +363,7 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
         # without them every push there took the fast path too
         # (private#772, private#1234).
         CODE_PATTERN='\.(rs|swift|kt|java|ts|tsx|js|jsx|css|scss|html|c|cc|cpp|cxx|h|hh|hpp|hxx|m|mm|sh|bash|py|cs|xaml)$|(^|/)hooks/[a-z-]+$'
-        BUILD_PATTERN='(Cargo\.(toml|lock)|package.*\.json|.*\.gradle|CMakeLists\.txt|.*\.cmake|.*\.csproj|.*\.props|nuget\.config)'
+        BUILD_PATTERN='(Cargo\.(toml|lock)|package.*\.json|.*\.gradle(\.kts)?|(^|/)(gradle\.lockfile|gradle-wrapper\.(properties|jar)|gradlew(\.bat)?|AndroidManifest\.xml|res/.*\.xml)$|CMakeLists\.txt|.*\.cmake|.*\.csproj|.*\.props|nuget\.config)'
         HAS_CODE=$(echo "$CHANGED_FILES" | grep -E "$CODE_PATTERN" || true)
         HAS_BUILD=$(echo "$CHANGED_FILES" | grep -E "$BUILD_PATTERN" || true)
         if [[ -z "$HAS_CODE" && -z "$HAS_BUILD" ]]; then
@@ -927,6 +927,15 @@ if [[ "$_STAMP_SKIP" != "1" ]]; then
             fi
         }
         time_step "Android lint" run_android_lint
+
+    elif [[ -f "$REPO_ROOT/src/main/AndroidManifest.xml" &&
+        ( -f "$REPO_ROOT/build.gradle.kts" || -f "$REPO_ROOT/build.gradle" ) ]]; then
+        ANDROID_LIBRARY_CHECK="$(dirname "$REPO_ROOT")/scripts/scripts/android-library-check.sh"
+        [[ -f "$ANDROID_LIBRARY_CHECK" ]] || {
+            echo "FAILED: missing Android library gate: $ANDROID_LIBRARY_CHECK" >&2
+            exit 1
+        }
+        time_step "Android library" bash "$ANDROID_LIBRARY_CHECK" "$REPO_ROOT"
 
     # ─── Docs/markdown repos (_private, docs) ───────────────────────────
 
