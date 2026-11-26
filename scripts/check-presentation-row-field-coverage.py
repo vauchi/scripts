@@ -5,8 +5,8 @@
 every shell that renders rows.
 
 Source of truth:
-`core/vauchi-core/src/platform/presentation/surface/nodes.rs` — the
-`PresentationRow` struct. Field names are extracted from it and each
+`contract/src/presentation/surface/nodes.rs` — the canonical
+`PresentationRow` struct, with pre-migration Core fallback. Fields are extracted and each
 shell's row renderer is searched for a read of that field.
 
 Why this exists, and why variant parity is not enough:

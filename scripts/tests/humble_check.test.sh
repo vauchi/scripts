@@ -621,9 +621,9 @@ test_verified_fetch_hashes_match() {
         | grep 'FETCH_SCRIPT_SHA256=' | head -1 | cut -d'"' -f2)
     expected_baseline=$(grep -A3 'humble_check.baseline.json"' "$CROSS_CUTTING_TEMPLATE" \
         | grep 'FETCH_SCRIPT_SHA256=' | head -1 | cut -d'"' -f2)
-    actual_script=$(shasum -a 256 "$SCRIPT" | awk '{print $1}')
-    actual_config=$(shasum -a 256 "$CONFIG" | awk '{print $1}')
-    actual_baseline=$(shasum -a 256 "$BASELINE" | awk '{print $1}')
+    actual_script=$(python3 -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$SCRIPT")
+    actual_config=$(python3 -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$CONFIG")
+    actual_baseline=$(python3 -c 'import hashlib, pathlib, sys; print(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest())' "$BASELINE")
     assert_eq "verified fetch: checker hash matches" "$actual_script" \
         "$expected_script"
     assert_eq "verified fetch: config hash matches" "$actual_config" \

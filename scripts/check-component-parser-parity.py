@@ -375,7 +375,7 @@ def main() -> int:
         retired = present_variants(
             frontend, parser_path, marker, transform_key, retired_variants
         )
-        display_path = str(parser_path) if args.parser_file else rel_path
+        display_path = str(parser_path)
         if missing:
             drift = True
             print(f"DRIFT  {frontend}: missing {len(missing)} variant(s) in {display_path}")
