@@ -86,6 +86,15 @@ class CompositionArchitectureTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_current_workspace_has_no_new_violations(self) -> None:
+        missing = [
+            relative
+            for relative in REQUIRED_FILES
+            if not (WORKSPACE / relative).is_file()
+        ]
+        if missing:
+            self.skipTest(
+                "full workspace checkout required; gates:workspace-ratchets covers it"
+            )
         result = self.run_check(root=WORKSPACE, baseline=WORKSPACE_BASELINE)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
