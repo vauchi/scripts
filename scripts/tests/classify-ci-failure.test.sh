@@ -466,6 +466,18 @@ expect_category "immutable runtime pin mismatch" \
 expect_category "cucumber wired scenario coverage regression" \
     "cucumber GATE failed: 134 wired scenario(s) passed, expected at least 135" "test-failure"
 
+expect_category "CMake pkg-config camera SDK missing" \
+    "-- Package 'libpipewire-0.3', required by 'virtual:world', not found" "missing-tool"
+expect_category "native SDK absence beats a Rust build script panic" \
+    "thread 'main' panicked at libspa-sys/build.rs:10:
+The system library 'libpipewire-0.3' required by crate 'libspa-sys' was not found." "missing-tool"
+expect_escalate "missing native SDK does not escalate" \
+    "Package 'libpipewire-0.3', required by 'virtual:world', not found" "false"
+expect_category "successful pkg-config discovery is not a missing SDK" \
+    "-- Found libpipewire-0.3, version 1.4.2" "unknown"
+expect_category "broken pkg-config backend still needs investigation" \
+    "pkg-config crashed with signal 11" "unknown"
+
 # Unknown → escalate to the model
 expect_category "unknown signature" \
     "some totally novel error nobody has a rule for yet" "unknown"

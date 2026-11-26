@@ -48,6 +48,7 @@ fi
 # Order matters — a compile error line can also contain the word "failed",
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
+  "missing-tool"
   "dep-resolution" "test-failure"
   "artifact-integrity"
   "runner-infrastructure" "dep-resolution"
@@ -59,6 +60,7 @@ CATS=(
   "missing-tool" "compile-error" "lint" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
+  "(Package '[^']+', required by '[^']+', not found|The system library .* required by crate .* was not found)"
   "cohort: ERROR: untrusted lockfile source"
   "ERROR: Performance regression > [0-9]+([.][0-9]+)?% detected!"
   "sha256sum: WARNING: [1-9][0-9]* computed checksums? did NOT match"
@@ -95,6 +97,7 @@ PATS=(
   "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL|ERROR: mirror .* missing .* build:debug should have built it|Release v[^ ]+ is tagged but not consumable:)"
 )
 FIXES=(
+  "Install the native development packages required by pkg-config in runner setup before compiling; keep the feature and its checks enabled."
   "Compare the new dependency source with the protected Core release's lockfile; admit only release-authorized package identities and keep rejecting unrelated sources."
   "Inspect the regressing benchmark and its baseline under comparable runner load; fix the measured regression or invalid comparison without relaxing the performance gate."
   "Verify the downloaded bytes against the pinned source ref, then correct the ref or expected digest; never bypass checksum verification."
