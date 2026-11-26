@@ -77,16 +77,27 @@ print_summary() {
 
 TOTAL=0
 
-# Wait for mutants.json to be written (indicates mutant discovery is done)
-while [ ! -f "$MUTANTS_OUT/mutants.json" ] && running; do
+# The writer creates this file before finishing its JSON. Existence alone
+# must not turn a transient parse failure into a permanent zero total.
+while :; do
+  if discovered=$(python3 -c '
+import json, sys
+with open(sys.argv[1]) as source:
+    mutants = json.load(source)
+if not isinstance(mutants, list):
+    sys.exit(1)
+print(len(mutants))
+' "$MUTANTS_OUT/mutants.json" 2>/dev/null); then
+    TOTAL="$discovered"
+    break
+  fi
+  if ! running; then
+    echo "Mutant discovery did not produce a readable count." >&2
+    print_summary
+    exit 0
+  fi
   sleep "$DISCOVERY_POLL_SECS"
 done
-if ! running && [ ! -f "$MUTANTS_OUT/mutants.json" ]; then
-  print_summary
-  exit 0
-fi
-
-TOTAL=$(python3 -c "import json; print(len(json.load(open('$MUTANTS_OUT/mutants.json'))))" 2>/dev/null || echo "0")
 
 printf "\033[0Ksection_start:%s:baseline[collapsed=true]\r\033[0K" "$(date +%s)"
 printf '%b' "${B}${C}Baseline: compiling and running unmutated tests${Z}\n"
@@ -111,9 +122,12 @@ while running; do
     BASELINE_OPEN=false; TESTING_OPEN=true
   fi
 
-  pct=$((d * 100 / TOTAL))
+  pct=0
+  if [ "$TOTAL" -gt 0 ]; then
+    pct=$((d * 100 / TOTAL))
+  fi
   eta=""
-  if [ "$SECONDS" -gt 0 ] && [ "$d" -gt 0 ]; then
+  if [ "$SECONDS" -gt 0 ] && [ "$d" -gt 0 ] && [ "$TOTAL" -ge "$d" ]; then
     rem=$(( (TOTAL - d) * SECONDS / d / 60 ))
     eta="  ${D}(~${rem}m remaining)${Z}"
   fi

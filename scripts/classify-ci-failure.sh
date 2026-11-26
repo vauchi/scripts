@@ -48,6 +48,7 @@ fi
 # Order matters — a compile error line can also contain the word "failed",
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
+  "test-failure"
   "missing-tool"
   "authorization"
   "lint"
@@ -62,6 +63,7 @@ CATS=(
   "missing-tool" "compile-error" "lint" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
+  "FAILED: [1-9][0-9]* self-test suite\\(s\\) red[.]"
   "(Package '[^']+', required by '[^']+', not found|The system library .* required by crate .* was not found)"
   "sudo: (a terminal is required to read the password|a password is required|no tty present and no askpass program specified)"
   "jscpd-new-clones: duplication grew:"
@@ -101,6 +103,7 @@ PATS=(
   "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL|ERROR: mirror .* missing .* build:debug should have built it|Release v[^ ]+ is tagged but not consumable:)"
 )
 FIXES=(
+  "Inspect the failing self-test and repair its code or fixture; earlier expected-error fixture output is not the job failure."
   "Install the native development packages required by pkg-config in runner setup before compiling; keep the feature and its checks enabled."
   "The runner cannot perform interactive privilege escalation. Use job-local build dependencies or a maintainer-managed runner image; never embed an account password."
   "Refactor the new duplicated source into shared helpers; rerun the pinned jscpd comparison against main without changing its allowance or baseline."
