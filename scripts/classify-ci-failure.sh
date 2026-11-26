@@ -92,7 +92,7 @@ PATS=(
   "(Could not resolve host:|DNS: transient error \(try again later\)|Connection reset by peer|fatal: unable to access '[^']+': Failed to connect to [^[:space:]]+(:[0-9]+| port [0-9]+) after [0-9]+ ms: Could not connect to server|curl: \\(22\\) The requested URL returned error: (502|503|504)([[:space:]]|$))"
   "(exceeded maximum timeout|Job exceeded|execution took longer than [0-9]+[hms]|context deadline exceeded)"
   "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities)|error: [0-9]+ (vulnerability|vulnerabilities) found!|error: [0-9]+ denied warnings? found!|error\\[(vulnerability|duplicate|unmaintained)\\]:)"
-  "(command not found|: not found)"
+  "(command not found|: not found|xvfb-run is required in CI)"
   "(error\\[E[0-9]+\\]|error CS[0-9]{4}:|error: missing argument for parameter|No value passed for parameter|cannot find '[^']+' in scope|undefined reference to)"
   "vendor-locales: the vendored catalogue has drifted from locales\\."
   "(clippy::|^Diff in |rustfmt|MD[0-9]{3}|@implemented scenario\\(s\\) with no test naming them:|(^|[^[:digit:]])[1-9][0-9]* @scenario annotation\\(s\\) naming no scenario:|adr-constraints: |(^|[^[:digit:]])[1-9][0-9]* added @scenario annotation\\(s\\) name no scenario:|cargo-machete found the following unused dependencies|pure-functional-core regression|\\[ERROR\\] file://.*Cannot find file: File not found|not compliant with version [0-9.]+ of the REUSE Specification|FAIL: .*deny[.]toml: (add|remove) )"

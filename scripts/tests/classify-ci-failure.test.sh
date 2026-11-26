@@ -495,6 +495,13 @@ expect_escalate "known disk exhaustion does not escalate" \
 expect_category "ordinary disk usage is not disk exhaustion" \
     "Filesystem /dev/root 792G 240G 552G 31% /" "unknown"
 
+expect_category "required Xvfb beats incidental toolchain component output" \
+    "info: downloading component 'rustfmt'
+CMake Error at CMakeLists.txt:255 (message):
+  xvfb-run is required in CI for display_desktop_effects_active_x11" "missing-tool"
+expect_category "successful Xvfb discovery is not a missing tool" \
+    "-- Found xvfb-run: /usr/bin/xvfb-run" "unknown"
+
 # Unknown → escalate to the model
 expect_category "unknown signature" \
     "some totally novel error nobody has a rule for yet" "unknown"
