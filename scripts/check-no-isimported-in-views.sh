@@ -62,6 +62,20 @@ ANDROID_UI="$WORKSPACE_ROOT/android/app/src/main/kotlin/app/vauchi/ui"
 [ -d "$IOS_VIEWS" ] || IOS_VIEWS="$WORKSPACE_ROOT/Vauchi/Views"
 [ -d "$ANDROID_UI" ] || ANDROID_UI="$WORKSPACE_ROOT/app/src/main/kotlin/app/vauchi/ui"
 
+ANDROID_DISPLAY_UI="$WORKSPACE_ROOT/android/display/src/main/kotlin/app/vauchi/ui"
+[ -d "$ANDROID_DISPLAY_UI" ] || ANDROID_DISPLAY_UI="$WORKSPACE_ROOT/display/src/main/kotlin/app/vauchi/ui"
+ANDROID_SETTINGS="$WORKSPACE_ROOT/android/settings.gradle.kts"
+[ -f "$ANDROID_SETTINGS" ] || ANDROID_SETTINGS="$WORKSPACE_ROOT/settings.gradle.kts"
+if [ -f "$ANDROID_SETTINGS" ]; then
+    display_settings=$(sed 's,//.*$,,' "$ANDROID_SETTINGS")
+    if [[ "$display_settings" == *'":display"'* ]]; then
+        if ! display_inventory=$(rg --files --glob '*.kt' --glob '*.java' "$ANDROID_DISPLAY_UI") || [ -z "$display_inventory" ]; then
+            echo "ERROR: declared display module has no readable view sources: $ANDROID_DISPLAY_UI" >&2
+            exit 2
+        fi
+    fi
+fi
+
 VIOLATIONS=0
 REPORT=""
 
@@ -93,6 +107,7 @@ $matches"
 
 scan_dir "$IOS_VIEWS"
 scan_dir "$ANDROID_UI"
+scan_dir "$ANDROID_DISPLAY_UI"
 
 if [ "$VIOLATIONS" -gt 0 ]; then
     echo "FAIL: view-layer .isImported reads (§1A pure-renderer rule):"

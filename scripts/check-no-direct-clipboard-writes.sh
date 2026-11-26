@@ -71,6 +71,20 @@ ANDROID_UI="$WORKSPACE_ROOT/android/app/src/main/kotlin/app/vauchi/ui"
 [ -d "$IOS_COREUI" ] || IOS_COREUI="$WORKSPACE_ROOT/Vauchi/CoreUI"
 [ -d "$ANDROID_UI" ] || ANDROID_UI="$WORKSPACE_ROOT/app/src/main/kotlin/app/vauchi/ui"
 
+ANDROID_DISPLAY_UI="$WORKSPACE_ROOT/android/display/src/main/kotlin/app/vauchi/ui"
+[ -d "$ANDROID_DISPLAY_UI" ] || ANDROID_DISPLAY_UI="$WORKSPACE_ROOT/display/src/main/kotlin/app/vauchi/ui"
+ANDROID_SETTINGS="$WORKSPACE_ROOT/android/settings.gradle.kts"
+[ -f "$ANDROID_SETTINGS" ] || ANDROID_SETTINGS="$WORKSPACE_ROOT/settings.gradle.kts"
+if [ -f "$ANDROID_SETTINGS" ]; then
+    display_settings=$(sed 's,//.*$,,' "$ANDROID_SETTINGS")
+    if [[ "$display_settings" == *'":display"'* ]]; then
+        if ! display_inventory=$(rg --files --glob '*.kt' --glob '*.java' "$ANDROID_DISPLAY_UI") || [ -z "$display_inventory" ]; then
+            echo "ERROR: declared display module has no readable view sources: $ANDROID_DISPLAY_UI" >&2
+            exit 2
+        fi
+    fi
+fi
+
 VIOLATIONS=0
 REPORT=""
 
@@ -81,8 +95,16 @@ scan() {
     if [ ! -d "$dir" ]; then
         return 0
     fi
-    local matches
-    matches="$(rg --line-number --no-heading "$pattern" "$dir" || true)"
+    local matches search_status
+    if matches="$(rg --line-number --no-heading "$pattern" "$dir")"; then
+        :
+    else
+        search_status=$?
+        if [ "$search_status" -ne 1 ]; then
+            echo "ERROR: ripgrep could not complete the view scan: $dir" >&2
+            return "$search_status"
+        fi
+    fi
     if [ -n "$matches" ]; then
         REPORT="$REPORT
 [$label]
@@ -94,6 +116,7 @@ $matches"
 scan "$IOS_VIEWS"   'UIPasteboard\.general\b' "iOS Views"
 scan "$IOS_COREUI"  'UIPasteboard\.general\b' "iOS CoreUI"
 scan "$ANDROID_UI"  '\.setPrimaryClip\b'      "Android UI"
+scan "$ANDROID_DISPLAY_UI" '\.setPrimaryClip\b' "Android display"
 
 if [ "$VIOLATIONS" -gt 0 ]; then
     echo "FAIL: view-layer direct clipboard writes (clipboard protection rule):"

@@ -102,8 +102,21 @@ if [ ! -d "$ANDROID_UI" ] && [ -d "$WORKSPACE_ROOT/app/src/main/kotlin/app/vauch
     ANDROID_UI="$WORKSPACE_ROOT/app/src/main/kotlin/app/vauchi/ui"
 fi
 
-if [ ! -d "$ANDROID_UI" ]; then
-    # Not all repos checkouts include the android tree — silent no-op.
+ANDROID_DISPLAY_UI="$WORKSPACE_ROOT/android/display/src/main/kotlin/app/vauchi/ui"
+[ -d "$ANDROID_DISPLAY_UI" ] || ANDROID_DISPLAY_UI="$WORKSPACE_ROOT/display/src/main/kotlin/app/vauchi/ui"
+ANDROID_SETTINGS="$WORKSPACE_ROOT/android/settings.gradle.kts"
+[ -f "$ANDROID_SETTINGS" ] || ANDROID_SETTINGS="$WORKSPACE_ROOT/settings.gradle.kts"
+if [ -f "$ANDROID_SETTINGS" ]; then
+    display_settings=$(sed 's,//.*$,,' "$ANDROID_SETTINGS")
+    if [[ "$display_settings" == *'":display"'* ]]; then
+        if ! display_inventory=$(rg --files --glob '*.kt' --glob '*.java' "$ANDROID_DISPLAY_UI") || [ -z "$display_inventory" ]; then
+            echo "ERROR: declared display module has no readable view sources: $ANDROID_DISPLAY_UI" >&2
+            exit 2
+        fi
+    fi
+fi
+
+if [ ! -d "$ANDROID_UI" ] && [ ! -d "$ANDROID_DISPLAY_UI" ]; then
     exit 0
 fi
 
@@ -139,11 +152,20 @@ is_allowlisted() {
 scan() {
     local pattern="$1"
     local description="$2"
-    local matches
+    local dir="$3"
+    local matches search_status
     # Searched from inside the tree: an absolute Windows path starts with
     # a drive letter and a colon, which the <path>:<line>:<text> split
     # below would cut at.
-    matches="$(cd "$ANDROID_UI" && rg --line-number --no-heading "$pattern" . 2>/dev/null || true)"
+    if matches="$(cd "$dir" && rg --line-number --no-heading "$pattern" .)"; then
+        :
+    else
+        search_status=$?
+        if [ "$search_status" -ne 1 ]; then
+            echo "ERROR: ripgrep could not complete the view scan: $dir" >&2
+            return "$search_status"
+        fi
+    fi
     if [ -z "$matches" ]; then
         return 0
     fi
@@ -153,10 +175,10 @@ scan() {
         local rel="${line%%:*}"
         rel="${rel//\\//}"
         rel="${rel#./}"
-        if is_allowlisted "$rel"; then
+        if [ "$dir" = "$ANDROID_UI" ] && is_allowlisted "$rel"; then
             continue
         fi
-        filtered+="$ANDROID_UI/$rel:${line#*:}"$'\n'
+        filtered+="$dir/$rel:${line#*:}"$'\n'
     done <<<"$matches"
     if [ -n "$filtered" ]; then
         REPORT+=$'\n'"${description}:"$'\n'"$filtered"
@@ -170,7 +192,9 @@ scan() {
 for entry in "${PATTERNS[@]}"; do
     pattern="${entry%%|*}"
     description="${entry#*|}"
-    scan "$pattern" "$description"
+    for dir in "$ANDROID_UI" "$ANDROID_DISPLAY_UI"; do
+        if [ -d "$dir" ]; then scan "$pattern" "$description" "$dir"; fi
+    done
 done
 
 if [ "$VIOLATIONS" -gt 0 ]; then

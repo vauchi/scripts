@@ -82,6 +82,20 @@ PATTERNS=(
     '\.isFailed\b|G3 .isFailed read — use VauchiPlatform.getFailedDeliveryRecords()'
 )
 
+ANDROID_DISPLAY_UI="$WORKSPACE_ROOT/android/display/src/main/kotlin/app/vauchi/ui"
+[ -d "$ANDROID_DISPLAY_UI" ] || ANDROID_DISPLAY_UI="$WORKSPACE_ROOT/display/src/main/kotlin/app/vauchi/ui"
+ANDROID_SETTINGS="$WORKSPACE_ROOT/android/settings.gradle.kts"
+[ -f "$ANDROID_SETTINGS" ] || ANDROID_SETTINGS="$WORKSPACE_ROOT/settings.gradle.kts"
+if [ -f "$ANDROID_SETTINGS" ]; then
+    display_settings=$(sed 's,//.*$,,' "$ANDROID_SETTINGS")
+    if [[ "$display_settings" == *'":display"'* ]]; then
+        if ! display_inventory=$(rg --files --glob '*.kt' --glob '*.java' "$ANDROID_DISPLAY_UI") || [ -z "$display_inventory" ]; then
+            echo "ERROR: declared display module has no readable view sources: $ANDROID_DISPLAY_UI" >&2
+            exit 2
+        fi
+    fi
+fi
+
 VIOLATIONS=0
 REPORT=""
 
@@ -92,8 +106,16 @@ scan_dir_for_pattern() {
     if [ ! -d "$dir" ]; then
         return 0
     fi
-    local matches
-    matches="$(rg --line-number --no-heading "$pattern" "$dir" || true)"
+    local matches search_status
+    if matches="$(rg --line-number --no-heading "$pattern" "$dir")"; then
+        :
+    else
+        search_status=$?
+        if [ "$search_status" -ne 1 ]; then
+            echo "ERROR: ripgrep could not complete the view scan: $dir" >&2
+            return "$search_status"
+        fi
+    fi
     if [ -n "$matches" ]; then
         REPORT="$REPORT
 ${description}:
@@ -109,6 +131,7 @@ for entry in "${PATTERNS[@]}"; do
     scan_dir_for_pattern "$IOS_VIEWS" "$pattern" "$description"
     scan_dir_for_pattern "$IOS_COREUI" "$pattern" "$description"
     scan_dir_for_pattern "$ANDROID_UI" "$pattern" "$description"
+    scan_dir_for_pattern "$ANDROID_DISPLAY_UI" "$pattern" "$description"
 done
 
 if [ "$VIOLATIONS" -gt 0 ]; then
