@@ -98,6 +98,27 @@ case "$output" in
 esac
 
 # ── 3. Process dies before discovery: monitor exits 0, not 127 ───────
+mkdir -p "$WORK/retry-bin" "$WORK/retry"
+export MUTATION_TEST_REAL_PYTHON
+MUTATION_TEST_REAL_PYTHON="$(command -v python3)"
+export MUTATION_TEST_PARSE_ATTEMPT="$WORK/parse-attempt"
+cat > "$WORK/retry-bin/python3" <<'PYTHON'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ ! -f "$MUTATION_TEST_PARSE_ATTEMPT" ]; then
+    : > "$MUTATION_TEST_PARSE_ATTEMPT"
+    exit 1
+fi
+exec "$MUTATION_TEST_REAL_PYTHON" "$@"
+PYTHON
+chmod +x "$WORK/retry-bin/python3"
+fake_mutants "$WORK/retry" 0 caught unviable caught
+PATH="$WORK/retry-bin:$PATH" run_monitor "$pid" "$WORK/retry"
+wait "$pid" || true
+assert_eq "transient discovery read failure does not change monitor status" 0 "$status"
+assert_contains "discovery read is retried before opening testing section" "Testing 3 mutants" "$output"
+assert_contains "retried discovery preserves the actual total" "Total:    3 / 3" "$output"
+
 mkdir -p "$WORK/early"
 ( sleep 0.1; exit 101 ) &
 pid=$!

@@ -107,6 +107,8 @@ expect_category "benchmark regression gate" \
     "ERROR: Performance regression > 100% detected!" "test-failure"
 expect_category "duplication clone-count regression" \
     "2026-11-26T06:37:08Z 01O jscpd-new-clones: duplication grew: clones grew from 380 to 382" "lint"
+expect_category "failed self-test summary outranks deliberate duplication fixture" \
+    $'jscpd-new-clones: duplication grew: clones grew from 1 to 2\nFAILED: 1 self-test suite(s) red.' "test-failure"
 expect_category "duplication line-count regression" \
     "jscpd-new-clones: duplication grew: duplicated lines grew from 8600 to 8626" "lint"
 expect_escalate "duplication regression does not need manual classification" \
