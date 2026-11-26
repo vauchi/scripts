@@ -246,6 +246,18 @@ expect_category "Windows native library artifact gap" \
     "artifact-gap"
 expect_category "test failure" \
     "test result: FAILED. 3 passed; 1 failed" "test-failure"
+expect_category "XCTest parallel runner failure" \
+    "2026-11-26T12:20:08.917495Z 01O Test case 'ExchangeCommandBridgeTests.testTheFlashClearsAfterOneBeat()' failed on 'Clone 1 of iPhone 17 Pro - Vauchi (2373)' (4.103 seconds)" \
+    "test-failure"
+expect_category "XCTest sequential runner failure" \
+    "Test Case '-[VauchiUITests.EmergencyWipeUITests testEmergencyWipeLandsOnWelcome]' failed (33.788 seconds)." \
+    "test-failure"
+expect_category "XCTest passing failure-path test is not a failure" \
+    "Test case 'AudioOperationSlotTests.testFailedStartReleasesPartialResource()' passed on 'Clone 1 of iPhone 17 Pro - Vauchi (2373)' (0.001 seconds)" \
+    "unknown"
+expect_category "XCTest sequential passing test is not a failure" \
+    "Test Case '-[VauchiTests.AudioOperationSlotTests testFailedStartReleasesPartialResource]' passed (0.001 seconds)." \
+    "unknown"
 expect_category "C++ assertion with GitLab timestamp" \
     '2026-11-06T14:58:56Z 01O file_picker_test.cpp:169: Assertion events.size() == 1 failed.' \
     "test-failure"
