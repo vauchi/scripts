@@ -105,6 +105,14 @@ expect_category "cohort updater rejects a foreign lock source" \
     "2026-11-25T02:25:39Z 01E cohort: ERROR: untrusted lockfile source" "dep-resolution"
 expect_category "benchmark regression gate" \
     "ERROR: Performance regression > 100% detected!" "test-failure"
+expect_category "duplication clone-count regression" \
+    "2026-11-26T06:37:08Z 01O jscpd-new-clones: duplication grew: clones grew from 380 to 382" "lint"
+expect_category "duplication line-count regression" \
+    "jscpd-new-clones: duplication grew: duplicated lines grew from 8600 to 8626" "lint"
+expect_escalate "duplication regression does not need manual classification" \
+    "jscpd-new-clones: duplication grew: clones grew from 380 to 382" "false"
+expect_category "clean duplication summary stays unknown" \
+    "jscpd-new-clones: 0 new, of 0 jscpd flagged by text (allowed: 0)" "unknown"
 expect_category "fractional benchmark regression threshold" \
     "ERROR: Performance regression > 12.5% detected!" "test-failure"
 expect_category "benchmark comparison without a failed gate stays unknown" \
