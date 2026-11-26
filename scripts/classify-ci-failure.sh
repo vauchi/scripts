@@ -50,6 +50,7 @@ fi
 CATS=(
   "missing-tool"
   "authorization"
+  "lint"
   "dep-resolution" "test-failure"
   "artifact-integrity"
   "runner-infrastructure" "dep-resolution"
@@ -63,6 +64,7 @@ CATS=(
 PATS=(
   "(Package '[^']+', required by '[^']+', not found|The system library .* required by crate .* was not found)"
   "sudo: (a terminal is required to read the password|a password is required|no tty present and no askpass program specified)"
+  "jscpd-new-clones: duplication grew:"
   "cohort: ERROR: untrusted lockfile source"
   "ERROR: Performance regression > [0-9]+([.][0-9]+)?% detected!"
   "sha256sum: WARNING: [1-9][0-9]* computed checksums? did NOT match"
@@ -101,6 +103,7 @@ PATS=(
 FIXES=(
   "Install the native development packages required by pkg-config in runner setup before compiling; keep the feature and its checks enabled."
   "The runner cannot perform interactive privilege escalation. Use job-local build dependencies or a maintainer-managed runner image; never embed an account password."
+  "Refactor the new duplicated source into shared helpers; rerun the pinned jscpd comparison against main without changing its allowance or baseline."
   "Compare the new dependency source with the protected Core release's lockfile; admit only release-authorized package identities and keep rejecting unrelated sources."
   "Inspect the regressing benchmark and its baseline under comparable runner load; fix the measured regression or invalid comparison without relaxing the performance gate."
   "Verify the downloaded bytes against the pinned source ref, then correct the ref or expected digest; never bypass checksum verification."
