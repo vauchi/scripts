@@ -217,6 +217,11 @@ for copy in light full reuse shellcheck ci-lint; do
     assert_eq "$copy: successful bootstrap validates the fetched source" \
         "VALIDATION_STARTED $BRANCH_SHA" "$(printf '%s\n' "$got" | tail -n 1)"
 
+    if [ "$copy" = light ] || [ "$copy" = full ]; then
+        assert_eq "$copy: checkout records last use for warm storage retention" yes \
+            "$(test -f "$WORK/cached-job/.cache/vauchi-ci/last-used" && echo yes || echo no)"
+    fi
+
     got=$(checkout_after_ref_removed "$copy" recover \
         CHECKOUT_BLOCK=1 CHECKOUT_RECOVERY=1 CI_PROJECT_PATH=fixture/project \
         CI_MERGE_REQUEST_EVENT_TYPE= CI_MERGE_REQUEST_IID= \

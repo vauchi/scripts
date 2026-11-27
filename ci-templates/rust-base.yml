@@ -231,6 +231,10 @@ workflow:
       fi
 
       git show -s --format='Checked out %H' HEAD
+      # Directory mtimes do not advance on warm reuse; retention needs an
+      # explicit last-use stamp that survives git clean (private#375).
+      mkdir -p .cache/vauchi-ci
+      touch .cache/vauchi-ci/last-used
       git clean -ffd -e node_modules/ -e .cache/
 
 # ============================================================
@@ -385,6 +389,10 @@ workflow:
       fi
 
       git show -s --format='Checked out %H' HEAD
+      # Directory mtimes do not advance on warm reuse; retention needs an
+      # explicit last-use stamp that survives git clean (private#375).
+      mkdir -p .cache/vauchi-ci
+      touch .cache/vauchi-ci/last-used
       # Remove stale untracked files left from previous checkouts.
       # GIT_STRATEGY:none + fetch/checkout doesn't clean deleted files,
       # so renamed modules (e.g. foo.rs → foo/mod.rs) leave the old file
@@ -612,25 +620,14 @@ workflow:
     # Ensure mold linker is available (required by .cargo/config.toml for faster linking)
     - command -v mold >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq mold)
   cache:
-    # One shared registry cache per project, not per job: the archived
-    # content is a pure function of Cargo.lock, so the old per-job prefix
-    # stored the same registry archive once per compiling job (13x in
-    # core) and cold-downloaded all 13 copies. Concurrent uploads are
-    # last-write-wins with identical content (benign); a torn extract
-    # self-heals on the next pull. Same key across all self-hosted
-    # runner templates below.
-    key:
-      files:
-        - Cargo.lock
-      prefix: rust-${CI_PROJECT_NAME}-registry
-    fallback_keys:
-      - rust-${CI_PROJECT_NAME}-registry-${CI_DEFAULT_BRANCH}
-      - rust-${CI_PROJECT_NAME}-registry
+    # Downloads are additive across lockfile revisions. A stable key avoids
+    # retaining another near-identical archive for each revision (#375).
+    # GitLab still appends its protected/non_protected suffix.
+    key: rust-${CI_PROJECT_NAME}-downloads-v2
     paths:
       # Note: target/ is NOT cached here — shell runners persist it on disk
       # via GIT_STRATEGY:none. sccache handles compiled artifact reuse.
       # Caching target/ via GitLab added 65-259s of I/O overhead per job.
-      - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
       - .cargo/git/db/
@@ -649,13 +646,10 @@ workflow:
     - !reference [.self-hosted, before_script]
     - command -v mold >/dev/null 2>&1 || (sudo apt-get update -qq && sudo apt-get install -y -qq mold)
   cache:
-    key:
-      files:
-        - Cargo.lock
-      prefix: rust-${CI_PROJECT_NAME}-registry
-    fallback_keys:
-      - rust-${CI_PROJECT_NAME}-registry-${CI_DEFAULT_BRANCH}
-      - rust-${CI_PROJECT_NAME}-registry
+    # Downloads are additive across lockfile revisions. A stable key avoids
+    # retaining another near-identical archive for each revision (#375).
+    # GitLab still appends its protected/non_protected suffix.
+    key: rust-${CI_PROJECT_NAME}-downloads-v2
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
@@ -725,15 +719,11 @@ workflow:
     - !reference [.self-hosted, before_script]
     - !reference [.git-credentials, before_script]
   cache:
-    key:
-      files:
-        - Cargo.lock
-      prefix: rust-${CI_PROJECT_NAME}-registry
-    fallback_keys:
-      - rust-${CI_PROJECT_NAME}-registry-${CI_DEFAULT_BRANCH}
-      - rust-${CI_PROJECT_NAME}-registry
+    # Downloads are additive across lockfile revisions. A stable key avoids
+    # retaining another near-identical archive for each revision (#375).
+    # GitLab still appends its protected/non_protected suffix.
+    key: rust-${CI_PROJECT_NAME}-downloads-v2
     paths:
-      - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
       - .cargo/git/db/
@@ -752,13 +742,10 @@ workflow:
     - !reference [.self-hosted, before_script]
     - !reference [.git-credentials, before_script]
   cache:
-    key:
-      files:
-        - Cargo.lock
-      prefix: rust-${CI_PROJECT_NAME}-registry
-    fallback_keys:
-      - rust-${CI_PROJECT_NAME}-registry-${CI_DEFAULT_BRANCH}
-      - rust-${CI_PROJECT_NAME}-registry
+    # Downloads are additive across lockfile revisions. A stable key avoids
+    # retaining another near-identical archive for each revision (#375).
+    # GitLab still appends its protected/non_protected suffix.
+    key: rust-${CI_PROJECT_NAME}-downloads-v2
     paths:
       - .cargo/registry/index/
       - .cargo/registry/cache/
@@ -790,15 +777,11 @@ workflow:
     - macos-host
     - self-hosted
   cache:
-    key:
-      files:
-        - Cargo.lock
-      prefix: rust-${CI_PROJECT_NAME}-registry
-    fallback_keys:
-      - rust-${CI_PROJECT_NAME}-registry-${CI_DEFAULT_BRANCH}
-      - rust-${CI_PROJECT_NAME}-registry
+    # Downloads are additive across lockfile revisions. A stable key avoids
+    # retaining another near-identical archive for each revision (#375).
+    # GitLab still appends its protected/non_protected suffix.
+    key: rust-${CI_PROJECT_NAME}-downloads-v2
     paths:
-      - .cargo/bin/
       - .cargo/registry/index/
       - .cargo/registry/cache/
       - .cargo/git/db/
