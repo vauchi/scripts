@@ -143,12 +143,6 @@ expect_category "sccache daemon startup timeout" \
 expect_category "Docker store disk exhaustion" \
     "ERROR: Preparation failed: getting docker info: Error response from daemon: database or disk is full" \
     "runner-infrastructure"
-expect_category "crate download disk exhaustion outranks rustfmt output" \
-    $'info: downloading component \'rustfmt\'\npackages downloaded: No space left on device (os error 28)' \
-    "runner-infrastructure"
-expect_category "shell job-script disk exhaustion" \
-    "bash: line 72: printf: write error: No space left on device" \
-    "runner-infrastructure"
 expect_category "npm dependency audit" \
     "1 moderate severity vulnerability" "dep-resolution"
 expect_category "cargo dependency audit" \

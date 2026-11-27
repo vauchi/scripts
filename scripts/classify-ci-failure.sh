@@ -75,7 +75,7 @@ PATS=(
   "ERROR: Performance regression > [0-9]+([.][0-9]+)?% detected!"
   "sha256sum: WARNING: [1-9][0-9]* computed checksums? did NOT match"
   "sccache: error: Timed out waiting for server startup"
-  "(No space left on device|database or disk is full)"
+  "database or disk is full"
   "FAIL: .* (pins|resolves) Core crates at another tag than (the )?set's v"
   "The .?\\[script\\].? attribute is currently unstable"
   "VSP01: pinned ci-templates-v[0-9]+\\.[0-9]+\\.[0-9]+ is not among the latest ci-template tags"
