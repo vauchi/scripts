@@ -232,6 +232,15 @@ expect_category "Rust unresolved import compile error" \
 expect_category "native linker compile error" \
     "undefined reference to vauchi_presentation_contract_fixture" \
     "compile-error"
+expect_category "Homebrew tool build traps" \
+    'make: *** [build] Trace/BPT trap: 5' "compile-error"
+expect_escalate "Homebrew tool build trap does not escalate" \
+    'make: *** [build] Trace/BPT trap: 5' "false"
+expect_fix "Homebrew tool build crash gives toolchain guidance" \
+    'make: *** [build] Trace/BPT trap: 5' \
+    'Inspect the tool build log and compiler crash; use a compatible toolchain or a checksum-verified prebuilt release, keeping runtime validation enabled.'
+expect_category "successful build with trap mentioned in a fixture is not a compiler crash" \
+    'fixture text: Trace/BPT trap: 5' "unknown"
 expect_category "Windows native library artifact gap" \
     "System.DllNotFoundException : Unable to load DLL 'vauchi_cabi' or one of its dependencies" \
     "artifact-gap"

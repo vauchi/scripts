@@ -50,6 +50,7 @@ fi
 CATS=(
   "test-failure"
   "runner-infrastructure"
+  "compile-error"
   "missing-tool"
   "artifact-gap"
   "authorization"
@@ -67,6 +68,7 @@ CATS=(
 PATS=(
   "FAILED: [1-9][0-9]* self-test suite\\(s\\) red[.]"
   "No space left on device"
+  "make: \\*\\*\\* \\[build\\] Trace/BPT trap: [0-9]+"
   "(Package '[^']+', required by '[^']+', not found|The system library .* required by crate .* was not found)"
   "Project .+ reference .+ does not exist!"
   "sudo: (a terminal is required to read the password|a password is required|no tty present and no askpass program specified)"
@@ -110,6 +112,7 @@ PATS=(
 FIXES=(
   "Inspect the failing self-test and repair its code or fixture; earlier expected-error fixture output is not the job failure."
   "Restore free space and inodes on the runner; remove only stale build/cache data, preserve active jobs, then retry without changing application code."
+  "Inspect the tool build log and compiler crash; use a compatible toolchain or a checksum-verified prebuilt release, keeping runtime validation enabled."
   "Install the native development packages required by pkg-config in runner setup before compiling; keep the feature and its checks enabled."
   "Verify the CI include project/ref and the pipeline actor's read access. Pin a verified published release commit with the matching runtime ref; rerun only after include validation succeeds."
   "The runner cannot perform interactive privilege escalation. Use job-local build dependencies or a maintainer-managed runner image; never embed an account password."
