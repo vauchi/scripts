@@ -39,6 +39,7 @@
 # constructors and `#Preview` fixtures) are exempt — those are writes,
 # not reads. The patterns deliberately use member-access shape only.
 
+# VAUCHI_ANDROID_DISPLAY_ROOT declares an additional required library checkout.
 set -euo pipefail
 
 # Guard fails LOUD without ripgrep: `rg … || true` silently reported
@@ -96,6 +97,31 @@ if [ -f "$ANDROID_SETTINGS" ]; then
     fi
 fi
 
+ANDROID_INDEPENDENT_DISPLAY_UI=""
+independent_module=""
+if [ "${VAUCHI_ANDROID_DISPLAY_ROOT+x}" = x ]; then
+    independent_module="$VAUCHI_ANDROID_DISPLAY_ROOT"
+elif [ -e "$WORKSPACE_ROOT/android-display" ] || [ -L "$WORKSPACE_ROOT/android-display" ]; then
+    independent_module="$WORKSPACE_ROOT/android-display"
+elif [ -d "$WORKSPACE_ROOT/src" ]; then
+    independent_module="$WORKSPACE_ROOT"
+fi
+if [ -n "$independent_module" ] || [ "${VAUCHI_ANDROID_DISPLAY_ROOT+x}" = x ]; then
+    ANDROID_INDEPENDENT_DISPLAY_UI="$independent_module/src/main/kotlin/app/vauchi/ui"
+    if [ -z "$independent_module" ] || [ -L "$independent_module" ] || [ -L "$independent_module/src" ] || [ ! -d "$independent_module/src" ]; then
+        echo "ERROR: independent display module has no regular source root: $independent_module" >&2
+        exit 2
+    fi
+    if ! linked_sources=$(find "$independent_module/src" -type l) || [ -n "$linked_sources" ]; then
+        echo "ERROR: independent display source tree contains links or cannot be inspected: $independent_module" >&2
+        exit 2
+    fi
+    if ! display_inventory=$(rg --files --hidden --no-ignore --glob '*.kt' --glob '*.java' "$ANDROID_INDEPENDENT_DISPLAY_UI") || [ -z "$display_inventory" ]; then
+        echo "ERROR: independent display module has no readable view sources: $ANDROID_INDEPENDENT_DISPLAY_UI" >&2
+        exit 2
+    fi
+fi
+
 VIOLATIONS=0
 REPORT=""
 
@@ -107,7 +133,7 @@ scan_dir_for_pattern() {
         return 0
     fi
     local matches search_status
-    if matches="$(rg --line-number --no-heading "$pattern" "$dir")"; then
+    if matches="$(rg --hidden --no-ignore --line-number --no-heading "$pattern" "$dir")"; then
         :
     else
         search_status=$?
@@ -132,6 +158,7 @@ for entry in "${PATTERNS[@]}"; do
     scan_dir_for_pattern "$IOS_COREUI" "$pattern" "$description"
     scan_dir_for_pattern "$ANDROID_UI" "$pattern" "$description"
     scan_dir_for_pattern "$ANDROID_DISPLAY_UI" "$pattern" "$description"
+    scan_dir_for_pattern "$ANDROID_INDEPENDENT_DISPLAY_UI" "$pattern" "$description"
 done
 
 if [ "$VIOLATIONS" -gt 0 ]; then

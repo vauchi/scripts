@@ -31,6 +31,7 @@
 # constructors and `#Preview` / test fixtures), since those are writes,
 # not reads.
 
+# VAUCHI_ANDROID_DISPLAY_ROOT declares an additional required library checkout.
 set -euo pipefail
 
 # Guard fails LOUD without ripgrep: `rg … || true` silently reported
@@ -76,6 +77,31 @@ if [ -f "$ANDROID_SETTINGS" ]; then
     fi
 fi
 
+ANDROID_INDEPENDENT_DISPLAY_UI=""
+independent_module=""
+if [ "${VAUCHI_ANDROID_DISPLAY_ROOT+x}" = x ]; then
+    independent_module="$VAUCHI_ANDROID_DISPLAY_ROOT"
+elif [ -e "$WORKSPACE_ROOT/android-display" ] || [ -L "$WORKSPACE_ROOT/android-display" ]; then
+    independent_module="$WORKSPACE_ROOT/android-display"
+elif [ -d "$WORKSPACE_ROOT/src" ]; then
+    independent_module="$WORKSPACE_ROOT"
+fi
+if [ -n "$independent_module" ] || [ "${VAUCHI_ANDROID_DISPLAY_ROOT+x}" = x ]; then
+    ANDROID_INDEPENDENT_DISPLAY_UI="$independent_module/src/main/kotlin/app/vauchi/ui"
+    if [ -z "$independent_module" ] || [ -L "$independent_module" ] || [ -L "$independent_module/src" ] || [ ! -d "$independent_module/src" ]; then
+        echo "ERROR: independent display module has no regular source root: $independent_module" >&2
+        exit 2
+    fi
+    if ! linked_sources=$(find "$independent_module/src" -type l) || [ -n "$linked_sources" ]; then
+        echo "ERROR: independent display source tree contains links or cannot be inspected: $independent_module" >&2
+        exit 2
+    fi
+    if ! display_inventory=$(rg --files --hidden --no-ignore --glob '*.kt' --glob '*.java' "$ANDROID_INDEPENDENT_DISPLAY_UI") || [ -z "$display_inventory" ]; then
+        echo "ERROR: independent display module has no readable view sources: $ANDROID_INDEPENDENT_DISPLAY_UI" >&2
+        exit 2
+    fi
+fi
+
 VIOLATIONS=0
 REPORT=""
 
@@ -88,7 +114,7 @@ scan_dir() {
     # ripgrep: --line-number, --no-heading, regex, no binary, fixed alternation.
     # rg's default smart-case is fine — `isImported` is mixed-case anyway.
     local matches search_status
-    if matches="$(rg --line-number --no-heading "$pattern" "$dir")"; then
+    if matches="$(rg --hidden --no-ignore --line-number --no-heading "$pattern" "$dir")"; then
         :
     else
         search_status=$?
@@ -108,6 +134,7 @@ $matches"
 scan_dir "$IOS_VIEWS"
 scan_dir "$ANDROID_UI"
 scan_dir "$ANDROID_DISPLAY_UI"
+scan_dir "$ANDROID_INDEPENDENT_DISPLAY_UI"
 
 if [ "$VIOLATIONS" -gt 0 ]; then
     echo "FAIL: view-layer .isImported reads (§1A pure-renderer rule):"

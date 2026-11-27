@@ -50,6 +50,7 @@
 # etc.). The two scripts are deliberately separate; one fences
 # imports/branches, the other fences predicates.
 
+# VAUCHI_ANDROID_DISPLAY_ROOT declares an additional required library checkout.
 set -euo pipefail
 
 # Guard fails LOUD without ripgrep: `rg … || true` silently reported
@@ -116,7 +117,32 @@ if [ -f "$ANDROID_SETTINGS" ]; then
     fi
 fi
 
-if [ ! -d "$ANDROID_UI" ] && [ ! -d "$ANDROID_DISPLAY_UI" ]; then
+ANDROID_INDEPENDENT_DISPLAY_UI=""
+independent_module=""
+if [ "${VAUCHI_ANDROID_DISPLAY_ROOT+x}" = x ]; then
+    independent_module="$VAUCHI_ANDROID_DISPLAY_ROOT"
+elif [ -e "$WORKSPACE_ROOT/android-display" ] || [ -L "$WORKSPACE_ROOT/android-display" ]; then
+    independent_module="$WORKSPACE_ROOT/android-display"
+elif [ -d "$WORKSPACE_ROOT/src" ]; then
+    independent_module="$WORKSPACE_ROOT"
+fi
+if [ -n "$independent_module" ] || [ "${VAUCHI_ANDROID_DISPLAY_ROOT+x}" = x ]; then
+    ANDROID_INDEPENDENT_DISPLAY_UI="$independent_module/src/main/kotlin/app/vauchi/ui"
+    if [ -z "$independent_module" ] || [ -L "$independent_module" ] || [ -L "$independent_module/src" ] || [ ! -d "$independent_module/src" ]; then
+        echo "ERROR: independent display module has no regular source root: $independent_module" >&2
+        exit 2
+    fi
+    if ! linked_sources=$(find "$independent_module/src" -type l) || [ -n "$linked_sources" ]; then
+        echo "ERROR: independent display source tree contains links or cannot be inspected: $independent_module" >&2
+        exit 2
+    fi
+    if ! display_inventory=$(rg --files --hidden --no-ignore --glob '*.kt' --glob '*.java' "$ANDROID_INDEPENDENT_DISPLAY_UI") || [ -z "$display_inventory" ]; then
+        echo "ERROR: independent display module has no readable view sources: $ANDROID_INDEPENDENT_DISPLAY_UI" >&2
+        exit 2
+    fi
+fi
+
+if [ ! -d "$ANDROID_UI" ] && [ ! -d "$ANDROID_DISPLAY_UI" ] && [ ! -d "$ANDROID_INDEPENDENT_DISPLAY_UI" ]; then
     exit 0
 fi
 
@@ -157,7 +183,7 @@ scan() {
     # Searched from inside the tree: an absolute Windows path starts with
     # a drive letter and a colon, which the <path>:<line>:<text> split
     # below would cut at.
-    if matches="$(cd "$dir" && rg --line-number --no-heading "$pattern" .)"; then
+    if matches="$(cd "$dir" && rg --hidden --no-ignore --line-number --no-heading "$pattern" .)"; then
         :
     else
         search_status=$?
@@ -192,7 +218,7 @@ scan() {
 for entry in "${PATTERNS[@]}"; do
     pattern="${entry%%|*}"
     description="${entry#*|}"
-    for dir in "$ANDROID_UI" "$ANDROID_DISPLAY_UI"; do
+    for dir in "$ANDROID_UI" "$ANDROID_DISPLAY_UI" "$ANDROID_INDEPENDENT_DISPLAY_UI"; do
         if [ -d "$dir" ]; then scan "$pattern" "$description" "$dir"; fi
     done
 done
