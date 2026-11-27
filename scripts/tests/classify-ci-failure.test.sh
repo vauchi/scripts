@@ -140,6 +140,15 @@ expect_category "application connection message is not Git transport" \
     "unknown"
 expect_category "sccache daemon startup timeout" \
     "sccache: error: Timed out waiting for server startup" "runner-infrastructure"
+expect_category "Docker store disk exhaustion" \
+    "ERROR: Preparation failed: getting docker info: Error response from daemon: database or disk is full" \
+    "runner-infrastructure"
+expect_category "crate download disk exhaustion outranks rustfmt output" \
+    $'info: downloading component \'rustfmt\'\npackages downloaded: No space left on device (os error 28)' \
+    "runner-infrastructure"
+expect_category "shell job-script disk exhaustion" \
+    "bash: line 72: printf: write error: No space left on device" \
+    "runner-infrastructure"
 expect_category "npm dependency audit" \
     "1 moderate severity vulnerability" "dep-resolution"
 expect_category "cargo dependency audit" \
@@ -295,6 +304,8 @@ expect_fix "vendored locale drift points to the companion update" \
     "Check for the companion locale-sync MR; refresh core's vendored catalogue with scripts/vendor-locales.sh and validate it before retrying. Never skip the drift gate."
 expect_category "current vendored locales do not invent a failure" \
     "vendor-locales: catalogue already current — no MR needed" "unknown"
+expect_category "locale key coverage drift" \
+    "ERROR: 18 key(s) referenced in source but missing from en.json:" "lint"
 expect_category "cargo-machete unused dependency" \
     "cargo-machete found the following unused dependencies in this directory:" "lint"
 expect_category "implemented scenario without mapped coverage" \
