@@ -168,6 +168,10 @@ for i in "${!CATS[@]}"; do
 done
 
 case "$FAILURE_REASON" in
+  stuck_pending_no_matching_runners)
+    emit "runner-infrastructure" false "$FAILURE_REASON" "Restore an online, unpaused runner matching all job tags and its protected-ref access before retrying; do not change application code."
+    exit 0
+    ;;
   runner_system_failure|runner_configuration_error)
     emit "runner-infrastructure" false "$FAILURE_REASON" "Inspect the runner configuration and system logs; restore runner health before retrying without changing application code."
     exit 0

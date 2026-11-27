@@ -470,6 +470,27 @@ expect_category_with_failure_reason "runner system failure metadata fallback" \
     "ERROR: Job failed" "runner_system_failure" "runner-infrastructure"
 expect_category_with_failure_reason "runner configuration metadata fallback" \
     "ERROR: Job failed" "runner_configuration_error" "runner-infrastructure"
+expect_category_with_failure_reason "unassigned runner with no job trace" \
+    "" "stuck_pending_no_matching_runners" "runner-infrastructure"
+expect_category_with_failure_reason "unassigned runner metadata with generic trace" \
+    "ERROR: Job failed" "stuck_pending_no_matching_runners" "runner-infrastructure"
+expect_category_with_failure_reason "specific failure beats unassigned runner metadata" \
+    "error[E0433]: failed to resolve: use of undeclared crate" \
+    "stuck_pending_no_matching_runners" "compile-error"
+expect_category_with_failure_reason "unknown runner metadata still needs investigation" \
+    "" "stuck_pending_new_unknown_reason" "unknown"
+runner_verdict=$(classify_with_failure_reason "" "stuck_pending_no_matching_runners")
+if printf '%s\n' "$runner_verdict" | jq -e '. == {
+    category: "runner-infrastructure",
+    escalate: false,
+    signature: "stuck_pending_no_matching_runners",
+    fix: "Restore an online, unpaused runner matching all job tags and its protected-ref access before retrying; do not change application code."
+}' >/dev/null; then
+    printf '  PASS  unassigned runner recovery verdict\n'; PASS=$((PASS + 1))
+else
+    printf '  FAIL  unassigned runner recovery verdict: %s\n' "$runner_verdict"
+    FAIL=$((FAIL + 1))
+fi
 expect_category_with_failure_reason "job timeout metadata fallback" \
     "ERROR: Job failed" "job_execution_timeout" "timeout"
 expect_category_with_failure_reason "specific trace beats generic runner metadata" \
