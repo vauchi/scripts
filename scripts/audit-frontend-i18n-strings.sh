@@ -25,7 +25,8 @@
 #   audit-frontend-i18n-strings.sh --check <baseline.json> [workspace_root]
 #       Ratchet mode. Exit 1 if any frontend total EXCEEDS baseline.
 #
-# Portability: POSIX shell + BSD/GNU/BusyBox-portable utilities.
+# Android source discovery also requires Python 3's standard library.
+# Shell utilities remain BSD/GNU/BusyBox-portable.
 
 set -euo pipefail
 
@@ -120,9 +121,16 @@ count_strings_from_stdin() {
 # Count lines where a line matching $2 contains a string that looks like English.
 # $1 = file, $2 = POSIX ERE regex
 count_english_strings() {
+    local matches scan_status
     # -o emits only the matched text, so we extract string literals from the
     # attribute/macro call itself rather than every quoted substring on the line.
-    grep -E -o "$2" "$1" 2>/dev/null | count_strings_from_stdin | while IFS= read -r s; do
+    if matches=$(grep -aE -o "$2" "$1"); then
+        :
+    else
+        scan_status=$?
+        [ "$scan_status" -eq 1 ] || return "$scan_status"
+    fi
+    printf '%s\n' "$matches" | count_strings_from_stdin | while IFS= read -r s; do
         if looks_like_english "$s"; then
             echo "$s"
         fi
@@ -132,17 +140,107 @@ count_english_strings() {
 # ── Android Kotlin ──────────────────────────────────────────────────────────
 # Direct Compose Text("Foo") or Text(text = "Foo").
 count_android() {
-    local dir="$ROOT/android"
-    [ -d "$dir" ] || { echo 0; return; }
-    local n=0
-    tmp_list=$(mktemp)
-    find "$dir" -name '*.kt' -type f -print > "$tmp_list"
-    while IFS= read -r f; do
-        # Instrumentation/unit fixtures intentionally carry literal probe copy;
-        # they are not shipped render paths.
-        case "$f" in */src/test/*|*/src/androidTest/*) continue ;; esac
+    local n=0 tmp_list f t
+    tmp_list=$(mktemp) || return 2
+    if ! python3 - "$ROOT" > "$tmp_list" <<'PY'
+import os
+from pathlib import Path
+import re
+import sys
+
+
+def fail_walk(error):
+    raise error
+
+
+def sources(root, required=False, omit=None):
+    if root.is_symlink() or not root.is_dir():
+        if required:
+            raise ValueError(f"no regular production source root: {root}")
+        return []
+    result = []
+    for directory, children, files in os.walk(root, onerror=fail_walk):
+        parent = Path(directory)
+        for name in children[:]:
+            child = parent / name
+            if child == omit:
+                children.remove(name)
+            elif child.is_symlink():
+                if required:
+                    raise ValueError(f"linked source directory: {child}")
+                children.remove(name)
+        for name in sorted(files):
+            path = parent / name
+            if path.is_symlink():
+                if required:
+                    raise ValueError(f"linked source file: {path}")
+                continue
+            if path.suffix != ".kt" or any(
+                part in path.as_posix() for part in ("/src/test/", "/src/androidTest/")
+            ):
+                continue
+            if not path.is_file():
+                raise ValueError(f"nonregular source file: {path}")
+            path.read_text(encoding="utf-8")
+            result.append(path)
+    if required and not result:
+        raise ValueError(f"no Kotlin production sources: {root}")
+    return result
+
+
+def module_sources(module):
+    for root in (module, module / "src", module / "src/main"):
+        if root.is_symlink() or not root.is_dir():
+            raise ValueError(f"no regular production source root: {root}")
+    return sources(module / "src/main", required=True)
+
+
+try:
+    workspace = Path(sys.argv[1]).absolute()
+    app = next((candidate for candidate in (workspace / "android-app", workspace / "android")
+                if candidate.is_dir()), None)
+    if app is None and (workspace / "app").is_dir():
+        app = workspace
+    settings = (app or workspace) / "settings.gradle.kts"
+    settings_text = settings.read_text(encoding="utf-8") if settings.exists() else ""
+    settings_text = re.sub(r"//[^\n]*", "", settings_text)
+    standalone = workspace.name == "android-display" or re.search(
+        r'^\s*rootProject\.name\s*=\s*"android-display"\s*$', settings_text, re.MULTILINE
+    )
+    independent = None
+    if "VAUCHI_ANDROID_DISPLAY_ROOT" in os.environ:
+        declared = os.environ["VAUCHI_ANDROID_DISPLAY_ROOT"]
+        if not declared:
+            raise ValueError("empty required display source checkout")
+        independent = Path(declared).absolute()
+    elif (workspace / "android-display").exists() or (workspace / "android-display").is_symlink():
+        independent = workspace / "android-display"
+    elif standalone:
+        independent = workspace
+    selected = module_sources(independent) if independent is not None else []
+    if app is not None:
+        in_place = app / "display"
+        declared_in_place = '":display"' in settings_text
+        if declared_in_place:
+            module_sources(in_place)
+        selected += sources(app, omit=in_place if independent is not None and not declared_in_place else None)
+    for path in sorted(set(selected)):
+        sys.stdout.buffer.write(os.fsencode(path) + b"\0")
+except (OSError, UnicodeError, ValueError) as error:
+    print(f"audit-frontend-i18n-strings: Android source error: {error}", file=sys.stderr)
+    sys.exit(2)
+PY
+    then
+        rm -f "$tmp_list"
+        return 2
+    fi
+    while IFS= read -r -d '' f; do
         # Match Text("...") or Text(text = "..."), excluding stringResource.
-        t=$(count_english_strings "$f" 'Text\((text[[:space:]]*=[[:space:]]*)?"[^"]*"\)')
+        if ! t=$(count_english_strings "$f" 'Text\((text[[:space:]]*=[[:space:]]*)?"[^"]*"\)'); then
+            echo "audit-frontend-i18n-strings: cannot scan Android source: $f" >&2
+            rm -f "$tmp_list"
+            return 2
+        fi
         n=$((n + t))
     done < "$tmp_list"
     rm -f "$tmp_list"
@@ -254,7 +352,7 @@ count_cli() {
     echo "$n"
 }
 
-android=$(count_android)
+android=$(count_android) || exit 2
 windows=$(count_windows)
 linux_qt=$(count_linux_qt)
 linux_gtk=$(count_linux_gtk)
