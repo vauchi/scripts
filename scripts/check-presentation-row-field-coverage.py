@@ -42,6 +42,7 @@ Usage:
 """
 
 import argparse
+import os
 import json
 import re
 import sys
@@ -99,8 +100,11 @@ def extract_fields(path: Path) -> list[str]:
         rf"pub struct {STRUCT_NAME} \{{(.*?)\n\}}", text, re.S
     )
     if not match:
-        raise SystemExit(f"error: `{STRUCT_NAME}` not found in {path}")
-    return re.findall(r"^\s*pub (\w+):", match.group(1), re.M)
+        raise ValueError(f"`{STRUCT_NAME}` not found in {path}")
+    fields = re.findall(r"^\s*pub (\w+):", match.group(1), re.M)
+    if not fields:
+        raise ValueError(f"no PresentationRow fields found in {path}")
+    return fields
 
 
 # ADR-078 renamed linux-gtk and linux-qt (private#1029). The tables keep
@@ -114,8 +118,40 @@ RENAMED_DIRS = {
 }
 
 
+def independent_android_source(root: Path, rel: str) -> Path | None:
+    explicit = os.environ.get("VAUCHI_ANDROID_DISPLAY_ROOT")
+    module = None
+    if explicit is not None:
+        if not explicit:
+            raise ValueError("VAUCHI_ANDROID_DISPLAY_ROOT must name a display checkout")
+        module = Path(explicit)
+    elif (root / "android-display").exists() or (root / "android-display").is_symlink():
+        module = root / "android-display"
+    else:
+        settings = root / "settings.gradle.kts"
+        if settings.is_file() and re.search(
+            r'^\s*rootProject[.]name\s*=\s*"android-display"\s*(?://.*)?$',
+            settings.read_text(encoding="utf-8"), re.M,
+        ):
+            module = root
+    if module is None:
+        return None
+    target = module / rel.removeprefix("android/app/")
+    for candidate in (target, *target.parents):
+        if candidate.is_symlink():
+            raise OSError(f"required Android display source uses a link: {candidate}")
+        if candidate == module:
+            break
+    if not target.is_file():
+        raise FileNotFoundError(f"required Android display source is missing: {target}")
+    return target
+
+
 def in_workspace(root: Path, rel: str) -> Path:
     if rel.startswith("android/app/src/main/kotlin/app/vauchi/ui/presentation/"):
+        independent = independent_android_source(root, rel)
+        if independent is not None:
+            return independent
         library = root / "android/display"
         settings = root / "android/settings.gradle.kts"
         text = re.sub(r"//.*$", "", settings.read_text(encoding="utf-8"), flags=re.M) if settings.is_file() else ""
@@ -156,12 +192,15 @@ def reads_field(files: list[Path], names: list[str]) -> bool:
         alternatives.append(rf"\.{escaped}\b")
         alternatives.append(rf'"{escaped}"')
     pattern = re.compile("|".join(alternatives))
-    return any(pattern.search(p.read_text(encoding="utf-8", errors="ignore")) for p in files)
+    texts = [p.read_text(encoding="utf-8") for p in files]
+    return any(pattern.search(text) for text in texts)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workspace", default=".", help="workspace root")
+    parser.add_argument("--frontend", choices=sorted(SHELLS), help="Check only one row-rendering frontend.")
+    parser.add_argument("--struct-file", type=Path, help="Canonical PresentationRow schema (overrides workspace lookup).")
     parser.add_argument(
         "--exemptions",
         help="exemptions JSON (defaults to the file beside this script); "
@@ -169,14 +208,16 @@ def main() -> int:
         "real baseline deciding the outcome",
     )
     args = parser.parse_args()
-    root = Path(args.workspace).resolve()
+    root = Path(args.workspace).absolute()
 
-    contract_lib = root / "contract/src/lib.rs"
-    lib_text = contract_lib.read_text(encoding="utf-8") if contract_lib.is_file() else ""
-    contract_declared = (root / "contract/src/presentation").is_dir() or re.search(
-        r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+presentation\s*;", lib_text
-    )
-    struct_path = root / (ROW_STRUCT_FILE if contract_declared else LEGACY_ROW_STRUCT_FILE)
+    struct_path = args.struct_file
+    if struct_path is None:
+        contract_lib = root / "contract/src/lib.rs"
+        lib_text = contract_lib.read_text(encoding="utf-8") if contract_lib.is_file() else ""
+        contract_declared = (root / "contract/src/presentation").is_dir() or re.search(
+            r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+presentation\s*;", lib_text
+        )
+        struct_path = root / (ROW_STRUCT_FILE if contract_declared else LEGACY_ROW_STRUCT_FILE)
     if not struct_path.is_file():
         print(f"error: source of truth not found: {struct_path}", file=sys.stderr)
         return 2
@@ -187,13 +228,14 @@ def main() -> int:
     exemptions = json.loads(exemptions_path.read_text(encoding="utf-8")) if exemptions_path.is_file() else {}
 
     fields = extract_fields(struct_path)
+    selected_shells = {args.frontend: SHELLS[args.frontend]} if args.frontend else SHELLS
     print(f"── {STRUCT_NAME} field coverage ──")
-    print(f"  {len(fields)} fields, {len(SHELLS)} row-rendering shells")
+    print(f"  {len(fields)} fields, {len(selected_shells)} row-rendering shells")
 
     failures: list[str] = []
     missing_shells: list[str] = []
 
-    for shell, (paths, transform) in sorted(SHELLS.items()):
+    for shell, (paths, transform) in sorted(selected_shells.items()):
         files = sources(root, paths)
         if not files:
             missing_shells.append(f"{shell}: none of {paths} exist")
@@ -208,7 +250,7 @@ def main() -> int:
         for field in unexempted:
             failures.append(
                 f"{shell} never reads `{field}` "
-                f"(looked for `{field}` or `{transform(field)}` in {', '.join(paths)})"
+                f"(looked for `{field}` or `{transform(field)}` in {', '.join(map(str, files))})"
             )
 
     if missing_shells:
@@ -234,4 +276,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: incomplete audit input: {error}", file=sys.stderr)
+        sys.exit(2)

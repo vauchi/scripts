@@ -44,6 +44,7 @@ Override workspace root:
 """
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -220,8 +221,40 @@ RENAMED_DIRS = {
 }
 
 
+def independent_android_source(root: Path, rel: str) -> Path | None:
+    explicit = os.environ.get("VAUCHI_ANDROID_DISPLAY_ROOT")
+    module = None
+    if explicit is not None:
+        if not explicit:
+            raise ValueError("VAUCHI_ANDROID_DISPLAY_ROOT must name a display checkout")
+        module = Path(explicit)
+    elif (root / "android-display").exists() or (root / "android-display").is_symlink():
+        module = root / "android-display"
+    else:
+        settings = root / "settings.gradle.kts"
+        if settings.is_file() and re.search(
+            r'^\s*rootProject[.]name\s*=\s*"android-display"\s*(?://.*)?$',
+            settings.read_text(encoding="utf-8"), re.M,
+        ):
+            module = root
+    if module is None:
+        return None
+    target = module / rel.removeprefix("android/app/")
+    for candidate in (target, *target.parents):
+        if candidate.is_symlink():
+            raise OSError(f"required Android display source uses a link: {candidate}")
+        if candidate == module:
+            break
+    if not target.is_file():
+        raise FileNotFoundError(f"required Android display source is missing: {target}")
+    return target
+
+
 def in_workspace(root: Path, rel: str) -> Path:
     if rel.startswith("android/app/src/main/kotlin/app/vauchi/ui/presentation/"):
+        independent = independent_android_source(root, rel)
+        if independent is not None:
+            return independent
         library = root / "android/display"
         settings = root / "android/settings.gradle.kts"
         text = re.sub(r"//.*$", "", settings.read_text(encoding="utf-8"), flags=re.M) if settings.is_file() else ""
@@ -398,4 +431,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except (OSError, UnicodeError, ValueError) as error:
+        print(f"error: incomplete audit input: {error}", file=sys.stderr)
+        sys.exit(2)
