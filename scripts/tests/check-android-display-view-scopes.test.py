@@ -71,11 +71,13 @@ class AndroidDisplayViewScopes(unittest.TestCase):
                 tools = Path(temp) / "tools"
                 tools.mkdir()
                 stub = tools / "rg"
-                stub.write_text('#!/bin/sh\nif [ "$1" = "--files" ]; then exec ' + shlex.quote(real_rg) + ' "$@"; fi\nexit 2\n')
+                # Fail content reads after inventory and identity discovery succeed.
+                stub.write_text('#!/bin/sh\nif [ "$1" = "--files" ] || [ "$1" = "--quiet" ]; then exec ' + shlex.quote(real_rg) + ' "$@"; fi\nexit 2\n')
                 stub.chmod(0o755)
                 env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"])
                 status, output = self.run_guard(guard, root, args, env)
                 self.assertEqual(2, status, output)
+                self.assertIn("could not complete the view scan", output)
 
     def test_app_composition_allowlists_do_not_exempt_display_code(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -92,6 +94,7 @@ class AndroidDisplayViewScopes(unittest.TestCase):
         module = root / "android-display"
         views = module / "src/main/kotlin/app/vauchi/ui"
         views.mkdir(parents=True)
+        (module / "settings.gradle.kts").write_text('rootProject.name = "android-display"\n')
         if layout == "workspace":
             self.fixture(root, "workspace")[2].joinpath("View.kt").write_text("val prepared = true\n")
         return (root if layout == "workspace" else module), module, views
@@ -159,6 +162,25 @@ class AndroidDisplayViewScopes(unittest.TestCase):
                 status, output = self.run_guard(guard, root, args, env)
                 self.assertEqual(1, status, output)
                 self.assertIn(str(source), output)
+
+    def test_unrelated_source_tree_preserves_the_non_android_no_op(self):
+        for guard, _, args in GUARDS:
+            with self.subTest(guard=guard), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                (root / "src").mkdir()
+                (root / "src/lib.rs").write_text("pub fn render() {}\n")
+                status, output = self.run_guard(guard, root, args)
+                self.assertEqual(0, status, output)
+
+    def test_standalone_identity_requires_sources_after_deletion(self):
+        for guard, _, args in GUARDS:
+            for state in ("empty", "deleted-src"):
+                with self.subTest(guard=guard, state=state), tempfile.TemporaryDirectory() as temp:
+                    root, _, _ = self.independent_fixture(Path(temp), "standalone")
+                    if state == "deleted-src":
+                        shutil.rmtree(root / "src")
+                    status, output = self.run_guard(guard, root, args)
+                    self.assertEqual(2, status, output)
 
 
 if __name__ == "__main__":

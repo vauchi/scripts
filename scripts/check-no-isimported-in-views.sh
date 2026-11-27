@@ -83,8 +83,16 @@ if [ "${VAUCHI_ANDROID_DISPLAY_ROOT+x}" = x ]; then
     independent_module="$VAUCHI_ANDROID_DISPLAY_ROOT"
 elif [ -e "$WORKSPACE_ROOT/android-display" ] || [ -L "$WORKSPACE_ROOT/android-display" ]; then
     independent_module="$WORKSPACE_ROOT/android-display"
-elif [ -d "$WORKSPACE_ROOT/src" ]; then
-    independent_module="$WORKSPACE_ROOT"
+elif [ -f "$WORKSPACE_ROOT/settings.gradle.kts" ]; then
+    if rg --quiet '^[[:space:]]*rootProject[.]name[[:space:]]*=[[:space:]]*"android-display"[[:space:]]*(//.*)?$' "$WORKSPACE_ROOT/settings.gradle.kts"; then
+        independent_module="$WORKSPACE_ROOT"
+    else
+        settings_status=$?
+        if [ "$settings_status" -ne 1 ]; then
+            echo "ERROR: cannot inspect standalone display settings: $WORKSPACE_ROOT" >&2
+            exit 2
+        fi
+    fi
 fi
 if [ -n "$independent_module" ] || [ "${VAUCHI_ANDROID_DISPLAY_ROOT+x}" = x ]; then
     ANDROID_INDEPENDENT_DISPLAY_UI="$independent_module/src/main/kotlin/app/vauchi/ui"
