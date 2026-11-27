@@ -12,7 +12,8 @@ MAX_LOCK_BYTES = 1024 * 1024
 CONTRACT_ROW = re.compile(r"app\.vauchi:contract(?::|=|$)")
 LOCKED_RELEASE = re.compile(
     r"app\.vauchi:contract:((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\."
-    r"(?:0|[1-9][0-9]*))=([^\s,=]+(?:,[^\s,=]+)*)"
+    r"(?:0|[1-9][0-9]*))=([A-Za-z_][A-Za-z0-9_.-]*"
+    r"(?:,[A-Za-z_][A-Za-z0-9_.-]*)*)"
 )
 
 

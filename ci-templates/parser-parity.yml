@@ -29,6 +29,8 @@
 #   CONTRACT_PIN_KIND: "cargo" (default, the manifest above) or "ref-file":
 #                      the first non-comment line of CONTRACT_PIN_FILE is the
 #                      tag, for a display with no Cargo manifest (qt-display).
+#                      "gradle-lock" reads the exact app.vauchi:contract release
+#                      from a Gradle lock using PARSER_SCRIPT_REF's reader.
 #   PARSER_PROTOCOL: "component" (legacy) or "presentation".
 #   CORE_PIN_FILE / CORE_PIN_KIND: the consumer's own Core pin (e.g.
 #                   cabi-version.json / cabi-json). When set, CORE_REF is
@@ -98,8 +100,14 @@
               exit 2
             fi
             ;;
+          gradle-lock)
+            mkdir -p .contract-ref-tools
+            wget -q -O .contract-ref-tools/gradle-contract-ref.py \
+              "https://gitlab.com/vauchi/scripts/-/raw/${PARSER_SCRIPT_REF}/scripts/gradle-contract-ref.py"
+            CONTRACT_REF=$(python3 .contract-ref-tools/gradle-contract-ref.py "$CONTRACT_PIN_FILE")
+            ;;
           *)
-            echo "ERROR: CONTRACT_PIN_KIND must be cargo or ref-file, not $CONTRACT_PIN_KIND" >&2
+            echo "ERROR: CONTRACT_PIN_KIND must be cargo, ref-file or gradle-lock, not $CONTRACT_PIN_KIND" >&2
             exit 2
             ;;
         esac

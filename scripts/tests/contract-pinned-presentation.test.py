@@ -37,7 +37,7 @@ class ContractPinnedPresentation(unittest.TestCase):
     )
 
     def run_job(self, template, job, *, missing=False, tagged=True, legacy=False, nodes=True,
-                ref_file=None, kind=""):
+                ref_file=None, kind="", gradle_lock=None, reader_fetch_fails=False):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             binary_dir = work / "bin"
@@ -49,6 +49,8 @@ class ContractPinnedPresentation(unittest.TestCase):
             , encoding="utf-8")
             if ref_file is not None:
                 (work / "contract-ref").write_text(ref_file, encoding="utf-8")
+            if gradle_lock is not None:
+                (work / "gradle.lockfile").write_text(gradle_lock, encoding="utf-8")
             (work / "nodes.rs").write_text(
                 "pub enum PresentationNode {\n    Text { value: String },\n    Divider,\n}\n"
             , encoding="utf-8")
@@ -71,14 +73,21 @@ class ContractPinnedPresentation(unittest.TestCase):
                 "        shutil.copyfile(os.environ['FIXTURE_NODES'], dest)\n"
             , encoding="utf-8")
             fake_git.chmod(0o755)
-            fake_wget = binary_dir / "wget"
-            fake_wget.write_text(
+            fake_fetch = (
                 "#!/usr/bin/env python3\n"
                 "import os, shutil, sys\n"
-                "shutil.copyfile(os.environ['PARSER_CHECKER'], "
-                "sys.argv[sys.argv.index('-O') + 1])\n"
-            , encoding="utf-8")
-            fake_wget.chmod(0o755)
+                "url = next(arg for arg in sys.argv if arg.startswith('https://'))\n"
+                "reader = url.endswith('/gradle-contract-ref.py')\n"
+                "if reader and os.environ['READER_FETCH_FAILS'] == '1': sys.exit(8)\n"
+                "if reader and '/raw/test-ref/' not in url: sys.exit(9)\n"
+                "option = '-O' if '-O' in sys.argv else '-o'\n"
+                "source = 'CONTRACT_READER' if reader else 'PARSER_CHECKER'\n"
+                "shutil.copyfile(os.environ[source], sys.argv[sys.argv.index(option) + 1])\n"
+            )
+            for fetcher in ("wget", "curl"):
+                executable = binary_dir / fetcher
+                executable.write_text(fake_fetch, encoding="utf-8")
+                executable.chmod(0o755)
             env = {
                 **os.environ,
                 "PATH": str(binary_dir) + os.pathsep + os.environ["PATH"],
@@ -86,6 +95,8 @@ class ContractPinnedPresentation(unittest.TestCase):
                 "FIXTURE_NODES": str(work / "nodes.rs"),
                 "OMIT_NODES": "0" if nodes else "1",
                 "PARSER_CHECKER": str(ROOT / "scripts/check-component-parser-parity.py"),
+                "CONTRACT_READER": str(ROOT / "scripts/gradle-contract-ref.py"),
+                "READER_FETCH_FAILS": "1" if reader_fetch_fails else "0",
                 "FRONTEND_NAME": "linux-gtk",
                 "PARSER_FILE": "renderer.rs",
                 "PARSER_PROTOCOL": "presentation",
@@ -95,7 +106,8 @@ class ContractPinnedPresentation(unittest.TestCase):
                 "CORE_PIN_KIND": "",
                 "CORE_PINS_SCRIPT_REF": "test-ref",
                 "CONTRACT_PIN_FILE": (
-                    "" if legacy else "contract-ref" if ref_file is not None else "Cargo.toml"
+                    "" if legacy else "gradle.lockfile" if gradle_lock is not None
+                    else "contract-ref" if ref_file is not None else "Cargo.toml"
                 ),
                 "CONTRACT_PIN_KIND": kind,
                 "CI_PROJECT_NAME": "linux-gtk",
@@ -183,6 +195,43 @@ class ContractPinnedPresentation(unittest.TestCase):
                 result, calls = self.run_job(template, job, legacy=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertTrue(any(CORE_REPO in call for call in calls), calls)
+
+    # @internal — #1358: Android presentation checks use the exact locked SDK.
+    def test_gradle_lock_selects_contract_and_still_detects_missing_variants(self):
+        lock = "app.vauchi:contract:0.102.0=debugCompileClasspath,releaseRuntimeClasspath\n"
+        for template, job in self.jobs:
+            for missing in (False, True):
+                with self.subTest(job=job, missing=missing):
+                    result, calls = self.run_job(
+                        template, job, kind="gradle-lock", gradle_lock=lock, missing=missing,
+                    )
+                    self.assertEqual(result.returncode, 1 if missing else 0, result.stdout + result.stderr)
+                    self.assertTrue(any("refs/tags/v0.102.0" in call for call in calls), calls)
+                    self.assertFalse(any(CORE_REPO in call for call in calls), calls)
+                    if missing:
+                        self.assertIn("Divider", result.stdout + result.stderr)
+
+    # @internal — DC-01: unusable lock provenance must fail before any schema fetch.
+    def test_invalid_gradle_lock_does_not_fall_back_to_core(self):
+        for lock in ("", "# no contract\n", "app.vauchi:contract:+=debug\n",
+                     "app.vauchi:contract:0.102.0=debug\napp.vauchi:contract:0.103.0=release\n"):
+            for template, job in self.jobs:
+                with self.subTest(job=job, lock=lock):
+                    result, calls = self.run_job(template, job, kind="gradle-lock", gradle_lock=lock)
+                    self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                    self.assertIn("ERROR:", result.stdout + result.stderr)
+                    self.assertEqual(calls, [])
+
+    # @internal — CC-27: a failed pin-reader download cannot report parity success.
+    def test_failed_lock_reader_download_stops_before_schema_fetch(self):
+        lock = "app.vauchi:contract:0.102.0=debugCompileClasspath\n"
+        for template, job in self.jobs:
+            with self.subTest(job=job):
+                result, calls = self.run_job(
+                    template, job, kind="gradle-lock", gradle_lock=lock, reader_fetch_fails=True,
+                )
+                self.assertEqual(result.returncode, 8, result.stdout + result.stderr)
+                self.assertEqual(calls, [])
 
 
 if __name__ == "__main__":
