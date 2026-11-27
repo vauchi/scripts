@@ -50,13 +50,14 @@
 # scripts/scripts/audit-frontend-vocab.sh resolves to .../vauchi-1/).
 #
 # Handwritten frontend source counted:
-#   android/app/src/main   (Kotlin)
+#   Android app and display production roots (including independent checkout)
 #   ios/Vauchi             (Swift)
 # Excluded subpaths (binding mirrors / generated / vendored / locales /
 # tests): /Generated/, /uniffi/, /Libs/, /build/, /locales/, and test
 # trees (/test/, /androidTest/, /Tests/, *Tests.swift, *Test.kt).
 #
 # Portability: POSIX shell + BSD/GNU/BusyBox-portable utilities only.
+# Android discovery uses the adjacent android-audit-sources.py helper.
 # No grep -P, no bash arrays, no GNU --include/--exclude, no mapfile.
 # Verified inside alpine:3.21 (BusyBox grep/awk).
 
@@ -106,17 +107,11 @@ DOMAIN_WORDS='MyInfo|MyCard|Contacts|ContactDetail|ContactEdit|EntryDetail|Group
 # `path:lineno:line` output of the recursive grep (BusyBox-safe — no
 # --exclude). Each pattern is a fixed substring of the path prefix.
 strip_excluded() {
-    grep -v '/Generated/' \
-        | grep -v '/uniffi/' \
-        | grep -v '/Libs/' \
-        | grep -v '/build/' \
-        | grep -v '/locales/' \
-        | grep -v '/test/' \
-        | grep -v '/androidTest/' \
-        | grep -v '/Tests/' \
-        | grep -v 'Tests\.swift' \
-        | grep -v 'Test\.kt' \
-        || true
+    awk '
+        /\/Generated\/|\/uniffi\/|\/Libs\/|\/build\/|\/locales\// { next }
+        /\/test\/|\/androidTest\/|\/Tests\/|Tests\.swift|Test\.kt/ { next }
+        { print }
+    '
 }
 
 # ── core counter ──────────────────────────────────────────────────────
@@ -130,21 +125,48 @@ strip_excluded() {
 # Two-stage grep: first narrow to navigate*( lines (cheap), then match
 # the quoted domain word. Both stages are POSIX ERE (grep -E), no -P.
 nav_domain_literals() {
-    root="$1"
+    local root="$1" matches filtered n scan_status
     [ -d "$root" ] || { printf '0'; return; }
-    n=$(grep -rsnE 'navigate[A-Za-z]*\(' "$root" 2>/dev/null \
-        | strip_excluded \
-        | grep -cE "\"(${DOMAIN_WORDS})\"" || true)
+    if matches=$(grep -rsnE 'navigate[A-Za-z]*\(' "$root"); then
+        :
+    else
+        scan_status=$?
+        [ "$scan_status" -eq 1 ] || return 2
+    fi
+    filtered=$(printf '%s\n' "$matches" | strip_excluded) || return 2
+    if n=$(printf '%s\n' "$filtered" | grep -cE "\"(${DOMAIN_WORDS})\""); then
+        :
+    else
+        scan_status=$?
+        [ "$scan_status" -eq 1 ] || return 2
+    fi
     printf '%s' "${n:-0}"
 }
 
+android_nav_domain_literals() {
+    local inventory root n total=0
+    inventory=$(mktemp) || return 2
+    if ! python3 "$SCRIPT_DIR/android-audit-sources.py" "$WORKSPACE_ROOT" --app-scope main --policy vocab --roots > "$inventory"; then
+        rm -f "$inventory"
+        return 2
+    fi
+    while IFS= read -r -d '' root; do
+        if ! n=$(nav_domain_literals "$root"); then
+            rm -f "$inventory"
+            return 2
+        fi
+        total=$((total + n))
+    done < "$inventory"
+    rm -f "$inventory"
+    printf '%d' "$total"
+}
+
 # ── repo-relative frontend source roots ──────────────────────────────
-ANDROID_SRC="$WORKSPACE_ROOT/android/app/src/main"
 IOS_SRC="$WORKSPACE_ROOT/ios/Vauchi"
 
 # ── counters ─────────────────────────────────────────────────────────
-nav_domain_literals_android=$(nav_domain_literals "$ANDROID_SRC")
-nav_domain_literals_ios=$(nav_domain_literals "$IOS_SRC")
+nav_domain_literals_android=$(android_nav_domain_literals) || exit 2
+nav_domain_literals_ios=$(nav_domain_literals "$IOS_SRC") || exit 2
 nav_domain_literals_total=$((nav_domain_literals_android + nav_domain_literals_ios))
 
 # ── timestamp (BSD + GNU + BusyBox safe) ─────────────────────────────

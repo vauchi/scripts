@@ -186,6 +186,19 @@ io.open = refused
                 self.assertEqual(2, result.returncode, result.stdout + result.stderr)
                 self.assertIn("injected", result.stderr)
 
+    def test_direct_declared_module_does_not_require_an_app_tree(self):
+        for present in (False, True):
+            with self.subTest(present=present), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp) / "android"
+                root.mkdir()
+                (root / "settings.gradle.kts").write_text('include(":display")\n')
+                if present:
+                    self.write_source(root / "display")
+                    self.assert_count(root, 1)
+                else:
+                    result = self.run_audit(root)
+                    self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

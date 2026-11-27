@@ -5,7 +5,7 @@
 
 # loc-budget.sh — "Less code is better": the handwritten frontend LOC
 # budget. Counts non-blank lines of handwritten frontend source, one
-# counter per repo, and ratchets them: the budget may DROP as the
+# counter per frontend, and ratchets them: the budget may DROP as the
 # pure-functional-core program deletes shell code, never RISE.
 # Generated code, binding mirrors, vendored checkouts, test trees and
 # dependency/build output are excluded — only code a human maintains
@@ -35,7 +35,7 @@
 # Counted source (one counter per repo; a missing root contributes 0,
 # so the script also runs in a single-repo CI checkout):
 #   ios         ios/Vauchi/**/*.swift
-#   android     android/app/src/main/**/*.kt
+#   android     Android app and display production Kotlin (including independent checkout)
 #   linux-gtk   linux-gtk/src/**/*.rs
 #   linux-qt    linux-qt/src/**/*.cpp, *.h   (C++ — the Qt frontend is
 #               not Rust; counted as-is, headers included)
@@ -56,6 +56,7 @@
 # is less to maintain too).
 #
 # Portability: POSIX shell + BSD/GNU/BusyBox-portable utilities only.
+# Android discovery uses the adjacent android-audit-sources.py helper.
 # No grep -P, no bash arrays, no GNU --include/--exclude, no mapfile.
 
 set -euo pipefail
@@ -128,8 +129,30 @@ handwritten_loc() {
 }
 
 # ── repo-relative frontend source roots ──────────────────────────────
+android_handwritten_source_loc() {
+    local inventory file n scan_status total=0
+    inventory=$(mktemp) || return 2
+    if ! python3 "$SCRIPT_DIR/android-audit-sources.py" "$WORKSPACE_ROOT" --app-scope main --policy loc > "$inventory"; then
+        rm -f "$inventory"
+        return 2
+    fi
+    while IFS= read -r -d '' file; do
+        if n=$(grep -cE '[^[:space:]]' "$file"); then
+            :
+        else
+            scan_status=$?
+            if [ "$scan_status" -ne 1 ]; then
+                rm -f "$inventory"
+                return 2
+            fi
+        fi
+        total=$((total + n))
+    done < "$inventory"
+    rm -f "$inventory"
+    printf '%d' "$total"
+}
+
 IOS_SRC="$WORKSPACE_ROOT/ios/Vauchi"
-ANDROID_SRC="$WORKSPACE_ROOT/android/app/src/main"
 # ADR-078 renamed linux-gtk and linux-qt (private#1029). A checkout that
 # still has the old directory is read there; looking for one name only
 # would count nothing in it and pass.
@@ -154,7 +177,7 @@ WEB_DEMO_SRC="$WORKSPACE_ROOT/web-demo/src"
 
 # ── counters ─────────────────────────────────────────────────────────
 ios_handwritten_loc=$(handwritten_loc "$IOS_SRC" 'swift')
-android_handwritten_loc=$(handwritten_loc "$ANDROID_SRC" 'kt')
+android_handwritten_loc=$(android_handwritten_source_loc) || exit 2
 linux_gtk_handwritten_loc=$(handwritten_loc "$LINUX_GTK_SRC" 'rs')
 linux_qt_handwritten_loc=$(handwritten_loc "$LINUX_QT_SRC" 'cpp|h')
 macos_handwritten_loc=$(handwritten_loc "$MACOS_SRC" 'swift')
