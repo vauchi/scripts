@@ -56,6 +56,7 @@ test:spec-trailer-alpine:
     - apk add --no-cache bash git > /dev/null
     - bash scripts/tests/commit-msg-spec-trailer.test.sh
     - bash scripts/tests/check-spec-trailer.test.sh
+    - bash scripts/tests/commit-msg-rig-trailer.test.sh
 
 test:architecture:
   stage: lint

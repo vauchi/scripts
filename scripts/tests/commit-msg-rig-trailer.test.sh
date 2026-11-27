@@ -13,6 +13,7 @@ HOOKS_DIR="$(cd "$(dirname "$0")/../../hooks" && pwd)"
 HOOK="$HOOKS_DIR/commit-msg"
 pass=0
 fail=0
+fail_index_read=false
 
 assert_eq() {
     name="$1"; want="$2"; got="$3"
@@ -41,7 +42,15 @@ run_case() { # $1=repo name  $2=message  $3..=paths to stage → sets rc, out
         git -C "$repo" add "$p"
     done
     printf '%s\n' "$msg" > "$repo/.msg"
-    out="$(cd "$repo" && "$HOOK" .msg 2>&1)"; rc=$?
+    hook_path="$PATH"
+    if "$fail_index_read"; then
+        real_git=$(command -v git)
+        mkdir -p "$repo/tools"
+        printf "#!/bin/sh\nif [ \"\$1\" = diff ]; then exit 2; fi\nexec \"%s\" \"\$@\"\n" "$real_git" > "$repo/tools/git"
+        chmod +x "$repo/tools/git"
+        hook_path="$repo/tools:$hook_path"
+    fi
+    out="$(cd "$repo" && PATH="$hook_path" "$HOOK" .msg 2>&1)"; rc=$?
     rm -rf "$parent"
 }
 
@@ -124,6 +133,59 @@ assert_eq "android QR primitives fix without Rig: VGT13" "1" "$(has 'VGT13:')"
 run_case ios 'feat: 1280x720 capture' Vauchi/CoreUI/MultipartCameraPreview.swift
 assert_eq "ios camera preview feat without Rig: exit 1" "1" "$rc"
 
+# ADR-078 moves these production paths without changing the physical gate.
+display_rig_message='feat: adjust the prepared QR view
+
+Spec: unchanged
+Rig: 7 cm 1/1, 14 cm 1/1 (fixture text only)'
+for qr_relative_path in \
+    display/NativeQrEncoder.kt \
+    display/NativeQrBitmap.kt \
+    ui/presentation/QrPlacement.kt \
+    ui/presentation/QrDisplay.kt \
+    ui/presentation/QrFrame.kt; do
+    for app_name in android android-app; do
+        qr_staged_path="display/src/main/kotlin/app/vauchi/$qr_relative_path"
+        run_case "$app_name" 'feat: adjust the prepared QR view' "$qr_staged_path"
+        assert_eq "$app_name $qr_relative_path without Rig: exit 1" "1" "$rc"
+        assert_eq "$app_name $qr_relative_path without Rig: VGT13" "1" "$(has 'VGT13:')"
+        run_case "$app_name" "$display_rig_message" "$qr_staged_path"
+        assert_eq "$app_name $qr_relative_path both ranges: exit 0" "0" "$rc"
+    done
+    qr_staged_path="src/main/kotlin/app/vauchi/$qr_relative_path"
+    run_case android-display 'feat: adjust the prepared QR view' "$qr_staged_path"
+    assert_eq "android-display $qr_relative_path without Rig: exit 1" "1" "$rc"
+    assert_eq "android-display $qr_relative_path without Rig: VGT13" "1" "$(has 'VGT13:')"
+    run_case android-display "$display_rig_message" "$qr_staged_path"
+    assert_eq "android-display $qr_relative_path both ranges: exit 0" "0" "$rc"
+done
+
+for camera_file in NativeQrDecoder CameraXCapture CameraPreviewSurface AndroidCameraBackend PreviewCameraPort CameraController; do
+    camera_path="src/main/kotlin/app/vauchi/hardware/camera/$camera_file.kt"
+    run_case android-hw 'feat: adjust native QR capture' "$camera_path"
+    assert_eq "android-hw $camera_file without Rig: exit 1" "1" "$rc"
+    assert_eq "android-hw $camera_file without Rig: VGT13" "1" "$(has 'VGT13:')"
+    run_case android-hw "$display_rig_message" "$camera_path"
+    assert_eq "android-hw $camera_file both ranges: exit 0" "0" "$rc"
+done
+
+run_case android-app 'feat: analyse at 720p' app/src/main/kotlin/app/vauchi/ui/components/QrCodeAnalyzer.kt
+assert_eq "renamed android app retains camera gate: exit 1" "1" "$rc"
+run_case android-display 'feat: adjust QR placement
+
+Rig: 7 cm 1/1' src/main/kotlin/app/vauchi/ui/presentation/QrPlacement.kt
+assert_eq "independent display requires far range: exit 1" "1" "$rc"
+run_case android-hw 'feat: adjust native QR capture
+
+Rig: 14 cm 1/1' src/main/kotlin/app/vauchi/hardware/camera/NativeQrDecoder.kt
+assert_eq "native hardware requires near range: exit 1" "1" "$rc"
+
+fail_index_read=true
+run_case android-display "$display_rig_message" src/main/kotlin/app/vauchi/display/NativeQrEncoder.kt
+fail_index_read=false
+assert_eq "a failed index read cannot approve the display change: exit 1" "1" "$rc"
+assert_eq "a failed index read names the unavailable input" "1" "$(has 'cannot read the Git index')"
+
 # ── tests, docs and other paths → no trailer ──────────────────────────
 run_case core 'test: real frames at 14 cm' vauchi-core/tests/it/qr_decode_camera_frames_tests.rs
 assert_eq "test: commit: exit 0" "0" "$rc"
@@ -135,6 +197,12 @@ run_case android 'feat: contact list sort' app/src/main/kotlin/app/vauchi/ui/scr
 assert_eq "android feat elsewhere: exit 0" "0" "$rc"
 run_case cli 'feat: print the code' src/qr_decode.rs
 assert_eq "cli feat on a same-named path: exit 0" "0" "$rc"
+run_case android-display 'feat: render prepared text' src/main/kotlin/app/vauchi/ui/presentation/PresentationTextNode.kt
+assert_eq "independent display non-QR change: exit 0" "0" "$rc"
+run_case android-hw 'feat: collect a location' src/main/kotlin/app/vauchi/hardware/location/AndroidLocationProvider.kt
+assert_eq "native hardware non-QR change: exit 0" "0" "$rc"
+run_case android-display 'test: render QR pixels' src/test/kotlin/app/vauchi/display/NativeQrBitmapTest.kt
+assert_eq "independent display test-only change: exit 0" "0" "$rc"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

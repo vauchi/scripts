@@ -130,7 +130,9 @@ if echo "$SUBJECT" | grep -qE "^(feat|fix|refactor): "; then
     REPO_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
     case "$REPO_NAME" in
         core) RIG_PATHS='^vauchi-core/src/(qr_decode\.rs|qr/|exchange/multistage/(qr_codec|chunker|link_trainer|training_header|session|base45)\.rs)' ;;
-        android) RIG_PATHS='^app/src/main/kotlin/app/vauchi/ui/(components/QrCodeAnalyzer|presentation/QrPrimitives)\.kt$' ;;
+        android|android-app) RIG_PATHS='^(app/src/main/kotlin/app/vauchi/ui/(components/QrCodeAnalyzer|presentation/Qr[^/]*)|display/src/main/kotlin/app/vauchi/(display/NativeQr[^/]*|ui/presentation/Qr[^/]*))\.kt$' ;;
+        android-display) RIG_PATHS='^src/main/kotlin/app/vauchi/(display/NativeQr[^/]*|ui/presentation/Qr[^/]*)\.kt$' ;;
+        android-hw) RIG_PATHS='^src/main/kotlin/app/vauchi/hardware/camera/(NativeQr[^/]*|CameraXCapture|CameraPreviewSurface|AndroidCameraBackend|PreviewCameraPort|CameraController)\.kt$' ;;
         ios) RIG_PATHS='^Vauchi/CoreUI/MultipartCameraPreview\.swift$' ;;
         *) RIG_PATHS='' ;;
     esac
