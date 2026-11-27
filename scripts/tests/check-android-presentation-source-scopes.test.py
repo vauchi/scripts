@@ -148,6 +148,26 @@ class AndroidPresentationSourceScopes(unittest.TestCase):
                 status, output = self.run_audit(audit, linked, schema, exemptions)
                 self.assertEqual(2, status, output)
 
+    def test_row_directory_ignores_assets_but_rejects_corrupt_code(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root, _, schema, exemptions = self.fixture(Path(temp), "workspace", "rows")
+            directory = root / "windows-display/src/Vauchi.Display"
+            directory.mkdir(parents=True)
+            renderer = directory / "Collections.cs"
+            renderer.write_text("render(row.Title, row.Subtitle);\n")
+            (directory / "icon.png").write_bytes(b"\x89PNG\xff.title.subtitle")
+            args = ["python3", str(SCRIPTS / AUDITS["rows"][0]), "--workspace", str(root), "--frontend", "windows", "--struct-file", str(schema), "--exemptions", str(exemptions)]
+            result = subprocess.run(args, capture_output=True, text=True, check=False)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            renderer.write_text("render(row.Title);\n")
+            result = subprocess.run(args, capture_output=True, text=True, check=False)
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            self.assertIn("subtitle", result.stdout + result.stderr)
+            renderer.write_text("render(row.Title, row.Subtitle);\n")
+            (directory / "Broken.cs").write_bytes(b"// invalid UTF-8\xff")
+            result = subprocess.run(args, capture_output=True, text=True, check=False)
+            self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

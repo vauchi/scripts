@@ -52,6 +52,7 @@ ROW_STRUCT_FILE = "contract/src/presentation/surface/nodes.rs"
 LEGACY_ROW_STRUCT_FILE = "core/vauchi-core/src/platform/presentation/surface/nodes.rs"
 STRUCT_NAME = "PresentationRow"
 EXEMPTIONS_FILE = "check-presentation-row-field-coverage.exemptions.json"
+SOURCE_EXTENSIONS = {".rs", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".cs", ".kt", ".java", ".swift", ".tsx", ".ts", ".jsx", ".js", ".qml", ".xaml"}
 
 
 def snake_to_camel(name: str) -> str:
@@ -170,7 +171,7 @@ def sources(root: Path, paths: list[str]) -> list[Path]:
         target = in_workspace(root, entry)
         if target.is_dir():
             found.extend(
-                p for p in target.rglob("*") if p.is_file() and not p.name.endswith(".json")
+                p for p in target.rglob("*") if p.is_file() and p.suffix in SOURCE_EXTENSIONS
             )
         elif target.is_file():
             found.append(target)
