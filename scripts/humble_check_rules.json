@@ -75,6 +75,12 @@
     "cli": "cli-display",
     "tui": "tui-display"
   },
+  "standalone_repos": {
+    "android-display": {
+      "rules_from": "android",
+      "source_roots": ["android-display/src/main"]
+    }
+  },
   "repos": {
     "core": {
       "source_roots": [

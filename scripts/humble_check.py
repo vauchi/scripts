@@ -13,12 +13,19 @@ live counts against a baseline and fails if any rule's count has increased.
 Usage:
     humble_check.py --repo ios --workspace-root /path/to/workspace
     humble_check.py --repo ios --workspace-root /path/to/workspace --check baseline.json
+    humble_check.py --repo android-display --repo-path /path/to/renderer
+
+Standalone profiles require nonempty, regular production sources and zero
+violations. Exception markers and stored debt cannot excuse a violation.
+Workspace baseline sweeps cover registered repositories; standalone profiles
+are selected explicitly until their workspace migration is activated.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -104,18 +111,27 @@ def should_exclude(path: Path, exclude_dirs: set[str]) -> bool:
     return any(part in exclude_dirs for part in parts)
 
 
-def find_files(root: Path, extensions: set[str], exclude_dirs: set[str]) -> list[Path]:
+def find_files(root: Path, extensions: set[str], exclude_dirs: set[str], strict: bool = False) -> list[Path]:
     if not root.exists():
         return []
+    def fail_scan(error: OSError) -> None:
+        raise error
+
     files = []
-    for item in root.rglob("*"):
-        if not item.is_file():
-            continue
-        if item.suffix not in extensions:
-            continue
-        if should_exclude(item, exclude_dirs):
-            continue
-        files.append(item)
+    for directory, directories, names in os.walk(root, onerror=fail_scan):
+        directories[:] = [name for name in directories if name not in exclude_dirs]
+        if strict:
+            for name in directories:
+                if (Path(directory) / name).is_symlink():
+                    raise OSError(f"linked production source directory: {Path(directory) / name}")
+        for name in names:
+            item = Path(directory) / name
+            if item.suffix not in extensions or should_exclude(item, exclude_dirs):
+                continue
+            if strict and (item.is_symlink() or not item.is_file()):
+                raise OSError(f"non-regular production source: {item}")
+            if item.is_file():
+                files.append(item)
     return files
 
 
@@ -135,11 +151,8 @@ def scan_file(
     lookahead: int,
     ignore_exceptions: bool,
 ) -> dict[str, list[tuple[int, str]]]:
-    try:
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
-            lines = f.read().splitlines()
-    except OSError:
-        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        lines = f.read().splitlines()
 
     compiled = {
         name: re.compile("|".join(f"(?:{p})" for p in rule["patterns"]))
@@ -197,6 +210,25 @@ def repo_rules(config: dict, repo: str) -> dict[str, dict]:
     return rules
 
 
+def select_standalone_repo(config: dict, repo: str) -> bool:
+    definition = config.get("standalone_repos", {}).get(repo)
+    if definition is None:
+        return False
+    if repo in config["repos"]:
+        raise ValueError(f"standalone profile cannot replace registered repo: {repo}")
+    parent = definition["rules_from"]
+    if parent not in config["repos"]:
+        raise ValueError(f"unknown standalone rule source: {parent}")
+    policy = config["repos"][parent]
+    config["repos"][repo] = {
+        key: policy[key] for key in ("rules", "extensions", "exclude_dirs")
+    }
+    config["repos"][repo].update(
+        source_roots=definition["source_roots"], require_zero=True, strict_sources=True,
+    )
+    return True
+
+
 def resolve_source_root(repo_path: Path, repo: str, rel: str) -> Path:
     parts = Path(rel).parts
     if parts and parts[0] == repo:
@@ -230,19 +262,28 @@ def scan_repo(
     counts = {name: 0 for name in rules}
     examples: dict[str, list[tuple[str, int, str]]] = {name: [] for name in rules}
     missing_roots = []
+    source_files = []
+    strict = repo_config.get("strict_sources", False)
 
     for rel in source_roots:
         if repo_path is not None:
             root = resolve_source_root(repo_path, repo, rel)
         else:
             root = workspace_source_root(config, workspace_root, rel)
-        if not root.exists():
+        if strict:
+            for candidate in (root, *root.parents):
+                if candidate.is_symlink():
+                    raise OSError(f"linked production source root: {candidate}")
+                if candidate == repo_dir:
+                    break
+        if not root.is_dir():
             missing_roots.append(str(root))
             continue
-        files = list(find_files(root, extensions, exclude_dirs))
-        if rel in module_roots and not files:
+        files = find_files(root, extensions, exclude_dirs, strict)
+        if (strict or rel in module_roots) and not files:
             missing_roots.append(f"{root} (no production sources)")
             continue
+        source_files.extend(files)
         for file in files:
             display = file.relative_to(repo_path or workspace_root)
             findings = scan_file(file, rules, lookback, lookahead, ignore_exceptions)
@@ -256,28 +297,21 @@ def scan_repo(
         "examples": examples,
         "rules": rules,
         "missing_roots": missing_roots,
+        "source_files": source_files,
     }
 
 
 def scan_retired_boundary(result: dict, workspace_root: Path, repo_path: Path | None, repo_config: dict) -> None:
     """Add a deterministic aggregate count for retired boundary symbols."""
     total = 0
-    roots = repo_config["source_roots"]
-    extensions = set(repo_config.get("extensions", []))
-    excludes = set(repo_config.get("exclude_dirs", []))
     examples = []
-    for rel in roots:
-        root = (repo_path or workspace_root) / rel
-        for file in find_files(root, extensions, excludes):
-            try:
-                lines = file.read_text(encoding="utf-8", errors="ignore").splitlines()
-            except OSError:
-                continue
-            for line_no, line in enumerate(lines, 1):
-                hits = sum(bool(pattern.search(line)) for pattern in RETIRED_BOUNDARY_PATTERNS)
-                total += hits
-                if hits and len(examples) < 5:
-                    examples.append((str(file.relative_to(repo_path or workspace_root)), line_no, line.strip()))
+    for file in result["source_files"]:
+        lines = file.read_text(encoding="utf-8").splitlines()
+        for line_no, line in enumerate(lines, 1):
+            hits = sum(bool(pattern.search(line)) for pattern in RETIRED_BOUNDARY_PATTERNS)
+            total += hits
+            if hits and len(examples) < 5:
+                examples.append((str(file.relative_to(repo_path or workspace_root)), line_no, line.strip()))
     result["counts"]["retired_boundary_types"] = total
     result["examples"]["retired_boundary_types"] = examples
     result["rules"]["retired_boundary_types"] = {
@@ -506,6 +540,7 @@ def run(
         print(f"humble_check: no rules configured for repo '{repo}'", file=sys.stderr)
         return 2
 
+    require_zero = require_zero or config["repos"][repo].get("require_zero", False)
     result = scan_repo(
         workspace_root,
         repo,
@@ -515,7 +550,7 @@ def run(
         lookahead,
         ignore_exceptions=require_zero,
     )
-    if repo_path is not None and check_source_roots(repo, result):
+    if (repo_path is not None or config["repos"][repo].get("strict_sources")) and check_source_roots(repo, result):
         return 2
     if require_zero:
         scan_retired_boundary(result, workspace_root, repo_path, config["repos"][repo])
@@ -548,7 +583,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--release-zero",
         action="store_true",
-        help="Require every configured live and baseline counter to be zero",
+        help="Require registered workspace repos' live and baseline counters to be zero",
     )
     parser.add_argument("--require-zero", action="store_true", help="Release gate: ignore exception markers; require every live counter, and every stored counter under --check, to be zero")
     parser.add_argument("--tighten", type=Path, metavar="BASELINE", help="Lower stored counters to measured counts; never raises one")
@@ -586,6 +621,8 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(config_path)
     if args.repo:
         args.repo = canonical_repo(config, args.repo)
+        if select_standalone_repo(config, args.repo) and (args.release_zero or args.tighten):
+            parser.error("standalone repos require their own exact-zero check, not a workspace baseline sweep")
 
     if args.tighten:
         if not args.tighten.exists():
@@ -617,4 +654,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except (OSError, UnicodeError, ValueError, KeyError) as error:
+        print(f"humble_check: cannot complete audit: {error}", file=sys.stderr)
+        sys.exit(2)
