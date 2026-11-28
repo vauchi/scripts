@@ -595,6 +595,11 @@ expect_category "successful Xvfb discovery is not a missing tool" \
     "-- Found xvfb-run: /usr/bin/xvfb-run" "unknown"
 
 # Unknown → escalate to the model
+expect_category "blocking Semgrep quality rule" \
+    "❯❱ tmp.vauchi-cc03-assert-is-ok" "lint"
+expect_category "a mention of a rule file is not a violation" \
+    "Testing vauchi-quality.yml against fixtures" "unknown"
+
 expect_category "unknown signature" \
     "some totally novel error nobody has a rule for yet" "unknown"
 expect_escalate "unknown escalates"   "novel unseen failure text" "true"

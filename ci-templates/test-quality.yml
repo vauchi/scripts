@@ -303,6 +303,8 @@ quality:semgrep-rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "schedule"
   before_script:
+    # Semgrep needs Git to honor ignored dependency caches in the checkout.
+    - apt-get update -qq && apt-get install -y --no-install-recommends git
     - pip install --no-cache-dir --quiet "semgrep==${SEMGREP_VERSION}"
   script:
     # Fetched with python rather than curl: the slim image ships no curl,

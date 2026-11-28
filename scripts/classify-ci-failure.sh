@@ -48,6 +48,7 @@ fi
 # Order matters — a compile error line can also contain the word "failed",
 # so error[E####] must be tried before the generic test-failure rule.
 CATS=(
+  "lint"
   "test-failure"
   "test-failure"
   "runner-infrastructure"
@@ -67,6 +68,7 @@ CATS=(
   "missing-tool" "compile-error" "lint" "lint" "test-failure" "duplicate-publish" "artifact-gap"
 )
 PATS=(
+  "[.]vauchi-cc0[36]-[a-z-]+([[:space:]]|$)"
   "Test [Cc]ase '[^']+' failed([[:space:]]+on|[[:space:]]*\\()"
   "FAILED: [1-9][0-9]* self-test suite\\(s\\) red[.]"
   "No space left on device"
@@ -112,6 +114,7 @@ PATS=(
   "(No such file or directory|curl: \(22\) The requested URL returned error: 404|fatal: unable to read tree|DllNotFoundException.*Unable to load DLL|ERROR: mirror .* missing .* build:debug should have built it|Release v[^ ]+ is tagged but not consumable:)"
 )
 FIXES=(
+  "Inspect the quality finding and its source scope; provision Git when ignored third-party caches are scanned, and preserve first-party quality checks."
   "Inspect the failing XCTest assertion and fix its code or test setup; preserve the assertion and use controllable time or event synchronization for timing tests."
   "Inspect the failing self-test and repair its code or fixture; earlier expected-error fixture output is not the job failure."
   "Restore free space and inodes on the runner; remove only stale build/cache data, preserve active jobs, then retry without changing application code."
