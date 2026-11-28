@@ -488,6 +488,15 @@ expect_category "HTTP status boundary is exact" \
     "curl: (22) The requested URL returned error: 5040" "unknown"
 expect_category "unrelated numeric output is not a curl gateway failure" \
     "Processed 504 records successfully" "unknown"
+expect_category "Gradle artifact rate limit" \
+    "Could not GET artifact.jar. Received status code 429 from server: Too Many Requests" \
+    "transient-network"
+expect_escalate "Gradle artifact rate limit does not escalate" \
+    "Received status code 429 from server: Too Many Requests" "false"
+expect_category "Gradle status boundary is exact" \
+    "Received status code 4290 from server: unrelated" "unknown"
+expect_category "ordinary artifact count is not a rate limit" \
+    "Resolved 429 artifacts successfully" "unknown"
 expect_category "release package is not consumable" \
     "Release v0.59.2 is tagged but not consumable: spm" "artifact-gap"
 expect_category "downstream trigger authorization" \

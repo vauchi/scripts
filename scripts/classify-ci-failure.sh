@@ -100,7 +100,7 @@ PATS=(
   "(JdkImageTransform|androidJdkImage|Failed to transform core-for-system-modules\\.jar)"
   "Permission denied \(os error 13\)"
   "(Vaultwarden item( name)? .* (does not contain|not found|is ambiguous|is missing|has neither|has no)|Vaultwarden item search (failed|returned invalid data)|could not extract .* from Vaultwarden item|^ERROR: '[^']+' has neither a .* custom field)"
-  "(Could not resolve host:|DNS: transient error \(try again later\)|Connection reset by peer|fatal: unable to access '[^']+': Failed to connect to [^[:space:]]+(:[0-9]+| port [0-9]+) after [0-9]+ ms: Could not connect to server|curl: \\(22\\) The requested URL returned error: (502|503|504)([[:space:]]|$))"
+  "(Could not resolve host:|DNS: transient error \(try again later\)|Connection reset by peer|Received status code 429 from server([[:space:]:]|$)|fatal: unable to access '[^']+': Failed to connect to [^[:space:]]+(:[0-9]+| port [0-9]+) after [0-9]+ ms: Could not connect to server|curl: \\(22\\) The requested URL returned error: (502|503|504)([[:space:]]|$))"
   "(exceeded maximum timeout|Job exceeded|execution took longer than [0-9]+[hms]|context deadline exceeded|TIMEOUT[[:space:]]+\\[[[:space:]]*[0-9]+([.][0-9]+)?s\\])"
   "(failed to select a version|[0-9]+ (low|moderate|high|critical) severity (vulnerability|vulnerabilities)|error: [0-9]+ (vulnerability|vulnerabilities) found!|error: [0-9]+ denied warnings? found!|error\\[(vulnerability|duplicate|unmaintained)\\]:)"
   "(command not found|: not found|xvfb-run is required in CI)"
