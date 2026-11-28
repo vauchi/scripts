@@ -88,6 +88,24 @@ expect_category "C FFI cross-compile" \
     "  = note: fatal error: 'openssl/ssl.h' file not found" "c-ffi-cross"
 expect_category "dependency resolution" \
     "error: failed to select a version for \`libc\`" "dep-resolution"
+GRADLE_LOCK_CONFLICT="Constraint path: 'project :app' (debugRuntimeClasspath) --> 'app.vauchi:vauchi-platform:{strictly 0.110.0}' because of the following reason: Dependency version enforced by Dependency Locking"
+expect_category "Gradle strict dependency lock conflicts with the requested version" \
+    "$GRADLE_LOCK_CONFLICT" "dep-resolution"
+expect_escalate "Gradle strict lock conflict is actionable" \
+    "$GRADLE_LOCK_CONFLICT" "false"
+expect_fix "Gradle strict lock conflict gives lockfile guidance" \
+    "$GRADLE_LOCK_CONFLICT" \
+    "Refresh the dependency constraint or lockfile so it selects a patched compatible version."
+expect_category "Gradle lock conflict precedes its missing downstream report" \
+    "$GRADLE_LOCK_CONFLICT
+Cannot create lint Code Quality report: [Errno 2] No such file or directory: lint-results.xml" \
+    "dep-resolution"
+expect_category "successful dependency locking explanation is not a conflict" \
+    "Dependency version enforced by Dependency Locking" "unknown"
+expect_category "Gradle dependency locking diagnostic has an exact boundary" \
+    "${GRADLE_LOCK_CONFLICT}extra" "unknown"
+expect_category "ordinary successful strict resolution is not a conflict" \
+    "Resolved Core dependencies with strict locking enabled" "unknown"
 expect_category "cargo-deny rejects duplicate contract versions" \
     "2026-11-13T08:30:54Z 01E error[duplicate]: found 2 duplicate entries for crate 'vauchi-contract'" \
     "dep-resolution"
